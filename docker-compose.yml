@@ -1,0 +1,27 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER:-aergia_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-aergia_pass}
+      POSTGRES_DB: ${DB_NAME:-aergia}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aergia_user}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - aergia
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  aergia:
+    driver: bridge
