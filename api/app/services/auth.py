@@ -31,10 +31,12 @@ class AuthService:
 
         access_token = create_access_token(user.email)
         refresh_token = create_refresh_token(user.email)
+        user.refresh_token_hash = hash_password(refresh_token)
+        await self.db.flush()
         return access_token, refresh_token, user
 
-    async def refresh(self, refresh_token: str) -> str:
-        email = verify_token(refresh_token)
+    async def refresh(self, raw_refresh_token: str) -> str:
+        email = verify_token(raw_refresh_token)
         if not email:
             raise ValueError("Invalid or expired refresh token")
 
@@ -43,7 +45,24 @@ class AuthService:
         if not user:
             raise ValueError("User not found")
 
-        return create_access_token(user.email)
+        if not user.refresh_token_hash:
+            raise ValueError("Refresh token has been revoked")
+
+        if not verify_password(raw_refresh_token, user.refresh_token_hash):
+            raise ValueError("Refresh token mismatch")
+
+        new_access_token = create_access_token(user.email)
+        new_refresh_token = create_refresh_token(user.email)
+        user.refresh_token_hash = hash_password(new_refresh_token)
+        await self.db.flush()
+        return new_access_token, new_refresh_token
+
+    async def logout(self, email: str) -> None:
+        result = await self.db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+        if user:
+            user.refresh_token_hash = None
+            await self.db.flush()
 
     async def change_password(self, email: str, old_password: str, new_password: str) -> None:
         result = await self.db.execute(select(User).where(User.email == email))
@@ -52,6 +71,8 @@ class AuthService:
             raise ValueError("Invalid current password")
 
         user.password_hash = hash_password(new_password)
+        user.refresh_token_hash = None
+        await self.db.flush()
 
     async def get_user_by_email(self, email: str) -> User | None:
         result = await self.db.execute(select(User).where(User.email == email))
