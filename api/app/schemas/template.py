@@ -2,6 +2,8 @@ from pydantic import BaseModel
 
 
 class TemplateListItem(BaseModel):
+    model_config = {"from_attributes": True}
+
     id: str
     name: str
     description: str | None
@@ -9,6 +11,8 @@ class TemplateListItem(BaseModel):
 
 
 class TemplateDetail(BaseModel):
+    model_config = {"from_attributes": True}
+
     id: str
     name: str
     description: str | None
