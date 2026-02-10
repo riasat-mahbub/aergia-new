@@ -1,10 +1,14 @@
+from contextlib import asynccontextmanager
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from pathlib import Path
 
 from app.config import get_settings
+from app.db.session import async_session
+from app.db.seed import seed_templates
 from app.routes.auth import router as auth_router
 from app.routes.cvs import router as cvs_router
 from app.routes.assets import router as assets_router
@@ -12,10 +16,19 @@ from app.routes.templates import router as templates_router
 
 settings = get_settings()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with async_session() as session:
+        await seed_templates(session)
+    yield
+
+
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     description="Build professional CVs",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
