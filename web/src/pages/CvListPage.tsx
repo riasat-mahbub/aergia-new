@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuthStore } from "../lib/store/authStore";
 import { useCVStore } from "../lib/store/cvStore";
 import CvCard from "../components/cv-list/CvCard";
 
 export default function CvListPage() {
   const navigate = useNavigate();
+  const logout = useAuthStore((s) => s.logout);
   const { cvList, isLoading, fetchCVs, createCV, deleteCV, copyCV } = useCVStore();
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -24,12 +26,20 @@ export default function CvListPage() {
     <div className="mx-auto max-w-4xl px-4 py-8">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">My CVs</h1>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
-        >
-          + New CV
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowCreate(true)}
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+          >
+            + New CV
+          </button>
+          <button
+            onClick={async () => { await logout(); navigate("/login"); }}
+            className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+          >
+            Logout
+          </button>
+        </div>
       </div>
 
       {showCreate && (
