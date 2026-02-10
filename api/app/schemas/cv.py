@@ -21,6 +21,8 @@ class CVUpdate(BaseModel):
 
 
 class CVResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     id: str
     title: str
     description: str | None
@@ -33,6 +35,8 @@ class CVResponse(BaseModel):
 
 
 class CVListItem(BaseModel):
+    model_config = {"from_attributes": True}
+
     id: str
     title: str
     template_id: str
