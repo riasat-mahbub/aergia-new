@@ -1,0 +1,66 @@
+import client from "./client";
+
+export interface CVListItem {
+  id: string;
+  title: string;
+  template_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CVDetail {
+  id: string;
+  title: string;
+  description: string | null;
+  template_id: string;
+  customizations: Record<string, unknown>;
+  sections: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CVCreateData {
+  title: string;
+  description?: string;
+  template_id?: string;
+  sections?: Record<string, unknown>;
+  customizations?: Record<string, unknown>;
+}
+
+export interface CVUpdateData {
+  title?: string;
+  description?: string;
+  template_id?: string;
+  sections?: Record<string, unknown>;
+  customizations?: Record<string, unknown>;
+}
+
+export async function fetchCVs(): Promise<CVListItem[]> {
+  const { data } = await client.get("/cvs");
+  return data;
+}
+
+export async function fetchCV(id: string): Promise<CVDetail> {
+  const { data } = await client.get(`/cvs/${id}`);
+  return data;
+}
+
+export async function createCV(input: CVCreateData): Promise<CVDetail> {
+  const { data } = await client.post("/cvs", input);
+  return data;
+}
+
+export async function updateCV(id: string, input: CVUpdateData): Promise<CVDetail> {
+  const { data } = await client.patch(`/cvs/${id}`, input);
+  return data;
+}
+
+export async function deleteCV(id: string): Promise<void> {
+  await client.delete(`/cvs/${id}`);
+}
+
+export async function copyCV(id: string): Promise<CVDetail> {
+  const { data } = await client.post(`/cvs/${id}/copy`);
+  return data;
+}
