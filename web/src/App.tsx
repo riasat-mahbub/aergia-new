@@ -4,15 +4,7 @@ import { useAuthStore } from "./lib/store/authStore";
 import ProtectedRoute from "./components/common/ProtectedRoute";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
-
-function HomePage() {
-  return (
-    <div className="p-8 text-center">
-      <h1 className="text-3xl font-bold text-gray-900">Aergia CV Builder</h1>
-      <p className="mt-2 text-gray-600">Build professional CVs</p>
-    </div>
-  );
-}
+import CvListPage from "./pages/CvListPage";
 
 function App() {
   const hydrate = useAuthStore((s) => s.hydrate);
@@ -30,7 +22,15 @@ function App() {
           path="/"
           element={
             <ProtectedRoute>
-              <HomePage />
+              <CvListPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/builder/:id"
+          element={
+            <ProtectedRoute>
+              <div className="p-8 text-center text-gray-500">Builder coming soon...</div>
             </ProtectedRoute>
           }
         />
