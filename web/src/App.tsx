@@ -5,6 +5,7 @@ import ProtectedRoute from "./components/common/ProtectedRoute";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import CvListPage from "./pages/CvListPage";
+import BuilderPage from "./pages/BuilderPage";
 
 function App() {
   const hydrate = useAuthStore((s) => s.hydrate);
@@ -30,7 +31,7 @@ function App() {
           path="/builder/:id"
           element={
             <ProtectedRoute>
-              <div className="p-8 text-center text-gray-500">Builder coming soon...</div>
+              <BuilderPage />
             </ProtectedRoute>
           }
         />
