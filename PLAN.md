@@ -587,76 +587,76 @@ aergia/
 
 | # | Task | Status |
 |---|---|---|
-| 11 | Implement cvs + templates models + migrations | ☐ |
-| 12 | CV CRUD endpoints (list, create, get, update, delete, copy) | ☐ |
-| 13 | Seed 3 generic templates (modern, classic, minimal) | ☐ |
-| 14 | CV list page with cards (title, template indicator, actions) | ☐ |
-| 15 | Copy/clone CV UI (copy action on card) | ☐ |
-| 16 | Build builder page layout (split pane: editor | preview) | ☐ |
-| 17 | Asset upload endpoint (filesystem) + photo UI | ☐ |
-| T6 | Pytest: CV CRUD flow (create → get → update → delete) | ☐ |
-| T7 | Pytest: CV copy creates independent clone | ☐ |
-| T8 | Pytest: CV data isolation by user_id | ☐ |
-| T9 | Pytest: photo upload (valid + invalid file, size limit) | ☐ |
-| T10 | Pytest: template seed creates 3 templates | ☐ |
-| T11 | Vitest: cvStore actions (create, copy, delete, save) | ☐ |
-| T12 | Vitest: cvList page renders cards with actions | ☐ |
+| 11 | Implement cvs + templates models + migrations | ✅ |
+| 12 | CV CRUD endpoints (list, create, get, update, delete, copy) | ✅ |
+| 13 | Seed 3 generic templates (modern, classic, minimal) | ✅ |
+| 14 | CV list page with cards (title, template indicator, actions) | ✅ |
+| 15 | Copy/clone CV UI (copy action on card) | ✅ |
+| 16 | Build builder page layout (split pane: editor | preview) | ✅ |
+| 17 | Asset upload endpoint (filesystem) + photo UI | ✅ |
+| T6 | Pytest: CV CRUD flow (create → get → update → delete) | ✅ |
+| T7 | Pytest: CV copy creates independent clone | ✅ |
+| T8 | Pytest: CV data isolation by user_id | ✅ |
+| T9 | Pytest: photo upload (valid + invalid file, size limit) | ✅ |
+| T10 | Pytest: template seed creates 3 templates | ✅ |
+| T11 | Vitest: cvStore actions (create, copy, delete, save) | ✅ |
+| T12 | Vitest: cvList page renders cards with actions | ✅ |
 | 18 | Manual test: create CV → see in list → copy → both work | ☐ |
 
 ### Phase 3 — Sections + Preview
 
-| # | Task |
-|---|---|
-| 19 | ProfileSection editor + renderer |
-| 20 | ExperienceSection editor (repeatable entries) + renderer |
-| 21 | EducationSection editor + renderer |
-| 22 | SkillsSection editor + renderer |
-| 23 | ProjectsSection editor + renderer |
-| 24 | LanguagesSection editor + renderer |
-| 25 | CertificationsSection editor + renderer |
-| 26 | Section list with drag-and-drop (dnd-kit) |
-| 27 | Enable/disable section toggles |
-| 28 | Build generic-modern template renderer |
-| 29 | Build generic-classic template renderer |
-| 30 | Build generic-minimal template renderer |
-| 31 | Template switching in preview (instant) |
-| 32 | Customization panel (color, font, spacing) |
-| T13 | Pytest: section data stored correctly in JSONB |
-| T14 | Pytest: section ordering preserved through update |
-| T15 | Pytest: validation rejects invalid section data |
-| T16 | Pytest: all 3 templates render preview HTML correctly |
-| T17 | Vitest: each section editor renders + accepts input (7 tests) |
-| T18 | Vitest: section drag-and-drop reorders correctly |
-| T19 | Vitest: template switcher swaps renderer + applies config |
-| T20 | Vitest: customization panel updates CSS variables |
+| # | Task | Status |
+|---|---|---|
+| 19 | ProfileSection editor + renderer | ☐ |
+| 20 | ExperienceSection editor (repeatable entries) + renderer | ☐ |
+| 21 | EducationSection editor + renderer | ☐ |
+| 22 | SkillsSection editor + renderer | ☐ |
+| 23 | ProjectsSection editor + renderer | ☐ |
+| 24 | LanguagesSection editor + renderer | ☐ |
+| 25 | CertificationsSection editor + renderer | ☐ |
+| 26 | Section list with drag-and-drop (dnd-kit) | ☐ |
+| 27 | Enable/disable section toggles | ☐ |
+| 28 | Build generic-modern template renderer | ☐ |
+| 29 | Build generic-classic template renderer | ☐ |
+| 30 | Build generic-minimal template renderer | ☐ |
+| 31 | Template switching in preview (instant) | ☐ |
+| 32 | Customization panel (color, font, spacing) | ☐ |
+| T13 | Pytest: section data stored correctly in JSONB | ☐ |
+| T14 | Pytest: section ordering preserved through update | ☐ |
+| T15 | Pytest: validation rejects invalid section data | ☐ |
+| T16 | Pytest: all 3 templates render preview HTML correctly | ☐ |
+| T17 | Vitest: each section editor renders + accepts input (7 tests) | ☐ |
+| T18 | Vitest: section drag-and-drop reorders correctly | ☐ |
+| T19 | Vitest: template switcher swaps renderer + applies config | ☐ |
+| T20 | Vitest: customization panel updates CSS variables | ☐ |
 
 ### Phase 4 — PDF + Polish
 
-| # | Task |
-|---|---|
-| 33 | In-process Puppeteer PDF export |
-| 34 | Preview = PDF exact match |
-| 35 | Auto-save with debounce (3s) |
-| 36 | Validation errors display |
-| 37 | Toast notifications, loading states, empty states |
-| 38 | Error handling UI |
-| T21 | Pytest: PDF export returns valid PDF for all templates |
-| T22 | Pytest: PDF content matches CV data |
-| T23 | Pytest/TS: auto-save debounces correctly (unit) |
-| T24 | Pytest: PDF export fails gracefully for non-existent CV |
-| T25 | Vitest: PDF export trigger + success/fail handling |
-| T26 | Vitest: auto-save debounced save fires at correct interval |
-| T27 | Vitest: toast system renders success/error (component) |
-| T28 | E2E: full user journey (login → create → edit → switch template → export → logout) |
-| 39 | Final integration testing |
+| # | Task | Status |
+|---|---|---|
+| 33 | In-process Puppeteer PDF export | ☐ |
+| 34 | Preview = PDF exact match | ☐ |
+| 35 | Auto-save with debounce (3s) | ☐ |
+| 36 | Validation errors display | ☐ |
+| 37 | Toast notifications, loading states, empty states | ☐ |
+| 38 | Error handling UI | ☐ |
+| T21 | Pytest: PDF export returns valid PDF for all templates | ☐ |
+| T22 | Pytest: PDF content matches CV data | ☐ |
+| T23 | Pytest/TS: auto-save debounces correctly (unit) | ☐ |
+| T24 | Pytest: PDF export fails gracefully for non-existent CV | ☐ |
+| T25 | Vitest: PDF export trigger + success/fail handling | ☐ |
+| T26 | Vitest: auto-save debounced save fires at correct interval | ☐ |
+| T27 | Vitest: toast system renders success/error (component) | ☐ |
+| T28 | E2E: full user journey (login → create → edit → switch template → export → logout) | ☐ |
+| 39 | Final integration testing | ☐ |
 
 ### Phase 5 — Desktop (Future)
 
-| # | Task |
-|---|---|
-| 40 | Initialize Tauri 2.x in desktop/ |
-| 41 | Configure Tauri to load http://api-server:8000/ |
-| 42 | Add native menu + system tray |
+| # | Task | Status |
+|---|---|---|
+| 40 | Initialize Tauri 2.x in desktop/ | ☐ |
+| 41 | Configure Tauri to load http://api-server:8000/ | ☐ |
+| 42 | Add native menu + system tray | ☐ |
 
 ---
 
