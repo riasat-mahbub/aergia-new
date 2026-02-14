@@ -607,28 +607,28 @@ aergia/
 
 | # | Task | Status |
 |---|---|---|
-| 19 | ProfileSection editor + renderer | ☐ |
-| 20 | ExperienceSection editor (repeatable entries) + renderer | ☐ |
-| 21 | EducationSection editor + renderer | ☐ |
-| 22 | SkillsSection editor + renderer | ☐ |
-| 23 | ProjectsSection editor + renderer | ☐ |
-| 24 | LanguagesSection editor + renderer | ☐ |
-| 25 | CertificationsSection editor + renderer | ☐ |
-| 26 | Section list with drag-and-drop (dnd-kit) | ☐ |
-| 27 | Enable/disable section toggles | ☐ |
-| 28 | Build generic-modern template renderer | ☐ |
-| 29 | Build generic-classic template renderer | ☐ |
-| 30 | Build generic-minimal template renderer | ☐ |
-| 31 | Template switching in preview (instant) | ☐ |
-| 32 | Customization panel (color, font, spacing) | ☐ |
-| T13 | Pytest: section data stored correctly in JSONB | ☐ |
-| T14 | Pytest: section ordering preserved through update | ☐ |
-| T15 | Pytest: validation rejects invalid section data | ☐ |
-| T16 | Pytest: all 3 templates render preview HTML correctly | ☐ |
-| T17 | Vitest: each section editor renders + accepts input (7 tests) | ☐ |
-| T18 | Vitest: section drag-and-drop reorders correctly | ☐ |
-| T19 | Vitest: template switcher swaps renderer + applies config | ☐ |
-| T20 | Vitest: customization panel updates CSS variables | ☐ |
+| 19 | ProfileSection editor + renderer | ✅ |
+| 20 | ExperienceSection editor (repeatable entries) + renderer | ✅ |
+| 21 | EducationSection editor + renderer | ✅ |
+| 22 | SkillsSection editor + renderer | ✅ |
+| 23 | ProjectsSection editor + renderer | ✅ |
+| 24 | LanguagesSection editor + renderer | ✅ |
+| 25 | CertificationsSection editor + renderer | ✅ |
+| 26 | Section list with drag-and-drop (dnd-kit) | ✅ |
+| 27 | Enable/disable section toggles | ✅ |
+| 28 | Build generic-modern template renderer | ✅ |
+| 29 | Build generic-classic template renderer | ✅ |
+| 30 | Build generic-minimal template renderer | ✅ |
+| 31 | Template switching in preview (instant) | ✅ |
+| 32 | Customization panel (color, font, spacing) | ✅ |
+| T13 | Pytest: section data stored correctly in JSONB | ✅ |
+| T14 | Pytest: section ordering preserved through update | ✅ |
+| T15 | Pytest: validation rejects invalid section data | ✅ |
+| T16 | Pytest: all 3 templates render preview HTML correctly | ✅ |
+| T17 | Vitest: each section editor renders + accepts input (7 tests) | ✅ |
+| T18 | Vitest: section drag-and-drop reorders correctly | ✅ |
+| T19 | Vitest: template switcher swaps renderer + applies config | ✅ |
+| T20 | Vitest: customization panel updates CSS variables | ✅ |
 
 ### Phase 4 — PDF + Polish
 
