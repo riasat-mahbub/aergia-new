@@ -34,3 +34,17 @@ async def test_template_detail(client):
 async def test_template_detail_not_found(client):
     resp = await client.get("/api/v1/templates/non-existent")
     assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_all_templates_have_render_config(client):
+    """T16: All 3 templates have complete render config for preview"""
+    resp = await client.get("/api/v1/templates")
+    for t in resp.json():
+        detail = await client.get(f"/api/v1/templates/{t['id']}")
+        data = detail.json()
+        assert "layout_config" in data
+        assert "section_schema" in data
+        assert "default_customizations" in data
+        assert "columns" in data["layout_config"]
+        assert "widths" in data["layout_config"]
