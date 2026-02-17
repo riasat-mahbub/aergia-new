@@ -9,7 +9,7 @@ class CVCreate(BaseModel):
     template_id: str = "generic-modern"
     sections: dict = {"order": [], "enabled": [], "data": {}}
     customizations: dict = {}
-    metadata: dict = {}
+    extra_metadata: dict = {}
 
 
 class CVUpdate(BaseModel):
@@ -29,7 +29,7 @@ class CVResponse(BaseModel):
     template_id: str
     customizations: dict
     sections: dict
-    metadata: dict
+    extra_metadata: dict
     created_at: datetime
     updated_at: datetime
 

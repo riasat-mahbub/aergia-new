@@ -18,7 +18,7 @@ class CV(Base):
     template_id: Mapped[str] = mapped_column(String(50), nullable=False)
     customizations: Mapped[dict] = mapped_column(JSONB, default=dict)
     sections: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    metadata: Mapped[dict] = mapped_column(JSONB, default=dict)
+    extra_metadata: Mapped[dict] = mapped_column("metadata", JSONB, default=dict)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(

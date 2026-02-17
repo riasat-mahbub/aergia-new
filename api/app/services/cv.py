@@ -32,7 +32,7 @@ class CVService:
             template_id=data.template_id,
             sections=data.sections,
             customizations=data.customizations,
-            metadata=data.metadata,
+            extra_metadata=data.extra_metadata,
         )
         self.db.add(cv)
         await self.db.flush()
@@ -71,7 +71,7 @@ class CVService:
             template_id=original.template_id,
             sections=original.sections,
             customizations=original.customizations,
-            metadata=original.metadata,
+            extra_metadata=original.extra_metadata,
         )
         self.db.add(new_cv)
         await self.db.flush()
