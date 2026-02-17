@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import client from "../../lib/api/client";
 
 interface PhotoUploadProps {
@@ -34,15 +35,31 @@ export default function PhotoUpload({ currentUrl, onUpload }: PhotoUploadProps) 
 
   return (
     <div className="flex items-center gap-4">
-      {preview ? (
-        <img src={preview} alt="Profile" className="h-16 w-16 rounded-full object-cover" />
-      ) : (
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-gray-400">
-          <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-          </svg>
-        </div>
-      )}
+      <AnimatePresence mode="wait">
+        {preview ? (
+          <motion.img
+            key="preview"
+            src={preview}
+            alt="Profile"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            className="h-16 w-16 rounded-full object-cover"
+          />
+        ) : (
+          <motion.div
+            key="placeholder"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-gray-400"
+          >
+            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <button
         type="button"
         onClick={() => inputRef.current?.click()}

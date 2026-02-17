@@ -12,14 +12,12 @@ import LanguagesEditor from "./languages/LanguagesEditor";
 import LanguagesRenderer from "./languages/LanguagesRenderer";
 import CertificationsEditor from "./certifications/CertificationsEditor";
 import CertificationsRenderer from "./certifications/CertificationsRenderer";
-import type { SectionData } from "../../lib/sections/types";
-
 type EditorProps<T> = { data: T | undefined; onChange: (data: T) => void };
 type RendererProps<T> = { data: T | undefined };
 
 interface SectionComponent<T = unknown> {
-  Editor: (props: EditorProps<T>) => JSX.Element;
-  Renderer: (props: RendererProps<T>) => JSX.Element;
+  Editor: (props: EditorProps<T>) => React.JSX.Element;
+  Renderer: (props: RendererProps<T>) => React.JSX.Element;
 }
 
 const sectionMap: Record<string, SectionComponent<any>> = {

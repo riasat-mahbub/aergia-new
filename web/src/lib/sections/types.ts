@@ -25,6 +25,7 @@ export interface EducationEntry {
   degree: string;
   start_date: string;
   end_date: string | null;
+  current: boolean;
   gpa: string;
 }
 

@@ -5,7 +5,7 @@ export function useFieldArray<T extends { id: string }>(
   onChange: (data: T[]) => void,
   createDefault: () => T
 ) {
-  const [entries] = useState(() => data.length > 0 ? data : []);
+  useState(() => data.length > 0 ? data : []);
 
   const add = () => {
     onChange([...data, createDefault()]);

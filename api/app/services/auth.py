@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.models.user import User
-from app.core.auth import hash_password, verify_password, create_access_token, create_refresh_token, verify_token
+from app.core.auth import hash_password, verify_password, hash_token, verify_token_hash, create_access_token, create_refresh_token, verify_token
 from app.schemas.auth import RegisterRequest, LoginRequest
 
 
@@ -31,7 +31,7 @@ class AuthService:
 
         access_token = create_access_token(user.email)
         refresh_token = create_refresh_token(user.email)
-        user.refresh_token_hash = hash_password(refresh_token)
+        user.refresh_token_hash = hash_token(refresh_token)
         await self.db.flush()
         return access_token, refresh_token, user
 
@@ -48,12 +48,12 @@ class AuthService:
         if not user.refresh_token_hash:
             raise ValueError("Refresh token has been revoked")
 
-        if not verify_password(raw_refresh_token, user.refresh_token_hash):
+        if not verify_token_hash(raw_refresh_token, user.refresh_token_hash):
             raise ValueError("Refresh token mismatch")
 
         new_access_token = create_access_token(user.email)
         new_refresh_token = create_refresh_token(user.email)
-        user.refresh_token_hash = hash_password(new_refresh_token)
+        user.refresh_token_hash = hash_token(new_refresh_token)
         await self.db.flush()
         return new_access_token, new_refresh_token
 

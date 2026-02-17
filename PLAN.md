@@ -32,6 +32,8 @@ CORS is not needed at all. The desktop Tauri wrapper loads the same URL.
 | **Forms** | React Hook Form + Zod |
 | **Styling** | Tailwind CSS + CSS Modules (templates) |
 | **Drag & Drop** | dnd-kit |
+| **Icons** | lucide-react |
+| **Animations** | motion (motion.dev) |
 | **HTTP Client** | axios |
 | **Container** | Docker + docker-compose (2 containers) |
 | **Desktop** | Tauri 2.x (future, loads same URL) |
@@ -439,10 +441,10 @@ volumes:
 - Frontend: Vitest + React Testing Library
 
 ### Test Inventory
-- Backend: 13 tests (3 unit + 10 integration)
-- Frontend: 15 tests (7 component + 6 unit + 2 infrastructure)
+- Backend: 16 tests (3 unit + 13 integration)
+- Frontend: 18 tests (10 component + 6 unit + 2 infrastructure)
 - End-to-end: 1 comprehensive flow test
-- Total: 29 tests
+- Total: 35 tests
 
 ### Locations
 ```
@@ -452,11 +454,11 @@ api/tests/
 ├── test_cvs.py                     ← T6, T7, T8
 ├── test_assets.py                  ← T9
 ├── test_templates.py               ← T10
-├── test_pdf.py                     ← T21, T22, T24
-└── unit/
-    ├── conftest.py
-    ├── test_security.py            ← T1 (password hashing, JWT)
-    └── test_schemas.py             ← T2, T15 (Pydantic validation)
+├── test_preview.py                 ← T44              ⚡ Phase 4
+├── unit/
+│   ├── conftest.py
+│   ├── test_security.py            ← T1 (password hashing, JWT)
+│   └── test_schemas.py             ← T2, T15 (Pydantic validation)
 
 web/src/
 ├── lib/store/__tests__/
@@ -465,14 +467,15 @@ web/src/
 ├── components/__tests__/
 │   ├── LoginForm.test.tsx          ← T5
 │   ├── RegisterForm.test.tsx       ← T5
-│   ├── CvList.test.tsx             ← T12
-│   ├── SectionList.test.tsx        ← T17, T18
+│   ├── CvList.test.tsx             ← T12, T35.2       ⚡ Phase 3.5
+│   ├── SectionList.test.tsx        ← T17, T18, T35.1  ⚡ Phase 3.5
 │   ├── TemplateSwitcher.test.tsx   ← T19
 │   ├── CustomizePanel.test.tsx     ← T20
-│   ├── ExportButton.test.tsx       ← T25
-│   └── Toast.test.tsx              ← T27
+│   ├── SectionEditors.test.tsx     ← T17, T35.3       ⚡ Phase 3.5
+│   ├── ExportButton.test.tsx       ← T50
+│   └── Toast.test.tsx              ← T52
 ├── hooks/__tests__/
-│   └── useAutoSave.test.ts         ← T23, T26
+│   └── useAutoSave.test.ts         ← T48, T51
 └── api/__tests__/
     └── client.test.ts              ← auth interceptor injection
 ```
@@ -500,7 +503,7 @@ aergia/
 │       ├── core/
 │       │   ├── auth.py                 ← JWT create/verify/refresh
 │       │   ├── deps.py                 ← FastAPI injection deps
-│       │   └── security.py             ← bcrypt hashing
+│       │   └── auth.py                 ← bcrypt hashing + JWT
 │       ├── db/
 │       │   ├── session.py              ← SessionLocal, engine, Base
 │       │   └── seed.py                 ← seed templates on boot
@@ -521,7 +524,8 @@ aergia/
 │       │   ├── auth.py
 │       │   ├── cv.py
 │       │   ├── photo.py
-│       │   └── pdf.py
+│       │   ├── pdf.py
+│       │   └── renderer.py              ← HTML preview generation (Phase 4)
 │       └── uploads/
 │
 ├── web/
@@ -540,15 +544,26 @@ aergia/
 │       │   ├── builder/
 │       │   ├── preview/
 │       │   ├── cv-list/
+│       │   │   ├── CvCard.tsx
+│       │   │   ├── CreateCvModal.tsx          ← Phase 3.5
+│       │   │   └── DeleteCvModal.tsx          ← Phase 3.5
 │       │   ├── template-browser/
+│       │   │   └── TemplateBrowser.tsx        ← Phase 3.5
 │       │   ├── customization/
 │       │   └── common/
+│       │       ├── PhotoUpload.tsx
+│       │       ├── ProtectedRoute.tsx
+│       │       ├── Modal.tsx                  ← Phase 3.5 (shared)
+│       │       └── AccordionPanel.tsx         ← Phase 3.5 (shared)
 │       ├── lib/
 │       │   ├── store/
 │       │   ├── api/
 │       │   ├── sections/
 │       │   ├── validators/
+│       │   │   ├── auth.ts                    ← login + register schemas
+│       │   │   └── sections.ts               ← 7 section Zod schemas (Phase 4)
 │       │   └── templates/
+│       │       └── config.ts                 ← Frontend template metadata (Phase 3.5)
 │       └── pages/
 │
 ├── scripts/
@@ -630,33 +645,59 @@ aergia/
 | T19 | Vitest: template switcher swaps renderer + applies config | ✅ |
 | T20 | Vitest: customization panel updates CSS variables | ✅ |
 
-### Phase 4 — PDF + Polish
+### Phase 3.5 — Polish & UX (NEW)
 
 | # | Task | Status |
 |---|---|---|
-| 33 | In-process Puppeteer PDF export | ☐ |
-| 34 | Preview = PDF exact match | ☐ |
-| 35 | Auto-save with debounce (3s) | ☐ |
-| 36 | Validation errors display | ☐ |
-| 37 | Toast notifications, loading states, empty states | ☐ |
-| 38 | Error handling UI | ☐ |
-| T21 | Pytest: PDF export returns valid PDF for all templates | ☐ |
-| T22 | Pytest: PDF content matches CV data | ☐ |
-| T23 | Pytest/TS: auto-save debounces correctly (unit) | ☐ |
-| T24 | Pytest: PDF export fails gracefully for non-existent CV | ☐ |
-| T25 | Vitest: PDF export trigger + success/fail handling | ☐ |
-| T26 | Vitest: auto-save debounced save fires at correct interval | ☐ |
-| T27 | Vitest: toast system renders success/error (component) | ☐ |
-| T28 | E2E: full user journey (login → create → edit → switch template → export → logout) | ☐ |
-| 39 | Final integration testing | ☐ |
+| 33 | Install lucide-react, motion, @tailwindcss/forms | ☐ |
+| 34 | Create shared Modal + AccordionPanel components | ☐ |
+| 35 | Replace enable/disable checkboxes with eye icons (Eye/EyeOff) | ☐ |
+| 36 | Create CV modal (title + template selection) | ☐ |
+| 37 | Delete CV confirmation modal | ☐ |
+| 38 | Repeatable entry accordion (6 section editors) | ☐ |
+| 39 | CV grid layout refinement (responsive cols, card polish) | ☐ |
+| 40 | Add Section UI (dropdown to add new section types) | ☐ |
+| 41 | Template Browser UI (visual template selector in builder) | ☐ |
+| 42 | Motion animations across all components | ☐ |
+| T35.1 | Vitest: section list eye icons, add section dropdown | ☐ |
+| T35.2 | Vitest: create/delete CV modals | ☐ |
+| T35.3 | Vitest: accordion expand/collapse on all 6 editors | ☐ |
 
-### Phase 5 — Desktop (Future)
+### Phase 4 — Data Integrity & Backend Preview (NEW)
 
 | # | Task | Status |
 |---|---|---|
-| 40 | Initialize Tauri 2.x in desktop/ | ☐ |
-| 41 | Configure Tauri to load http://api-server:8000/ | ☐ |
-| 42 | Add native menu + system tray | ☐ |
+| 43 | Section Zod validation schemas (7 sections) | ☐ |
+| 44 | Backend preview endpoint (HTML renderer service + route) | ☐ |
+| T44 | Pytest: preview endpoint renders correct HTML for all 3 templates | ☐ |
+
+### Phase 5 — PDF + Final Polish (was Phase 4)
+
+| # | Task | Status |
+|---|---|---|
+| 45 | In-process Puppeteer PDF export | ☐ |
+| 46 | Preview = PDF exact match | ☐ |
+| 47 | Auto-save with debounce (3s) | ☐ |
+| 48 | Validation errors display | ☐ |
+| 49 | Toast notifications, loading states, empty states | ☐ |
+| 50 | Error handling UI | ☐ |
+| T45 | Pytest: PDF export returns valid PDF for all templates | ☐ |
+| T46 | Pytest: PDF content matches CV data | ☐ |
+| T47 | Pytest/TS: auto-save debounces correctly (unit) | ☐ |
+| T48 | Pytest: PDF export fails gracefully for non-existent CV | ☐ |
+| T49 | Vitest: PDF export trigger + success/fail handling | ☐ |
+| T50 | Vitest: auto-save debounced save fires at correct interval | ☐ |
+| T51 | Vitest: toast system renders success/error (component) | ☐ |
+| T52 | E2E: full user journey (login → create → edit → switch template → export → logout) | ☐ |
+| 51 | Final integration testing | ☐ |
+
+### Phase 6 — Desktop (Future) (was Phase 5)
+
+| # | Task | Status |
+|---|---|---|
+| 52 | Initialize Tauri 2.x in desktop/ | ☐ |
+| 53 | Configure Tauri to load http://api-server:8000/ | ☐ |
+| 54 | Add native menu + system tray | ☐ |
 
 ---
 
@@ -705,7 +746,7 @@ sqlalchemy>=2.0
 alembic>=1.13
 asyncpg>=0.29
 python-jose[cryptography]>=3.3
-passlib[bcrypt]>=1.7
+bcrypt>=4.1
 python-multipart>=0.0.9
 pydantic>=2.7
 pypdf>=4.2
