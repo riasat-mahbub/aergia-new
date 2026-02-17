@@ -5,9 +5,11 @@ __pycache__/
 .venv/
 venv/
 node_modules/
+node_modules_bak/
 dist/
 build/
 *.db
 *.sqlite3
 .DS_Store
 *.pyc
+*.tsbuildinfo
