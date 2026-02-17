@@ -11,8 +11,6 @@ command -v pip3 >/dev/null 2>&1 || command -v pip >/dev/null 2>&1 || { echo "ERR
 command -v node >/dev/null 2>&1 || { echo "ERROR: node not found"; exit 1; }
 command -v npm  >/dev/null 2>&1 || { echo "ERROR: npm not found"; exit 1; }
 
-PIP="$(command -v pip3 || command -v pip)"
-
 # Detect docker compose command
 if docker compose version >/dev/null 2>&1; then
     DOCKER_COMPOSE="docker compose"
@@ -59,7 +57,7 @@ if [ ! -d "$API_DIR/.venv" ]; then
 fi
 source "$API_DIR/.venv/bin/activate"
 cd "$API_DIR"
-$PIP install -q -e ".[test]"
+pip install -q -e ".[test]"
 
 # ── 3. Run migrations ──────────────────────────────────────────────
 echo "=== Running database migrations ==="
