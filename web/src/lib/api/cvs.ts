@@ -15,7 +15,7 @@ export interface CVDetail {
   template_id: string;
   customizations: Record<string, unknown>;
   sections: Record<string, unknown>;
-  metadata: Record<string, unknown>;
+  extra_metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
