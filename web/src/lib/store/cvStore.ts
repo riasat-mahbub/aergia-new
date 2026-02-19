@@ -7,7 +7,7 @@ interface CVState {
   isLoading: boolean;
 
   fetchCVs: () => Promise<void>;
-  createCV: (title: string) => Promise<void>;
+  createCV: (title: string, template_id?: string) => Promise<cvsApi.CVDetail>;
   deleteCV: (id: string) => Promise<void>;
   copyCV: (id: string) => Promise<void>;
   loadCV: (id: string) => Promise<void>;
@@ -28,9 +28,10 @@ export const useCVStore = create<CVState>((set, get) => ({
     }
   },
 
-  createCV: async (title: string) => {
-    await cvsApi.createCV({ title });
+  createCV: async (title: string, template_id?: string) => {
+    const cv = await cvsApi.createCV({ title, template_id });
     await get().fetchCVs();
+    return cv;
   },
 
   deleteCV: async (id: string) => {

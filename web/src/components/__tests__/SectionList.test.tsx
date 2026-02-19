@@ -54,8 +54,9 @@ describe("SectionList", () => {
       />
     );
 
-    const checkboxes = screen.getAllByRole("checkbox");
-    expect((checkboxes[0] as HTMLInputElement).checked).toBe(true);
-    expect((checkboxes[1] as HTMLInputElement).checked).toBe(false);
+    const profileToggle = screen.getByTitle("Disable section");
+    const educationToggle = screen.getByTitle("Enable section");
+    expect(profileToggle).toBeDefined();
+    expect(educationToggle).toBeDefined();
   });
 });

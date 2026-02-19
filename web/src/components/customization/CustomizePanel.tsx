@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 
 interface Props {
   customizations: Record<string, any>;
@@ -48,8 +49,14 @@ export default function CustomizePanel({ customizations, onChange }: Props) {
         ))}
       </div>
 
-      {activeTab === "colors" && (
-        <div className="space-y-2">
+      <AnimatePresence>
+        {activeTab === "colors" && (
+          <motion.div
+            key="colors"
+            initial={false}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 10 }}
+            className="space-y-2">
           {[
             { key: "accent", label: "Accent", default: "#2563eb" },
             { key: "bg_sidebar", label: "Sidebar BG", default: "#f8fafc" },
@@ -57,7 +64,7 @@ export default function CustomizePanel({ customizations, onChange }: Props) {
             { key: "divider", label: "Divider", default: "#d1d5db" },
             { key: "text", label: "Text", default: "#374151" },
             { key: "heading", label: "Heading", default: "#111827" },
-          ].map(({ key, label, _default }) => (
+          ].map(({ key, label, default: _default }) => (
             <div key={key} className="flex items-center gap-2">
               <label className="w-20 text-xs text-gray-600">{label}</label>
               <input
@@ -74,11 +81,16 @@ export default function CustomizePanel({ customizations, onChange }: Props) {
               />
             </div>
           ))}
-        </div>
+        </motion.div>
       )}
 
       {activeTab === "fonts" && (
-        <div className="space-y-3">
+        <motion.div
+          key="fonts"
+          initial={false}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: 10 }}
+          className="space-y-3">
           <div>
             <label className="block text-xs text-gray-600">Body Font</label>
             <select value={fonts.body || "Inter, system-ui, sans-serif"} onChange={(e) => updateFonts("body", e.target.value)} className="mt-1 w-full rounded border px-2 py-1 text-sm">
@@ -91,11 +103,16 @@ export default function CustomizePanel({ customizations, onChange }: Props) {
               {FONT_OPTIONS.map((f) => <option key={f} value={f}>{f.split(",")[0]}</option>)}
             </select>
           </div>
-        </div>
+        </motion.div>
       )}
 
       {activeTab === "spacing" && (
-        <div className="space-y-3">
+        <motion.div
+          key="spacing"
+          initial={false}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: 10 }}
+          className="space-y-3">
           <div>
             <label className="block text-xs text-gray-600">Section Gap: {spacing.section_gap || "24px"}</label>
             <input
@@ -107,8 +124,9 @@ export default function CustomizePanel({ customizations, onChange }: Props) {
               className="mt-1 w-full"
             />
           </div>
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 }

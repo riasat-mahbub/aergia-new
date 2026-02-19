@@ -1,21 +1,29 @@
-"""Core security module - password hashing and token utilities."""
+"""Core security module - password hashing, token hashing, and JWT utilities."""
 
-from passlib.context import CryptContext
+import hashlib
+
+import bcrypt
 from jose import JWTError, jwt
 from datetime import datetime, timedelta, timezone
 from app.config import get_settings
 
 settings = get_settings()
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=12)).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+
+
+def hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def verify_token_hash(token: str, stored_hash: str) -> bool:
+    return hash_token(token) == stored_hash
 
 
 def create_access_token(email: str) -> str:

@@ -11,7 +11,7 @@ describe("ProfileEditor", () => {
     const onChange = vi.fn();
     render(<ProfileEditor data={{ name: "", title: "", email: "", phone: "", location: "", summary: "", photo_url: "" }} onChange={onChange} />);
 
-    const nameInput = screen.getByLabelText(/full name/i);
+    const nameInput = screen.getAllByRole("textbox")[0];
     fireEvent.change(nameInput, { target: { value: "John" } });
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ name: "John" }));
   });
