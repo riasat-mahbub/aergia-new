@@ -106,52 +106,68 @@ Budget: 730MB used, 4GB available. Comfortable margin.
 
 ```json
 {
-  "order": ["profile", "experience", "education", "skills", "projects", "languages", "certifications"],
-  "enabled": ["profile", "experience", "education", "skills", "projects"],
-  "data": {
-    "profile": {
-      "name": "Jane Doe",
-      "title": "Software Engineer",
-      "email": "jane@example.com",
-      "phone": "+1 555-1234",
-      "location": "Boston, MA",
-      "summary": "5+ years building...",
-      "photo_url": "/uploads/user_photo.jpg"
-    },
-    "experience": [
-      {
-        "id": "exp_1",
-        "company": "Acme Corp",
-        "position": "Senior Engineer",
-        "start_date": "2022-01",
-        "end_date": null,
-        "current": true,
+  "instances": [
+    {
+      "id": "sec_uuid_1",
+      "type": "profile",
+      "title": "Profile",
+      "enabled": true,
+      "data": {
+        "name": "Jane Doe",
+        "title": "Software Engineer",
+        "email": "jane@example.com",
+        "phone": "+1 555-1234",
         "location": "Boston, MA",
-        "description": "Led team of 5..."
+        "summary": "5+ years building...",
+        "photo_url": "/uploads/user_photo.jpg"
       }
-    ],
-    "education": [...],
-    "skills": [...],
-    "projects": [...],
-    "languages": [...],
-    "certifications": [...]
-  }
+    },
+    {
+      "id": "sec_uuid_2",
+      "type": "experience",
+      "title": "Work Experience",
+      "enabled": true,
+      "data": [
+        {
+          "id": "exp_1",
+          "company": "Acme Corp",
+          "position": "Senior Engineer",
+          "start_date": "2022-01",
+          "end_date": null,
+          "current": true,
+          "location": "Boston, MA",
+          "description": "Led team of 5..."
+        }
+      ]
+    },
+    {
+      "id": "sec_uuid_3",
+      "type": "education",
+      "title": "Education",
+      "enabled": true,
+      "data": [...]
+    }
+  ]
 }
 ```
 
+Each section is a self-contained instance with its own ID, type, title, enabled state, and data. Order is determined by array position. Multiple instances of the same type are permitted (e.g. two "experience" sections with different titles).
+
 ---
 
-## 4. CV Section Types (7 Sections)
+## 4. CV Section Types (7 Section Types)
 
-| Section | Fields | Type |
+Each section is a **SectionInstance** — a self-contained object with its own `id`, `type`, `title` (user-customizable), `enabled` flag, and `data`. Multiple instances of the same type are allowed (e.g. two "Experience" sections). The data shapes per type:
+
+| Section Type | Fields | Data Shape |
 |---|---|---|
-| Profile | name, title, email, phone, location, summary, photo_url | Single entry |
-| Experience | company, position, start_date, end_date, current, location, description | Repeatable |
-| Education | institution, degree, start_date, end_date, gpa | Repeatable |
-| Skills | id, category, items[] | Repeatable groups |
-| Projects | name, url, start_date, end_date, description, tech_stack[] | Repeatable |
-| Languages | language, proficiency | Repeatable |
-| Certifications | name, issuer, date, credential_url | Repeatable |
+| Profile | name, title, email, phone, location, summary, photo_url | Single object |
+| Experience | company, position, start_date, end_date, current, location, description | Array |
+| Education | institution, degree, start_date, end_date, current, gpa | Array |
+| Skills | id, category, items[] | Array |
+| Projects | name, url, start_date, end_date, description, tech_stack[] | Array |
+| Languages | language, proficiency | Array |
+| Certifications | name, issuer, date, credential_url | Array |
 
 ---
 
@@ -351,8 +367,8 @@ Customization overrides stored in `cvs.customizations`, applied as CSS variables
 - login(), register(), logout(), changePassword()
 
 ### cvStore
-- currentCV, cvList, activeSectionId
-- updateField(), updateSection(), reorderSections(), addSection(), removeSection()
+- currentCV, cvList
+- **Instance CRUD:** addInstance(), removeInstance(), updateInstanceData(), reorderInstances(), toggleInstance(), renameInstance()
 - createCV(), copyCV(), deleteCV(), setTemplate(), saveCV(), exportPDF(), autoSave()
 
 ### templateStore
@@ -442,9 +458,9 @@ volumes:
 
 ### Test Inventory
 - Backend: 16 tests (3 unit + 13 integration)
-- Frontend: 18 tests (10 component + 6 unit + 2 infrastructure)
+- Frontend: 20 tests (12 component + 6 unit + 2 infrastructure)
 - End-to-end: 1 comprehensive flow test
-- Total: 35 tests
+- Total: 37 tests
 
 ### Locations
 ```
@@ -455,6 +471,7 @@ api/tests/
 ├── test_assets.py                  ← T9
 ├── test_templates.py               ← T10
 ├── test_preview.py                 ← T44              ⚡ Phase 4
+├── test_sections.py                ← T13, T14, T15
 ├── unit/
 │   ├── conftest.py
 │   ├── test_security.py            ← T1 (password hashing, JWT)
@@ -463,19 +480,21 @@ api/tests/
 web/src/
 ├── lib/store/__tests__/
 │   ├── authStore.test.ts           ← T4
-│   └── cvStore.test.ts             ← T11
+│   ├── cvStore.test.ts             ← T11
+│   └── sectionInstanceStore.test.ts ← T46              ⚡ Phase 5
 ├── components/__tests__/
 │   ├── LoginForm.test.tsx          ← T5
 │   ├── RegisterForm.test.tsx       ← T5
 │   ├── CvList.test.tsx             ← T12, T35.2       ⚡ Phase 3.5
-│   ├── SectionList.test.tsx        ← T17, T18, T35.1  ⚡ Phase 3.5
+│   ├── SectionList.test.tsx        ← T17, T18, T35.1  ⚡ Phase 5
 │   ├── TemplateSwitcher.test.tsx   ← T19
-│   ├── CustomizePanel.test.tsx     ← T20
+│   ├── CustomizePanel.test.tsx     ← T20, T48          ⚡ Phase 6
 │   ├── SectionEditors.test.tsx     ← T17, T35.3       ⚡ Phase 3.5
-│   ├── ExportButton.test.tsx       ← T50
-│   └── Toast.test.tsx              ← T52
+│   ├── AddSectionModal.test.tsx    ← T47              ⚡ Phase 6
+│   ├── ExportButton.test.tsx       ← T53
+│   └── Toast.test.tsx              ← T55
 ├── hooks/__tests__/
-│   └── useAutoSave.test.ts         ← T48, T51
+│   └── useAutoSave.test.ts         ← T51, T54
 └── api/__tests__/
     └── client.test.ts              ← auth interceptor injection
 ```
@@ -671,33 +690,60 @@ aergia/
 | 44 | Backend preview endpoint (HTML renderer service + route) | ✅ |
 | T44 | Pytest: preview endpoint renders correct HTML for all 3 templates | ✅ |
 
-### Phase 5 — PDF + Final Polish (was Phase 4)
+### Phase 5 — Section Instance Model (Architectural Refactor)
+
+The core data model for sections is restructured from `{ order, enabled, data }` to `SectionInstance[]`. This enables multiple sections of the same type, per-instance custom titles, and a simpler data flow throughout the app.
 
 | # | Task | Status |
 |---|---|---|
-| 45 | In-process Puppeteer PDF export | ☐ |
-| 46 | Preview = PDF exact match | ☐ |
-| 47 | Auto-save with debounce (3s) | ☐ |
-| 48 | Validation errors display | ☐ |
-| 49 | Toast notifications, loading states, empty states | ☐ |
-| 50 | Error handling UI | ☐ |
-| T45 | Pytest: PDF export returns valid PDF for all templates | ☐ |
-| T46 | Pytest: PDF content matches CV data | ☐ |
-| T47 | Pytest/TS: auto-save debounces correctly (unit) | ☐ |
-| T48 | Pytest: PDF export fails gracefully for non-existent CV | ☐ |
-| T49 | Vitest: PDF export trigger + success/fail handling | ☐ |
-| T50 | Vitest: auto-save debounced save fires at correct interval | ☐ |
-| T51 | Vitest: toast system renders success/error (component) | ☐ |
-| T52 | E2E: full user journey (login → create → edit → switch template → export → logout) | ☐ |
-| 51 | Final integration testing | ☐ |
+| 45 | Define `SectionInstance` type + restructure `types.ts` | ☐ |
+| 46 | Update `cvStore.ts` with instance CRUD (add, remove, reorder, toggle, rename) | ☐ |
+| 47 | Update `SectionList.tsx` + `SectionEditorPanel.tsx` + `SectionRegistry.tsx` for instances | ☐ |
+| 48 | Update `TemplateSwitcher.tsx` + all 3 template renderers to accept instances[] | ☐ |
+| 49 | Update `BuilderPage.tsx` — replace old section handlers with instance-focused ones | ☐ |
+| 50 | Default: new CVs start with only 1 enabled profile instance | ☐ |
+| 51 | Update backend `CVCreate` default, `renderer.py` for new format | ☐ |
+| 52 | Investigate & fix sub-section CRUD controls (trace EducationEditor → PATCH → reload) | ☐ |
+| T45 | Update existing test data shapes for new SectionInstance format | ☐ |
+| T46 | Vitest: section instance CRUD (add, remove, reorder, toggle, rename) | ☐ |
 
-### Phase 6 — Desktop (Future) (was Phase 5)
+### Phase 6 — Add Section Modal & Customization UX
 
 | # | Task | Status |
 |---|---|---|
-| 52 | Initialize Tauri 2.x in desktop/ | ☐ |
-| 53 | Configure Tauri to load http://api-server:8000/ | ☐ |
-| 54 | Add native menu + system tray | ☐ |
+| 53 | Grid modal for adding sections (replaces dropdown, 3-column card grid) | ☐ |
+| 54 | Collapsible customization panel (toggle icon in builder header) | ☐ |
+| 55 | Inline section title editing (click title → text input) | ☐ |
+| T47 | Vitest: add section grid modal renders all types, click adds instance | ☐ |
+| T48 | Vitest: customization panel hidden by default, icon toggles visibility | ☐ |
+
+### Phase 7 — PDF Export & Auto-Save (was old Phase 5)
+
+| # | Task | Status |
+|---|---|---|
+| 56 | In-process Puppeteer PDF export | ☐ |
+| 57 | Preview = PDF exact match | ☐ |
+| 58 | Auto-save with debounce (3s) | ☐ |
+| 59 | Validation errors display | ☐ |
+| 60 | Toast notifications, loading states, empty states | ☐ |
+| 61 | Error handling UI | ☐ |
+| T49 | Pytest: PDF export returns valid PDF for all templates | ☐ |
+| T50 | Pytest: PDF content matches CV data | ☐ |
+| T51 | Pytest/TS: auto-save debounces correctly (unit) | ☐ |
+| T52 | Pytest: PDF export fails gracefully for non-existent CV | ☐ |
+| T53 | Vitest: PDF export trigger + success/fail handling | ☐ |
+| T54 | Vitest: auto-save debounced save fires at correct interval | ☐ |
+| T55 | Vitest: toast system renders success/error (component) | ☐ |
+| T56 | E2E: full user journey (login → create → edit → switch template → export → logout) | ☐ |
+| 62 | Final integration testing | ☐ |
+
+### Phase 8 — Desktop Tauri (was old Phase 6)
+
+| # | Task | Status |
+|---|---|---|
+| 63 | Initialize Tauri 2.x in desktop/ | ☐ |
+| 64 | Configure Tauri to load http://api-server:8000/ | ☐ |
+| 65 | Add native menu + system tray | ☐ |
 
 ---
 
