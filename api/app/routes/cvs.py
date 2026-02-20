@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.schemas.cv import CVCreate, CVUpdate, CVResponse, CVListItem
 from app.services.cv import CVService
+from app.services.renderer import render_preview
 from app.core.deps import get_current_user
 from app.models.user import User
 
@@ -82,3 +83,25 @@ async def copy_cv(
     if not new_cv:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="CV not found")
     return CVResponse.model_validate(new_cv)
+
+
+@router.get("/{cv_id}/preview")
+async def preview_cv(
+    cv_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = CVService(db)
+    cv = await service.get_cv(cv_id, current_user.id)
+    if not cv:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="CV not found")
+
+    sections = cv.sections or {}
+    html = render_preview(
+        sections=sections.get("data", {}),
+        order=sections.get("order", []),
+        enabled=sections.get("enabled", []),
+        customizations=cv.customizations or {},
+        template_id=cv.template_id,
+    )
+    return {"html": html}
