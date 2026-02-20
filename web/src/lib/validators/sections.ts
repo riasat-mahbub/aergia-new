@@ -61,21 +61,15 @@ export const certificationEntrySchema = z.object({
   credential_url: z.string(),
 });
 
-export const sectionDataSchema = z.object({
-  profile: profileSchema.optional(),
-  experience: z.array(experienceEntrySchema).optional(),
-  education: z.array(educationEntrySchema).optional(),
-  skills: z.array(skillGroupSchema).optional(),
-  projects: z.array(projectEntrySchema).optional(),
-  languages: z.array(languageEntrySchema).optional(),
-  certifications: z.array(certificationEntrySchema).optional(),
+export const sectionInstanceSchema = z.object({
+  id: z.string().min(1),
+  type: z.string().min(1),
+  title: z.string().min(1),
+  enabled: z.boolean(),
+  data: z.any(),
 });
 
-export const cvSectionsSchema = z.object({
-  order: z.array(z.string()),
-  enabled: z.array(z.string()),
-  data: sectionDataSchema,
-});
+export const sectionInstancesSchema = z.array(sectionInstanceSchema);
 
 export type ProfileData = z.infer<typeof profileSchema>;
 export type ExperienceEntry = z.infer<typeof experienceEntrySchema>;
@@ -84,5 +78,4 @@ export type SkillGroup = z.infer<typeof skillGroupSchema>;
 export type ProjectEntry = z.infer<typeof projectEntrySchema>;
 export type LanguageEntry = z.infer<typeof languageEntrySchema>;
 export type CertificationEntry = z.infer<typeof certificationEntrySchema>;
-export type SectionData = z.infer<typeof sectionDataSchema>;
-export type CVSections = z.infer<typeof cvSectionsSchema>;
+export type SectionInstance = z.infer<typeof sectionInstanceSchema>;

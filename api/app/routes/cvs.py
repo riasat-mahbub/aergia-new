@@ -96,11 +96,11 @@ async def preview_cv(
     if not cv:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="CV not found")
 
-    sections = cv.sections or {}
+    instances = cv.sections or []
+    if isinstance(instances, dict):
+        instances = []
     html = render_preview(
-        sections=sections.get("data", {}),
-        order=sections.get("order", []),
-        enabled=sections.get("enabled", []),
+        instances=instances,
         customizations=cv.customizations or {},
         template_id=cv.template_id,
     )

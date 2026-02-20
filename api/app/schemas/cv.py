@@ -3,11 +3,22 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
+DEFAULT_SECTIONS = [
+    {
+        "id": "sec_profile",
+        "type": "profile",
+        "title": "Profile",
+        "enabled": True,
+        "data": {"name": "", "title": "", "email": "", "phone": "", "location": "", "summary": "", "photo_url": ""},
+    }
+]
+
+
 class CVCreate(BaseModel):
     title: str
     description: str | None = None
     template_id: str = "generic-modern"
-    sections: dict = {"order": [], "enabled": [], "data": {}}
+    sections: list | dict = DEFAULT_SECTIONS
     customizations: dict = {}
     extra_metadata: dict = {}
 
@@ -16,7 +27,7 @@ class CVUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
     template_id: str | None = None
-    sections: dict | None = None
+    sections: list | dict | None = None
     customizations: dict | None = None
 
 
@@ -28,7 +39,7 @@ class CVResponse(BaseModel):
     description: str | None
     template_id: str
     customizations: dict
-    sections: dict
+    sections: list | dict
     extra_metadata: dict
     created_at: datetime
     updated_at: datetime

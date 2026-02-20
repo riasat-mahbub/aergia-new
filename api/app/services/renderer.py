@@ -171,11 +171,12 @@ def render_section_preview(section_type: str, data: Any) -> str:
     return renderer(data)
 
 
-def render_section_panel(section_type: str, data: dict, enabled: list[str]) -> str:
-    if section_type not in enabled:
+def render_instance_panel(instance: dict) -> str:
+    if not instance.get("enabled", True):
         return ""
-    label = SECTION_LABELS.get(section_type, section_type)
-    section_data = data.get(section_type)
+    section_type = instance.get("type", "")
+    label = instance.get("title", SECTION_LABELS.get(section_type, section_type))
+    section_data = instance.get("data")
     content = render_section_preview(section_type, section_data)
     if not content:
         content = '<p style="font-size:0.875rem;color:#9ca3af;font-style:italic;">No data</p>'
@@ -185,7 +186,7 @@ def render_section_panel(section_type: str, data: dict, enabled: list[str]) -> s
 </div>"""
 
 
-def render_modern(sections: dict, order: list[str], enabled: list[str], customizations: dict) -> str:
+def render_modern(instances: list[dict], customizations: dict) -> str:
     colors = customizations.get("colors", {})
     fonts = customizations.get("fonts", {})
     spacing = customizations.get("spacing", {})
@@ -195,13 +196,8 @@ def render_modern(sections: dict, order: list[str], enabled: list[str], customiz
     heading_font = fonts.get("heading", "Inter, system-ui, sans-serif")
     section_gap = spacing.get("section_gap", "24px")
 
-    sidebar_sections = ["profile"]
-    main_sections = [s for s in order if s not in sidebar_sections]
-
-    sidebar = "".join(
-        render_section_panel(s, sections, enabled) for s in sidebar_sections if s in order
-    )
-    main = "".join(render_section_panel(s, sections, enabled) for s in main_sections)
+    sidebar = "".join(render_instance_panel(i) for i in instances if i.get("type") == "profile")
+    main = "".join(render_instance_panel(i) for i in instances if i.get("type") != "profile")
 
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8" /><style>
@@ -220,7 +216,7 @@ def render_modern(sections: dict, order: list[str], enabled: list[str], customiz
 </body></html>"""
 
 
-def render_classic(sections: dict, order: list[str], enabled: list[str], customizations: dict) -> str:
+def render_classic(instances: list[dict], customizations: dict) -> str:
     colors = customizations.get("colors", {})
     fonts = customizations.get("fonts", {})
     spacing = customizations.get("spacing", {})
@@ -231,11 +227,11 @@ def render_classic(sections: dict, order: list[str], enabled: list[str], customi
     section_gap = spacing.get("section_gap", "20px")
 
     panels = []
-    for i, s in enumerate(order):
-        panel = render_section_panel(s, sections, enabled)
+    for i, instance in enumerate(instances):
+        panel = render_instance_panel(instance)
         if panel:
             panels.append(f'<div style="margin-bottom:{section_gap};">{panel}</div>')
-            if i < len(order) - 1:
+            if i < len(instances) - 1:
                 panels.append(f'<hr style="border-color:{divider_color};margin:16px 0;" />')
 
     return f"""<!DOCTYPE html>
@@ -247,7 +243,7 @@ def render_classic(sections: dict, order: list[str], enabled: list[str], customi
 </body></html>"""
 
 
-def render_minimal(sections: dict, order: list[str], enabled: list[str], customizations: dict) -> str:
+def render_minimal(instances: list[dict], customizations: dict) -> str:
     colors = customizations.get("colors", {})
     fonts = customizations.get("fonts", {})
     spacing = customizations.get("spacing", {})
@@ -258,8 +254,8 @@ def render_minimal(sections: dict, order: list[str], enabled: list[str], customi
     section_gap = spacing.get("section_gap", "16px")
 
     panels = "".join(
-        f'<div style="margin-bottom:{section_gap};">{render_section_panel(s, sections, enabled)}</div>'
-        for s in order
+        f'<div style="margin-bottom:{section_gap};">{render_instance_panel(instance)}</div>'
+        for instance in instances
     )
 
     return f"""<!DOCTYPE html>
@@ -278,6 +274,6 @@ TEMPLATE_RENDERERS = {
 }
 
 
-def render_preview(sections: dict, order: list[str], enabled: list[str], customizations: dict, template_id: str) -> str:
+def render_preview(instances: list[dict], customizations: dict, template_id: str) -> str:
     renderer = TEMPLATE_RENDERERS.get(template_id, render_modern)
-    return renderer(sections, order, enabled, customizations)
+    return renderer(instances, customizations)

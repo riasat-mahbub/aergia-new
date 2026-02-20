@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import SectionList from "../sections/SectionList";
+import type { SectionInstance } from "../../lib/sections/types";
 
 // Mock dnd-kit since it requires browser APIs
 vi.mock("@dnd-kit/core", () => ({
@@ -25,32 +26,39 @@ vi.mock("@dnd-kit/sortable", () => ({
 }));
 vi.mock("@dnd-kit/utilities", () => ({ CSS: { Transform: { toString: () => "" } } }));
 
+const makeInstances = (overrides?: Partial<SectionInstance>[]): SectionInstance[] => [
+  { id: "sec_1", type: "profile", title: "My Profile", enabled: true, data: { name: "" }, ...overrides?.[0] },
+  { id: "sec_2", type: "experience", title: "Experience", enabled: false, data: [], ...overrides?.[1] },
+];
+
 describe("SectionList", () => {
   it("renders all sections with toggles", () => {
     render(
       <SectionList
-        order={["profile", "experience"]}
-        enabled={["profile"]}
-        data={{ profile: { name: "" }, experience: [] } as any}
-        onOrderChange={vi.fn()}
+        instances={makeInstances()}
+        onReorder={vi.fn()}
         onToggle={vi.fn()}
-        onDataChange={vi.fn()}
+        onUpdateData={vi.fn()}
+        onAddSection={vi.fn()}
+        onRemoveInstance={vi.fn()}
+        onRenameInstance={vi.fn()}
       />
     );
 
-    expect(screen.getByText("Profile")).toBeDefined();
-    expect(screen.getByText("Experience")).toBeDefined();
+    expect(screen.getAllByText("My Profile").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Experience").length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows correct toggle state", () => {
     render(
       <SectionList
-        order={["profile", "education"]}
-        enabled={["profile"]}
-        data={{ profile: { name: "" }, education: [] } as any}
-        onOrderChange={vi.fn()}
+        instances={makeInstances([{ enabled: true }, { enabled: false }])}
+        onReorder={vi.fn()}
         onToggle={vi.fn()}
-        onDataChange={vi.fn()}
+        onUpdateData={vi.fn()}
+        onAddSection={vi.fn()}
+        onRemoveInstance={vi.fn()}
+        onRenameInstance={vi.fn()}
       />
     );
 
