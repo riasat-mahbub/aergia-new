@@ -649,17 +649,17 @@ aergia/
 
 | # | Task | Status |
 |---|---|---|
-| 33 | Install lucide-react, motion, @tailwindcss/forms | ☐ |
-| 34 | Create shared Modal + AccordionPanel components | ☐ |
-| 35 | Replace enable/disable checkboxes with eye icons (Eye/EyeOff) | ☐ |
-| 36 | Create CV modal (title + template selection) | ☐ |
-| 37 | Delete CV confirmation modal | ☐ |
-| 38 | Repeatable entry accordion (6 section editors) | ☐ |
-| 39 | CV grid layout refinement (responsive cols, card polish) | ☐ |
-| 40 | Add Section UI (dropdown to add new section types) | ☐ |
-| 41 | Template Browser UI (visual template selector in builder) | ☐ |
-| 42 | Motion animations across all components | ☐ |
-| T35.1 | Vitest: section list eye icons, add section dropdown | ☐ |
+| 33 | Install lucide-react, motion, @tailwindcss/forms | ✅ |
+| 34 | Create shared Modal + AccordionPanel components | ✅ |
+| 35 | Replace enable/disable checkboxes with eye icons (Eye/EyeOff) | ✅ |
+| 36 | Create CV modal (title + template selection) | ✅ |
+| 37 | Delete CV confirmation modal | ✅ |
+| 38 | Repeatable entry accordion (6 section editors) | ✅ |
+| 39 | CV grid layout refinement (responsive cols, card polish) | ✅ |
+| 40 | Add Section UI (dropdown to add new section types) | ✅ |
+| 41 | Template Browser UI (visual template selector in builder) | ✅ |
+| 42 | Motion animations across all components | ✅ |
+| T35.1 | Vitest: section list eye icons, add section dropdown | ✅ |
 | T35.2 | Vitest: create/delete CV modals | ☐ |
 | T35.3 | Vitest: accordion expand/collapse on all 6 editors | ☐ |
 
@@ -667,9 +667,9 @@ aergia/
 
 | # | Task | Status |
 |---|---|---|
-| 43 | Section Zod validation schemas (7 sections) | ☐ |
-| 44 | Backend preview endpoint (HTML renderer service + route) | ☐ |
-| T44 | Pytest: preview endpoint renders correct HTML for all 3 templates | ☐ |
+| 43 | Section Zod validation schemas (7 sections) | ✅ |
+| 44 | Backend preview endpoint (HTML renderer service + route) | ✅ |
+| T44 | Pytest: preview endpoint renders correct HTML for all 3 templates | ✅ |
 
 ### Phase 5 — PDF + Final Polish (was Phase 4)
 
