@@ -2,11 +2,13 @@
 
 import pytest
 
-SAMPLE_SECTIONS = {
-    "order": ["profile", "experience", "education", "skills", "projects", "languages", "certifications"],
-    "enabled": ["profile", "experience", "education", "skills", "projects", "languages", "certifications"],
-    "data": {
-        "profile": {
+SAMPLE_INSTANCES = [
+    {
+        "id": "sec_profile",
+        "type": "profile",
+        "title": "Profile",
+        "enabled": True,
+        "data": {
             "name": "Jane Doe",
             "title": "Software Engineer",
             "email": "jane@example.com",
@@ -15,7 +17,13 @@ SAMPLE_SECTIONS = {
             "summary": "Experienced engineer building great products.",
             "photo_url": "",
         },
-        "experience": [
+    },
+    {
+        "id": "sec_experience",
+        "type": "experience",
+        "title": "Experience",
+        "enabled": True,
+        "data": [
             {
                 "id": "exp_1",
                 "company": "Acme Corp",
@@ -27,7 +35,13 @@ SAMPLE_SECTIONS = {
                 "description": "Led team of 5 engineers.",
             }
         ],
-        "education": [
+    },
+    {
+        "id": "sec_education",
+        "type": "education",
+        "title": "Education",
+        "enabled": True,
+        "data": [
             {
                 "id": "edu_1",
                 "institution": "MIT",
@@ -38,11 +52,23 @@ SAMPLE_SECTIONS = {
                 "gpa": "3.8",
             }
         ],
-        "skills": [
+    },
+    {
+        "id": "sec_skills",
+        "type": "skills",
+        "title": "Skills",
+        "enabled": True,
+        "data": [
             {"id": "sk_1", "category": "Frontend", "items": ["React", "TypeScript", "Tailwind"]},
             {"id": "sk_2", "category": "Backend", "items": ["Python", "FastAPI", "PostgreSQL"]},
         ],
-        "projects": [
+    },
+    {
+        "id": "sec_projects",
+        "type": "projects",
+        "title": "Projects",
+        "enabled": True,
+        "data": [
             {
                 "id": "proj_1",
                 "name": "CV Builder",
@@ -53,11 +79,23 @@ SAMPLE_SECTIONS = {
                 "tech_stack": ["React", "FastAPI"],
             }
         ],
-        "languages": [
+    },
+    {
+        "id": "sec_languages",
+        "type": "languages",
+        "title": "Languages",
+        "enabled": True,
+        "data": [
             {"id": "lang_1", "language": "English", "proficiency": "Native"},
             {"id": "lang_2", "language": "Spanish", "proficiency": "Intermediate"},
         ],
-        "certifications": [
+    },
+    {
+        "id": "sec_certifications",
+        "type": "certifications",
+        "title": "Certifications",
+        "enabled": True,
+        "data": [
             {
                 "id": "cert_1",
                 "name": "AWS Solutions Architect",
@@ -67,7 +105,7 @@ SAMPLE_SECTIONS = {
             }
         ],
     },
-}
+]
 
 
 @pytest.fixture
@@ -86,7 +124,7 @@ async def test_preview_endpoint_returns_html(client, auth_headers):
     """Preview endpoint returns HTML string for a CV."""
     create_resp = await client.post(
         "/api/v1/cvs",
-        json={"title": "Preview Test", "template_id": "generic-modern", "sections": SAMPLE_SECTIONS},
+        json={"title": "Preview Test", "template_id": "generic-modern", "sections": SAMPLE_INSTANCES},
         headers=auth_headers,
     )
     assert create_resp.status_code == 201
@@ -115,7 +153,7 @@ async def test_preview_modern_template(client, auth_headers):
     """Modern preview includes sidebar and accent bar."""
     create_resp = await client.post(
         "/api/v1/cvs",
-        json={"title": "Modern Preview", "template_id": "generic-modern", "sections": SAMPLE_SECTIONS},
+        json={"title": "Modern Preview", "template_id": "generic-modern", "sections": SAMPLE_INSTANCES},
         headers=auth_headers,
     )
     cv_id = create_resp.json()["id"]
@@ -123,9 +161,6 @@ async def test_preview_modern_template(client, auth_headers):
     preview_resp = await client.get(f"/api/v1/cvs/{cv_id}/preview", headers=auth_headers)
     html = preview_resp.json()["html"]
 
-    # Modern template has a sidebar
-    assert "sidebar" not in html.lower()  # no class reference, but:
-    # It has a 2-column layout with profile in sidebar
     assert "Profile" in html
     assert "Experience" in html
     assert "Education" in html
@@ -138,7 +173,7 @@ async def test_preview_classic_template(client, auth_headers):
     """Classic preview includes horizontal dividers."""
     create_resp = await client.post(
         "/api/v1/cvs",
-        json={"title": "Classic Preview", "template_id": "generic-classic", "sections": SAMPLE_SECTIONS},
+        json={"title": "Classic Preview", "template_id": "generic-classic", "sections": SAMPLE_INSTANCES},
         headers=auth_headers,
     )
     cv_id = create_resp.json()["id"]
@@ -146,7 +181,6 @@ async def test_preview_classic_template(client, auth_headers):
     preview_resp = await client.get(f"/api/v1/cvs/{cv_id}/preview", headers=auth_headers)
     html = preview_resp.json()["html"]
 
-    # Classic has hr elements as dividers
     assert "<hr" in html
     assert "Profile" in html
     assert "Experience" in html
@@ -157,7 +191,7 @@ async def test_preview_minimal_template(client, auth_headers):
     """Minimal preview includes no borders or backgrounds."""
     create_resp = await client.post(
         "/api/v1/cvs",
-        json={"title": "Minimal Preview", "template_id": "generic-minimal", "sections": SAMPLE_SECTIONS},
+        json={"title": "Minimal Preview", "template_id": "generic-minimal", "sections": SAMPLE_INSTANCES},
         headers=auth_headers,
     )
     cv_id = create_resp.json()["id"]
@@ -165,9 +199,7 @@ async def test_preview_minimal_template(client, auth_headers):
     preview_resp = await client.get(f"/api/v1/cvs/{cv_id}/preview", headers=auth_headers)
     html = preview_resp.json()["html"]
 
-    # Minimal has no hr dividers
     assert "<hr" not in html
-    # But has all sections
     assert "Profile" in html
     assert "Projects" in html
     assert "Certifications" in html
@@ -183,19 +215,27 @@ async def test_preview_nonexistent_cv(client, auth_headers):
 @pytest.mark.asyncio
 async def test_preview_disabled_sections_hidden(client, auth_headers):
     """Disabled sections should not appear in preview HTML."""
-    sections = {
-        "order": ["profile", "experience"],
-        "enabled": ["experience"],  # profile disabled
-        "data": {
-            "profile": {"name": "Hidden", "title": "", "email": "", "phone": "", "location": "", "summary": "", "photo_url": ""},
-            "experience": [
+    instances = [
+        {
+            "id": "sec_profile",
+            "type": "profile",
+            "title": "Profile",
+            "enabled": False,
+            "data": {"name": "Hidden", "title": "", "email": "", "phone": "", "location": "", "summary": "", "photo_url": ""},
+        },
+        {
+            "id": "sec_experience",
+            "type": "experience",
+            "title": "Experience",
+            "enabled": True,
+            "data": [
                 {"id": "exp_1", "company": "Visible Co", "position": "Dev", "start_date": "2023", "end_date": None, "current": True, "location": "", "description": ""}
             ],
         },
-    }
+    ]
     create_resp = await client.post(
         "/api/v1/cvs",
-        json={"title": "Disabled Test", "template_id": "generic-minimal", "sections": sections},
+        json={"title": "Disabled Test", "template_id": "generic-minimal", "sections": instances},
         headers=auth_headers,
     )
     cv_id = create_resp.json()["id"]
@@ -210,15 +250,13 @@ async def test_preview_disabled_sections_hidden(client, auth_headers):
 @pytest.mark.asyncio
 async def test_preview_data_isolation(client, auth_headers):
     """Users cannot preview another user's CV."""
-    # User A creates CV
     create_a = await client.post(
         "/api/v1/cvs",
-        json={"title": "User A CV", "template_id": "generic-modern", "sections": SAMPLE_SECTIONS},
+        json={"title": "User A CV", "template_id": "generic-modern", "sections": SAMPLE_INSTANCES},
         headers=auth_headers,
     )
     cv_id = create_a.json()["id"]
 
-    # User B tries to preview it
     await client.post("/api/v1/auth/register", json={"email": "other@example.com", "password": "pass123"})
     login_b = await client.post("/api/v1/auth/login", json={"email": "other@example.com", "password": "pass123"})
     token_b = login_b.json()["access_token"]

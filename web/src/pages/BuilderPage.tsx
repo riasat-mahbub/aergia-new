@@ -7,7 +7,8 @@ import SectionList from "../components/sections/SectionList";
 import TemplateSwitcher from "../components/preview/TemplateSwitcher";
 import CustomizePanel from "../components/customization/CustomizePanel";
 import TemplateBrowser from "../components/template-browser/TemplateBrowser";
-import type { SectionData } from "../lib/sections/types";
+import type { SectionInstance } from "../lib/sections/types";
+import { createDefaultInstance } from "../lib/sections/types";
 
 export default function BuilderPage() {
   const { id } = useParams<{ id: string }>();
@@ -19,60 +20,88 @@ export default function BuilderPage() {
     if (id) loadCV(id);
   }, [id, loadCV]);
 
-  const sections = (currentCV?.sections || { order: [], enabled: [], data: {} }) as {
-    order: string[];
-    enabled: string[];
-    data: SectionData;
-  };
+  const instances = (currentCV?.sections as SectionInstance[]) || [];
   const customizations = currentCV?.customizations || {};
 
   const templateLabel = currentCV?.template_id?.replace("generic-", "") || "";
 
-  const handleOrderChange = useCallback(
-    async (order: string[]) => {
+  const handleReorder = useCallback(
+    async (ids: string[]) => {
       if (!id) return;
+      const reordered = ids.map((itemId) => instances.find((i) => i.id === itemId)).filter(Boolean) as SectionInstance[];
       try {
-        await updateCV(id, { sections: { ...sections, order } });
+        await updateCV(id, { sections: reordered });
         await loadCV(id);
       } catch {}
     },
-    [id, sections, loadCV]
+    [id, instances, loadCV]
   );
 
   const handleToggle = useCallback(
-    async (sectionType: string) => {
+    async (sectionId: string) => {
       if (!id) return;
-      const enabled = sections.enabled.includes(sectionType)
-        ? sections.enabled.filter((s: string) => s !== sectionType)
-        : [...sections.enabled, sectionType];
+      const updated = instances.map((i) =>
+        i.id === sectionId ? { ...i, enabled: !i.enabled } : i
+      );
       try {
-        await updateCV(id, { sections: { ...sections, enabled } });
+        await updateCV(id, { sections: updated });
         await loadCV(id);
       } catch {}
     },
-    [id, sections, loadCV]
+    [id, instances, loadCV]
   );
 
-  const handleDataChange = useCallback(
-    async (data: SectionData) => {
+  const handleUpdateData = useCallback(
+    async (sectionId: string, data: any) => {
       if (!id) return;
+      const updated = instances.map((i) =>
+        i.id === sectionId ? { ...i, data } : i
+      );
       try {
-        await updateCV(id, { sections: { ...sections, data } });
+        await updateCV(id, { sections: updated });
         await loadCV(id);
       } catch {}
     },
-    [id, sections, loadCV]
+    [id, instances, loadCV]
   );
 
   const handleAddSection = useCallback(
-    async (sectionType: string) => {
+    async (type: string) => {
       if (!id) return;
-      const newOrder = [...sections.order, sectionType];
-      const newEnabled = [...sections.enabled, sectionType];
-      await updateCV(id, { sections: { ...sections, order: newOrder, enabled: newEnabled } });
-      await loadCV(id);
+      const newInstance = createDefaultInstance(type);
+      const updated = [...instances, newInstance];
+      try {
+        await updateCV(id, { sections: updated });
+        await loadCV(id);
+      } catch {}
     },
-    [id, sections, loadCV]
+    [id, instances, loadCV]
+  );
+
+  const handleRemoveInstance = useCallback(
+    async (sectionId: string) => {
+      if (!id) return;
+      const updated = instances.filter((i) => i.id !== sectionId);
+      try {
+        await updateCV(id, { sections: updated });
+        await loadCV(id);
+      } catch {}
+    },
+    [id, instances, loadCV]
+  );
+
+  const handleRenameInstance = useCallback(
+    async (sectionId: string, title: string) => {
+      if (!id) return;
+      const updated = instances.map((i) =>
+        i.id === sectionId ? { ...i, title } : i
+      );
+      try {
+        await updateCV(id, { sections: updated });
+        await loadCV(id);
+      } catch {}
+    },
+    [id, instances, loadCV]
   );
 
   const handleTemplateChange = useCallback(
@@ -140,13 +169,13 @@ export default function BuilderPage() {
         >
           <div className="w-2/3 overflow-y-auto border-r bg-white p-4">
             <SectionList
-              order={sections.order}
-              enabled={sections.enabled}
-              data={sections.data}
-              onOrderChange={handleOrderChange}
+              instances={instances}
+              onReorder={handleReorder}
               onToggle={handleToggle}
-              onDataChange={handleDataChange}
+              onUpdateData={handleUpdateData}
               onAddSection={handleAddSection}
+              onRemoveInstance={handleRemoveInstance}
+              onRenameInstance={handleRenameInstance}
             />
           </div>
           <div className="w-1/3 overflow-y-auto border-r bg-gray-50 p-4">
@@ -164,9 +193,7 @@ export default function BuilderPage() {
           <div className="mx-auto max-w-[210mm] rounded bg-white shadow-sm">
             <TemplateSwitcher
               templateId={currentCV.template_id}
-              sections={sections.data}
-              order={sections.order}
-              enabled={sections.enabled}
+              instances={instances}
               customizations={currentCV.customizations}
             />
           </div>

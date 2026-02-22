@@ -1,14 +1,12 @@
-import type { SectionData } from "../../lib/sections/types";
+import type { SectionInstance } from "../../lib/sections/types";
 import SectionPreviewPanel from "../sections/SectionPreviewPanel";
 
 interface Props {
-  sections: SectionData;
-  order: string[];
-  enabled: string[];
+  instances: SectionInstance[];
   customizations?: Record<string, any>;
 }
 
-export default function ClassicTemplate({ sections, order, enabled, customizations }: Props) {
+export default function ClassicTemplate({ instances, customizations }: Props) {
   const colors = customizations?.colors || { header: "#000000", divider: "#d1d5db" };
   const fonts = customizations?.fonts || { body: "Georgia, Crimson, serif", heading: "Georgia, Crimson, serif" };
   const spacing = customizations?.spacing || { section_gap: "20px" };
@@ -23,12 +21,12 @@ export default function ClassicTemplate({ sections, order, enabled, customizatio
 
   return (
     <div style={style} className="p-8">
-      {order.map((s, i) => (
-        <div key={s}>
+      {instances.map((instance, i) => (
+        <div key={instance.id}>
           <div style={{ marginBottom: "var(--section-gap)" }}>
-            <SectionPreviewPanel sectionType={s} data={sections} enabled={enabled.includes(s)} />
+            <SectionPreviewPanel instance={instance} />
           </div>
-          {i < order.length - 1 && (
+          {i < instances.length - 1 && (
             <hr className="my-4" style={{ borderColor: "var(--divider-color)" }} />
           )}
         </div>

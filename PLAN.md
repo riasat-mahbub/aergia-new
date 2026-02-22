@@ -695,17 +695,17 @@ aergia/
 The core data model for sections is restructured from `{ order, enabled, data }` to `SectionInstance[]`. This enables multiple sections of the same type, per-instance custom titles, and a simpler data flow throughout the app.
 
 | # | Task | Status |
-|---|---|---|
-| 45 | Define `SectionInstance` type + restructure `types.ts` | ☐ |
-| 46 | Update `cvStore.ts` with instance CRUD (add, remove, reorder, toggle, rename) | ☐ |
-| 47 | Update `SectionList.tsx` + `SectionEditorPanel.tsx` + `SectionRegistry.tsx` for instances | ☐ |
-| 48 | Update `TemplateSwitcher.tsx` + all 3 template renderers to accept instances[] | ☐ |
-| 49 | Update `BuilderPage.tsx` — replace old section handlers with instance-focused ones | ☐ |
-| 50 | Default: new CVs start with only 1 enabled profile instance | ☐ |
-| 51 | Update backend `CVCreate` default, `renderer.py` for new format | ☐ |
-| 52 | Investigate & fix sub-section CRUD controls (trace EducationEditor → PATCH → reload) | ☐ |
-| T45 | Update existing test data shapes for new SectionInstance format | ☐ |
-| T46 | Vitest: section instance CRUD (add, remove, reorder, toggle, rename) | ☐ |
+|---|---|---|---|
+| 45 | Define `SectionInstance` type + restructure `types.ts` | ✅ |
+| 46 | Update `cvStore.ts` with instance CRUD (add, remove, reorder, toggle, rename) | ✅ |
+| 47 | Update `SectionList.tsx` + `SectionEditorPanel.tsx` + `SectionRegistry.tsx` for instances | ✅ |
+| 48 | Update `TemplateSwitcher.tsx` + all 3 template renderers to accept instances[] | ✅ |
+| 49 | Update `BuilderPage.tsx` — replace old section handlers with instance-focused ones | ✅ |
+| 50 | Default: new CVs start with only 1 enabled profile instance | ✅ |
+| 51 | Update backend `CVCreate` default, `renderer.py` for new format | ✅ |
+| 52 | Investigate & fix sub-section CRUD controls (trace EducationEditor → PATCH → reload) | ✅ |
+| T45 | Update existing test data shapes for new SectionInstance format | ✅ |
+| T46 | Vitest: section instance CRUD (add, remove, reorder, toggle, rename) | ✅ |
 
 ### Phase 6 — Add Section Modal & Customization UX
 

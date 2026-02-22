@@ -14,7 +14,7 @@ export interface CVDetail {
   description: string | null;
   template_id: string;
   customizations: Record<string, unknown>;
-  sections: Record<string, unknown>;
+  sections: unknown;
   extra_metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
@@ -24,7 +24,7 @@ export interface CVCreateData {
   title: string;
   description?: string;
   template_id?: string;
-  sections?: Record<string, unknown>;
+  sections?: unknown;
   customizations?: Record<string, unknown>;
 }
 
@@ -32,7 +32,7 @@ export interface CVUpdateData {
   title?: string;
   description?: string;
   template_id?: string;
-  sections?: Record<string, unknown>;
+  sections?: unknown;
   customizations?: Record<string, unknown>;
 }
 

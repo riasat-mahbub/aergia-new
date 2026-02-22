@@ -59,20 +59,12 @@ export interface CertificationEntry {
   credential_url: string;
 }
 
-export interface SectionData {
-  profile?: ProfileData;
-  experience?: ExperienceEntry[];
-  education?: EducationEntry[];
-  skills?: SkillGroup[];
-  projects?: ProjectEntry[];
-  languages?: LanguageEntry[];
-  certifications?: CertificationEntry[];
-}
-
-export interface CVSections {
-  order: string[];
-  enabled: string[];
-  data: SectionData;
+export interface SectionInstance {
+  id: string;
+  type: string;
+  title: string;
+  enabled: boolean;
+  data: any;
 }
 
 export const SECTION_LABELS: Record<string, string> = {
@@ -85,7 +77,7 @@ export const SECTION_LABELS: Record<string, string> = {
   certifications: "Certifications",
 };
 
-export const DEFAULT_SECTION_ORDER = [
+export const SECTION_TYPES = [
   "profile",
   "experience",
   "education",
@@ -93,12 +85,43 @@ export const DEFAULT_SECTION_ORDER = [
   "projects",
   "languages",
   "certifications",
-];
+] as const;
 
-export const DEFAULT_ENABLED = [
-  "profile",
-  "experience",
-  "education",
-  "skills",
-  "projects",
-];
+export function createDefaultSectionData(type: string): any {
+  switch (type) {
+    case "profile":
+      return { name: "", title: "", email: "", phone: "", location: "", summary: "", photo_url: "" };
+    case "experience":
+      return [];
+    case "education":
+      return [];
+    case "skills":
+      return [];
+    case "projects":
+      return [];
+    case "languages":
+      return [];
+    case "certifications":
+      return [];
+    default:
+      return {};
+  }
+}
+
+export function generateInstanceId(): string {
+  return `sec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function createDefaultInstance(type: string): SectionInstance {
+  return {
+    id: generateInstanceId(),
+    type,
+    title: SECTION_LABELS[type] || type,
+    enabled: true,
+    data: createDefaultSectionData(type),
+  };
+}
+
+export function getDefaultInstances(): SectionInstance[] {
+  return [createDefaultInstance("profile")];
+}

@@ -1,14 +1,12 @@
-import type { SectionData } from "../../lib/sections/types";
+import type { SectionInstance } from "../../lib/sections/types";
 import SectionPreviewPanel from "../sections/SectionPreviewPanel";
 
 interface Props {
-  sections: SectionData;
-  order: string[];
-  enabled: string[];
+  instances: SectionInstance[];
   customizations?: Record<string, any>;
 }
 
-export default function MinimalTemplate({ sections, order, enabled, customizations }: Props) {
+export default function MinimalTemplate({ instances, customizations }: Props) {
   const colors = customizations?.colors || { text: "#374151", heading: "#111827" };
   const fonts = customizations?.fonts || { body: "system-ui, sans-serif", heading: "system-ui, sans-serif" };
   const spacing = customizations?.spacing || { section_gap: "16px" };
@@ -23,9 +21,9 @@ export default function MinimalTemplate({ sections, order, enabled, customizatio
 
   return (
     <div style={style} className="p-8 text-gray-700">
-      {order.map((s) => (
-        <div key={s} style={{ marginBottom: "var(--section-gap)" }}>
-          <SectionPreviewPanel sectionType={s} data={sections} enabled={enabled.includes(s)} />
+      {instances.map((instance) => (
+        <div key={instance.id} style={{ marginBottom: "var(--section-gap)" }}>
+          <SectionPreviewPanel instance={instance} />
         </div>
       ))}
     </div>
