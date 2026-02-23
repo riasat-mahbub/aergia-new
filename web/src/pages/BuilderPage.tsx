@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
+import { Palette } from "lucide-react";
 import { useCVStore } from "../lib/store/cvStore";
 import { updateCV } from "../lib/api/cvs";
 import SectionList from "../components/sections/SectionList";
@@ -15,6 +16,7 @@ export default function BuilderPage() {
   const navigate = useNavigate();
   const { currentCV, loadCV, isLoading } = useCVStore();
   const [showTemplateBrowser, setShowTemplateBrowser] = useState(false);
+  const [showCustomizePanel, setShowCustomizePanel] = useState(false);
 
   useEffect(() => {
     if (id) loadCV(id);
@@ -152,6 +154,13 @@ export default function BuilderPage() {
             {templateLabel || "template"} &middot; Change
           </button>
         </div>
+        <button
+          onClick={() => setShowCustomizePanel((v) => !v)}
+          className={`rounded p-1.5 transition-colors ${showCustomizePanel ? "bg-blue-100 text-blue-600" : "text-gray-400 hover:text-gray-600"}`}
+          title="Toggle customization panel"
+        >
+          <Palette className="h-4 w-4" />
+        </button>
       </header>
 
       <TemplateBrowser
@@ -167,7 +176,7 @@ export default function BuilderPage() {
           animate={{ x: 0, opacity: 1 }}
           className="flex w-1/2 overflow-hidden"
         >
-          <div className="w-2/3 overflow-y-auto border-r bg-white p-4">
+          <div className={`overflow-y-auto border-r bg-white p-4 ${showCustomizePanel ? "w-2/3" : "w-full"}`}>
             <SectionList
               instances={instances}
               onReorder={handleReorder}
@@ -178,9 +187,11 @@ export default function BuilderPage() {
               onRenameInstance={handleRenameInstance}
             />
           </div>
-          <div className="w-1/3 overflow-y-auto border-r bg-gray-50 p-4">
-            <CustomizePanel customizations={customizations} onChange={handleCustomizationsChange} />
-          </div>
+          {showCustomizePanel && (
+            <div className="w-1/3 overflow-y-auto border-r bg-gray-50 p-4">
+              <CustomizePanel customizations={customizations} onChange={handleCustomizationsChange} />
+            </div>
+          )}
         </motion.div>
 
         <motion.div
