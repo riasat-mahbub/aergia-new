@@ -1,130 +1,139 @@
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import { Palette } from "lucide-react";
 import { useCVStore } from "../lib/store/cvStore";
-import { updateCV } from "../lib/api/cvs";
+import { useAutoSave } from "../hooks/useAutoSave";
 import SectionList from "../components/sections/SectionList";
 import TemplateSwitcher from "../components/preview/TemplateSwitcher";
 import CustomizePanel from "../components/customization/CustomizePanel";
 import TemplateBrowser from "../components/template-browser/TemplateBrowser";
 import type { SectionInstance } from "../lib/sections/types";
 import { createDefaultInstance } from "../lib/sections/types";
+import { updateCV } from "../lib/api/cvs";
 
 export default function BuilderPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { currentCV, loadCV, isLoading } = useCVStore();
+  const { currentCV, loadCV, isLoading, isSaving, lastSaved, setIsSaving, setLastSaved } = useCVStore();
   const [showTemplateBrowser, setShowTemplateBrowser] = useState(false);
   const [showCustomizePanel, setShowCustomizePanel] = useState(false);
+  const [localInstances, setLocalInstances] = useState<SectionInstance[]>([]);
+  const [localCustomizations, setLocalCustomizations] = useState<Record<string, unknown>>({});
+  const loadedRef = useRef(false);
+  const needsReloadRef = useRef(false);
 
   useEffect(() => {
-    if (id) loadCV(id);
+    if (id) {
+      loadedRef.current = false;
+      loadCV(id);
+    }
   }, [id, loadCV]);
 
-  const instances = (currentCV?.sections as SectionInstance[]) || [];
-  const customizations = currentCV?.customizations || {};
+  useEffect(() => {
+    if (currentCV?.sections && !loadedRef.current) {
+      setLocalInstances(currentCV.sections as SectionInstance[]);
+      setLocalCustomizations(currentCV.customizations || {});
+      loadedRef.current = true;
+    }
+  }, [currentCV]);
 
+  const autoSaveData = {
+    sections: localInstances,
+    customizations: localCustomizations,
+  };
+
+  const handleAutoSaveComplete = useCallback(async () => {
+    setLastSaved(new Date());
+    needsReloadRef.current = true;
+  }, [setLastSaved]);
+
+  const { isSaving: hookSaving } = useAutoSave({
+    cvId: id,
+    data: autoSaveData as Record<string, unknown>,
+    debounceMs: 3000,
+    enabled: loadedRef.current && !!id,
+  });
+
+  useEffect(() => {
+    setIsSaving(hookSaving);
+  }, [hookSaving, setIsSaving]);
+
+  useEffect(() => {
+    if (needsReloadRef.current && !isSaving && id) {
+      needsReloadRef.current = false;
+      loadCV(id);
+    }
+  }, [isSaving, id, loadCV]);
+
+  const instances = localInstances;
+  const customizations = localCustomizations;
   const templateLabel = currentCV?.template_id?.replace("generic-", "") || "";
 
   const handleReorder = useCallback(
-    async (ids: string[]) => {
-      if (!id) return;
+    (ids: string[]) => {
       const reordered = ids.map((itemId) => instances.find((i) => i.id === itemId)).filter(Boolean) as SectionInstance[];
-      try {
-        await updateCV(id, { sections: reordered });
-        await loadCV(id);
-      } catch {}
+      setLocalInstances(reordered);
     },
-    [id, instances, loadCV]
+    [instances]
   );
 
   const handleToggle = useCallback(
-    async (sectionId: string) => {
-      if (!id) return;
-      const updated = instances.map((i) =>
-        i.id === sectionId ? { ...i, enabled: !i.enabled } : i
-      );
-      try {
-        await updateCV(id, { sections: updated });
-        await loadCV(id);
-      } catch {}
+    (sectionId: string) => {
+      setLocalInstances((prev) => prev.map((i) => (i.id === sectionId ? { ...i, enabled: !i.enabled } : i)));
     },
-    [id, instances, loadCV]
+    []
   );
 
   const handleUpdateData = useCallback(
-    async (sectionId: string, data: any) => {
-      if (!id) return;
-      const updated = instances.map((i) =>
-        i.id === sectionId ? { ...i, data } : i
-      );
-      try {
-        await updateCV(id, { sections: updated });
-        await loadCV(id);
-      } catch {}
+    (sectionId: string, data: any) => {
+      setLocalInstances((prev) => prev.map((i) => (i.id === sectionId ? { ...i, data } : i)));
     },
-    [id, instances, loadCV]
+    []
   );
 
   const handleAddSection = useCallback(
-    async (type: string) => {
-      if (!id) return;
+    (type: string) => {
       const newInstance = createDefaultInstance(type);
-      const updated = [...instances, newInstance];
-      try {
-        await updateCV(id, { sections: updated });
-        await loadCV(id);
-      } catch {}
+      setLocalInstances((prev) => [...prev, newInstance]);
     },
-    [id, instances, loadCV]
+    []
   );
 
   const handleRemoveInstance = useCallback(
-    async (sectionId: string) => {
-      if (!id) return;
-      const updated = instances.filter((i) => i.id !== sectionId);
-      try {
-        await updateCV(id, { sections: updated });
-        await loadCV(id);
-      } catch {}
+    (sectionId: string) => {
+      setLocalInstances((prev) => prev.filter((i) => i.id !== sectionId));
     },
-    [id, instances, loadCV]
+    []
   );
 
   const handleRenameInstance = useCallback(
-    async (sectionId: string, title: string) => {
-      if (!id) return;
-      const updated = instances.map((i) =>
-        i.id === sectionId ? { ...i, title } : i
-      );
-      try {
-        await updateCV(id, { sections: updated });
-        await loadCV(id);
-      } catch {}
+    (sectionId: string, title: string) => {
+      setLocalInstances((prev) => prev.map((i) => (i.id === sectionId ? { ...i, title } : i)));
     },
-    [id, instances, loadCV]
+    []
   );
 
   const handleTemplateChange = useCallback(
     async (newTemplateId: string) => {
       if (!id) return;
-      await updateCV(id, { template_id: newTemplateId });
-      await loadCV(id);
-      setShowTemplateBrowser(false);
+      try {
+        setIsSaving(true);
+        await updateCV(id, { template_id: newTemplateId, sections: localInstances, customizations: localCustomizations });
+        await loadCV(id);
+        setShowTemplateBrowser(false);
+      } finally {
+        setIsSaving(false);
+      }
     },
-    [id, loadCV]
+    [id, localInstances, localCustomizations, loadCV, setIsSaving]
   );
 
   const handleCustomizationsChange = useCallback(
-    async (newCustomizations: Record<string, any>) => {
-      if (!id) return;
-      try {
-        await updateCV(id, { customizations: newCustomizations });
-        await loadCV(id);
-      } catch {}
+    (newCustomizations: Record<string, unknown>) => {
+      setLocalCustomizations(newCustomizations);
     },
-    [id, loadCV]
+    []
   );
 
   if (isLoading || !currentCV) {
@@ -153,6 +162,10 @@ export default function BuilderPage() {
           >
             {templateLabel || "template"} &middot; Change
           </button>
+          {isSaving && <span className="text-xs text-gray-400">Saving...</span>}
+          {lastSaved && !isSaving && (
+            <span className="text-xs text-gray-400">Saved</span>
+          )}
         </div>
         <button
           onClick={() => setShowCustomizePanel((v) => !v)}
@@ -205,7 +218,7 @@ export default function BuilderPage() {
             <TemplateSwitcher
               templateId={currentCV.template_id}
               instances={instances}
-              customizations={currentCV.customizations}
+              customizations={customizations}
             />
           </div>
         </motion.div>
