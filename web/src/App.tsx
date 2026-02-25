@@ -4,6 +4,7 @@ import { useAuthStore } from "./lib/store/authStore";
 import ProtectedRoute from "./components/common/ProtectedRoute";
 import AppLayout from "./components/common/AppLayout";
 import ToastContainer from "./components/common/Toast";
+import ErrorBoundary from "./components/common/ErrorBoundary";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import CvListPage from "./pages/CvListPage";
@@ -20,6 +21,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <ErrorBoundary>
       <ToastContainer />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
@@ -54,6 +56,7 @@ function App() {
         />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
+      </ErrorBoundary>
     </div>
   );
 }
