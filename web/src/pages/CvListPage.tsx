@@ -4,6 +4,8 @@ import { useCVStore } from "../lib/store/cvStore";
 import CvCard from "../components/cv-list/CvCard";
 import CreateCvModal from "../components/cv-list/CreateCvModal";
 import DeleteCvModal from "../components/cv-list/DeleteCvModal";
+import LoadingSkeleton from "../components/common/LoadingSkeleton";
+import EmptyState from "../components/common/EmptyState";
 import { motion } from "motion/react";
 
 export default function CvListPage() {
@@ -41,34 +43,34 @@ export default function CvListPage() {
         cvTitle={deleteTarget?.title || ""}
       />
 
-      {isLoading && <p className="text-gray-500">Loading...</p>}
+      {isLoading && <LoadingSkeleton count={6} />}
 
       {!isLoading && cvList.length === 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="rounded-lg border-2 border-dashed border-gray-300 p-12 text-center"
-        >
-          <p className="text-gray-500">No CVs yet. Create your first one!</p>
-        </motion.div>
+        <EmptyState
+          title="No CVs yet"
+          description="Create your first CV to get started."
+          action={{ label: "+ New CV", onClick: () => setShowCreate(true) }}
+        />
       )}
 
-      <motion.div
-        initial="hidden"
-        animate="visible"
-        variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
-        className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
-      >
-        {cvList.map((cv) => (
-          <CvCard
-            key={cv.id}
-            cv={cv}
-            onEdit={(id) => navigate(`/builder/${id}`)}
-            onCopy={(id) => copyCV(id)}
-            onDelete={(id) => setDeleteTarget({ id, title: cv.title })}
-          />
-        ))}
-      </motion.div>
+      {!isLoading && cvList.length > 0 && (
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
+          className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+        >
+          {cvList.map((cv) => (
+            <CvCard
+              key={cv.id}
+              cv={cv}
+              onEdit={(id) => navigate(`/builder/${id}`)}
+              onCopy={(id) => copyCV(id)}
+              onDelete={(id) => setDeleteTarget({ id, title: cv.title })}
+            />
+          ))}
+        </motion.div>
+      )}
     </div>
   );
 }
