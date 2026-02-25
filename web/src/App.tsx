@@ -1,11 +1,15 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import { useEffect } from "react";
 import { useAuthStore } from "./lib/store/authStore";
 import ProtectedRoute from "./components/common/ProtectedRoute";
+import AppLayout from "./components/common/AppLayout";
+import ToastContainer from "./components/common/Toast";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import CvListPage from "./pages/CvListPage";
 import BuilderPage from "./pages/BuilderPage";
+import SettingsPage from "./pages/SettingsPage";
+import NotFoundPage from "./pages/NotFoundPage";
 
 function App() {
   const hydrate = useAuthStore((s) => s.hydrate);
@@ -16,6 +20,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <ToastContainer />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
@@ -23,7 +28,9 @@ function App() {
           path="/"
           element={
             <ProtectedRoute>
-              <CvListPage />
+              <AppLayout>
+                <CvListPage />
+              </AppLayout>
             </ProtectedRoute>
           }
         />
@@ -35,7 +42,17 @@ function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <SettingsPage />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </div>
   );
