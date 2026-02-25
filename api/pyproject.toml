@@ -22,6 +22,7 @@ dependencies = [
     "pypdf>=4.2",
     "pillow>=10.4",
     "pypdfium2>=4.30",
+    "playwright>=1.48",
     "email-validator>=2.1",
 ]
 
