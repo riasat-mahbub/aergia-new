@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   DndContext,
@@ -18,7 +18,8 @@ import { CSS } from "@dnd-kit/utilities";
 import { SECTION_LABELS, SECTION_TYPES } from "../../lib/sections/types";
 import type { SectionInstance } from "../../lib/sections/types";
 import SectionEditorPanel from "./SectionEditorPanel";
-import { Eye, EyeOff, GripVertical, Plus, Trash2, Pencil } from "lucide-react";
+import AddSectionModal from "./AddSectionModal";
+import { Eye, EyeOff, GripVertical, Plus, Trash2 } from "lucide-react";
 
 interface Props {
   instances: SectionInstance[];
@@ -33,10 +34,17 @@ interface Props {
 function SortableSection({
   instance,
   onToggle,
+  editingTitle,
+  onRenameInstance,
+  setEditingTitle,
 }: {
   instance: SectionInstance;
   onToggle: () => void;
+  editingTitle: string | null;
+  onRenameInstance: (id: string, title: string) => void;
+  setEditingTitle: (id: string | null) => void;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: instance.id });
 
   const style = {
@@ -45,15 +53,38 @@ function SortableSection({
     opacity: isDragging ? 0.5 : 1,
   };
 
+  const commitRename = () => {
+    if (inputRef.current && inputRef.current.value.trim()) {
+      onRenameInstance(instance.id, inputRef.current.value);
+    }
+    setEditingTitle(null);
+  };
+
   return (
     <div ref={setNodeRef} style={style} className={`flex items-center gap-3 rounded border p-3 ${instance.enabled ? "bg-white" : "bg-gray-50"}`}>
       <button {...attributes} {...listeners} className="cursor-grab text-gray-400 hover:text-gray-600" title="Drag to reorder">
         <GripVertical className="h-4 w-4" />
       </button>
       <div className="flex-1 min-w-0">
-        <span className={`block text-sm font-medium truncate ${instance.enabled ? "text-gray-800" : "text-gray-400"}`}>
-          {instance.title}
-        </span>
+        {editingTitle === instance.id ? (
+          <input
+            ref={inputRef}
+            type="text"
+            defaultValue={instance.title}
+            autoFocus
+            className="w-full rounded border border-blue-300 px-1.5 py-0.5 text-sm font-medium text-gray-800"
+            onBlur={commitRename}
+            onKeyDown={(e) => { if (e.key === "Enter") commitRename(); }}
+            onClick={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <button
+            onClick={(e) => { e.stopPropagation(); setEditingTitle(instance.id); }}
+            className={`block w-full text-left text-sm font-medium truncate ${instance.enabled ? "text-gray-800" : "text-gray-400"}`}
+          >
+            {instance.title}
+          </button>
+        )}
         <span className="text-xs text-gray-400">{SECTION_LABELS[instance.type] || instance.type}</span>
       </div>
       <button
@@ -78,7 +109,7 @@ export default function SectionList({
 }: Props) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const [activeSection, setActiveSection] = useState<string | null>(null);
-  const [showAddDropdown, setShowAddDropdown] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -101,8 +132,14 @@ export default function SectionList({
           <div className="space-y-2">
             {instances.map((instance) => (
               <div key={instance.id}>
-                <div onClick={() => setActiveSection(instance.id === activeSection ? null : instance.id)}>
-                  <SortableSection instance={instance} onToggle={() => onToggle(instance.id)} />
+                <div onClick={() => { if (editingTitle !== instance.id) setActiveSection(instance.id === activeSection ? null : instance.id); }}>
+                  <SortableSection
+                    instance={instance}
+                    onToggle={() => onToggle(instance.id)}
+                    editingTitle={editingTitle}
+                    onRenameInstance={onRenameInstance}
+                    setEditingTitle={setEditingTitle}
+                  />
                 </div>
                 <AnimatePresence>
                   {activeSection === instance.id && (
@@ -114,31 +151,6 @@ export default function SectionList({
                     >
                       <div className="border-x border-b rounded-b-lg p-3 bg-gray-50">
                         <div className="mb-2 flex items-center gap-2">
-                          {editingTitle === instance.id ? (
-                            <input
-                              type="text"
-                              defaultValue={instance.title}
-                              autoFocus
-                              className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
-                              onBlur={(e) => {
-                                onRenameInstance(instance.id, e.target.value);
-                                setEditingTitle(null);
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  onRenameInstance(instance.id, (e.target as HTMLInputElement).value);
-                                  setEditingTitle(null);
-                                }
-                              }}
-                            />
-                          ) : (
-                            <button
-                              onClick={() => setEditingTitle(instance.id)}
-                              className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
-                            >
-                              <Pencil className="h-3 w-3" /> Rename
-                            </button>
-                          )}
                           <button
                             onClick={(e) => { e.stopPropagation(); onRemoveInstance(instance.id); }}
                             className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700"
@@ -160,33 +172,20 @@ export default function SectionList({
         </SortableContext>
       </DndContext>
 
-      <div className="relative mt-3">
+      <div className="mt-3">
         <button
-          onClick={() => setShowAddDropdown(!showAddDropdown)}
+          onClick={() => setShowAddModal(true)}
           className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800"
         >
           <Plus className="h-4 w-4" /> Add Section
         </button>
-        <AnimatePresence>
-          {showAddDropdown && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="absolute left-0 top-full z-10 mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
-            {(SECTION_TYPES as unknown as string[]).map((s) => (
-              <button
-                key={s}
-                onClick={() => { onAddSection(s); setShowAddDropdown(false); }}
-                className="flex w-full items-center px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-              >
-                {SECTION_LABELS[s] || s}
-              </button>
-            ))}
-          </motion.div>
-        )}
-        </AnimatePresence>
       </div>
+
+      <AddSectionModal
+        open={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSelect={onAddSection}
+      />
     </div>
   );
 }

@@ -711,11 +711,11 @@ The core data model for sections is restructured from `{ order, enabled, data }`
 
 | # | Task | Status |
 |---|---|---|
-| 53 | Grid modal for adding sections (replaces dropdown, 3-column card grid) | ☐ |
-| 54 | Collapsible customization panel (toggle icon in builder header) | ☐ |
-| 55 | Inline section title editing (click title → text input) | ☐ |
-| T47 | Vitest: add section grid modal renders all types, click adds instance | ☐ |
-| T48 | Vitest: customization panel hidden by default, icon toggles visibility | ☐ |
+| 53 | Grid modal for adding sections (replaces dropdown, 3-column card grid) | ✅ |
+| 54 | Collapsible customization panel (toggle icon in builder header) | ✅ |
+| 55 | Inline section title editing (click title → text input) | ✅ |
+| T47 | Vitest: add section grid modal renders all types, click adds instance | ✅ |
+| T48 | Vitest: customization panel hidden by default, icon toggles visibility | ✅ |
 
 ### Phase 7 — PDF Export & Auto-Save (was old Phase 5)
 
