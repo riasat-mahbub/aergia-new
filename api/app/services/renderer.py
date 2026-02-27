@@ -186,6 +186,15 @@ def render_instance_panel(instance: dict) -> str:
 </div>"""
 
 
+PRINT_STYLES = """
+  @page { size: A4; margin: 0; }
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+"""
+
+
 def render_modern(instances: list[dict], customizations: dict) -> str:
     colors = customizations.get("colors", {})
     fonts = customizations.get("fonts", {})
@@ -203,6 +212,7 @@ def render_modern(instances: list[dict], customizations: dict) -> str:
 <html lang="en"><head><meta charset="utf-8" /><style>
   body {{ margin:0; padding:0; font-family:{body_font}; }}
   h1,h2,h3,h4,h5,h6 {{ font-family:{heading_font}; }}
+  {PRINT_STYLES}
 </style></head><body>
 <div style="display:flex;min-height:297mm;">
   <div style="width:30%;padding:24px;background-color:{bg_sidebar};">
@@ -238,6 +248,7 @@ def render_classic(instances: list[dict], customizations: dict) -> str:
 <html lang="en"><head><meta charset="utf-8" /><style>
   body {{ margin:0; padding:0; font-family:{body_font}; }}
   h1,h2,h3,h4,h5,h6 {{ font-family:{heading_font}; color:{header_color}; }}
+  {PRINT_STYLES}
 </style></head><body>
 <div style="padding:32px;">{"".join(panels)}</div>
 </body></html>"""
@@ -262,6 +273,7 @@ def render_minimal(instances: list[dict], customizations: dict) -> str:
 <html lang="en"><head><meta charset="utf-8" /><style>
   body {{ margin:0; padding:0; font-family:{body_font}; color:{text_color}; }}
   h1,h2,h3,h4,h5,h6 {{ font-family:{heading_font}; color:{heading_color}; }}
+  {PRINT_STYLES}
 </style></head><body>
 <div style="padding:32px;">{panels}</div>
 </body></html>"""
