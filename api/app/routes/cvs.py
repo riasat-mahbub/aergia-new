@@ -3,7 +3,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.schemas.cv import CVCreate, CVUpdate, CVResponse, CVListItem
+from fastapi.responses import StreamingResponse
+
 from app.services.cv import CVService
+from app.services.pdf import PDFService
 from app.services.renderer import render_preview
 from app.core.deps import get_current_user
 from app.models.user import User
@@ -105,3 +108,22 @@ async def preview_cv(
         template_id=cv.template_id,
     )
     return {"html": html}
+
+
+@router.post("/{cv_id}/export/pdf")
+async def export_cv_pdf(
+    cv_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDFService(db)
+    try:
+        pdf_bytes = await service.export_pdf(cv_id, current_user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+    return StreamingResponse(
+        iter([pdf_bytes]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="cv-{cv_id}.pdf"'},
+    )

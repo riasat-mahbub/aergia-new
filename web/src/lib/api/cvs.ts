@@ -64,3 +64,21 @@ export async function copyCV(id: string): Promise<CVDetail> {
   const { data } = await client.post(`/cvs/${id}/copy`);
   return data;
 }
+
+export async function exportPDF(id: string): Promise<Blob> {
+  const { data } = await client.post(`/cvs/${id}/export/pdf`, null, {
+    responseType: "blob",
+  });
+  return data;
+}
+
+export function downloadPDF(blob: Blob, filename: string = "cv.pdf") {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}

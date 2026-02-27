@@ -2,6 +2,7 @@ import { useEffect, useCallback, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import { Palette } from "lucide-react";
+import ExportPDFButton from "../components/builder/ExportPDFButton";
 import { useCVStore } from "../lib/store/cvStore";
 import { useAutoSave } from "../hooks/useAutoSave";
 import SectionList from "../components/sections/SectionList";
@@ -167,13 +168,16 @@ export default function BuilderPage() {
             <span className="text-xs text-gray-400">Saved</span>
           )}
         </div>
-        <button
-          onClick={() => setShowCustomizePanel((v) => !v)}
-          className={`rounded p-1.5 transition-colors ${showCustomizePanel ? "bg-blue-100 text-blue-600" : "text-gray-400 hover:text-gray-600"}`}
-          title="Toggle customization panel"
-        >
-          <Palette className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          {id && <ExportPDFButton cvId={id} cvTitle={currentCV.title} />}
+          <button
+            onClick={() => setShowCustomizePanel((v) => !v)}
+            className={`rounded p-1.5 transition-colors ${showCustomizePanel ? "bg-blue-100 text-blue-600" : "text-gray-400 hover:text-gray-600"}`}
+            title="Toggle customization panel"
+          >
+            <Palette className="h-4 w-4" />
+          </button>
+        </div>
       </header>
 
       <TemplateBrowser
