@@ -717,20 +717,21 @@ The core data model for sections is restructured from `{ order, enabled, data }`
 | T47 | Vitest: add section grid modal renders all types, click adds instance | ✅ |
 | T48 | Vitest: customization panel hidden by default, icon toggles visibility | ✅ |
 
-### Phase 7 — PDF Export & Auto-Save (was old Phase 5)
+### Phase 7 — PDF Export & Auto-Save
 
 | # | Task | Status |
 |---|---|---|
-| 56 | In-process Puppeteer PDF export | ☐ |
-| 57 | Preview = PDF exact match | ☐ |
-| 58 | Auto-save with debounce (3s) | ☐ |
-| 59 | Validation errors display | ☐ |
-| 60 | Toast notifications, loading states, empty states | ☐ |
-| 61 | Error handling UI | ☐ |
-| T49 | Pytest: PDF export returns valid PDF for all templates | ☐ |
-| T50 | Pytest: PDF content matches CV data | ☐ |
+| 56 | In-process PDF export (Playwright) | ✅ |
+| 57 | Preview = PDF exact match (print styles) | ✅ |
+| 58 | Auto-save with debounce (3s) | ✅ |
+| 59 | Validation errors display (Zod + components) | ✅ |
+| 60 | Toast notifications, loading states, empty states | ✅ |
+| 61 | Error handling UI (ErrorBoundary, axios toasts) | ✅ |
+| 56.5 | Routing paths overhaul (AppLayout, Settings, 404) | ✅ |
+| T49 | Pytest: PDF export returns valid PDF for all templates | ✅ |
+| T50 | Pytest: PDF content matches CV data | ✅ |
 | T51 | Pytest/TS: auto-save debounces correctly (unit) | ☐ |
-| T52 | Pytest: PDF export fails gracefully for non-existent CV | ☐ |
+| T52 | Pytest: PDF export fails gracefully for non-existent CV | ✅ |
 | T53 | Vitest: PDF export trigger + success/fail handling | ☐ |
 | T54 | Vitest: auto-save debounced save fires at correct interval | ☐ |
 | T55 | Vitest: toast system renders success/error (component) | ☐ |
