@@ -386,16 +386,15 @@ Customization overrides stored in `cvs.customizations`, applied as CSS variables
 services:
   api:
     build:
-      context: ./api
-      dockerfile: Dockerfile
-    expose:
-      - "8000"
+      context: .
+      dockerfile: api/Dockerfile
+    ports:
+      - "8000:8000"
     volumes:
       - uploads_data:/app/uploads
     environment:
-      - DATABASE_URL=postgresql+asyncpg://$DB_USER:$DB_PASS@postgres:5432/$DB_NAME
-      - SECRET_KEY=$SECRET_KEY
-      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER}:${DB_PASS}@postgres:5432/${DB_NAME}
+      - SECRET_KEY=${SECRET_KEY}
     depends_on:
       postgres:
         condition: service_healthy
@@ -404,15 +403,16 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: $DB_USER
-      POSTGRES_PASSWORD: $DB_PASS
-      POSTGRES_DB: $DB_NAME
+      POSTGRES_USER: ${DB_USER:-aergia_user}
+      POSTGRES_PASSWORD: ${DB_PASS:-aergia_pass}
+      POSTGRES_DB: ${DB_NAME:-aergia}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-aergia_user}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     restart: unless-stopped
 
 volumes:
@@ -420,19 +420,20 @@ volumes:
   postgres_data:
 ```
 
+Build context is the repo root (`.`), because the Dockerfile needs access to both `api/` and `web/` directories for the multi-stage build.
+
 ---
 
 ## 13. Deployment Checklist
 
-1. Provision VPS (Hetzner/Netcup, Starter Dedicated)
-2. Install Docker, configure UFW firewall
-3. Create swap file (for safety: 2GB)
-4. Clone repo to `/opt/aergia`
-5. Copy `.env.example` to `.env`, set secrets
-6. `docker compose up -d`
-7. Run Alembic migrations: `docker exec aergia-api alembic upgrade head`
-8. Seed templates: `docker exec aergia-api python -m app.db.seed`
-9. Add HTTPS later with certbot (letsencrypt)
+1. Provision VPS (minimum 2 vCPU, 4GB RAM, 50GB SSD)
+2. Install Docker + Docker Compose
+3. Clone repo to `/opt/aergia`
+4. Copy `.env.example` to `.env`, fill in secrets (`SECRET_KEY`, `DB_PASS`)
+5. `docker compose up -d`
+6. Run migrations: `docker compose exec api alembic upgrade head`
+7. Verify: `curl http://your-vps-ip:8000/healthz`
+8. (Optional) Set up Cloudflare Tunnel or Caddy for HTTPS
 
 ---
 
@@ -738,42 +739,42 @@ The core data model for sections is restructured from `{ order, enabled, data }`
 | T56 | E2E: full user journey (login → create → edit → switch template → export → logout) | ☐ |
 | 62 | Final integration testing | ☐ |
 
-### Phase 8 — Desktop Tauri (was old Phase 6)
+### Phase 8 — Production Deployment
 
 | # | Task | Status |
 |---|---|---|
-| 63 | Initialize Tauri 2.x in desktop/ | ☐ |
-| 64 | Configure Tauri to load http://api-server:8000/ | ☐ |
-| 65 | Add native menu + system tray | ☐ |
+| 8.1 | Docker Compose: add api service with uploads volume | ✅ |
+| 8.2 | Multi-stage Dockerfile (frontend builds inside API image) | ✅ |
+| 8.3 | dev.sh: playwright install, .env loading, --prod/--build flags | ✅ |
+| 8.4 | Rate limiting with slowapi (auth 10/min, global 100/min) | ✅ |
+| 8.5 | Enhanced health check + security middleware | ✅ |
+| 8.6 | DEPLOY.md documentation | ✅ |
+
+### Phase 9 — Desktop Tauri
+
+| # | Task | Status |
+|---|---|---|
+| 9.1 | Initialize Tauri 2.x in desktop/ | ☐ |
+| 9.2 | Configure Tauri to load http://api-server:8000/ | ☐ |
+| 9.3 | Add native menu + system tray | ☐ |
 
 ---
 
 ## 18. Frontend Serving (Single Origin)
 
-FastAPI serves static files directly:
+FastAPI serves static files directly from the built React app:
 
-```python
-from fastapi.staticfiles import StaticFiles
-from starlette.responses import FileResponse
-from pathlib import Path
-
-STATIC_DIR = Path("/app/static")
-
-# SPA fallback for client-side routing
-@app.get("/{full_path:path}")
-async def serve_spa(full_path: str):
-    file_path = STATIC_DIR / full_path
-    if file_path.exists() and file_path.is_file():
-        return FileResponse(file_path)
-    return FileResponse(STATIC_DIR / "index.html")
-
-# Mount static assets
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)))
-# Mount uploaded photos
-app.mount("/uploads", StaticFiles(directory="/app/uploads"))
+```
+Single image (api:8000):
+  /              → index.html (SPA entry)
+  /static/*      → bundled JS/CSS assets
+  /api/v1/*      → API routes
+  /uploads/*     → user uploaded photos
 ```
 
-Optional reverse proxy via Nginx in front of FastAPI — not required for showcase scale.
+Static serving implemented in `app.py` — mounts `StaticFiles` for `/static/` and `/uploads/`, with an SPA catch-all for client-side routing.
+
+No reverse proxy required. The FastAPI app is the only web server.
 
 ---
 
@@ -798,5 +799,7 @@ python-multipart>=0.0.9
 pydantic>=2.7
 pypdf>=4.2
 pillow>=10.4
+slowapi>=0.1.9
+playwright>=1.48
 ```
 
