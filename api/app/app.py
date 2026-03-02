@@ -1,12 +1,16 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.config import get_settings
+from app.core.rate_limit import limiter
 from app.db.session import async_session
 from app.db.seed import seed_templates
 from app.routes.auth import router as auth_router
@@ -15,7 +19,6 @@ from app.routes.assets import router as assets_router
 from app.routes.templates import router as templates_router
 
 settings = get_settings()
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -30,6 +33,18 @@ app = FastAPI(
     description="Build professional CVs",
     lifespan=lifespan,
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Security headers middleware
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    return response
 
 app.add_middleware(
     CORSMiddleware,
@@ -47,7 +62,25 @@ app.include_router(templates_router, prefix="/api/v1/templates")
 
 @app.get("/healthz")
 async def health():
-    return {"status": "ok", "app": settings.app_name}
+    return {"status": "ok", "app": settings.app_name, "version": settings.app_version}
+
+
+@app.get("/readyz")
+async def readyz(request: Request):
+    from sqlalchemy import text
+    from app.db.session import async_session
+
+    try:
+        async with async_session() as session:
+            await session.execute(text("SELECT 1"))
+        db_status = "ok"
+    except Exception as e:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "error", "database": str(e)},
+        )
+
+    return {"status": "ok", "database": db_status, "version": settings.app_version}
 
 
 STATIC_DIR = Path("/app/static")
