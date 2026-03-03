@@ -1,3 +1,13 @@
+# Stage 1 — Build frontend
+FROM node:20-alpine AS frontend-build
+
+WORKDIR /build
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+COPY web/ .
+RUN npm run build
+
+# Stage 2 — Production image
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -12,11 +22,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ENV PLAYWRIGHT_BROWSERS_PATH=/app/ms-playwright
 
-COPY pyproject.toml .
+COPY api/pyproject.toml .
 RUN pip install --no-cache-dir -e ".[test]" && \
     playwright install chromium
 
-COPY . .
+COPY api/ .
+
+# Copy built frontend from Stage 1
+COPY --from=frontend-build /build/dist /app/static
 
 EXPOSE 8000
 
