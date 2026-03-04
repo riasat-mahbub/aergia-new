@@ -5,6 +5,17 @@ ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 API_DIR="$ROOT_DIR/api"
 WEB_DIR="$ROOT_DIR/web"
 
+# ── Ensure Docker daemon access ───────────────────────────────────
+# Re-exec via sg if the current shell lacks docker group membership
+if ! docker ps >/dev/null 2>&1; then
+    if command -v sg >/dev/null 2>&1; then
+        exec sg docker -c "'$0' $*"
+    fi
+    echo "ERROR: Cannot access Docker daemon."
+    echo "Run: sg docker -c \"bash '$0' $*\""
+    exit 1
+fi
+
 # ── Parse flags ──────────────────────────────────────────────────
 PROD=false
 BUILD=false
