@@ -36,6 +36,7 @@ function SortableSection({
   onToggle,
   isActive,
   editingTitle,
+  onRemoveInstance,
   onRenameInstance,
   setEditingTitle,
 }: {
@@ -43,6 +44,7 @@ function SortableSection({
   onToggle: () => void;
   isActive: boolean;
   editingTitle: string | null;
+  onRemoveInstance: (id:string) => void;
   onRenameInstance: (id: string, title: string) => void;
   setEditingTitle: (id: string | null) => void;
 }) {
@@ -130,6 +132,13 @@ function SortableSection({
       >
         {instance.enabled ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
       </button>
+
+      <button
+          onClick={(e) => { e.stopPropagation(); onRemoveInstance(instance.id); }}
+          className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700"
+        >
+          <Trash2 className="h-4 w-4" />
+      </button>
     </div>
   );
 }
@@ -175,6 +184,7 @@ export default function SectionList({
                     onToggle={() => onToggle(instance.id)}
                     editingTitle={editingTitle}
                     onRenameInstance={onRenameInstance}
+                    onRemoveInstance={onRemoveInstance}
                     setEditingTitle={setEditingTitle}
                   />
                 </div>
@@ -188,12 +198,7 @@ export default function SectionList({
                     >
                       <div className="border-x border-b rounded-b-lg p-3 bg-gray-50">
                         <div className="mb-2 flex items-center gap-2">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); onRemoveInstance(instance.id); }}
-                            className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700"
-                          >
-                            <Trash2 className="h-3 w-3" /> Remove
-                          </button>
+
                         </div>
                         <SectionEditorPanel
                           instance={instance}
