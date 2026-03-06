@@ -17,6 +17,8 @@ services:
 
   postgres:
     image: postgres:16-alpine
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_USER: ${DB_USER:-aergia_user}
       POSTGRES_PASSWORD: ${DB_PASS:-aergia_pass}
