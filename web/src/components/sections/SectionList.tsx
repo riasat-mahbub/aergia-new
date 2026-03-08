@@ -19,7 +19,7 @@ import { SECTION_LABELS, SECTION_TYPES } from "../../lib/sections/types";
 import type { SectionInstance } from "../../lib/sections/types";
 import SectionEditorPanel from "./SectionEditorPanel";
 import AddSectionModal from "./AddSectionModal";
-import { Eye, EyeOff, GripVertical, Plus, Trash2 } from "lucide-react";
+import { Check, Eye, EyeOff, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 
 interface Props {
   instances: SectionInstance[];
@@ -34,12 +34,14 @@ interface Props {
 function SortableSection({
   instance,
   onToggle,
+  isActive,
   editingTitle,
   onRenameInstance,
   setEditingTitle,
 }: {
   instance: SectionInstance;
   onToggle: () => void;
+  isActive: boolean;
   editingTitle: string | null;
   onRenameInstance: (id: string, title: string) => void;
   setEditingTitle: (id: string | null) => void;
@@ -61,30 +63,57 @@ function SortableSection({
   };
 
   return (
-    <div ref={setNodeRef} style={style} className={`flex items-center gap-3 rounded border p-3 ${instance.enabled ? "bg-white" : "bg-gray-50"}`}>
+    <div ref={setNodeRef} style={style} className={`flex items-center gap-3 rounded border p-3 ${instance.enabled ? "bg-white" : "bg-gray-50"} cursor-pointer`}>
       <button {...attributes} {...listeners} className="cursor-grab text-gray-400 hover:text-gray-600" title="Drag to reorder">
         <GripVertical className="h-4 w-4" />
       </button>
       <div className="flex-1 min-w-0">
         {editingTitle === instance.id ? (
-          <input
-            ref={inputRef}
-            type="text"
-            defaultValue={instance.title}
-            autoFocus
-            className="w-full rounded border border-blue-300 px-1.5 py-0.5 text-sm font-medium text-gray-800"
-            onBlur={commitRename}
-            onKeyDown={(e) => { if (e.key === "Enter") commitRename(); }}
-            onClick={(e) => e.stopPropagation()}
-          />
+          <div className="w-full flex flex-row">
+            <input
+              ref={inputRef}
+              type="text"
+              defaultValue={instance.title}
+              autoFocus
+              className="rounded border border-blue-300 px-1.5 py-0.5 text-sm font-medium text-gray-800"
+              onBlur={commitRename}
+              onKeyDown={(e) => { if (e.key === "Enter") commitRename(); }}
+              onClick={(e) => e.stopPropagation()}
+            />
+
+            <button className="ml-2 flex flex-row items-center bg-gradient-to-r from-emerald-700 to-emerald-300 rounded-md text-white px-2 py-1"
+              onBlur={commitRename}
+              onKeyDown={(e) => { if (e.key === "Enter") commitRename(); }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Check className="h-3 w-3 mr-1"/>
+              <div className="text-xs">
+                Done
+              </div>
+            </button>
+          </div>
+          
         ) : (
-          <button
-            onClick={(e) => { e.stopPropagation(); setEditingTitle(instance.id); }}
-            className={`block w-full text-left text-sm font-medium truncate ${instance.enabled ? "text-gray-800" : "text-gray-400"}`}
-          >
-            {instance.title}
-          </button>
+          <div className="flex flex-row items-center">
+            <div className={`block  mr-3 text-left text-sm font-medium truncate ${instance.enabled ? "text-gray-800" : "text-gray-400"}`}>
+              {instance.title}
+            </div>
+
+            {isActive && <div 
+              onClick={(e) => { e.stopPropagation(); setEditingTitle(instance.id); }} 
+              className={`flex flex-row items-center text-left text-xs font-medium truncate bg-gray-200 p-1  rounded-md ${instance.enabled ? "text-gray-800" : "text-gray-400"} px-2`}
+            >
+              <Pencil className="h-3 w-3 mr-1"/>
+              <button>
+                Edit Title
+              </button>
+            </div>}
+
+          </div>
+
         )}
+
+
         <span className="text-xs text-gray-400">{SECTION_LABELS[instance.type] || instance.type}</span>
       </div>
       <button
@@ -135,6 +164,7 @@ export default function SectionList({
                 <div onClick={() => { if (editingTitle !== instance.id) setActiveSection(instance.id === activeSection ? null : instance.id); }}>
                   <SortableSection
                     instance={instance}
+                    isActive={activeSection === instance.id}
                     onToggle={() => onToggle(instance.id)}
                     editingTitle={editingTitle}
                     onRenameInstance={onRenameInstance}
