@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { ChevronDown } from "lucide-react";
 
 interface Props {
-  title: string;
+  title: ReactNode;
   defaultOpen?: boolean;
   onRemove?: () => void;
   children: ReactNode;
@@ -25,7 +25,7 @@ export default function AccordionPanel({ title, defaultOpen = false, onRemove, c
           <ChevronDown className="h-4 w-4 text-gray-400" />
         </motion.div>
         <span className="flex-1 text-sm font-medium text-gray-700 truncate">
-          {title || "Untitled"}
+          {title ?? "Untitled"}
         </span>
         {onRemove && (
           <button
