@@ -19,7 +19,7 @@ import { SECTION_LABELS, SECTION_TYPES } from "../../lib/sections/types";
 import type { SectionInstance } from "../../lib/sections/types";
 import SectionEditorPanel from "./SectionEditorPanel";
 import AddSectionModal from "./AddSectionModal";
-import { Check, Eye, EyeOff, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Eye, EyeOff, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 
 interface Props {
   instances: SectionInstance[];
@@ -116,6 +116,13 @@ function SortableSection({
 
         <span className="text-xs text-gray-400">{SECTION_LABELS[instance.type] || instance.type}</span>
       </div>
+
+      <motion.div
+        animate={{ rotate: isActive ? 180 : 0 }}
+        transition={{ duration: 0.2 }}
+      >
+        <ChevronDown className="h-4 w-4 text-gray-800" />
+      </motion.div>
       <button
         onClick={(e) => { e.stopPropagation(); onToggle(); }}
         className={`rounded p-1 transition-colors ${instance.enabled ? "text-blue-600 hover:text-blue-800" : "text-gray-400 hover:text-gray-600"}`}
