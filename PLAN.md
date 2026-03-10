@@ -750,13 +750,42 @@ The core data model for sections is restructured from `{ order, enabled, data }`
 | 8.5 | Enhanced health check + security middleware | ✅ |
 | 8.6 | DEPLOY.md documentation | ✅ |
 
-### Phase 9 — Desktop Tauri
+### Phase 9 — Builder UX & Polish
 
 | # | Task | Status |
 |---|---|---|
-| 9.1 | Initialize Tauri 2.x in desktop/ | ☐ |
-| 9.2 | Configure Tauri to load http://api-server:8000/ | ☐ |
-| 9.3 | Add native menu + system tray | ☐ |
+| 63 | Delete confirmation modal on section remove | ✅ |
+| 64 | Sub-section accordions closed by default | ✅ |
+| 65 | Sub-section drag-to-reorder via dnd-kit (6 editors) | ✅ |
+| 66 | Builder tabs: replace side-by-side panel with "Content" / "Customize" tabs | ✅ |
+| T9.1 | Vitest: section delete modal renders and confirms/aborts | ☐ |
+| T9.2 | Vitest: accordion starts closed by default | ☐ |
+| T9.3 | Vitest: sub-section drag reorders entries array correctly | ☐ |
+| T9.4 | Vitest: builder tab switching renders correct panel | ☐ |
+| 67 | Manual test: full flow — reorder sub-sections in experience, confirm order persists after reload | ☐ |
+
+### Phase 10 — Per-Section Style Overrides
+
+| # | Task | Status |
+|---|---|---|
+| 68 | Add optional `SectionStyle` type + `style` field to `SectionInstance` | ☐ |
+| 69 | Extend `CustomizePanel` — add "Section Overrides" sub-panel with per-section style pickers (font, color, background, weight, layout) | ☐ |
+| 70 | Update frontend template renderers (Modern, Classic, Minimal) to merge `instance.style` overrides into rendered output | ☐ |
+| 71 | Update `SectionPreviewPanel` to accept and apply per-section styles | ☐ |
+| 72 | Update backend `renderer.py` to apply per-section styles in PDF/HTML preview | ☐ |
+| T10.1 | Vitest: SectionInstance style field is preserved through save/reload cycle | ☐ |
+| T10.2 | Vitest: per-section style overrides appear in preview render | ☐ |
+| T10.3 | Vitest: customization panel shows per-section controls | ☐ |
+| T10.4 | Pytest: backend renderer applies per-section styles in generated HTML | ☐ |
+| 73 | Manual test: set per-section font + color → preview updates → PDF reflects same styles | ☐ |
+
+### Phase 11 — Desktop Tauri (moved from old Phase 9)
+
+| # | Task | Status |
+|---|---|---|
+| 11.1 | Initialize Tauri 2.x in `desktop/` | ☐ |
+| 11.2 | Configure Tauri to load `http://api-server:8000/` | ☐ |
+| 11.3 | Add native menu + system tray | ☐ |
 
 ---
 
