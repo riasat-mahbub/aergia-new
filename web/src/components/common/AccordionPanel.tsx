@@ -9,7 +9,7 @@ interface Props {
   children: ReactNode;
 }
 
-export default function AccordionPanel({ title, defaultOpen = true, onRemove, children }: Props) {
+export default function AccordionPanel({ title, defaultOpen = false, onRemove, children }: Props) {
   const [open, setOpen] = useState(defaultOpen);
 
   return (
