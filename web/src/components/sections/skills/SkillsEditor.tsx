@@ -1,7 +1,6 @@
-import { AnimatePresence, motion } from "motion/react";
 import type { SkillGroup } from "../../../lib/sections/types";
 import { useFieldArray } from "../../../lib/sections/useFieldArray";
-import AccordionPanel from "../../common/AccordionPanel";
+import SortableAccordionList from "../../../lib/sections/SortableAccordionList";
 
 interface Props {
   data: SkillGroup[] | undefined;
@@ -27,48 +26,43 @@ export default function SkillsEditor({ data = [], onChange }: Props) {
 
   return (
     <div className="space-y-4">
-      <AnimatePresence>
-        {entries.map((group, i) => (
-          <motion.div
-            key={group.id}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-          >
-            <AccordionPanel
-              title={group.category || "New Skill Group"}
-              onRemove={() => remove(i)}
-            >
-              <input
-                type="text"
-                value={group.category}
-                onChange={(e) => update(i, "category", e.target.value)}
-                placeholder="Category (e.g. Frontend)"
-                className="mb-2 w-full rounded border px-2 py-1 text-sm"
-              />
-              <div className="flex flex-wrap gap-1">
-                {group.items.map((item, j) => (
-                  <span key={j} className="inline-flex items-center gap-1 rounded bg-gray-100 px-2 py-0.5 text-xs">
-                    {item}
-                    <button onClick={() => removeItem(i, j)} className="text-gray-400 hover:text-red-500">&times;</button>
-                  </span>
-                ))}
-              </div>
-              <input
-                type="text"
-                placeholder="Add skill and press Enter"
-                className="mt-2 w-full rounded border px-2 py-1 text-sm"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && (e.target as HTMLInputElement).value.trim()) {
-                    addItem(i, (e.target as HTMLInputElement).value.trim());
-                    (e.target as HTMLInputElement).value = "";
-                  }
-                }}
-              />
-            </AccordionPanel>
-          </motion.div>
-        ))}
-      </AnimatePresence>
+      <SortableAccordionList
+        entries={entries}
+        onReorder={(reordered: any) => onChange(reordered)}
+        onRemove={remove}
+        getTitle={(e: any) => e.category || "New Skill Group"}
+      >
+        {(group: any, i: number) => (
+          <div>
+            <input
+              type="text"
+              value={group.category}
+              onChange={(e: any) => update(i, "category", e.target.value)}
+              placeholder="Category (e.g. Frontend)"
+              className="mb-2 w-full rounded border px-2 py-1 text-sm"
+            />
+            <div className="flex flex-wrap gap-1">
+              {group.items.map((item: string, j: number) => (
+                <span key={j} className="inline-flex items-center gap-1 rounded bg-gray-100 px-2 py-0.5 text-xs">
+                  {item}
+                  <button onClick={() => removeItem(i, j)} className="text-gray-400 hover:text-red-500">&times;</button>
+                </span>
+              ))}
+            </div>
+            <input
+              type="text"
+              placeholder="Add skill and press Enter"
+              className="mt-2 w-full rounded border px-2 py-1 text-sm"
+              onKeyDown={(e: any) => {
+                if (e.key === "Enter" && e.target.value.trim()) {
+                  addItem(i, e.target.value.trim());
+                  e.target.value = "";
+                }
+              }}
+            />
+          </div>
+        )}
+      </SortableAccordionList>
       <button onClick={add} className="text-sm text-blue-600 hover:underline">+ Add Skill Group</button>
     </div>
   );
