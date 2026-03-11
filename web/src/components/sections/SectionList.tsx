@@ -19,6 +19,7 @@ import { SECTION_LABELS, SECTION_TYPES } from "../../lib/sections/types";
 import type { SectionInstance } from "../../lib/sections/types";
 import SectionEditorPanel from "./SectionEditorPanel";
 import AddSectionModal from "./AddSectionModal";
+import Modal from "../common/Modal";
 import { Check, ChevronDown, Eye, EyeOff, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 
 interface Props {
@@ -39,6 +40,7 @@ function SortableSection({
   onRemoveInstance,
   onRenameInstance,
   setEditingTitle,
+  setDeleteConfirmId,
 }: {
   instance: SectionInstance;
   onToggle: () => void;
@@ -47,6 +49,7 @@ function SortableSection({
   onRemoveInstance: (id:string) => void;
   onRenameInstance: (id: string, title: string) => void;
   setEditingTitle: (id: string | null) => void;
+  setDeleteConfirmId: (id: string | null) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: instance.id });
@@ -134,7 +137,7 @@ function SortableSection({
       </button>
 
       <button
-          onClick={(e) => { e.stopPropagation(); onRemoveInstance(instance.id); }}
+          onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(instance.id); }}
           className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700"
         >
           <Trash2 className="h-4 w-4" />
@@ -156,6 +159,7 @@ export default function SectionList({
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -186,6 +190,7 @@ export default function SectionList({
                     onRenameInstance={onRenameInstance}
                     onRemoveInstance={onRemoveInstance}
                     setEditingTitle={setEditingTitle}
+                    setDeleteConfirmId={setDeleteConfirmId}
                   />
                 </div>
                 <AnimatePresence>
@@ -228,6 +233,28 @@ export default function SectionList({
         onClose={() => setShowAddModal(false)}
         onSelect={onAddSection}
       />
+
+      <Modal open={!!deleteConfirmId} onClose={() => setDeleteConfirmId(null)}>
+        <h2 className="mb-2 text-lg font-semibold text-gray-900">Delete Section</h2>
+        <p className="text-sm text-gray-600">
+          Are you sure you want to delete <span className="font-medium text-gray-900">"{instances.find((i) => i.id === deleteConfirmId)?.title}"</span>?
+          This action cannot be undone.
+        </p>
+        <div className="mt-6 flex justify-end gap-2">
+          <button
+            onClick={() => setDeleteConfirmId(null)}
+            className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => { if (deleteConfirmId) onRemoveInstance(deleteConfirmId); setDeleteConfirmId(null); }}
+            className="rounded-md bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700"
+          >
+            Delete
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }
