@@ -764,6 +764,18 @@ The core data model for sections is restructured from `{ order, enabled, data }`
 | T9.4 | Vitest: builder tab switching renders correct panel | ☐ |
 | 67 | Manual test: full flow — reorder sub-sections in experience, confirm order persists after reload | ☐ |
 
+### Phase 9.5 — Bug Fixes for Phase 9
+
+| # | Task | Status |
+|---|---|---|
+| 9.5.1 | Install @testing-library/user-event (missing dep) | ✅ |
+| 9.5.2 | Fix localStorage not available in jsdom (authStore tests) | ✅ |
+| 9.5.3 | Delete stale sectionInstanceStore.test.ts (methods removed from cvStore) | ✅ |
+| 9.5.4 | Fix SectionEditors.test.tsx: click accordion to expand before asserting fields | ✅ |
+| 9.5.5 | Fix CustomizePanel.test.tsx: add missing store mocks, rewrite T48 for tab layout | ✅ |
+| 9.5.6 | Single DndContext refactor: unify nested DndContexts to fix sub-section drag auto-save | ✅ |
+| T9.5 | All frontend tests pass (0 failures) | ✅ |
+
 ### Phase 10 — Per-Section Style Overrides
 
 | # | Task | Status |
