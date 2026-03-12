@@ -31,6 +31,7 @@ describe("ExperienceEditor", () => {
     const data = [{ id: "1", company: "Acme", position: "Dev", start_date: "2020", end_date: null, current: true, location: "NYC", description: "Work" }];
     render(<ExperienceEditor data={data} onChange={onChange} />);
 
+    fireEvent.click(screen.getByText("Acme"));
     expect(screen.getByDisplayValue("Acme")).toBeDefined();
   });
 });
@@ -54,6 +55,7 @@ describe("LanguagesEditor", () => {
     const data = [{ id: "1", language: "English", proficiency: "Native" }];
     render(<LanguagesEditor data={data} onChange={vi.fn()} />);
 
+    fireEvent.click(screen.getByText("English"));
     expect(screen.getByDisplayValue("English")).toBeDefined();
     expect(screen.getByDisplayValue("Native")).toBeDefined();
   });
