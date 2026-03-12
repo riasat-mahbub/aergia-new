@@ -15,7 +15,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { SECTION_LABELS, SECTION_TYPES } from "../../lib/sections/types";
+import { SECTION_LABELS } from "../../lib/sections/types";
 import type { SectionInstance } from "../../lib/sections/types";
 import SectionEditorPanel from "./SectionEditorPanel";
 import AddSectionModal from "./AddSectionModal";
@@ -37,7 +37,6 @@ function SortableSection({
   onToggle,
   isActive,
   editingTitle,
-  onRemoveInstance,
   onRenameInstance,
   setEditingTitle,
   setDeleteConfirmId,
@@ -46,7 +45,6 @@ function SortableSection({
   onToggle: () => void;
   isActive: boolean;
   editingTitle: string | null;
-  onRemoveInstance: (id:string) => void;
   onRenameInstance: (id: string, title: string) => void;
   setEditingTitle: (id: string | null) => void;
   setDeleteConfirmId: (id: string | null) => void;
@@ -188,7 +186,6 @@ export default function SectionList({
                     onToggle={() => onToggle(instance.id)}
                     editingTitle={editingTitle}
                     onRenameInstance={onRenameInstance}
-                    onRemoveInstance={onRemoveInstance}
                     setEditingTitle={setEditingTitle}
                     setDeleteConfirmId={setDeleteConfirmId}
                   />
