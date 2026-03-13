@@ -8,17 +8,25 @@ vi.mock("react-router-dom", () => ({
   useNavigate: () => vi.fn(),
 }));
 
+const mockLoadCV = vi.fn();
+const mockSetIsSaving = vi.fn();
+const mockSetLastSaved = vi.fn();
+const mockCurrentCV = Object.freeze({
+  id: "1",
+  title: "Test CV",
+  template_id: "generic-modern",
+  sections: [],
+  customizations: {},
+});
 vi.mock("../../lib/store/cvStore", () => ({
   useCVStore: vi.fn(() => ({
-    currentCV: {
-      id: "1",
-      title: "Test CV",
-      template_id: "generic-modern",
-      sections: [],
-      customizations: {},
-    },
-    loadCV: vi.fn(),
+    currentCV: mockCurrentCV,
+    loadCV: mockLoadCV,
     isLoading: false,
+    isSaving: false,
+    lastSaved: null,
+    setIsSaving: mockSetIsSaving,
+    setLastSaved: mockSetLastSaved,
   })),
 }));
 
@@ -84,13 +92,13 @@ describe("CustomizePanel", () => {
 describe("T48: customization panel visibility in BuilderPage", () => {
   it("is hidden by default", () => {
     render(<BuilderPage />);
-    expect(screen.queryByText("Customize")).toBeNull();
+    expect(screen.queryByText("Accent")).toBeNull();
   });
 
   it("appears after clicking toggle icon", () => {
     render(<BuilderPage />);
     const toggle = screen.getByTitle("Toggle customization panel");
     fireEvent.click(toggle);
-    expect(screen.getByText("Customize")).toBeDefined();
+    expect(screen.getByText("Accent")).toBeDefined();
   });
 });
