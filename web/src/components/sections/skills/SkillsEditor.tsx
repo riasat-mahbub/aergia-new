@@ -28,7 +28,6 @@ export default function SkillsEditor({ data = [], onChange }: Props) {
     <div className="space-y-4">
       <SortableAccordionList
         entries={entries}
-        onReorder={(reordered: any) => onChange(reordered)}
         onRemove={remove}
         getTitle={(e: any) => e.category || "New Skill Group"}
       >
