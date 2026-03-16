@@ -2,6 +2,15 @@ import { useEffect, useCallback, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import { Palette } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { arrayMove } from "@dnd-kit/sortable";
 import ExportPDFButton from "../components/builder/ExportPDFButton";
 import { useCVStore } from "../lib/store/cvStore";
 import { useAutoSave } from "../hooks/useAutoSave";
@@ -71,12 +80,36 @@ export default function BuilderPage() {
   const customizations = localCustomizations;
   const templateLabel = currentCV?.template_id?.replace("generic-", "") || "";
 
-  const handleReorder = useCallback(
-    (ids: string[]) => {
-      const reordered = ids.map((itemId) => instances.find((i) => i.id === itemId)).filter(Boolean) as SectionInstance[];
-      setLocalInstances(reordered);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+
+      const sectionIdx = instances.findIndex((i) => i.id === active.id);
+      if (sectionIdx !== -1) {
+        const oldIndex = instances.findIndex((i) => i.id === active.id);
+        const newIndex = instances.findIndex((i) => i.id === over.id);
+        setLocalInstances(arrayMove(instances, oldIndex, newIndex));
+        return;
+      }
+
+      for (const instance of instances) {
+        const entries = instance.data as any[];
+        if (Array.isArray(entries)) {
+          const entryIdx = entries.findIndex((e: any) => e.id === active.id);
+          if (entryIdx !== -1) {
+            const oldIndex = entries.findIndex((e: any) => e.id === active.id);
+            const newIndex = entries.findIndex((e: any) => e.id === over.id);
+            const reordered = arrayMove(entries, oldIndex, newIndex);
+            handleUpdateData(instance.id, reordered);
+            return;
+          }
+        }
+      }
     },
-    [instances]
+    [instances, handleUpdateData]
   );
 
   const handleToggle = useCallback(
@@ -150,6 +183,7 @@ export default function BuilderPage() {
   }
 
   return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
     <div className="flex h-screen flex-col">
       <header className="flex items-center justify-between border-b bg-white px-4 py-3">
         <div className="flex items-center gap-3">
@@ -219,7 +253,6 @@ export default function BuilderPage() {
             {activeTab === "content" && (
               <SectionList
                 instances={instances}
-                onReorder={handleReorder}
                 onToggle={handleToggle}
                 onUpdateData={handleUpdateData}
                 onAddSection={handleAddSection}
@@ -250,5 +283,6 @@ export default function BuilderPage() {
         </motion.div>
       </div>
     </div>
+    </DndContext>
   );
 }
