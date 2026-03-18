@@ -20,7 +20,6 @@ export default function CertificationsEditor({ data = [], onChange }: Props) {
     <div className="space-y-4">
       <SortableAccordionList
         entries={entries}
-        onReorder={(reordered: any) => onChange(reordered)}
         onRemove={remove}
         getTitle={(e: any) => e.name || "New Certification"}
       >
