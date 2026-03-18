@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useState, useRef, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useBlocker } from "react-router-dom";
 import { motion } from "motion/react";
 import { Palette } from "lucide-react";
 import {
@@ -33,6 +33,9 @@ export default function BuilderPage() {
   const loadedRef = useRef(false);
   const needsReloadRef = useRef(false);
   const hasChangesRef = useRef(false);
+  const pendingSaveRef = useRef<Promise<void> | null>(null);
+
+  const isPending = useCallback(() => pendingSaveRef.current != null, []);
 
   useEffect(() => {
     if (id) {
@@ -49,6 +52,38 @@ export default function BuilderPage() {
     }
   }, [currentCV]);
 
+  const instances = localInstances;
+  const customizations = localCustomizations;
+  const templateLabel = currentCV?.template_id?.replace("generic-", "") || "";
+
+  const instancesRef = useRef(instances);
+  instancesRef.current = instances;
+  const idRef = useRef(id);
+  idRef.current = id;
+  const customizationsRef = useRef(customizations);
+  customizationsRef.current = customizations;
+  const instancesForUnloadRef = useRef({ sections: localInstances, customizations: localCustomizations });
+  instancesForUnloadRef.current = { sections: localInstances, customizations: localCustomizations };
+
+  const triggerSave = useCallback(
+    async (saveData: { sections: SectionInstance[]; customizations: Record<string, unknown> }) => {
+      const cvId = idRef.current;
+      if (!cvId) return;
+      try {
+        setIsSaving(true);
+        const p = updateCV(cvId, saveData);
+        pendingSaveRef.current = p;
+        await p;
+        setLastSaved(new Date());
+        hasChangesRef.current = false;
+      } finally {
+        setIsSaving(false);
+        pendingSaveRef.current = null;
+      }
+    },
+    [setIsSaving, setLastSaved]
+  );
+
   const autoSaveDataRef = useRef({ sections: localInstances, customizations: localCustomizations });
   const stableAutoSaveData = useMemo(() => {
     const next = { sections: localInstances, customizations: localCustomizations };
@@ -58,7 +93,7 @@ export default function BuilderPage() {
     return autoSaveDataRef.current;
   }, [localInstances, localCustomizations]);
 
-  const handleAutoSaveComplete = useCallback(async () => {
+  const handleAutoSaveComplete = useCallback(() => {
     setLastSaved(new Date());
     needsReloadRef.current = true;
   }, [setLastSaved]);
@@ -68,6 +103,8 @@ export default function BuilderPage() {
     data: stableAutoSaveData as Record<string, unknown>,
     debounceMs: 3000,
     enabled: loadedRef.current && !!id,
+    onSaveComplete: handleAutoSaveComplete,
+    isPending,
   });
 
   useEffect(() => {
@@ -81,20 +118,32 @@ export default function BuilderPage() {
     }
   }, [isSaving, id, loadCV]);
 
-  const instancesForUnloadRef = useRef({ sections: localInstances, customizations: localCustomizations });
-  instancesForUnloadRef.current = { sections: localInstances, customizations: localCustomizations };
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      hasChangesRef.current &&
+      currentLocation.pathname !== nextLocation.pathname &&
+      id != null
+  );
 
   useEffect(() => {
-    return () => {
-      if (hasChangesRef.current && id) {
-        updateCV(id, instancesForUnloadRef.current);
+    if (blocker.state !== "blocked") return;
+    (async () => {
+      try {
+        await triggerSave(instancesForUnloadRef.current);
+      } finally {
+        blocker.proceed();
       }
-    };
-  }, [id]);
+    })();
+  }, [blocker.state, triggerSave]);
 
-  const instances = localInstances;
-  const customizations = localCustomizations;
-  const templateLabel = currentCV?.template_id?.replace("generic-", "") || "";
+  useEffect(() => {
+    if (!hasChangesRef.current) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, []);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -114,26 +163,22 @@ export default function BuilderPage() {
     []
   );
 
-  const idRef = useRef(id);
-  idRef.current = id;
-  const customizationsRef = useRef(customizations);
-  customizationsRef.current = customizations;
-
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       const { active, over } = event;
       if (!over || active.id === over.id) return;
 
+      const currentInstances = instancesRef.current;
       let updatedInstances: SectionInstance[] | null = null;
 
-      const sectionIdx = instances.findIndex((i) => i.id === active.id);
+      const sectionIdx = currentInstances.findIndex((i) => i.id === active.id);
       if (sectionIdx !== -1) {
-        const oldIndex = instances.findIndex((i) => i.id === active.id);
-        const newIndex = instances.findIndex((i) => i.id === over.id);
-        updatedInstances = arrayMove(instances, oldIndex, newIndex);
+        const oldIndex = currentInstances.findIndex((i) => i.id === active.id);
+        const newIndex = currentInstances.findIndex((i) => i.id === over.id);
+        updatedInstances = arrayMove(currentInstances, oldIndex, newIndex);
         setLocalInstances(updatedInstances);
       } else {
-        for (const instance of instances) {
+        for (const instance of currentInstances) {
           const entries = instance.data as any[];
           if (Array.isArray(entries)) {
             const entryIdx = entries.findIndex((e: any) => e.id === active.id);
@@ -141,7 +186,7 @@ export default function BuilderPage() {
               const oldIndex = entries.findIndex((e: any) => e.id === active.id);
               const newIndex = entries.findIndex((e: any) => e.id === over.id);
               const reordered = arrayMove(entries, oldIndex, newIndex);
-              updatedInstances = instances.map((i) =>
+              updatedInstances = currentInstances.map((i) =>
                 i.id === instance.id ? { ...i, data: reordered } : i
               );
               setLocalInstances(updatedInstances);
@@ -151,15 +196,11 @@ export default function BuilderPage() {
         }
       }
 
-      const cvId = idRef.current;
-      if (updatedInstances && cvId) {
-        setIsSaving(true);
-        updateCV(cvId, { sections: updatedInstances, customizations: customizationsRef.current })
-          .then(() => setLastSaved(new Date()))
-          .finally(() => setIsSaving(false));
+      if (updatedInstances) {
+        triggerSave({ sections: updatedInstances, customizations: customizationsRef.current });
       }
     },
-    [instances]
+    [triggerSave]
   );
 
   const handleAddSection = useCallback(

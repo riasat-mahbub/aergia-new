@@ -6,6 +6,7 @@ import BuilderPage from "../../pages/BuilderPage";
 vi.mock("react-router-dom", () => ({
   useParams: () => ({ id: "test-id" }),
   useNavigate: () => vi.fn(),
+  useBlocker: () => ({ state: "unblocked" }),
 }));
 
 const mockLoadCV = vi.fn();
