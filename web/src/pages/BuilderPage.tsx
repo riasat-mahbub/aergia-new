@@ -32,6 +32,7 @@ export default function BuilderPage() {
   const [localCustomizations, setLocalCustomizations] = useState<Record<string, unknown>>({});
   const loadedRef = useRef(false);
   const needsReloadRef = useRef(false);
+  const hasChangesRef = useRef(false);
 
   useEffect(() => {
     if (id) {
@@ -80,6 +81,17 @@ export default function BuilderPage() {
     }
   }, [isSaving, id, loadCV]);
 
+  const instancesForUnloadRef = useRef({ sections: localInstances, customizations: localCustomizations });
+  instancesForUnloadRef.current = { sections: localInstances, customizations: localCustomizations };
+
+  useEffect(() => {
+    return () => {
+      if (hasChangesRef.current && id) {
+        updateCV(id, instancesForUnloadRef.current);
+      }
+    };
+  }, [id]);
+
   const instances = localInstances;
   const customizations = localCustomizations;
   const templateLabel = currentCV?.template_id?.replace("generic-", "") || "";
@@ -88,6 +100,7 @@ export default function BuilderPage() {
 
   const handleToggle = useCallback(
     (sectionId: string) => {
+      hasChangesRef.current = true;
       setLocalInstances((prev) => prev.map((i) => (i.id === sectionId ? { ...i, enabled: !i.enabled } : i)));
     },
     []
@@ -95,43 +108,63 @@ export default function BuilderPage() {
 
   const handleUpdateData = useCallback(
     (sectionId: string, data: any) => {
+      hasChangesRef.current = true;
       setLocalInstances((prev) => prev.map((i) => (i.id === sectionId ? { ...i, data } : i)));
     },
     []
   );
+
+  const idRef = useRef(id);
+  idRef.current = id;
+  const customizationsRef = useRef(customizations);
+  customizationsRef.current = customizations;
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       const { active, over } = event;
       if (!over || active.id === over.id) return;
 
+      let updatedInstances: SectionInstance[] | null = null;
+
       const sectionIdx = instances.findIndex((i) => i.id === active.id);
       if (sectionIdx !== -1) {
         const oldIndex = instances.findIndex((i) => i.id === active.id);
         const newIndex = instances.findIndex((i) => i.id === over.id);
-        setLocalInstances(arrayMove(instances, oldIndex, newIndex));
-        return;
-      }
-
-      for (const instance of instances) {
-        const entries = instance.data as any[];
-        if (Array.isArray(entries)) {
-          const entryIdx = entries.findIndex((e: any) => e.id === active.id);
-          if (entryIdx !== -1) {
-            const oldIndex = entries.findIndex((e: any) => e.id === active.id);
-            const newIndex = entries.findIndex((e: any) => e.id === over.id);
-            const reordered = arrayMove(entries, oldIndex, newIndex);
-            handleUpdateData(instance.id, reordered);
-            return;
+        updatedInstances = arrayMove(instances, oldIndex, newIndex);
+        setLocalInstances(updatedInstances);
+      } else {
+        for (const instance of instances) {
+          const entries = instance.data as any[];
+          if (Array.isArray(entries)) {
+            const entryIdx = entries.findIndex((e: any) => e.id === active.id);
+            if (entryIdx !== -1) {
+              const oldIndex = entries.findIndex((e: any) => e.id === active.id);
+              const newIndex = entries.findIndex((e: any) => e.id === over.id);
+              const reordered = arrayMove(entries, oldIndex, newIndex);
+              updatedInstances = instances.map((i) =>
+                i.id === instance.id ? { ...i, data: reordered } : i
+              );
+              setLocalInstances(updatedInstances);
+              break;
+            }
           }
         }
       }
+
+      const cvId = idRef.current;
+      if (updatedInstances && cvId) {
+        setIsSaving(true);
+        updateCV(cvId, { sections: updatedInstances, customizations: customizationsRef.current })
+          .then(() => setLastSaved(new Date()))
+          .finally(() => setIsSaving(false));
+      }
     },
-    [instances, handleUpdateData]
+    [instances]
   );
 
   const handleAddSection = useCallback(
     (type: string) => {
+      hasChangesRef.current = true;
       const newInstance = createDefaultInstance(type);
       setLocalInstances((prev) => [...prev, newInstance]);
     },
@@ -140,6 +173,7 @@ export default function BuilderPage() {
 
   const handleRemoveInstance = useCallback(
     (sectionId: string) => {
+      hasChangesRef.current = true;
       setLocalInstances((prev) => prev.filter((i) => i.id !== sectionId));
     },
     []
@@ -147,6 +181,7 @@ export default function BuilderPage() {
 
   const handleRenameInstance = useCallback(
     (sectionId: string, title: string) => {
+      hasChangesRef.current = true;
       setLocalInstances((prev) => prev.map((i) => (i.id === sectionId ? { ...i, title } : i)));
     },
     []
@@ -169,6 +204,7 @@ export default function BuilderPage() {
 
   const handleCustomizationsChange = useCallback(
     (newCustomizations: Record<string, unknown>) => {
+      hasChangesRef.current = true;
       setLocalCustomizations(newCustomizations);
     },
     []
