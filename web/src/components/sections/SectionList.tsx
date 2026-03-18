@@ -1,15 +1,6 @@
 import { useState, useRef } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  arrayMove,
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
@@ -24,7 +15,6 @@ import { Check, ChevronDown, Eye, EyeOff, GripVertical, Pencil, Plus, Trash2 } f
 
 interface Props {
   instances: SectionInstance[];
-  onReorder: (ids: string[]) => void;
   onToggle: (id: string) => void;
   onUpdateData: (id: string, data: any) => void;
   onAddSection: (type: string) => void;
@@ -146,75 +136,61 @@ function SortableSection({
 
 export default function SectionList({
   instances,
-  onReorder,
   onToggle,
   onUpdateData,
   onAddSection,
   onRemoveInstance,
   onRenameInstance,
 }: Props) {
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (over && active.id !== over.id) {
-      const oldIndex = instances.findIndex((i) => i.id === active.id);
-      const newIndex = instances.findIndex((i) => i.id === over.id);
-      const reordered = arrayMove(instances, oldIndex, newIndex);
-      onReorder(reordered.map((i) => i.id));
-    }
-  };
 
   const itemIds = instances.map((i) => i.id);
 
   return (
     <div>
       <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Sections</h3>
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
-          <div className="space-y-2">
-            {instances.map((instance) => (
-              <div key={instance.id}>
-                <div onClick={() => { if (editingTitle !== instance.id) setActiveSection(instance.id === activeSection ? null : instance.id); }}>
-                  <SortableSection
-                    instance={instance}
-                    isActive={activeSection === instance.id}
-                    onToggle={() => onToggle(instance.id)}
-                    editingTitle={editingTitle}
-                    onRenameInstance={onRenameInstance}
-                    setEditingTitle={setEditingTitle}
-                    setDeleteConfirmId={setDeleteConfirmId}
-                  />
-                </div>
-                <AnimatePresence>
-                  {activeSection === instance.id && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="border-x border-b rounded-b-lg p-3 bg-gray-50">
-                        <div className="mb-2 flex items-center gap-2">
-
-                        </div>
-                        <SectionEditorPanel
-                          instance={instance}
-                          onChange={onUpdateData}
-                        />
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+      <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
+        <div className="space-y-2">
+          {instances.map((instance) => (
+            <div key={instance.id}>
+              <div onClick={() => { if (editingTitle !== instance.id) setActiveSection(instance.id === activeSection ? null : instance.id); }}>
+                <SortableSection
+                  instance={instance}
+                  isActive={activeSection === instance.id}
+                  onToggle={() => onToggle(instance.id)}
+                  editingTitle={editingTitle}
+                  onRenameInstance={onRenameInstance}
+                  setEditingTitle={setEditingTitle}
+                  setDeleteConfirmId={setDeleteConfirmId}
+                />
               </div>
-            ))}
-          </div>
-        </SortableContext>
-      </DndContext>
+              <AnimatePresence>
+                {activeSection === instance.id && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="border-x border-b rounded-b-lg p-3 bg-gray-50">
+                      <div className="mb-2 flex items-center gap-2">
+
+                      </div>
+                      <SectionEditorPanel
+                        instance={instance}
+                        onChange={onUpdateData}
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          ))}
+        </div>
+      </SortableContext>
 
       <div className="mt-3">
         <button
