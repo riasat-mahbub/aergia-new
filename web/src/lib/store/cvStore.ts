@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import * as cvsApi from "../api/cvs";
-import type { SectionInstance } from "../sections/types";
-import { createDefaultInstance } from "../sections/types";
+
 
 interface CVState {
   cvList: cvsApi.CVListItem[];

@@ -33,7 +33,7 @@ export default function BuilderPage() {
   const loadedRef = useRef(false);
   const needsReloadRef = useRef(false);
   const hasChangesRef = useRef(false);
-  const pendingSaveRef = useRef<Promise<void> | null>(null);
+  const pendingSaveRef = useRef<Promise<unknown> | null>(null);
 
   const isPending = useCallback(() => pendingSaveRef.current != null, []);
 

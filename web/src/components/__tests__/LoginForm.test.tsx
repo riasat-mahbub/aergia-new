@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { BrowserRouter } from "react-router-dom";
+import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import LoginForm from "../auth/LoginForm";
 
 vi.mock("../../lib/store/authStore", () => ({
@@ -14,11 +14,10 @@ vi.mock("../../lib/store/authStore", () => ({
 }));
 
 function renderLoginForm() {
-  return render(
-    <BrowserRouter>
-      <LoginForm />
-    </BrowserRouter>
-  );
+  const router = createMemoryRouter([
+    { path: "/", element: <LoginForm /> },
+  ]);
+  return render(<RouterProvider router={router} />);
 }
 
 describe("LoginForm", () => {
