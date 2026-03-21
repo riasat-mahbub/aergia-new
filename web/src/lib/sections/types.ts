@@ -59,12 +59,19 @@ export interface CertificationEntry {
   credential_url: string;
 }
 
+export interface SectionStyle {
+  font?: string;
+  color?: string;
+  weight?: string;
+}
+
 export interface SectionInstance {
   id: string;
   type: string;
   title: string;
   enabled: boolean;
   data: any;
+  style?: SectionStyle;
 }
 
 export const SECTION_LABELS: Record<string, string> = {
