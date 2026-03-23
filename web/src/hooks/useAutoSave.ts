@@ -16,8 +16,10 @@ export function useAutoSave({ cvId, data, debounceMs = 3000, enabled = true }: A
   const isSavingRef = useRef(false);
   const cvIdRef = useRef(cvId);
 
-  dataRef.current = data;
-  cvIdRef.current = cvId;
+  useEffect(() => {
+    dataRef.current = data;
+    cvIdRef.current = cvId;
+  }, [data, cvId]);
 
   const save = useCallback(async () => {
     if (!cvIdRef.current || isSavingRef.current) return;

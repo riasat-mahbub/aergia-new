@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState, useRef } from "react";
+import { useEffect, useCallback, useState, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import { Palette } from "lucide-react";
@@ -48,10 +48,14 @@ export default function BuilderPage() {
     }
   }, [currentCV]);
 
-  const autoSaveData = {
-    sections: localInstances,
-    customizations: localCustomizations,
-  };
+  const autoSaveDataRef = useRef({ sections: localInstances, customizations: localCustomizations });
+  const stableAutoSaveData = useMemo(() => {
+    const next = { sections: localInstances, customizations: localCustomizations };
+    if (JSON.stringify(next) !== JSON.stringify(autoSaveDataRef.current)) {
+      autoSaveDataRef.current = next;
+    }
+    return autoSaveDataRef.current;
+  }, [localInstances, localCustomizations]);
 
   const handleAutoSaveComplete = useCallback(async () => {
     setLastSaved(new Date());
@@ -60,7 +64,7 @@ export default function BuilderPage() {
 
   const { isSaving: hookSaving } = useAutoSave({
     cvId: id,
-    data: autoSaveData as Record<string, unknown>,
+    data: stableAutoSaveData as Record<string, unknown>,
     debounceMs: 3000,
     enabled: loadedRef.current && !!id,
   });
