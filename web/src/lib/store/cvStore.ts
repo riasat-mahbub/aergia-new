@@ -53,7 +53,7 @@ export const useCVStore = create<CVState>((set, get) => ({
   },
 
   loadCV: async (id: string) => {
-    set({ isLoading: true });
+    set({ isLoading: true, currentCV: null });
     try {
       const currentCV = await cvsApi.fetchCV(id);
       set({ currentCV, isLoading: false });
