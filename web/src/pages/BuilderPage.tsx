@@ -38,19 +38,26 @@ export default function BuilderPage() {
   const isPending = useCallback(() => pendingSaveRef.current != null, []);
 
   useEffect(() => {
-    if (id) {
-      loadedRef.current = false;
-      loadCV(id);
-    }
-  }, [id, loadCV]);
+    if (!id) return;
+    let cancelled = false;
 
-  useEffect(() => {
-    if (currentCV?.sections && !loadedRef.current) {
-      setLocalInstances(currentCV.sections as SectionInstance[]);
-      setLocalCustomizations(currentCV.customizations || {});
-      loadedRef.current = true;
-    }
-  }, [currentCV]);
+    setLocalInstances([]);
+    setLocalCustomizations({});
+    loadedRef.current = false;
+
+    (async () => {
+      await loadCV(id);
+      if (cancelled) return;
+      const state = useCVStore.getState();
+      if (state.currentCV?.sections) {
+        setLocalInstances(state.currentCV.sections as SectionInstance[]);
+        setLocalCustomizations(state.currentCV.customizations || {});
+        loadedRef.current = true;
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [id, loadCV]);
 
   const instances = localInstances;
   const customizations = localCustomizations;
