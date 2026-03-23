@@ -776,20 +776,49 @@ The core data model for sections is restructured from `{ order, enabled, data }`
 | 9.5.6 | Single DndContext refactor: unify nested DndContexts to fix sub-section drag auto-save | ✅ |
 | T9.5 | All frontend tests pass (0 failures) | ✅ |
 
-### Phase 10 — Per-Section Style Overrides
+### Phase 10 — Customize Tab Enhancement & UI Cleanup
 
 | # | Task | Status |
 |---|---|---|
-| 68 | Add optional `SectionStyle` type + `style` field to `SectionInstance` | ☐ |
-| 69 | Extend `CustomizePanel` — add "Section Overrides" sub-panel with per-section style pickers (font, color, background, weight, layout) | ☐ |
-| 70 | Update frontend template renderers (Modern, Classic, Minimal) to merge `instance.style` overrides into rendered output | ☐ |
-| 71 | Update `SectionPreviewPanel` to accept and apply per-section styles | ☐ |
-| 72 | Update backend `renderer.py` to apply per-section styles in PDF/HTML preview | ☐ |
-| T10.1 | Vitest: SectionInstance style field is preserved through save/reload cycle | ☐ |
-| T10.2 | Vitest: per-section style overrides appear in preview render | ☐ |
-| T10.3 | Vitest: customization panel shows per-section controls | ☐ |
-| T10.4 | Pytest: backend renderer applies per-section styles in generated HTML | ☐ |
-| 73 | Manual test: set per-section font + color → preview updates → PDF reflects same styles | ☐ |
+| 70 | Remove Palette button from BuilderPage header | ✅ |
+| 71 | Remove template "Change" badge from BuilderPage header | ✅ |
+| 72 | Add `templateId` and `onTemplateChange` props to `CustomizePanel` + inline template selector (3 cards: Modern, Classic, Minimal) | ✅ |
+| 73 | Remove `TemplateBrowser` modal component entirely | ✅ |
+| 74 | Remove `showTemplateBrowser` state and related logic from `BuilderPage` | ✅ |
+| 75 | Clean up unused imports in `BuilderPage` | ✅ |
+| T10.1 | Vitest: CustomizePanel renders inline template selector with correct active state | ☐ |
+| T10.2 | Vitest: clicking a template card triggers `onTemplateChange` | ☐ |
+| T10.3 | Vitest: template selector only visible in Customize tab (not Content) | ☐ |
+| 76 | Manual test: switch template from Customize → preview updates → persists after reload | ☐ |
+
+**Files changed:**
+- `web/src/pages/BuilderPage.tsx` — removed Palette button, template badge, TemplateBrowser import/modal/state
+- `web/src/components/customization/CustomizePanel.tsx` — added inline template cards at top
+- `web/src/components/template-browser/TemplateBrowser.tsx` — deleted (replaced by inline selector)
+- `web/src/components/__tests__/CustomizePanel.test.tsx` — updated props, replaced Palette-button tests with tab-bar tests
+
+### Phase 10.5 — Per-Instance Style Overrides
+
+**Goal:** Let users customize font, color, and weight on individual section instances (by `id`). Global styles remain as defaults. Per-instance overrides beat globals. Changing templates strips all per-instance styles.
+
+**No DB migration needed** — `SectionInstance[]` is stored as JSONB. The new `style` field passes through automatically. No Pydantic schema change needed.
+
+| # | Task | Status |
+|---|---|---|
+| 78 | Add `SectionStyle` type (`font`, `color`, `weight`) + `style?: SectionStyle` to `SectionInstance` in `types.ts` | ☐ |
+| 79 | Add `section-{type}` CSS class to preview wrapper in `SectionPreviewPanel.tsx` | ☐ |
+| 80 | Apply `instance.style` inline overrides (font, color, weight) in `SectionPreviewPanel` — on wrapper div + heading | ☐ |
+| 81 | Add `onUpdateStyle: (sectionId, style)` callback, thread through `SectionList` | ☐ |
+| 82 | Add collapsible "Style" sub-panel (Font, Color, Weight controls) in each section's accordion | ☐ |
+| 83 | Wire `handleUpdateStyle` in `BuilderPage.tsx` → `setLocalInstances` | ☐ |
+| 84 | In `handleTemplateChange`, strip `style` from all instances before saving | ☐ |
+| 85 | Manual test: set per-instance style → preview updates → switch template → styles reset | ☐ |
+| 86 | Update backend `renderer.py` to apply per-instance styles in `render_instance_panel` | ☐ |
+| T11.1 | Vitest: `onUpdateStyle` fires with correct values | ☐ |
+| T11.2 | Vitest: `SectionPreviewPanel` renders with per-instance styles applied | ☐ |
+| T11.3 | Vitest: `section-{type}` class present on preview wrapper | ☐ |
+| T11.4 | Vitest: template change strips per-instance styles | ☐ |
+| T11.5 | Pytest: backend renders per-instance styles | ☐ |
 
 ### Phase 11 — Desktop Tauri (moved from old Phase 9)
 
