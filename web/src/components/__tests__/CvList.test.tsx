@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { BrowserRouter } from "react-router-dom";
+import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import CvListPage from "../../pages/CvListPage";
 import AppLayout from "../common/AppLayout";
 
@@ -39,13 +39,10 @@ vi.mock("../../lib/api/client", () => ({
 }));
 
 function renderCvList() {
-  return render(
-    <BrowserRouter>
-      <AppLayout>
-        <CvListPage />
-      </AppLayout>
-    </BrowserRouter>
-  );
+  const router = createMemoryRouter([
+    { path: "/", element: <AppLayout><CvListPage /></AppLayout> },
+  ]);
+  return render(<RouterProvider router={router} />);
 }
 
 describe("CvListPage", () => {
