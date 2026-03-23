@@ -82,6 +82,20 @@ export default function BuilderPage() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
+  const handleToggle = useCallback(
+    (sectionId: string) => {
+      setLocalInstances((prev) => prev.map((i) => (i.id === sectionId ? { ...i, enabled: !i.enabled } : i)));
+    },
+    []
+  );
+
+  const handleUpdateData = useCallback(
+    (sectionId: string, data: any) => {
+      setLocalInstances((prev) => prev.map((i) => (i.id === sectionId ? { ...i, data } : i)));
+    },
+    []
+  );
+
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       const { active, over } = event;
@@ -110,20 +124,6 @@ export default function BuilderPage() {
       }
     },
     [instances, handleUpdateData]
-  );
-
-  const handleToggle = useCallback(
-    (sectionId: string) => {
-      setLocalInstances((prev) => prev.map((i) => (i.id === sectionId ? { ...i, enabled: !i.enabled } : i)));
-    },
-    []
-  );
-
-  const handleUpdateData = useCallback(
-    (sectionId: string, data: any) => {
-      setLocalInstances((prev) => prev.map((i) => (i.id === sectionId ? { ...i, data } : i)));
-    },
-    []
   );
 
   const handleAddSection = useCallback(

@@ -36,7 +36,6 @@ describe("SectionList", () => {
     render(
       <SectionList
         instances={makeInstances()}
-        onReorder={vi.fn()}
         onToggle={vi.fn()}
         onUpdateData={vi.fn()}
         onAddSection={vi.fn()}
@@ -53,7 +52,6 @@ describe("SectionList", () => {
     render(
       <SectionList
         instances={makeInstances([{ enabled: true }, { enabled: false }])}
-        onReorder={vi.fn()}
         onToggle={vi.fn()}
         onUpdateData={vi.fn()}
         onAddSection={vi.fn()}

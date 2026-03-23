@@ -3,23 +3,26 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BrowserRouter } from "react-router-dom";
 import CvListPage from "../../pages/CvListPage";
+import AppLayout from "../common/AppLayout";
 
 const mockFetchCVs = vi.fn();
 const mockCreateCV = vi.fn();
 const mockDeleteCV = vi.fn();
 const mockCopyCV = vi.fn();
 
+const mockCvStoreState = () => ({
+  cvList: [],
+  isLoading: false,
+  fetchCVs: mockFetchCVs,
+  createCV: mockCreateCV,
+  deleteCV: mockDeleteCV,
+  copyCV: mockCopyCV,
+});
 vi.mock("../../lib/store/cvStore", () => ({
-  useCVStore: vi.fn((selector) =>
-    selector({
-      cvList: [],
-      isLoading: false,
-      fetchCVs: mockFetchCVs,
-      createCV: mockCreateCV,
-      deleteCV: mockDeleteCV,
-      copyCV: mockCopyCV,
-    })
-  ),
+  useCVStore: vi.fn((selector) => {
+    const state = mockCvStoreState();
+    return selector ? selector(state) : state;
+  }),
 }));
 
 vi.mock("../../lib/store/authStore", () => ({
@@ -30,10 +33,17 @@ vi.mock("../../lib/store/authStore", () => ({
   ),
 }));
 
+vi.mock("../../lib/api/client", () => ({
+  default: { get: vi.fn().mockResolvedValue({ data: [] }) },
+  __esModule: true,
+}));
+
 function renderCvList() {
   return render(
     <BrowserRouter>
-      <CvListPage />
+      <AppLayout>
+        <CvListPage />
+      </AppLayout>
     </BrowserRouter>
   );
 }
@@ -55,14 +65,10 @@ describe("CvListPage", () => {
     ];
 
     vi.mocked(await import("../../lib/store/cvStore")).useCVStore.mockImplementation(
-      (selector: any) => selector({
-        cvList,
-        isLoading: false,
-        fetchCVs: mockFetchCVs,
-        createCV: mockCreateCV,
-        deleteCV: mockDeleteCV,
-        copyCV: mockCopyCV,
-      })
+      (selector: any) => {
+        const state = { cvList, isLoading: false, fetchCVs: mockFetchCVs, createCV: mockCreateCV, deleteCV: mockDeleteCV, copyCV: mockCopyCV };
+        return selector ? selector(state) : state;
+      }
     );
 
     renderCvList();
@@ -79,12 +85,12 @@ describe("CvListPage", () => {
 
     await user.click(screen.getByText("+ New CV"));
 
-    expect(screen.getByPlaceholderText("CV title...")).toBeDefined();
+    expect(screen.getByPlaceholderText("e.g. Software Engineer CV")).toBeDefined();
     expect(screen.getByText("Create")).toBeDefined();
   });
 
   it("renders logout button", () => {
     renderCvList();
-    expect(screen.getByText("Logout")).toBeDefined();
+    expect(screen.getByTitle("Logout")).toBeDefined();
   });
 });

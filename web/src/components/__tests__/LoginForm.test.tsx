@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BrowserRouter } from "react-router-dom";
 import LoginForm from "../auth/LoginForm";
@@ -46,15 +46,11 @@ describe("LoginForm", () => {
 
   it("shows validation error for invalid email", async () => {
     renderLoginForm();
-    const user = userEvent.setup();
 
-    await user.type(screen.getByLabelText(/email/i), "not-an-email");
-    await user.type(screen.getByLabelText(/password/i), "password123");
-    await user.click(screen.getByRole("button", { name: /sign in/i }));
+    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "not-an-email" } });
+    fireEvent.submit(screen.getByRole("button", { name: /sign in/i }).closest("form")!);
 
-    await waitFor(() => {
-      expect(screen.getByText(/invalid email/i)).toBeDefined();
-    });
+    expect(await screen.findByText(/invalid email/i)).toBeDefined();
   });
 
   it("shows register link", () => {
