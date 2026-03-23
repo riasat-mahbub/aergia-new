@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useState, useRef, useMemo } from "react";
 import { useParams, useNavigate, useBlocker } from "react-router-dom";
 import { motion } from "motion/react";
-import { Palette } from "lucide-react";
+
 import {
   DndContext,
   closestCenter,
@@ -17,8 +17,8 @@ import { useAutoSave } from "../hooks/useAutoSave";
 import SectionList from "../components/sections/SectionList";
 import TemplateSwitcher from "../components/preview/TemplateSwitcher";
 import CustomizePanel from "../components/customization/CustomizePanel";
-import TemplateBrowser from "../components/template-browser/TemplateBrowser";
-import type { SectionInstance } from "../lib/sections/types";
+
+import type { SectionInstance, SectionStyle } from "../lib/sections/types";
 import { createDefaultInstance } from "../lib/sections/types";
 import { updateCV } from "../lib/api/cvs";
 
@@ -26,7 +26,6 @@ export default function BuilderPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { currentCV, loadCV, isLoading, isSaving, lastSaved, setIsSaving, setLastSaved } = useCVStore();
-  const [showTemplateBrowser, setShowTemplateBrowser] = useState(false);
   const [activeTab, setActiveTab] = useState<"content" | "customize">("content");
   const [localInstances, setLocalInstances] = useState<SectionInstance[]>([]);
   const [localCustomizations, setLocalCustomizations] = useState<Record<string, unknown>>({});
@@ -61,8 +60,6 @@ export default function BuilderPage() {
 
   const instances = localInstances;
   const customizations = localCustomizations;
-  const templateLabel = currentCV?.template_id?.replace("generic-", "") || "";
-
   const instancesRef = useRef(instances);
   instancesRef.current = instances;
   const idRef = useRef(id);
@@ -235,14 +232,23 @@ export default function BuilderPage() {
     []
   );
 
+  const handleUpdateStyle = useCallback(
+    (sectionId: string, style: SectionStyle) => {
+      hasChangesRef.current = true;
+      setLocalInstances((prev) => prev.map((i) => (i.id === sectionId ? { ...i, style: style.font || style.color || style.weight ? style : undefined } : i)));
+    },
+    []
+  );
+
   const handleTemplateChange = useCallback(
     async (newTemplateId: string) => {
       if (!id) return;
       try {
         setIsSaving(true);
-        await updateCV(id, { template_id: newTemplateId, sections: localInstances, customizations: localCustomizations });
+        const cleanInstances = localInstances.map((i) => ({ ...i, style: undefined }));
+        setLocalInstances(cleanInstances);
+        await updateCV(id, { template_id: newTemplateId, sections: cleanInstances, customizations: localCustomizations });
         await loadCV(id);
-        setShowTemplateBrowser(false);
       } finally {
         setIsSaving(false);
       }
@@ -279,12 +285,6 @@ export default function BuilderPage() {
             &larr; Back
           </button>
           <h1 className="text-lg font-semibold text-gray-900">{currentCV.title}</h1>
-          <button
-            onClick={() => setShowTemplateBrowser(true)}
-            className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 capitalize hover:bg-gray-200"
-          >
-            {templateLabel || "template"} &middot; Change
-          </button>
           {isSaving && <span className="text-xs text-gray-400">Saving...</span>}
           {lastSaved && !isSaving && (
             <span className="text-xs text-gray-400">Saved</span>
@@ -292,22 +292,8 @@ export default function BuilderPage() {
         </div>
         <div className="flex items-center gap-2">
           {id && <ExportPDFButton cvId={id} cvTitle={currentCV.title} />}
-          <button
-            onClick={() => setActiveTab(activeTab === "customize" ? "content" : "customize")}
-            className={`rounded p-1.5 transition-colors ${activeTab === "customize" ? "bg-blue-100 text-blue-600" : "text-gray-400 hover:text-gray-600"}`}
-            title="Toggle customization panel"
-          >
-            <Palette className="h-4 w-4" />
-          </button>
         </div>
       </header>
-
-      <TemplateBrowser
-        open={showTemplateBrowser}
-        onClose={() => setShowTemplateBrowser(false)}
-        currentTemplateId={currentCV.template_id}
-        onSelect={handleTemplateChange}
-      />
 
       <div className="flex flex-1 overflow-hidden">
         <motion.div
@@ -346,10 +332,16 @@ export default function BuilderPage() {
                 onAddSection={handleAddSection}
                 onRemoveInstance={handleRemoveInstance}
                 onRenameInstance={handleRenameInstance}
+                onUpdateStyle={handleUpdateStyle}
               />
             )}
             {activeTab === "customize" && (
-              <CustomizePanel customizations={customizations} onChange={handleCustomizationsChange} />
+              <CustomizePanel
+                customizations={customizations}
+                onChange={handleCustomizationsChange}
+                templateId={currentCV.template_id}
+                onTemplateChange={handleTemplateChange}
+              />
             )}
           </div>
         </motion.div>
