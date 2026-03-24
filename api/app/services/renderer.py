@@ -180,8 +180,25 @@ def render_instance_panel(instance: dict) -> str:
     content = render_section_preview(section_type, section_data)
     if not content:
         content = '<p style="font-size:0.875rem;color:#9ca3af;font-style:italic;">No data</p>'
-    return f"""<div style="margin-bottom:24px;">
-  <h2 style="margin-bottom:8px;font-size:1rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#1f2937;">{label}</h2>
+
+    per_style = instance.get("style") or {}
+    wrapper_extra = ""
+    heading_extra = ""
+    if per_style.get("font"):
+        wrapper_extra += f"font-family:{per_style['font']};"
+    if per_style.get("color"):
+        wrapper_extra += f"color:{per_style['color']};"
+        heading_extra += f"color:{per_style['color']};"
+    if per_style.get("weight"):
+        heading_extra += f"font-weight:{per_style['weight']};"
+
+    base_wrapper = "margin-bottom:24px"
+    wrapper_style = f"{base_wrapper};{wrapper_extra}" if wrapper_extra else base_wrapper
+    base_heading = "margin-bottom:8px;font-size:1rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#1f2937"
+    heading_style = f"{base_heading};{heading_extra}" if heading_extra else base_heading
+
+    return f"""<div style="{wrapper_style}">
+  <h2 style="{heading_style}">{label}</h2>
   {content}
 </div>"""
 
