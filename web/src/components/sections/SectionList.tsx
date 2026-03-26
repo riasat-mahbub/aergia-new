@@ -7,7 +7,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { SECTION_LABELS } from "../../lib/sections/types";
-import type { SectionInstance, SectionStyle } from "../../lib/sections/types";
+import type { SectionInstance } from "../../lib/sections/types";
 import SectionEditorPanel from "./SectionEditorPanel";
 import AddSectionModal from "./AddSectionModal";
 import Modal from "../common/Modal";
@@ -20,7 +20,6 @@ interface Props {
   onAddSection: (type: string) => void;
   onRemoveInstance: (id: string) => void;
   onRenameInstance: (id: string, title: string) => void;
-  onUpdateStyle?: (id: string, style: SectionStyle) => void;
 }
 
 function SortableSection({
@@ -142,7 +141,6 @@ export default function SectionList({
   onAddSection,
   onRemoveInstance,
   onRenameInstance,
-  onUpdateStyle,
 }: Props) {
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -184,7 +182,6 @@ export default function SectionList({
                       <SectionEditorPanel
                         instance={instance}
                         onChange={onUpdateData}
-                        onUpdateStyle={onUpdateStyle}
                       />
                     </div>
                   </motion.div>
