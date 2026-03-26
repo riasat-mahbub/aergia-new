@@ -332,7 +332,6 @@ export default function BuilderPage() {
                 onAddSection={handleAddSection}
                 onRemoveInstance={handleRemoveInstance}
                 onRenameInstance={handleRenameInstance}
-                onUpdateStyle={handleUpdateStyle}
               />
             )}
             {activeTab === "customize" && (
@@ -341,6 +340,8 @@ export default function BuilderPage() {
                 onChange={handleCustomizationsChange}
                 templateId={currentCV.template_id}
                 onTemplateChange={handleTemplateChange}
+                instances={instances}
+                onUpdateStyle={handleUpdateStyle}
               />
             )}
           </div>

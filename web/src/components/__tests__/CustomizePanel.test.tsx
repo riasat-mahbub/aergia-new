@@ -59,27 +59,37 @@ vi.mock("@dnd-kit/sortable", () => ({
 
 vi.mock("@dnd-kit/utilities", () => ({ CSS: { Transform: { toString: () => "" } } }));
 
-describe("CustomizePanel", () => {
-  it("renders color tab by default", () => {
-    render(<CustomizePanel customizations={{}} onChange={vi.fn()} />);
+const renderCustomizePanel = (props?: Partial<Parameters<typeof CustomizePanel>[0]>) =>
+  render(
+    <CustomizePanel
+      customizations={{}}
+      onChange={vi.fn()}
+      templateId="generic-modern"
+      onTemplateChange={vi.fn()}
+      instances={[]}
+      onUpdateStyle={vi.fn()}
+      {...props}
+    />
+  );
 
-    expect(screen.getByText("Colors")).toBeDefined();
+describe("CustomizePanel", () => {
+  it("renders Global section with color pickers by default", () => {
+    renderCustomizePanel();
+
+    expect(screen.getByText("Global")).toBeDefined();
     expect(screen.getByText("Accent")).toBeDefined();
   });
 
-  it("switches between tabs", () => {
-    render(<CustomizePanel customizations={{}} onChange={vi.fn()} />);
+  it("Global section contains fonts and spacing", () => {
+    renderCustomizePanel();
 
-    fireEvent.click(screen.getByText("Fonts"));
     expect(screen.getByText("Body Font")).toBeDefined();
-
-    fireEvent.click(screen.getByText("Spacing"));
     expect(screen.getByText(/section gap/i)).toBeDefined();
   });
 
   it("calls onChange when color is changed", () => {
     const onChange = vi.fn();
-    render(<CustomizePanel customizations={{ colors: { accent: "#2563eb" } }} onChange={onChange} />);
+    renderCustomizePanel({ customizations: { colors: { accent: "#2563eb" } }, onChange });
 
     const inputs = screen.getAllByRole("textbox") as HTMLInputElement[];
     const accentInput = inputs.find((i) => i.value === "#2563eb");
@@ -88,18 +98,39 @@ describe("CustomizePanel", () => {
       expect(onChange).toHaveBeenCalled();
     }
   });
+
+  it("renders per-section style cards", () => {
+    renderCustomizePanel({
+      instances: [
+        { id: "s1", type: "profile", title: "John", enabled: true, data: {} },
+        { id: "s2", type: "experience", title: "Work", enabled: true, data: [] },
+      ],
+    });
+
+    expect(screen.getByText("John")).toBeDefined();
+    expect(screen.getByText("Work")).toBeDefined();
+    expect(screen.getByText("Profile")).toBeDefined();
+    expect(screen.getByText("Experience")).toBeDefined();
+  });
 });
 
-describe("T48: customization panel visibility in BuilderPage", () => {
-  it("is hidden by default", () => {
+describe("T48: customization panel switches via tab bar in BuilderPage", () => {
+  it("is hidden in Content tab by default", () => {
     render(<BuilderPage />);
     expect(screen.queryByText("Accent")).toBeNull();
   });
 
-  it("appears after clicking toggle icon", () => {
+  it("appears after clicking Customize tab", () => {
     render(<BuilderPage />);
-    const toggle = screen.getByTitle("Toggle customization panel");
-    fireEvent.click(toggle);
+    fireEvent.click(screen.getByText("Customize"));
     expect(screen.getByText("Accent")).toBeDefined();
+  });
+
+  it("hides when switching back to Content tab", () => {
+    render(<BuilderPage />);
+    fireEvent.click(screen.getByText("Customize"));
+    expect(screen.getByText("Accent")).toBeDefined();
+    fireEvent.click(screen.getByText("Content"));
+    expect(screen.queryByText("Accent")).toBeNull();
   });
 });
