@@ -37,6 +37,7 @@ const WEIGHT_OPTIONS = [
 
 export default function CustomizePanel({ customizations, onChange, templateId, onTemplateChange, instances, onUpdateStyle }: Props) {
   const [globalOpen, setGlobalOpen] = useState(true);
+  const [expandedSection, setExpandedSection] = useState<string | null>(null);
 
   const colors = customizations?.colors || {};
   const fonts = customizations?.fonts || {};
@@ -162,6 +163,7 @@ export default function CustomizePanel({ customizations, onChange, templateId, o
       <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Section Overrides</h4>
       <div className="space-y-2">
         {instances.map((instance) => {
+          const isOpen = expandedSection === instance.id;
           const style = instance.style || {};
           const updateStyle = (partial: Partial<SectionStyle>) => {
             const merged = { ...style, ...partial };
@@ -169,55 +171,74 @@ export default function CustomizePanel({ customizations, onChange, templateId, o
             onUpdateStyle(instance.id, hasValues ? merged : {});
           };
           return (
-            <div key={instance.id} className="rounded-lg border border-gray-200 p-3">
-              <div className="mb-2 flex items-center justify-between">
-                <p className="text-sm font-medium text-gray-900">{instance.title}</p>
-                <span className="text-xs text-gray-400">{SECTION_LABELS[instance.type] || instance.type}</span>
-              </div>
-              <div className="space-y-2">
-                <div>
-                  <label className="block text-xs text-gray-600">Font</label>
-                  <select
-                    value={style.font || ""}
-                    onChange={(e) => updateStyle({ font: e.target.value || undefined })}
-                    className="mt-1 w-full rounded border px-2 py-1 text-sm"
-                  >
-                    <option value="">Default</option>
-                    {FONT_OPTIONS.map((f) => (
-                      <option key={f} value={f}>{f.split(",")[0]}</option>
-                    ))}
-                  </select>
-                </div>
+            <div key={instance.id} className="overflow-hidden rounded-lg border border-gray-200">
+              <button
+                onClick={() => setExpandedSection(isOpen ? null : instance.id)}
+                className="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-gray-50"
+              >
                 <div className="flex items-center gap-2">
-                  <label className="w-14 text-xs text-gray-600">Color</label>
-                  <input
-                    type="color"
-                    value={style.color || "#374151"}
-                    onChange={(e) => updateStyle({ color: e.target.value })}
-                    className="h-7 w-10 cursor-pointer rounded border"
-                  />
-                  <input
-                    type="text"
-                    value={style.color || ""}
-                    onChange={(e) => updateStyle({ color: e.target.value || undefined })}
-                    placeholder="Default"
-                    className="flex-1 rounded border px-2 py-1 text-xs"
-                  />
+                  <p className="text-sm font-medium text-gray-900">{instance.title}</p>
+                  <span className="text-xs text-gray-400">{SECTION_LABELS[instance.type] || instance.type}</span>
                 </div>
-                <div>
-                  <label className="block text-xs text-gray-600">Weight</label>
-                  <select
-                    value={style.weight || ""}
-                    onChange={(e) => updateStyle({ weight: e.target.value || undefined })}
-                    className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                <motion.div animate={{ rotate: isOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                  <ChevronDown className="h-4 w-4 text-gray-400" />
+                </motion.div>
+              </button>
+              <AnimatePresence>
+                {isOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
                   >
-                    <option value="">Default</option>
-                    {WEIGHT_OPTIONS.map((w) => (
-                      <option key={w.value} value={w.value}>{w.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+                    <div className="space-y-2 border-t p-3">
+                      <div>
+                        <label className="block text-xs text-gray-600">Font</label>
+                        <select
+                          value={style.font || ""}
+                          onChange={(e) => updateStyle({ font: e.target.value || undefined })}
+                          className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                        >
+                          <option value="">Default</option>
+                          {FONT_OPTIONS.map((f) => (
+                            <option key={f} value={f}>{f.split(",")[0]}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="w-14 text-xs text-gray-600">Color</label>
+                        <input
+                          type="color"
+                          value={style.color || "#374151"}
+                          onChange={(e) => updateStyle({ color: e.target.value })}
+                          className="h-7 w-10 cursor-pointer rounded border"
+                        />
+                        <input
+                          type="text"
+                          value={style.color || ""}
+                          onChange={(e) => updateStyle({ color: e.target.value || undefined })}
+                          placeholder="Default"
+                          className="flex-1 rounded border px-2 py-1 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600">Weight</label>
+                        <select
+                          value={style.weight || ""}
+                          onChange={(e) => updateStyle({ weight: e.target.value || undefined })}
+                          className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                        >
+                          <option value="">Default</option>
+                          {WEIGHT_OPTIONS.map((w) => (
+                            <option key={w.value} value={w.value}>{w.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           );
         })}
