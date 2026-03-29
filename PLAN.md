@@ -813,11 +813,11 @@ The core data model for sections is restructured from `{ order, enabled, data }`
 | 83 | Wire `handleUpdateStyle` in `BuilderPage.tsx` → `setLocalInstances` | ✅ |
 | 84 | In `handleTemplateChange`, strip `style` from all instances before saving | ✅ |
 | 86 | Update backend `renderer.py` to apply per-instance styles in `render_instance_panel` | ✅ |
-| 87 | **Revert SectionEditorPanel** — remove style imports, `onUpdateStyle` prop, style state/UI. Restore to original simple component. | ☐ |
-| 88 | **Revert SectionList** — remove `onUpdateStyle` from Props and threading. | ☐ |
-| 89 | **Rewrite CustomizePanel** — remove Colors/Fonts/Spacing sub-tab bar. Add `instances` + `onUpdateStyle` props. Structure: Template selector → collapsible "Global" section (all colors, fonts, spacing) → per-instance style cards (font/color/weight each). | ☐ |
-| 90 | **Update BuilderPage** — remove `onUpdateStyle` from `<SectionList>`, pass `instances` + `onUpdateStyle` to `<CustomizePanel>`. | ☐ |
-| T10.4 | Vitest: update CustomizePanel tests for combined Global + section overrides | ☐ |
+| 87 | **Revert SectionEditorPanel** — remove style imports, `onUpdateStyle` prop, style state/UI. Restore to original simple component. | ✅ |
+| 88 | **Revert SectionList** — remove `onUpdateStyle` from Props and threading. | ✅ |
+| 89 | **Rewrite CustomizePanel** — remove Colors/Fonts/Spacing sub-tab bar. Add `instances` + `onUpdateStyle` props. Structure: Template selector → collapsible "Global" section (all colors, fonts, spacing) → per-instance style cards (font/color/weight each). | ✅ |
+| 90 | **Update BuilderPage** — remove `onUpdateStyle` from `<SectionList>`, pass `instances` + `onUpdateStyle` to `<CustomizePanel>`. | ✅ |
+| T10.4 | Vitest: update CustomizePanel tests for combined Global + section overrides | ✅ |
 | T11.2 | Vitest: `SectionPreviewPanel` renders with per-instance styles applied | ☐ |
 | T11.3 | Vitest: `section-{type}` class present on preview wrapper | ☐ |
 | T11.4 | Vitest: template change strips per-instance styles | ☐ |
