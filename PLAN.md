@@ -803,22 +803,26 @@ The core data model for sections is restructured from `{ order, enabled, data }`
 
 **No DB migration needed** — `SectionInstance[]` is stored as JSONB. The new `style` field passes through automatically. No Pydantic schema change needed.
 
+**Architecture:** Per-section style controls live in the `Customize` tab alongside global settings. The global Colors/Fonts/Spacing sub-tabs are merged into a single "Global" section.
+
 | # | Task | Status |
 |---|---|---|
 | 78 | Add `SectionStyle` type (`font`, `color`, `weight`) + `style?: SectionStyle` to `SectionInstance` in `types.ts` | ✅ |
 | 79 | Add `section-{type}` CSS class to preview wrapper in `SectionPreviewPanel.tsx` | ✅ |
 | 80 | Apply `instance.style` inline overrides (font, color, weight) in `SectionPreviewPanel` — on wrapper div + heading | ✅ |
-| 81 | Add `onUpdateStyle: (sectionId, style)` callback, thread through `SectionList` | ✅ |
-| 82 | Add collapsible "Style" sub-panel (Font, Color, Weight controls) in each section's accordion | ✅ |
 | 83 | Wire `handleUpdateStyle` in `BuilderPage.tsx` → `setLocalInstances` | ✅ |
 | 84 | In `handleTemplateChange`, strip `style` from all instances before saving | ✅ |
-| 85 | Manual test: set per-instance style → preview updates → switch template → styles reset | ☐ |
 | 86 | Update backend `renderer.py` to apply per-instance styles in `render_instance_panel` | ✅ |
-| T11.1 | Vitest: `onUpdateStyle` fires with correct values | ☐ |
+| 87 | **Revert SectionEditorPanel** — remove style imports, `onUpdateStyle` prop, style state/UI. Restore to original simple component. | ☐ |
+| 88 | **Revert SectionList** — remove `onUpdateStyle` from Props and threading. | ☐ |
+| 89 | **Rewrite CustomizePanel** — remove Colors/Fonts/Spacing sub-tab bar. Add `instances` + `onUpdateStyle` props. Structure: Template selector → collapsible "Global" section (all colors, fonts, spacing) → per-instance style cards (font/color/weight each). | ☐ |
+| 90 | **Update BuilderPage** — remove `onUpdateStyle` from `<SectionList>`, pass `instances` + `onUpdateStyle` to `<CustomizePanel>`. | ☐ |
+| T10.4 | Vitest: update CustomizePanel tests for combined Global + section overrides | ☐ |
 | T11.2 | Vitest: `SectionPreviewPanel` renders with per-instance styles applied | ☐ |
 | T11.3 | Vitest: `section-{type}` class present on preview wrapper | ☐ |
 | T11.4 | Vitest: template change strips per-instance styles | ☐ |
 | T11.5 | Pytest: backend renders per-instance styles | ☐ |
+| 85 | Manual test: set per-instance style → preview updates → switch template → styles reset | ☐ |
 
 ### Phase 11 — Desktop Tauri (moved from old Phase 9)
 
