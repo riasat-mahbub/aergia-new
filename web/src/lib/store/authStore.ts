@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import client from "../api/client";
 
+const storedAccessToken = localStorage.getItem("access_token");
+const storedRefreshToken = localStorage.getItem("refresh_token");
+
 interface AuthState {
   accessToken: string | null;
   refreshToken: string | null;
@@ -15,9 +18,9 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  accessToken: null,
-  refreshToken: null,
-  isAuthenticated: false,
+  accessToken: storedAccessToken,
+  refreshToken: storedRefreshToken,
+  isAuthenticated: !!storedAccessToken,
   isLoading: false,
 
   hydrate: () => {
