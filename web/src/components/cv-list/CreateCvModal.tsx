@@ -37,7 +37,7 @@ export default function CreateCvModal({ open, onClose }: Props) {
     try {
       const cv = await createCV(title.trim(), templateId);
       onClose();
-      navigate(`/builder/${cv.id}`);
+      navigate(`/dashboard/builder/${cv.id}`);
     } catch {
       setLoading(false);
     }
