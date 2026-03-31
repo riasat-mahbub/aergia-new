@@ -828,12 +828,12 @@ The core data model for sections is restructured from `{ order, enabled, data }`
 
 | # | Task | Status |
 |---|---|---|
-| 91 | Make per-section style cards accordions (expand/collapse with chevron) in CustomizePanel | ☐ |
-| 92 | Fix auth store — initialize tokens from `localStorage` synchronously to prevent login flash on refresh | ☐ |
-| 93 | Create public `HomePage` at `/` with app name + login/register buttons | ☐ |
-| 94 | Restructure routes: `/` → HomePage, `/dashboard` → CvListPage (protected) | ☐ |
-| 95 | Update LoginForm fallback redirect from `"/"` to `"/dashboard"` | ☐ |
-| 96 | Add hydrated guard to ProtectedRoute to prevent redirect flash | ☐ |
+| 91 | Make per-section style cards accordions (expand/collapse with chevron) in CustomizePanel | ✅ |
+| 92 | Fix auth store — initialize tokens from `localStorage` synchronously to prevent login flash on refresh | ✅ |
+| 93 | Create public `HomePage` at `/` with app name + login/register buttons | ✅ |
+| 94 | Restructure routes: `/` → HomePage, `/dashboard` → CvListPage (protected) | ✅ |
+| 95 | Update LoginForm fallback redirect from `"/"` to `"/dashboard"` | ✅ |
+| 96 | Add hydrated guard to ProtectedRoute to prevent redirect flash | ✅ |
 | T11.1 | Vitest: section style accordion expands/collapses on click | ☐ |
 | T11.2 | Vitest: auth store initializes from localStorage correctly | ☐ |
 
