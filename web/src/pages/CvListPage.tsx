@@ -64,7 +64,7 @@ export default function CvListPage() {
             <CvCard
               key={cv.id}
               cv={cv}
-              onEdit={(id) => navigate(`/builder/${id}`)}
+              onEdit={(id) => navigate(`/dashboard/builder/${id}`)}
               onCopy={(id) => copyCV(id)}
               onDelete={(id) => setDeleteTarget({ id, title: cv.title })}
             />
