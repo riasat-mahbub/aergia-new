@@ -9,16 +9,18 @@ import RegisterPage from "./pages/RegisterPage";
 import CvListPage from "./pages/CvListPage";
 import BuilderPage from "./pages/BuilderPage";
 import SettingsPage from "./pages/SettingsPage";
+import HomePage from "./pages/HomePage";
 import NotFoundPage from "./pages/NotFoundPage";
 import "./index.css";
 
 const router = createBrowserRouter(
   createRoutesFromElements(
     <Route element={<App />}>
+      <Route index element={<HomePage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route
-        path="/"
+        path="/dashboard"
         element={<ProtectedRoute><AppLayout><Outlet /></AppLayout></ProtectedRoute>}
       >
         <Route index element={<CvListPage />} />
