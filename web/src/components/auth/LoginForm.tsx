@@ -1,18 +1,15 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { loginSchema, type LoginFormData } from "../../lib/validators/auth";
 import { useAuthStore } from "../../lib/store/authStore";
 import { useState } from "react";
 
 export default function LoginForm() {
   const navigate = useNavigate();
-  const location = useLocation();
   const login = useAuthStore((s) => s.login);
   const isLoading = useAuthStore((s) => s.isLoading);
   const [error, setError] = useState<string | null>(null);
-
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname || "/dashboard";
 
   const {
     register,
@@ -26,7 +23,7 @@ export default function LoginForm() {
     setError(null);
     try {
       await login(data.email, data.password);
-      navigate(from, { replace: true });
+      navigate("/dashboard", { replace: true });
     } catch {
       setError("Invalid email or password");
     }
