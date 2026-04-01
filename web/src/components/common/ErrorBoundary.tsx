@@ -30,7 +30,7 @@ export default class ErrorBoundary extends Component<Props, State> {
               {this.state.error?.message || "An unexpected error occurred"}
             </p>
             <Link
-              to="/"
+              to="/dashboard"
               className="mt-6 inline-block rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
               onClick={() => this.setState({ hasError: false, error: null })}
             >

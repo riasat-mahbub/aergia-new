@@ -281,7 +281,7 @@ export default function BuilderPage() {
     <div className="flex h-screen flex-col">
       <header className="flex items-center justify-between border-b bg-white px-4 py-3">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate("/")} className="text-sm text-gray-500 hover:text-gray-700">
+          <button onClick={() => navigate("/dashboard")} className="text-sm text-gray-500 hover:text-gray-700">
             &larr; Back
           </button>
           <h1 className="text-lg font-semibold text-gray-900">{currentCV.title}</h1>
