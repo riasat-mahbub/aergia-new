@@ -20,11 +20,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
     <div className="min-h-screen bg-gray-50">
       <nav className="flex h-14 items-center justify-between border-b bg-white px-6 shadow-sm">
         <div className="flex items-center gap-6">
-          <Link to="/" className="text-lg font-bold text-gray-900">
+          <Link to="/dashboard" className="text-lg font-bold text-gray-900">
             Aergia
           </Link>
           <Link
-            to="/"
+            to="/dashboard"
             className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700"
           >
             <FileText className="h-4 w-4" />
@@ -33,7 +33,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         </div>
         <div className="flex items-center gap-3">
           <Link
-            to="/settings"
+            to="/dashboard/settings"
             className="rounded p-1.5 text-gray-400 hover:text-gray-600"
             title="Settings"
           >
