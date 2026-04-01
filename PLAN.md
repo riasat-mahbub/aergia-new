@@ -837,6 +837,21 @@ The core data model for sections is restructured from `{ order, enabled, data }`
 | T11.1 | Vitest: section style accordion expands/collapses on click | ☐ |
 | T11.2 | Vitest: auth store initializes from localStorage correctly | ☐ |
 
+### Phase 11 Bugfix — Route Cleanup
+
+| # | Task | Status |
+|---|---|---|
+| R1 | Fix CvListPage: navigate to `/dashboard/builder/:id` (was 404) | ✅ |
+| R2 | Fix CreateCvModal: navigate to `/dashboard/builder/:id` (was 404) | ✅ |
+| R3 | Fix LoginForm: hardcode redirect to `/dashboard` (ignore `location.state.from`) | ✅ |
+| R4 | Fix BuilderPage back button: `/` → `/dashboard` | ✅ |
+| R5 | Fix AppLayout brand link: `/` → `/dashboard` | ✅ |
+| R6 | Fix AppLayout "My CVs" link: `/` → `/dashboard` | ✅ |
+| R7 | Fix AppLayout Settings link: `/settings` → `/dashboard/settings` | ✅ |
+| R8 | Fix NotFoundPage "Go to Dashboard": `/` → `/dashboard` | ✅ |
+| R9 | Fix ErrorBoundary "Go to Dashboard": `/` → `/dashboard` | ✅ |
+| R10 | Fix CvList test: route path `/` → `/dashboard` | ✅ |
+
 ### Future
 
 | # | Task | Status |
