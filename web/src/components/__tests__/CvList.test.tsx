@@ -39,9 +39,10 @@ vi.mock("../../lib/api/client", () => ({
 }));
 
 function renderCvList() {
-  const router = createMemoryRouter([
-    { path: "/", element: <AppLayout><CvListPage /></AppLayout> },
-  ]);
+  const router = createMemoryRouter(
+    [{ path: "/dashboard", element: <AppLayout><CvListPage /></AppLayout> }],
+    { initialEntries: ["/dashboard"] }
+  );
   return render(<RouterProvider router={router} />);
 }
 
