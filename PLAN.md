@@ -860,6 +860,48 @@ The core data model for sections is restructured from `{ order, enabled, data }`
 | H2 | AppLayout: show "My CVs" link instead of "Aergia" logo when inside builder page | ✅ |
 | H3 | AppLayout brand logo always links to `/` (public home) | ✅ |
 
+### Phase 12 — User-Defined Templates
+
+**Goal:** Let users upload their own HTML templates. Templates are saved to the server so PDF export works. Template switching resets customizations. A guide documents the template format.
+
+#### Backend
+
+| # | Task | Status |
+|---|---|---|
+| U1 | Alembic migration: add `content` (TEXT) and `user_id` (UUID FK) columns to `templates` table | ☐ |
+| U2 | Update Template model with new columns | ☐ |
+| U3 | Update Pydantic schemas (`TemplateDetail` includes `content`, list includes `is_user_template` flag) | ☐ |
+| U4 | Add `POST /api/v1/templates/user` — upload user template (multipart: name + HTML file) | ☐ |
+| U5 | Add `DELETE /api/v1/templates/user/{id}` — delete own user template | ☐ |
+| U6 | Update `GET /api/v1/templates` to include current user's templates | ☐ |
+| U7 | Add `render_user_template` to `renderer.py` — injects `window.__CV_DATA__` into user HTML | ☐ |
+| U8 | Update `render_preview` to accept optional `template_content` param | ☐ |
+| U9 | Update PDF service to fetch template content for user templates | ☐ |
+| U10 | Update preview endpoint to pass template content | ☐ |
+
+#### Frontend
+
+| # | Task | Status |
+|---|---|---|
+| U11 | Create `web/src/lib/api/templates.ts` — API client for user template CRUD | ☐ |
+| U12 | Create `web/src/lib/store/userTemplateStore.ts` — Zustand store (list cache) | ☐ |
+| U13 | Create `UserTemplateRenderer.tsx` — iframe with `srcdoc` + injected data | ☐ |
+| U14 | Create `TemplateSelectorModal.tsx` — modal showing system + user templates, upload button | ☐ |
+| U15 | Update `CustomizePanel.tsx` — replace inline template list with "Change Template" → modal; hide Global for user templates | ☐ |
+| U16 | Update `TemplateSwitcher.tsx` — route `user_*` templates to iframe renderer | ☐ |
+| U17 | Update `BuilderPage.tsx` — fetch template content, reset customizations on switch | ☐ |
+| U18 | Update `CreateCvModal.tsx` — list user templates alongside system ones | ☐ |
+
+#### Docs & Tests
+
+| # | Task | Status |
+|---|---|---|
+| U19 | Write `TEMPLATE_GUIDE.md` — user template format, data shape, examples | ☐ |
+| U20 | Backend tests: user template upload, delete, render | ☐ |
+| U21 | Frontend tests: CustomizePanel, TemplateSwitcher, TemplateSelectorModal | ☐ |
+
+---
+
 ### Future
 
 | # | Task | Status |
