@@ -845,12 +845,20 @@ The core data model for sections is restructured from `{ order, enabled, data }`
 | R2 | Fix CreateCvModal: navigate to `/dashboard/builder/:id` (was 404) | ✅ |
 | R3 | Fix LoginForm: hardcode redirect to `/dashboard` (ignore `location.state.from`) | ✅ |
 | R4 | Fix BuilderPage back button: `/` → `/dashboard` | ✅ |
-| R5 | Fix AppLayout brand link: `/` → `/dashboard` | ✅ |
+| R5 | Fix AppLayout brand link: `"/dashboard"` → `"/"` (public home), dynamic "My CVs" in builder | ✅ |
 | R6 | Fix AppLayout "My CVs" link: `/` → `/dashboard` | ✅ |
 | R7 | Fix AppLayout Settings link: `/settings` → `/dashboard/settings` | ✅ |
 | R8 | Fix NotFoundPage "Go to Dashboard": `/` → `/dashboard` | ✅ |
 | R9 | Fix ErrorBoundary "Go to Dashboard": `/` → `/dashboard` | ✅ |
 | R10 | Fix CvList test: route path `/` → `/dashboard` | ✅ |
+
+### Phase 11.5 — Home Page Polish & Navbar Refinements
+
+| # | Task | Status |
+|---|---|---|
+| H1 | Redesign HomePage with full marketing layout (emerald theme, features grid, conditional CTAs) | ✅ |
+| H2 | AppLayout: show "My CVs" link instead of "Aergia" logo when inside builder page | ✅ |
+| H3 | AppLayout brand logo always links to `/` (public home) | ✅ |
 
 ### Future
 
