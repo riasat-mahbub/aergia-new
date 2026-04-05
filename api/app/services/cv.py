@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 
 from app.models.cv import CV
+from app.models.template import Template
 from app.schemas.cv import CVCreate, CVUpdate
 
 
@@ -23,6 +24,12 @@ class CVService:
             select(CV).where(CV.id == cv_id, CV.user_id == user_id, CV.is_active == True)
         )
         return result.scalar_one_or_none()
+
+    async def get_template_content(self, template_id: str) -> str | None:
+        if not template_id.startswith("user_"):
+            return None
+        template = await self.db.get(Template, template_id)
+        return template.content if template else None
 
     async def create_cv(self, user_id: str, data: CVCreate) -> CV:
         cv = CV(
