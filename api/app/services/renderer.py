@@ -1,6 +1,7 @@
 """HTML preview renderer service — generates preview HTML matching frontend templates."""
 
 from typing import Any
+import json
 
 SECTION_LABELS = {
     "profile": "Profile",
@@ -303,6 +304,16 @@ TEMPLATE_RENDERERS = {
 }
 
 
-def render_preview(instances: list[dict], customizations: dict, template_id: str) -> str:
+def render_user_template(instances: list[dict], customizations: dict, template_content: str) -> str:
+    """Inject CV data into user template HTML."""
+    data_script = f"""<script>
+window.__CV_DATA__ = {json.dumps({"instances": instances})};
+</script>"""
+    return data_script + "\n" + template_content
+
+
+def render_preview(instances: list[dict], customizations: dict, template_id: str, template_content: str = None) -> str:
+    if template_id.startswith("user_") and template_content:
+        return render_user_template(instances, customizations, template_content)
     renderer = TEMPLATE_RENDERERS.get(template_id, render_modern)
     return renderer(instances, customizations)

@@ -19,10 +19,15 @@ class PDFService:
         if isinstance(instances, dict):
             instances = []
 
+        template_content = None
+        if cv.template_id.startswith("user_"):
+            template_content = await self.cv_service.get_template_content(cv.template_id)
+
         html = render_preview(
             instances=instances,
             customizations=cv.customizations or {},
             template_id=cv.template_id,
+            template_content=template_content,
         )
 
         async with async_playwright() as p:

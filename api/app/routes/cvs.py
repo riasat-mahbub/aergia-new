@@ -10,6 +10,7 @@ from app.services.pdf import PDFService
 from app.services.renderer import render_preview
 from app.core.deps import get_current_user
 from app.models.user import User
+from app.models.template import Template
 
 router = APIRouter()
 
@@ -102,10 +103,16 @@ async def preview_cv(
     instances = cv.sections or []
     if isinstance(instances, dict):
         instances = []
+
+    template_content = None
+    if cv.template_id.startswith("user_"):
+        template_content = await service.get_template_content(cv.template_id)
+
     html = render_preview(
         instances=instances,
         customizations=cv.customizations or {},
         template_id=cv.template_id,
+        template_content=template_content,
     )
     return {"html": html}
 
