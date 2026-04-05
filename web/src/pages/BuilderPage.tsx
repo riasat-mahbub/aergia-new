@@ -21,6 +21,7 @@ import CustomizePanel from "../components/customization/CustomizePanel";
 import type { SectionInstance, SectionStyle } from "../lib/sections/types";
 import { createDefaultInstance } from "../lib/sections/types";
 import { updateCV } from "../lib/api/cvs";
+import { fetchTemplate } from "../lib/api/templates";
 
 export default function BuilderPage() {
   const { id } = useParams<{ id: string }>();
@@ -68,6 +69,19 @@ export default function BuilderPage() {
   customizationsRef.current = customizations;
   const instancesForUnloadRef = useRef({ sections: localInstances, customizations: localCustomizations });
   instancesForUnloadRef.current = { sections: localInstances, customizations: localCustomizations };
+  const templateContentRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (currentCV.template_id.startsWith("user_")) {
+      fetchTemplate(currentCV.template_id)
+        .then(setTemplateContent)
+        .catch(() => {});
+    }
+  }, [currentCV.template_id]);
+
+  const setTemplateContent = (content: string | null) => {
+    templateContentRef.current = content;
+  };
 
   const triggerSave = useCallback(
     async (saveData: { sections: SectionInstance[]; customizations: Record<string, unknown> }) => {
@@ -247,6 +261,12 @@ export default function BuilderPage() {
         setIsSaving(true);
         const cleanInstances = localInstances.map((i) => ({ ...i, style: undefined }));
         setLocalInstances(cleanInstances);
+        
+        let templateContent = null;
+        if (newTemplateId.startsWith("user_")) {
+          templateContent = await fetchTemplate(newTemplateId);
+        }
+        
         await updateCV(id, { template_id: newTemplateId, sections: cleanInstances, customizations: localCustomizations });
         await loadCV(id);
       } finally {
@@ -359,6 +379,7 @@ export default function BuilderPage() {
               templateId={currentCV.template_id}
               instances={instances}
               customizations={customizations}
+              templateContent={templateContentRef.current}
             />
           </div>
         </motion.div>

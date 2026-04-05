@@ -31,6 +31,24 @@ class CVService:
         template = await self.db.get(Template, template_id)
         return template.content if template else None
 
+    async def set_template_content(self, cv_id: str, template_content: str) -> CV | None:
+        cv = await self.get_cv(cv_id, cv.user_id)
+        if not cv:
+            return None
+
+        cv.template_content = template_content
+        await self.db.flush()
+        return cv
+
+    async def set_template_content(self, cv_id: str, template_content: str) -> CV | None:
+        cv = await self.get_cv(cv_id, cv.user_id)
+        if not cv:
+            return None
+
+        cv.template_content = template_content
+        await self.db.flush()
+        return cv
+
     async def create_cv(self, user_id: str, data: CVCreate) -> CV:
         cv = CV(
             user_id=user_id,
@@ -57,6 +75,24 @@ class CVService:
         await self.db.flush()
         return cv
 
+    async def set_template_content(self, cv_id: str, template_content: str) -> CV | None:
+        cv = await self.get_cv(cv_id, cv.user_id)
+        if not cv:
+            return None
+
+        cv.template_content = template_content
+        await self.db.flush()
+        return cv
+
+    async def set_template_content(self, cv_id: str, template_content: str) -> CV | None:
+        cv = await self.get_cv(cv_id, cv.user_id)
+        if not cv:
+            return None
+
+        cv.template_content = template_content
+        await self.db.flush()
+        return cv
+
     async def delete_cv(self, cv_id: str, user_id: str) -> bool:
         cv = await self.get_cv(cv_id, user_id)
         if not cv:
@@ -79,6 +115,7 @@ class CVService:
             sections=original.sections,
             customizations=original.customizations,
             extra_metadata=original.extra_metadata,
+            template_content=original.template_content,
         )
         self.db.add(new_cv)
         await self.db.flush()

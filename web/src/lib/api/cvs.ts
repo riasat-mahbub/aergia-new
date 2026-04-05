@@ -18,6 +18,7 @@ export interface CVDetail {
   extra_metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+  template_content?: string;
 }
 
 export interface CVCreateData {
