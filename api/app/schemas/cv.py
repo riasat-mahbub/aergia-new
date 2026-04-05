@@ -21,6 +21,7 @@ class CVCreate(BaseModel):
     sections: list | dict = DEFAULT_SECTIONS
     customizations: dict = {}
     extra_metadata: dict = {}
+    template_content: str | None = None
 
 
 class CVUpdate(BaseModel):
@@ -29,6 +30,7 @@ class CVUpdate(BaseModel):
     template_id: str | None = None
     sections: list | dict | None = None
     customizations: dict | None = None
+    template_content: str | None = None
 
 
 class CVResponse(BaseModel):
@@ -43,6 +45,7 @@ class CVResponse(BaseModel):
     extra_metadata: dict
     created_at: datetime
     updated_at: datetime
+    template_content: str | None = None
 
 
 class CVListItem(BaseModel):
