@@ -6,14 +6,14 @@ from app.db.session import get_db
 from app.models.template import Template
 from app.models.user import User
 from app.schemas.template import TemplateListItem, TemplateDetail, UserTemplateCreate
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_optional_current_user
 
 router = APIRouter()
 
 
 @router.get("", response_model=list[TemplateListItem])
 async def list_templates(
-    current_user: User | None = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     query = select(Template).order_by(Template.name)
