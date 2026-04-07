@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Check, ChevronDown } from "lucide-react";
 import type { SectionInstance, SectionStyle } from "../../lib/sections/types";
 import { SECTION_LABELS } from "../../lib/sections/types";
+import TemplateSelectorModal from "./TemplateSelectorModal";
 
 interface Props {
   customizations: Record<string, any>;
@@ -32,6 +33,7 @@ const WEIGHT_OPTIONS = [
 export default function CustomizePanel({ customizations, onChange, templateId, onTemplateChange, instances, onUpdateStyle }: Props) {
   const [globalOpen, setGlobalOpen] = useState(true);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
 
   const isUserTemplate = templateId.startsWith("user_");
 
@@ -57,12 +59,7 @@ export default function CustomizePanel({ customizations, onChange, templateId, o
         <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Template</h4>
         <div className="space-y-1.5">
           <button
-            onClick={() => {
-              const modal = document.getElementById("template-selector-modal");
-              if (modal) {
-                (modal as any).showModal?.();
-              }
-            }}
+            onClick={() => setShowTemplateModal(true)}
             className="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-left transition-colors hover:border-gray-300 hover:bg-gray-50"
           >
             <div>
@@ -239,6 +236,16 @@ export default function CustomizePanel({ customizations, onChange, templateId, o
           );
         })}
       </div>
+
+      <TemplateSelectorModal
+        open={showTemplateModal}
+        onClose={() => setShowTemplateModal(false)}
+        templateId={templateId}
+        onSelect={(newTemplateId) => {
+          onTemplateChange(newTemplateId);
+          setShowTemplateModal(false);
+        }}
+      />
     </div>
   );
 }

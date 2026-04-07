@@ -18,9 +18,7 @@ async def list_templates(
 ):
     query = select(Template).order_by(Template.name)
     if current_user:
-        query = query.union_all(
-            select(Template).where(Template.user_id == current_user.id).order_by(Template.name)
-        )
+        query = query.where((Template.user_id == current_user.id) | (Template.user_id.is_(None)))
     result = await db.execute(query)
     templates = result.scalars().all()
     return [TemplateListItem.model_validate(t) for t in templates]
