@@ -52,8 +52,6 @@ export default function TemplateSelectorModal({ open, onClose, templateId, onSel
     }
   };
 
-  const allTemplates = [...systemTemplates, ...userTemplates];
-
   return (
     <Modal open={open} onClose={onClose}>
       <h2 className="mb-4 text-lg font-semibold text-gray-900">Select Template</h2>

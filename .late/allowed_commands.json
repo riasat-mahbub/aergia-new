@@ -1,0 +1,48 @@
+{
+  "version": "v1.3.0",
+  "entries": {
+    "echo": {
+      "flags": [
+        "---"
+      ],
+      "saved_at": "2026-06-24T02:08:19Z",
+      "expires_at": "2026-07-24T02:08:19Z",
+      "version": "v1.3.0"
+    },
+    "find": {
+      "flags": [
+        "-type",
+        "-o",
+        "-maxdepth",
+        "-name"
+      ],
+      "saved_at": "2026-06-24T02:08:19Z",
+      "expires_at": "2026-07-24T02:08:19Z",
+      "version": "v1.3.0"
+    },
+    "git": {
+      "flags": [
+        "-*",
+        "-C",
+        "--oneline"
+      ],
+      "saved_at": "2026-06-24T02:08:33Z",
+      "expires_at": "2026-07-24T02:08:33Z",
+      "version": "v1.3.0"
+    },
+    "head": {
+      "flags": [
+        "-*"
+      ],
+      "saved_at": "2026-06-24T01:53:50Z",
+      "expires_at": "2026-07-24T01:53:50Z",
+      "version": "v1.3.0"
+    },
+    "sort": {
+      "flags": null,
+      "saved_at": "2026-06-24T02:08:19Z",
+      "expires_at": "2026-07-24T02:08:19Z",
+      "version": "v1.3.0"
+    }
+  }
+}
