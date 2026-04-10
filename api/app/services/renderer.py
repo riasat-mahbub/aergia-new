@@ -1,7 +1,6 @@
 """HTML preview renderer service — generates preview HTML matching frontend templates."""
 
 from typing import Any
-import json
 
 SECTION_LABELS = {
     "profile": "Profile",
@@ -304,16 +303,113 @@ TEMPLATE_RENDERERS = {
 }
 
 
-def render_user_template(instances: list[dict], customizations: dict, template_content: str) -> str:
-    """Inject CV data into user template HTML."""
-    data_script = f"""<script>
-window.__CV_DATA__ = {json.dumps({"instances": instances})};
-</script>"""
-    return data_script + "\n" + template_content
+def _substitute_css_vars(html: str, customizations: dict) -> str:
+    """Replace CSS custom property placeholders with actual values from customizations."""
+    colors = customizations.get("colors", {})
+    fonts = customizations.get("fonts", {})
+    spacing = customizations.get("spacing", {})
+
+    css_var_map = {
+        "var(--accent)": colors.get("accent"),
+        "var(--bg-sidebar)": colors.get("bg_sidebar"),
+        "var(--header)": colors.get("header"),
+        "var(--divider)": colors.get("divider"),
+        "var(--text)": colors.get("text"),
+        "var(--heading)": colors.get("heading"),
+        "var(--body-font)": fonts.get("body"),
+        "var(--heading-font)": fonts.get("heading"),
+        "var(--section-gap)": spacing.get("section_gap"),
+    }
+
+    result = html
+    for placeholder, value in css_var_map.items():
+        if value is not None:
+            result = result.replace(placeholder, value)
+
+    return result
 
 
-def render_preview(instances: list[dict], customizations: dict, template_id: str, template_content: str = None) -> str:
-    if template_id.startswith("user_") and template_content:
-        return render_user_template(instances, customizations, template_content)
+def render_user_template_unified(
+    instances: list[dict],
+    customizations: dict,
+    layout_template: str,
+    layout_config: dict | None = None,
+    default_customizations: dict | None = None,
+) -> str:
+    """Render a user template using the same pipeline as system templates.
+
+    1. Merge CV customizations over template defaults.
+    2. Generate section panels via render_instance_panel().
+    3. Split into sidebar (profile) and main sections based on layout_config.
+    4. Insert panels at {{sidebar}}/{{main}} placeholders in the layout template.
+    5. Substitute CSS custom properties with merged customization values.
+    """
+    merged = _merge_customizations(default_customizations or {}, customizations)
+
+    sidebar_instances = [i for i in instances if i.get("type") == "profile"]
+    main_instances = [i for i in instances if i.get("type") != "profile"]
+
+    sidebar_html = "".join(render_instance_panel(i) for i in sidebar_instances)
+    main_html = "".join(
+        f'<div style="margin-bottom:var(--section-gap, 24px);">{render_instance_panel(i)}</div>'
+        for i in main_instances
+    )
+
+    html = layout_template.replace("{{sidebar}}", sidebar_html).replace("{{main}}", main_html)
+    html = _substitute_css_vars(html, merged)
+
+    print_styles = """
+  @page { size: A4; margin: 0; }
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+"""
+
+    colors = merged.get("colors", {})
+    fonts = merged.get("fonts", {})
+    body_font = fonts.get("body", "system-ui, sans-serif")
+    heading_font = fonts.get("heading", body_font)
+
+    html = html.replace("{{print_styles}}", print_styles)
+    html = html.replace("{{body_font}}", body_font)
+    html = html.replace("{{heading_font}}", heading_font)
+
+    if "<style>" not in html:
+        html = html.replace("<head>", f"<head><style>{print_styles}</style>")
+
+    return html
+
+
+def _merge_customizations(defaults: dict, overrides: dict) -> dict:
+    """Deep merge overrides on top of defaults."""
+    merged = {}
+    for key in defaults:
+        if key in overrides:
+            if isinstance(defaults[key], dict) and isinstance(overrides[key], dict):
+                merged[key] = {**defaults[key], **overrides[key]}
+            else:
+                merged[key] = overrides[key]
+        else:
+            merged[key] = defaults[key]
+    for key in overrides:
+        if key not in merged:
+            merged[key] = overrides[key]
+    return merged
+
+
+def render_preview(
+    instances: list[dict],
+    customizations: dict,
+    template_id: str,
+    template_content: str | None = None,
+    layout_template: str | None = None,
+    layout_config: dict | None = None,
+    default_customizations: dict | None = None,
+) -> str:
+    if layout_template is not None:
+        return render_user_template_unified(
+            instances, customizations, layout_template, layout_config, default_customizations
+        )
     renderer = TEMPLATE_RENDERERS.get(template_id, render_modern)
     return renderer(instances, customizations)
