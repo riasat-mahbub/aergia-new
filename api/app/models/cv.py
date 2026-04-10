@@ -15,7 +15,7 @@ class CV(Base):
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    template_id: Mapped[str] = mapped_column(String(50), nullable=False)
+    template_id: Mapped[str] = mapped_column(String(100), nullable=False)
     customizations: Mapped[dict] = mapped_column(JSONB, default=dict)
     sections: Mapped[dict] = mapped_column(JSONB, nullable=False)
     extra_metadata: Mapped[dict] = mapped_column("metadata", JSONB, default=dict)
