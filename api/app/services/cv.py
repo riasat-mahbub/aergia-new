@@ -25,29 +25,18 @@ class CVService:
         )
         return result.scalar_one_or_none()
 
-    async def get_template_content(self, template_id: str) -> str | None:
+    async def get_template_data(self, template_id: str) -> dict | None:
+        """Get full template data for user templates (layout_template, layout_config, default_customizations)."""
         if not template_id.startswith("user_"):
             return None
         template = await self.db.get(Template, template_id)
-        return template.content if template else None
-
-    async def set_template_content(self, cv_id: str, template_content: str) -> CV | None:
-        cv = await self.get_cv(cv_id, cv.user_id)
-        if not cv:
+        if not template:
             return None
-
-        cv.template_content = template_content
-        await self.db.flush()
-        return cv
-
-    async def set_template_content(self, cv_id: str, template_content: str) -> CV | None:
-        cv = await self.get_cv(cv_id, cv.user_id)
-        if not cv:
-            return None
-
-        cv.template_content = template_content
-        await self.db.flush()
-        return cv
+        return {
+            "layout_template": template.layout_template,
+            "layout_config": template.layout_config,
+            "default_customizations": template.default_customizations,
+        }
 
     async def create_cv(self, user_id: str, data: CVCreate) -> CV:
         cv = CV(
@@ -72,24 +61,6 @@ class CVService:
         for key, value in update_data.items():
             setattr(cv, key, value)
         cv.updated_at = datetime.now(timezone.utc)
-        await self.db.flush()
-        return cv
-
-    async def set_template_content(self, cv_id: str, template_content: str) -> CV | None:
-        cv = await self.get_cv(cv_id, cv.user_id)
-        if not cv:
-            return None
-
-        cv.template_content = template_content
-        await self.db.flush()
-        return cv
-
-    async def set_template_content(self, cv_id: str, template_content: str) -> CV | None:
-        cv = await self.get_cv(cv_id, cv.user_id)
-        if not cv:
-            return None
-
-        cv.template_content = template_content
         await self.db.flush()
         return cv
 
