@@ -43,11 +43,12 @@ async def create_user_template(
         name=data.name,
         description=f"User template: {data.name}",
         preview_image_url=None,
-        layout_config={},
-        section_schema={},
-        default_customizations=None,
+        layout_config=data.layout_config or {},
+        section_schema=data.section_schema or {},
+        default_customizations=data.default_customizations,
         is_system=False,
-        content=data.content,
+        content=None,
+        layout_template=data.layout_template,
         user_id=current_user.id,
     )
     db.add(template)
