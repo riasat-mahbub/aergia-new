@@ -2,44 +2,60 @@
 
 ## Overview
 
-User templates allow you to create custom CV templates with unique layouts, styles, and structures. Instead of using the built-in Modern, Classic, or Minimal templates, you can upload your own HTML template that will be rendered in the CV preview and used for PDF export.
+User templates let you create custom CV layouts while keeping the same customization controls (colors, fonts, spacing) as the built-in templates. Instead of writing raw HTML with JavaScript data injection, you write a layout template with placeholders — the system renders your CV sections and inserts them into your design.
 
-## What is a User Template?
+## How It Works
 
-A user template is an HTML file that contains your custom CV template. When a CV uses a user template, the template HTML is rendered with your CV data injected into it via `window.__CV_DATA__`.
+Both system templates (Modern, Classic, Minimal) and user templates follow the same rendering pipeline:
+
+1. The system generates section panel HTML using built-in renderers
+2. Panels are split into **sidebar** (profile/contact) and **main** (all other sections)
+3. Panels are inserted into your layout template at placeholder positions
+4. CSS custom properties are substituted with the user's customization choices (colors, fonts, spacing)
+
+This means: **your design stays intact, but the CustomizePanel still works.**
+
+## Template Structure
+
+A user template is an HTML file that defines your layout using two placeholders and CSS variables:
+
+### Placeholders
+
+| Placeholder | Purpose |
+|---|---|
+| `{{sidebar}}` | Where profile/contact sections render (left column in 2-column layouts) |
+| `{{main}}` | Where all other sections render (experience, education, skills, etc.) |
+
+Both placeholders are required. The system replaces them with rendered section panels.
+
+### CSS Custom Properties
+
+Your template can use CSS variables that the CustomizePanel controls:
+
+| Variable | Controlled By | Default |
+|---|---|---|
+| `var(--accent)` | Accent color | `#2563eb` |
+| `var(--bg-sidebar)` | Sidebar background | `#f8fafc` |
+| `var(--header)` | Header color | `#000000` |
+| `var(--divider)` | Divider color | `#d1d5db` |
+| `var(--text)` | Body text color | `#374151` |
+| `var(--heading)` | Heading color | `#111827` |
+| `var(--body-font)` | Body font family | `Inter, system-ui, sans-serif` |
+| `var(--heading-font)` | Heading font family | Same as body font |
+| `var(--section-gap)` | Spacing between sections | `24px` |
 
 ## Template Requirements
 
 ### Basic Structure
-Your template should be a complete HTML document with the following requirements:
+
+Your template should be a complete HTML document:
 
 1. **HTML5 boilerplate**: `<!DOCTYPE html>` with proper `<html>`, `<head>`, and `<body>` tags
-2. **Data injection script**: Include a `<script>` tag that reads `window.__CV_DATA__` to access CV section data
-3. **Responsive design**: The template should work well on different screen sizes
-4. **Print-friendly**: CSS that works well when printing to PDF
+2. **Both placeholders**: `{{sidebar}}` and `{{main}}` must appear somewhere in the body
+3. **CSS custom properties**: Use `var(--accent)`, `var(--body-font)`, etc. for customizable values
+4. **Print styles**: Include `@media print` rules for PDF export
 
-### Data Format
-
-The `window.__CV_DATA__` object contains the CV section instances:
-
-```typescript
-interface CVData {
-  instances: SectionInstance[];
-}
-
-interface SectionInstance {
-  id: string;
-  type: string; // "profile", "experience", "education", "skills", "projects", "languages", "certifications"
-  title: string;
-  enabled: boolean;
-  data: any; // Type-specific data based on the section type
-  style?: SectionStyle; // Optional per-instance styling
-}
-```
-
-### Example Template
-
-Here's a simple two-column template example:
+### Example: Two-Column Template
 
 ```html
 <!DOCTYPE html>
@@ -47,427 +63,250 @@ Here's a simple two-column template example:
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Your CV Template</title>
+  <title>{{name}} — CV</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
     body {
-      font-family: 'Inter', system-ui, sans-serif;
-      line-height: 1.6;
-      color: #374151;
+      font-family: var(--body-font);
+      color: var(--text);
       max-width: 210mm;
       margin: 0 auto;
-      padding: 20px;
     }
-    
+
     .container {
       display: flex;
-      gap: 40px;
+      min-height: 297mm;
     }
-    
+
     .sidebar {
-      flex: 1;
-      background-color: #f8fafc;
-      padding: 20px;
-      border-radius: 8px;
+      width: 30%;
+      padding: 24px;
+      background-color: var(--bg-sidebar);
+      border-right: 3px solid var(--accent);
     }
-    
+
     .main {
-      flex: 2;
+      width: 70%;
+      padding: 24px;
     }
-    
-    .section {
+
+    /* Section styling */
+    .section-title {
+      font-family: var(--heading-font);
+      color: var(--heading);
+      font-size: 1rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    /* Accent bar */
+    .accent-bar {
+      height: 4px;
+      width: 64px;
+      background-color: var(--accent);
       margin-bottom: 24px;
     }
-    
-    .section-title {
-      font-size: 1.2em;
-      font-weight: 600;
-      margin-bottom: 12px;
-      color: #111827;
-      border-bottom: 2px solid #e5e7eb;
-      padding-bottom: 4px;
-    }
-    
-    .profile-info img {
-      width: 80px;
-      height: 80px;
-      border-radius: 50%;
-      object-fit: cover;
-      margin-bottom: 12px;
-    }
-    
-    .experience-item, .education-item {
-      margin-bottom: 16px;
-    }
-    
-    .experience-title {
-      font-weight: 600;
-      font-size: 1.1em;
-    }
-    
-    .experience-company {
-      color: #6b7280;
-      font-size: 0.95em;
-    }
-    
-    .skills-list {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    
-    .skill-tag {
-      background-color: #eff6ff;
-      color: #1d4ed8;
-      padding: 4px 10px;
-      border-radius: 4px;
-      font-size: 0.85em;
+
+    /* Print styles */
+    @page { size: A4; margin: 0; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="sidebar">
-      <div class="section">
-        <h2 class="section-title">Profile</h2>
-        <div class="profile-info">
-          <script>
-            if (window.__CV_DATA__ && window.__CV_DATA__.instances) {
-              const profile = window.__CV_DATA__.instances.find(i => i.type === 'profile');
-              if (profile) {
-                document.write(`<img src="${profile.data.photo_url || ''}" alt="Profile Photo" />`);
-                document.write(`<h3>${profile.data.name || 'Your Name'}</h3>`);
-                document.write(`<p>${profile.data.title || ''}</p>`);
-                document.write(`<p>${profile.data.email || ''}</p>`);
-                document.write(`<p>${profile.data.phone || ''}</p>`);
-                document.write(`<p>${profile.data.location || ''}</p>`);
-              }
-            }
-          </script>
-        </div>
-      </div>
-      
-      <div class="section">
-        <h2 class="section-title">Skills</h2>
-        <div class="skills-list">
-          <script>
-            if (window.__CV_DATA__ && window.__CV_DATA__.instances) {
-              const skills = window.__CV_DATA__.instances.find(i => i.type === 'skills');
-              if (skills && skills.data) {
-                skills.data.forEach(group => {
-                  group.items.forEach(skill => {
-                    document.write(`<span class="skill-tag">${skill}</span>`);
-                  });
-                });
-              }
-            }
-          </script>
-        </div>
-      </div>
+      {{sidebar}}
     </div>
-    
     <div class="main">
-      <div class="section">
-        <h2 class="section-title">Work Experience</h2>
-        <script>
-          if (window.__CV_DATA__ && window.__CV_DATA__.instances) {
-            const experience = window.__CV_DATA__.instances.find(i => i.type === 'experience');
-            if (experience && experience.data) {
-              experience.data.forEach(exp => {
-                document.write(`<div class="experience-item">`);
-                document.write(`<h3 class="experience-title">${exp.position || ''}</h3>`);
-                document.write(`<p class="experience-company">${exp.company || ''}, ${exp.start_date || ''} - ${exp.end_date || 'Present'}</p>`);
-                document.write(`<p>${exp.description || ''}</p>`);
-                document.write(`</div>`);
-              });
-            }
-          }
-        </script>
-      </div>
-      
-      <div class="section">
-        <h2 class="section-title">Education</h2>
-        <script>
-          if (window.__CV_DATA__ && window.__CV_DATA__.instances) {
-            const education = window.__CV_DATA__.instances.find(i => i.type === 'education');
-            if (education && education.data) {
-              education.data.forEach(edu => {
-                document.write(`<div class="education-item">`);
-                document.write(`<h3>${edu.degree || ''}</h3>`);
-                document.write(`<p>${edu.institution || ''}</p>`);
-                document.write(`<p>${edu.start_date || ''} - ${edu.end_date || ''}${edu.gpa ? ` | GPA: ${edu.gpa}` : ''}</p>`);
-                document.write(`</div>`);
-              });
-            }
-          }
-        </script>
-      </div>
+      <div class="accent-bar"></div>
+      {{main}}
     </div>
   </div>
 </body>
 </html>
 ```
 
-## Template Data Access
+### Example: Single-Column Template
 
-Your template can access CV data through `window.__CV_DATA__`. Here's how to access different section types:
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{name}} — CV</title>
+  <style>
+    body {
+      font-family: var(--body-font);
+      color: var(--text);
+      max-width: 210mm;
+      margin: 0 auto;
+      padding: 32px;
+    }
+
+    .section-title {
+      font-family: var(--heading-font);
+      color: var(--heading);
+      font-size: 1rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    .divider {
+      border-top: 1px solid var(--divider);
+      margin: 16px 0;
+    }
+
+    @page { size: A4; margin: 0; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  {{sidebar}}
+  {{main}}
+</body>
+</html>
+```
+
+## Customization Panel Integration
+
+When a user selects your template, the CustomizePanel still appears in the sidebar (unlike the old system where it was hidden for user templates). The controls work as follows:
+
+### Colors
+Changes to accent, sidebar bg, header, divider, text, and heading colors are applied via CSS variable substitution. Your template uses `var(--accent)` etc., and the system replaces them with the user's chosen values at render time.
+
+### Fonts
+Body font and heading font selections update `var(--body-font)` and `var(--heading-font)`.
+
+### Spacing
+The section gap slider updates `var(--section-gap)`, which you can use in margin/padding declarations like `margin-bottom: var(--section-gap)`.
+
+## Uploading a Template
+
+1. Open the template selector modal (click "Select Template" in the Customize panel)
+2. Scroll to **Add New Template** at the bottom
+3. Click **Choose file** and select your `.html` file
+4. The template name is auto-generated from the filename (e.g., `mit-cv-template.html` → `mit-cv-template`)
+
+### Upload Format
+
+The upload endpoint accepts:
+- `name` — template display name (auto-derived from filename)
+- `layout_template` — the HTML content of your file
+- `layout_config` — auto-populated with a default 2-column layout (`{columns: 2, widths: [30, 70]}`)
+
+## How Sections Are Rendered
+
+The system uses built-in section renderers (same as system templates). Each section type produces styled HTML:
 
 ### Profile Section
-```javascript
-const profile = window.__CV_DATA__.instances.find(i => i.type === 'profile');
-// Access profile fields:
-profile.data.name
-profile.data.title
-profile.data.email
-profile.data.phone
-profile.data.location
-profile.data.summary
-```
+Renders name, title, email, phone, location, summary, and optionally a photo URL. Placed in `{{sidebar}}`.
 
-### Experience Section
-```javascript
-const experience = window.__CV_DATA__.instances.find(i => i.type === 'experience');
-// Access experience entries:
-experience.data.forEach(exp => {
-  exp.company
-  exp.position
-  exp.start_date
-  exp.end_date
-  exp.current
-  exp.location
-  exp.description
-});
-```
+### Experience / Education / Projects
+Renders structured entries with titles, dates, descriptions, and optional details (tech stack, GPA, etc.). Goes in `{{main}}`.
 
-### Skills Section
-```javascript
-const skills = window.__CV_DATA__.instances.find(i => i.type === 'skills');
-// Access skill groups:
-skills.data.forEach(group => {
-  group.category
-  group.items // array of skill strings
-});
-```
+### Skills / Languages / Certifications
+Renders categorized skills, language proficiency bars, or certification entries. Goes in `{{main}}`.
 
-### Other Sections
-Similar patterns apply for education, projects, languages, and certifications sections.
+You **do not** need to write any JavaScript or data-fetching code — the system handles all section rendering. Your job is purely layout and styling.
 
-## Styling Your Template
+## Layout Configuration
 
-### CSS Custom Properties
-Your template can use CSS custom properties for theming:
+The `layout_config` controls how sections are split between sidebar and main:
 
-```css
-:root {
-  --primary-color: #2563eb;
-  --secondary-color: #f8fafc;
-  --text-color: #374151;
-  --heading-color: #111827;
-  --accent-color: #2563eb;
-}
-```
+| Field | Type | Description | Default |
+|---|---|---|---|
+| `columns` | number | Number of columns (1 or 2) | 2 |
+| `widths` | number[] | Column widths in percentages | [30, 70] |
+| `margins` | object | Page margins: `{top, bottom, left, right}` | `{top: 40, bottom: 40, left: 40, right: 40}` |
 
-### Responsive Design
-Use media queries to make your template responsive:
+For single-column templates (like Classic or Minimal), set `columns: 1` and `widths: [100]`. Note that the profile section still renders in the sidebar slot — if you want it inline, include `{{sidebar}}` at the top of your `{{main}}` area.
 
-```css
-@media print {
-  body {
-    margin: 0;
-    padding: 0;
-  }
-  
-  .container {
-    width: 100%;
-    margin: 0;
-  }
-}
-```
+## Advanced Layout Patterns
 
-## Template Upload
+### Profile Inside Main Column
 
-### File Format
-- File extension: `.html` or `.htm`
-- File size: Maximum 5MB
-- Content type: HTML text/plain
-
-### Upload Process
-1. Click "Add Template" in the template selector modal
-2. Select your HTML template file
-3. Provide a name for your template
-4. The template will be saved and appear in your template list
-
-### Best Practices
-1. **Keep it simple**: Start with a basic template and add styling progressively
-2. **Use CSS variables**: Make it easy to customize colors and fonts
-3. **Test thoroughly**: Preview your template with different CV data
-4. **Check print preview**: Ensure your template looks good when printed to PDF
-
-## Template Examples
-
-### Minimal Template
-A clean, simple template with minimal styling:
+If you prefer a single-column layout where the profile appears inline:
 
 ```html
-<!DOCTYPE html>
-<html>
-<head>
-  <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; }
-    .header { border-bottom: 2px solid #ccc; padding-bottom: 10px; }
-    .section { margin: 20px 0; }
-    .section-title { font-weight: bold; }
-  </style>
-</head>
 <body>
-  <div class="header">
-    <h1 id="name"></h1>
-    <p id="title"></p>
+  <div class="profile-block">
+    {{sidebar}}
   </div>
-  <script>
-    if (window.__CV_DATA__) {
-      const profile = window.__CV_DATA__.instances.find(i => i.type === 'profile');
-      if (profile) {
-        document.getElementById('name').textContent = profile.data.name || '';
-        document.getElementById('title').textContent = profile.data.title || '';
-      }
-    }
-  </script>
+  <div class="content">
+    {{main}}
+  </div>
 </body>
-</html>
 ```
 
-### Two-Column Template
-A professional two-column layout:
+Then style `.profile-block` to display as a full-width header.
+
+### Multi-Column Main Area
+
+You can structure `{{main}}` however you like — it's just a container that the system fills with rendered sections:
 
 ```html
-<!DOCTYPE html>
-<html>
-<head>
-  <style>
-    .container { display: flex; gap: 30px; }
-    .left { flex: 1; }
-    .right { flex: 2; }
-    .section { margin-bottom: 20px; }
-    .title { font-weight: bold; margin-bottom: 8px; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="left">
-      <div class="section">
-        <h2 class="title">Contact</h2>
-        <script>
-          if (window.__CV_DATA__) {
-            const profile = window.__CV_DATA__.instances.find(i => i.type === 'profile');
-            if (profile) {
-              document.write(`<p>${profile.data.email}</p>`);
-              document.write(`<p>${profile.data.phone}</p>`);
-              document.write(`<p>${profile.data.location}</p>`);
-            }
-          }
-        </script>
-      </div>
-    </div>
-    <div class="right">
-      <div class="section">
-        <h2 class="title">Professional Summary</h2>
-        <script>
-          if (window.__CV_DATA__) {
-            const profile = window.__CV_DATA__.instances.find(i => i.type === 'profile');
-            if (profile) {
-              document.write(`<p>${profile.data.summary || ''}</p>`);
-            }
-          }
-        </script>
-      </div>
-    </div>
-  </div>
-</body>
-</html>
+<div class="grid">
+  <div class="col-left">{{main}}</div>
+</div>
 ```
 
-## Troubleshooting
+The system inserts all non-profile sections into the first `{{main}}` placeholder it finds. If you need multiple main areas, use only one `{{main}}` — extra occurrences are left as-is (which may produce unexpected results).
 
-### Common Issues
+### Custom Section Styling Overrides
 
-1. **Template not loading**: Ensure your HTML file is valid and doesn't have syntax errors
-2. **Data not appearing**: Check that you're accessing the correct data structure
-3. **Styling not applied**: Verify your CSS is properly loaded and applied
-4. **PDF export issues**: Check browser console for JavaScript errors
-
-### Debugging Tips
-- Open browser developer tools and check the Console tab
-- Use `console.log(window.__CV_DATA__)` to verify data is being passed
-- Check Network tab to ensure your template HTML is being loaded
-- Use browser screenshot tools to verify template appearance
-
-## Advanced Features
-
-### Custom Section Rendering
-You can create custom section rendering logic in your template:
-
-```javascript
-function renderSection(instance) {
-  const data = instance.data;
-  const style = instance.style || {};
-  
-  const wrapperStyle = {
-    fontFamily: style.font || 'inherit',
-    color: style.color || 'inherit',
-  };
-  
-  return `
-    <div style="${Object.entries(wrapperStyle).map(([k, v]) => `${k}: ${v};`).join('')}">
-      <h3 style="fontWeight: ${style.weight || 'normal'}">${instance.title}</h3>
-      ${renderSectionData(instance.type, data)}
-    </div>
-  `;
-}
-```
-
-### Dynamic Content
-You can dynamically load additional data or modify the template based on CV content:
-
-```javascript
-if (window.__CV_DATA__.instances.some(i => i.type === 'experience' && i.data.length > 0)) {
-  document.body.classList.add('has-experience');
-}
-```
+Per-section style overrides (font, color, weight) set on individual section instances are applied via inline styles by the system's section renderer. Your layout template doesn't need to handle these — they're injected directly into each section panel's HTML.
 
 ## Best Practices
 
-1. **Keep it simple initially**: Start with basic HTML and CSS, then add features
-2. **Use consistent naming**: Use consistent class names and IDs
-3. **Test with real data**: Use actual CV data to test your template
-4. **Check print preview**: Ensure your template looks good when printed
-5. **Responsive design**: Test on different screen sizes
-6. **Accessibility**: Include proper semantic HTML for screen readers
+1. **Use CSS variables for everything customizable** — this is what makes the CustomizePanel work
+2. **Keep `{{sidebar}}` and `{{main}}` as direct children of your layout containers** — avoid wrapping them in complex nested structures that might interfere with rendering
+3. **Include print styles** — PDF export uses Playwright headless Chromium; without `@media print` rules, colors may not render correctly
+4. **Set `max-width: 210mm` on the body or main container** — this matches A4 width and ensures WYSIWYG preview
+5. **Use `box-sizing: border-box` globally** — prevents padding from breaking your layout dimensions
+6. **Test with all section types** — make sure your layout handles empty sections gracefully (the system renders a "No data" placeholder for disabled/empty sections)
 
-## Getting Help
+## Troubleshooting
 
-If you encounter issues with your template:
-1. Check the browser console for JavaScript errors
-2. Review the template examples above
-3. Test with a simple CV entry
-4. Contact support if you need assistance with complex template requirements
+### Sections not appearing
+- Verify both `{{sidebar}}` and `{{main}}` placeholders are present in your HTML
+- Check that the HTML is valid (no unclosed tags, proper nesting)
 
-## Template Versioning
+### Customization controls not affecting appearance
+- Ensure you're using `var(--variable-name)` syntax in your CSS (e.g., `color: var(--accent)`)
+- Variable names must match exactly: `--accent`, `--bg-sidebar`, `--body-font`, etc.
+- Check the browser console for CSS parsing errors
 
-User templates are versioned by the upload timestamp. You can update a template by uploading a new version with the same name (the system will replace the old template).
+### PDF looks different from preview
+- Verify you have `@media print` or `@page` rules with `print-color-adjust: exact`
+- Ensure your CSS uses inline-compatible values (some complex CSS features don't translate to PDF)
+
+### Layout breaks with many sections
+- Use `overflow` and `min-height` properties on containers
+- Consider adding page break controls: `.section { page-break-inside: avoid; }`
 
 ## Security Notes
 
-- User templates are executed in a sandboxed iframe
-- Templates can only access data provided via `window.__CV_DATA__`
-- No external network requests are allowed from templates
-- Templates are stored securely on the server
+- User templates run server-side during preview and PDF generation (no browser execution)
+- Templates are sandboxed — no external network requests, no access to system resources
+- Only the section data rendered by the system is inserted into your template
+- CSS custom property substitution is safe — only known variable names are replaced
 
-## Conclusion
+## Comparison: System vs User Templates
 
-User templates give you complete control over your CV's appearance. Start with a simple template and progressively add features as you become more comfortable with the template format. The built-in system templates (Modern, Classic, Minimal) are always available as a fallback if you need to switch away from a custom template.
+| Feature | System Templates | User Templates |
+|---|---|---|
+| Layout definition | Built-in (Python renderers) | Your HTML with `{{sidebar}}`/`{{main}}` |
+| Customization panel | Full control | Works via CSS variables |
+| Section rendering | System-generated | Same system renderers |
+| Colors/fonts/spacing | Live-editable | Live-editable via CSS vars |
+| Per-section overrides | Supported | Supported |
+| PDF export | Works | Works (same pipeline) |
