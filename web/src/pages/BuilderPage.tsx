@@ -21,7 +21,6 @@ import CustomizePanel from "../components/customization/CustomizePanel";
 import type { SectionInstance, SectionStyle } from "../lib/sections/types";
 import { createDefaultInstance } from "../lib/sections/types";
 import { updateCV, fetchPreview } from "../lib/api/cvs";
-import { fetchTemplate } from "../lib/api/templates";
 
 export default function BuilderPage() {
   const location = useLocation();
@@ -91,10 +90,6 @@ export default function BuilderPage() {
 
     return () => { cancelled = true; };
   }, [currentCV?.template_id, id]);
-
-  const setTemplateContent = (content: string | null) => {
-    previewHtmlRef.current = content;
-  };
 
   const triggerSave = useCallback(
     async (saveData: { sections: SectionInstance[]; customizations: Record<string, unknown> }) => {

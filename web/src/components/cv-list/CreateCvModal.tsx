@@ -22,7 +22,6 @@ export default function CreateCvModal({ open, onClose }: Props) {
   const [title, setTitle] = useState("");
   const [templateId, setTemplateId] = useState("generic-modern");
   const [systemTemplates, setSystemTemplates] = useState<TemplateOption[]>([]);
-  const [userTemplates, setUserTemplates] = useState<TemplateOption[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -44,8 +43,6 @@ export default function CreateCvModal({ open, onClose }: Props) {
       setLoading(false);
     }
   };
-
-  const allTemplates = [...systemTemplates, ...userTemplates];
 
   return (
     <Modal open={open} onClose={onClose}>
@@ -92,37 +89,6 @@ export default function CreateCvModal({ open, onClose }: Props) {
                     <div>
                       <p className="text-sm font-medium text-gray-900">{t.name}</p>
                       {t.description && <p className="text-xs text-gray-500">{t.description}</p>}
-                    </div>
-                  </label>
-                ))}
-              </div>
-            )}
-            {userTemplates.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Your Templates</p>
-                {userTemplates.map((t) => (
-                  <label
-                    key={t.id}
-                    className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${
-                      templateId === t.id
-                        ? "border-blue-500 bg-blue-50"
-                        : "border-gray-200 hover:border-gray-300"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="template"
-                      value={t.id}
-                      checked={templateId === t.id}
-                      onChange={() => setTemplateId(t.id)}
-                      className="sr-only"
-                    />
-                    <div className={`h-4 w-4 rounded-full border-2 ${templateId === t.id ? "border-blue-500" : "border-gray-300"}`}>
-                      {templateId === t.id && <div className="m-0.5 h-2.5 w-2.5 rounded-full bg-blue-500" />}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{t.name}</p>
-                      <p className="text-xs text-gray-400">User template</p>
                     </div>
                   </label>
                 ))}
