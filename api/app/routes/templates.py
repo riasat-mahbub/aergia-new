@@ -1,3 +1,5 @@
+import uuid as uuid_module
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -24,6 +26,16 @@ async def list_templates(
     return [TemplateListItem.model_validate(t) for t in templates]
 
 
+@router.get("/user", response_model=list[TemplateListItem])
+async def list_user_templates(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    query = select(Template).where(Template.user_id == current_user.id).order_by(Template.name)
+    result = await db.execute(query)
+    return [TemplateListItem.model_validate(t) for t in result.scalars().all()]
+
+
 @router.get("/{template_id}", response_model=TemplateDetail)
 async def get_template(template_id: str, db: AsyncSession = Depends(get_db)):
     template = await db.get(Template, template_id)
@@ -38,8 +50,17 @@ async def create_user_template(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    base_id = f"user_{current_user.id}_{data.name.lower().replace(' ', '_')}"
+    if len(base_id) > 90:
+        base_id = base_id[:90]
+    template_id = base_id
+    result = await db.execute(select(Template).where(Template.id == template_id))
+    existing = result.scalar_one_or_none()
+    if existing:
+        template_id = f"{base_id}_{uuid_module.uuid4().hex[:8]}"
+
     template = Template(
-        id=f"user_{current_user.id}_{data.name.lower().replace(' ', '_')}",
+        id=template_id,
         name=data.name,
         description=f"User template: {data.name}",
         preview_image_url=None,
