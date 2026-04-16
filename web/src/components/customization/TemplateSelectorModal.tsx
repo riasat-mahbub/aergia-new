@@ -34,7 +34,8 @@ export default function TemplateSelectorModal({ open, onClose, templateId, onSel
     try {
       const content = await file.text();
       const name = file.name.replace(/\.html?$/i, "");
-      await uploadTemplate(name, content);
+      const layoutConfig = { columns: 2, widths: [30, 70], margins: { top: 40, bottom: 40, left: 40, right: 40 } };
+      await uploadTemplate(name, content, layoutConfig);
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : "Failed to upload template");
     } finally {
@@ -120,7 +121,7 @@ export default function TemplateSelectorModal({ open, onClose, templateId, onSel
           <label className="block">
             <div className="cursor-pointer rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-4 text-center transition-colors hover:bg-gray-100">
               <div className="text-sm font-medium text-gray-700">Add New Template</div>
-              <div className="mt-1 text-xs text-gray-500">Upload an HTML file</div>
+              <div className="mt-1 text-xs text-gray-500">Upload an HTML file with {{sidebar}} and {{main}} placeholders</div>
               <input
                 type="file"
                 accept=".html,.htm"

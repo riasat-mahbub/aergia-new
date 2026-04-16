@@ -23,7 +23,7 @@ interface UserTemplateStore {
   error: string | null;
   
   fetchUserTemplates: () => Promise<void>;
-  uploadTemplate: (name: string, content: string) => Promise<void>;
+    uploadTemplate: (name: string, layout_template: string, layout_config?: Record<string, unknown>) => Promise<void>;
   deleteTemplate: (id: string) => Promise<void>;
   getTemplateById: (id: string) => UserTemplate | undefined;
 }
@@ -46,10 +46,10 @@ const useUserTemplateStore = create<UserTemplateStore>()(
       }
     },
     
-    uploadTemplate: async (name: string, content: string) => {
+    uploadTemplate: async (name: string, layout_template: string, layout_config?: Record<string, unknown>) => {
       set({ isLoading: true, error: null });
       try {
-        const newTemplate = await templatesApi.uploadUserTemplate({ name, content });
+        const newTemplate = await templatesApi.uploadUserTemplate({ name, layout_template, layout_config });
         set({ templates: [...get().templates, newTemplate] });
       } catch (error) {
         set({ error: error instanceof Error ? error.message : "Failed to upload template" });
