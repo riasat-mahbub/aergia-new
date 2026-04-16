@@ -20,7 +20,7 @@ import CustomizePanel from "../components/customization/CustomizePanel";
 
 import type { SectionInstance, SectionStyle } from "../lib/sections/types";
 import { createDefaultInstance } from "../lib/sections/types";
-import { updateCV } from "../lib/api/cvs";
+import { updateCV, fetchPreview } from "../lib/api/cvs";
 import { fetchTemplate } from "../lib/api/templates";
 
 export default function BuilderPage() {
@@ -72,18 +72,28 @@ export default function BuilderPage() {
   customizationsRef.current = customizations;
   const instancesForUnloadRef = useRef({ sections: localInstances, customizations: localCustomizations });
   instancesForUnloadRef.current = { sections: localInstances, customizations: localCustomizations };
-  const templateContentRef = useRef<string | null>(null);
+  const previewHtmlRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (currentCV && currentCV.template_id.startsWith("user_")) {
-      fetchTemplate(currentCV.template_id)
-        .then(t => setTemplateContent(t.content))
-        .catch(() => {});
-    }
-  }, [currentCV]);
+    if (!currentCV || !loadedRef.current) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const preview = await fetchPreview(id);
+        if (!cancelled) {
+          previewHtmlRef.current = preview.html;
+        }
+      } catch {
+        // Preview fetch failed — will fall back to client rendering
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [currentCV?.template_id, id]);
 
   const setTemplateContent = (content: string | null) => {
-    templateContentRef.current = content;
+    previewHtmlRef.current = content;
   };
 
   const triggerSave = useCallback(
@@ -251,12 +261,7 @@ export default function BuilderPage() {
         const cleanInstances = localInstances.map((i) => ({ ...i, style: undefined }));
         setLocalInstances(cleanInstances);
         
-        if (newTemplateId.startsWith("user_")) {
-          const tpl = await fetchTemplate(newTemplateId);
-          setTemplateContent(tpl.content);
-        } else {
-          setTemplateContent(null);
-        }
+
         
         await updateCV(id, { template_id: newTemplateId, sections: cleanInstances, customizations: localCustomizations });
         await loadCV(id);
@@ -363,12 +368,21 @@ export default function BuilderPage() {
           >
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-500">Preview</h2>
             <div className="mx-auto max-w-[210mm] rounded bg-white shadow-sm">
-              <TemplateSwitcher
-                templateId={currentCV.template_id}
-                instances={instances}
-                customizations={customizations}
-                templateContent={templateContentRef.current || undefined}
-              />
+              {currentCV.template_id.startsWith("user_") && previewHtmlRef.current ? (
+                <iframe
+                  title="User Template Preview"
+                  className="h-[297mm] w-full"
+                  srcDoc={previewHtmlRef.current}
+                  sandbox="allow-scripts allow-same-origin"
+                />
+              ) : (
+                <TemplateSwitcher
+                  templateId={currentCV.template_id}
+                  instances={instances}
+                  customizations={customizations}
+                  templateContent={undefined}
+                />
+              )}
             </div>
           </motion.div>
         </div>

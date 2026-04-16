@@ -73,6 +73,15 @@ export async function exportPDF(id: string): Promise<Blob> {
   return data;
 }
 
+export interface PreviewResponse {
+  html: string;
+}
+
+export async function fetchPreview(id: string): Promise<PreviewResponse> {
+  const { data } = await client.get(`/cvs/${id}/preview`);
+  return data;
+}
+
 export function downloadPDF(blob: Blob, filename: string = "cv.pdf") {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
