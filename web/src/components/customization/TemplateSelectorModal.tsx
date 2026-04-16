@@ -68,7 +68,7 @@ export default function TemplateSelectorModal({ open, onClose, templateId, onSel
         }
       }
 
-      await uploadTemplate(name, content, layoutConfig);
+      await uploadTemplate(name, content, layoutConfig as Record<string, unknown> | undefined);
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : "Failed to upload template");
     } finally {
@@ -185,7 +185,7 @@ export default function TemplateSelectorModal({ open, onClose, templateId, onSel
             <div className="mt-3 space-y-3 rounded-lg border border-gray-200 p-3">
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-600">Zones (JSON)</label>
-                <p className="mb-1 text-[10px] text-gray-400">Define zones with their styles. Each zone gets a {{zone_id}} placeholder in your HTML.</p>
+                <p className="mb-1 text-[10px] text-gray-400">Define zones with their styles. Each zone gets a {"{{"}zone_id{"}}"} placeholder in your HTML.</p>
                 <textarea
                   value={zoneInput}
                   onChange={(e) => setZoneInput(e.target.value)}

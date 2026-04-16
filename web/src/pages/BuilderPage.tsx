@@ -84,14 +84,12 @@ export default function BuilderPage() {
           if (template.layout_template) {
             useCVStore.getState().patchCurrentCV({ template_content: template.layout_template });
           }
-          if (template.layout_config && Object.keys(template.layout_config).length > 0) {
+          if (template.layout_config != null) {
             setTemplateLayoutConfig(template.layout_config as LayoutConfig);
           }
         } catch {
           // Template fetch failed — will render without content
         }
-      } else if (currentCV.template_id.startsWith("user_") && currentCV.layout_config) {
-        setTemplateLayoutConfig(currentCV.layout_config as LayoutConfig);
       }
     })();
   }, [currentCV?.template_id, currentCV?.template_content, id]);

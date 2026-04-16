@@ -219,10 +219,38 @@ def _build_zone_styles(zone: dict) -> str:
     return "".join(f"{k}:{v};" for k, v in styles.items())
 
 
-def _group_instances_by_zone(instances: list[dict], layout_config: dict | None) -> dict[str, list[dict]]:
-    """Group section instances by their target zone based on layout_config.placement."""
+def _extract_zone_placeholders(template: str) -> set[str]:
+    """Extract all {{zone_id}} placeholders from a template string."""
+    import re
+    matches = re.findall(r'\{\{([a-zA-Z0-9_-]+)\}\}', template)
+    return set(matches)
+
+
+def _group_instances_by_zone(instances: list[dict], layout_config: dict | None, layout_template: str | None = None) -> dict[str, list[dict]]:
+    """Group section instances by their target zone based on layout_config.placement.
+
+    When no placement config is provided, infer defaults from the template:
+    - If the template contains {{header}}, map profile → header, rest → main
+    - Otherwise, put everything in "main"
+    """
     if not layout_config or "placement" not in layout_config:
-        # Default: everything goes to "main"
+        # Smart default: scan template for known zone placeholders
+        if layout_template:
+            zone_placeholders = _extract_zone_placeholders(layout_template)
+            if "header" in zone_placeholders:
+                # Profile goes to header, everything else to main
+                groups: dict[str, list[dict]] = {}
+                for instance in instances:
+                    if not instance.get("enabled", True):
+                        continue
+                    section_type = instance.get("type", "")
+                    zone_id = "header" if section_type == "profile" else "main"
+                    if zone_id not in groups:
+                        groups[zone_id] = []
+                    groups[zone_id].append(instance)
+                return groups
+
+        # Fallback: everything goes to "main"
         return {"main": [i for i in instances if i.get("enabled", True)]}
 
     placement = layout_config["placement"]
@@ -408,8 +436,12 @@ def render_user_template_unified(
     """
     merged = _merge_customizations(default_customizations or {}, customizations)
 
-    # Group instances by zone
-    groups = _group_instances_by_zone(instances, layout_config)
+    # Group instances by zone (pass template for smart zone detection)
+    groups = _group_instances_by_zone(instances, layout_config, layout_template)
+
+    # Track which zones got content so we can clean up unknown ones later
+    populated_zone_ids: set[str] = set()
+    all_template_placeholders: set[str] = set()
 
     html = layout_template
     for zone_id, zone_instances in groups.items():
@@ -436,8 +468,13 @@ def render_user_template_unified(
             )
             html = html.replace(f"{{{{{zone_id}}}}}", panels)
 
-    # Replace any remaining zone placeholders with empty strings
-    html = _replace_unknown_zones(html, layout_config)
+        populated_zone_ids.add(zone_id)
+
+    # Scan the original template for all {{...}} placeholders
+    all_template_placeholders = _extract_zone_placeholders(layout_template)
+
+    # Replace unknown zone placeholders with empty strings, but preserve data variables (e.g., {{name}})
+    html = _replace_unknown_zones(html, layout_config, populated_zone_ids, all_template_placeholders)
 
     html = _substitute_css_vars(html, merged)
 
@@ -464,21 +501,56 @@ def render_user_template_unified(
     return html
 
 
-def _replace_unknown_zones(html: str, layout_config: dict | None) -> str:
-    """Replace any {{zone_id}} placeholders that don't have corresponding instances with empty string."""
-    if not layout_config or "zones" not in layout_config:
-        # Replace {{sidebar}} and {{main}} as fallback
-        html = html.replace("{{sidebar}}", "")
-        html = html.replace("{{main}}", "")
-    else:
-        zones = layout_config["zones"]
-        zone_ids = {z.get("id") for z in zones if isinstance(z, dict)}
-        import re
-        placeholder_pattern = r'\{\{([a-zA-Z0-9_-]+)\}\}'
+def _replace_unknown_zones(html: str, layout_config: dict | None, populated_zone_ids: set[str] | None = None, all_placeholders: set[str] | None = None) -> str:
+    """Replace any {{zone_id}} placeholders that don't have corresponding instances with empty string.
+
+    When all_placeholders is provided (from render_user_template_unified), only replace placeholders
+    that look like zone IDs (present in populated_zone_ids or layout_config zones). Data variables
+    like {{name}} are left intact since they appear in the template but aren't zone markers.
+
+    A placeholder is treated as a zone ID if it matches common zone naming patterns:
+    - It's in populated_zone_ids (it was a real zone)
+    - It's in layout_config zones (it was defined but had no instances)
+    - It looks like a zone name (main, sidebar, header, left, right, col, panel, zone, area)
+    """
+    import re
+    placeholder_pattern = r'\{\{([a-zA-Z0-9_-]+)\}\}'
+
+    if populated_zone_ids is not None:
+        # Called from render_user_template_unified — distinguish zones from data variables
+        known_zones = set(populated_zone_ids)  # zones that got content
+
         def replace_placeholder(match):
             zone_id = match.group(1)
-            return zone_id if zone_id in zone_ids else ""
+            # Keep it if it was populated
+            if zone_id in known_zones:
+                return match.group(0)
+            # Check if it's a data variable (not a zone-like name)
+            if all_placeholders and zone_id not in all_placeholders:
+                return match.group(0)
+            # Heuristic: if the placeholder looks like a zone name, replace with empty
+            zone_name_patterns = {"main", "sidebar", "header", "left", "right", "center",
+                                  "col", "panel", "zone", "area", "top", "bottom", "nav",
+                                  "footer", "foot", "aside", "primary", "secondary"}
+            if zone_id in zone_name_patterns or any(zone_id.endswith(suffix) for suffix in ["-col", "-zone", "-panel"]):
+                return ""
+            # Otherwise leave it (likely a data variable like {{name}}, {{company}}, etc.)
+            return match.group(0)
+
         html = re.sub(placeholder_pattern, replace_placeholder, html)
+    elif layout_config and "zones" in layout_config:
+        # Legacy path: use zones defined in layout_config.zones
+        zones = layout_config["zones"]
+        zone_ids = {z.get("id") for z in zones if isinstance(z, dict)}
+
+        def replace_placeholder(match):
+            zone_id = match.group(1)
+            return "" if zone_id not in zone_ids else match.group(0)
+        html = re.sub(placeholder_pattern, replace_placeholder, html)
+    else:
+        # No layout_config and no populated zones — nothing to replace; leave all placeholders as-is
+        pass
+
     return html
 
 
