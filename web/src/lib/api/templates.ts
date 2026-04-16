@@ -9,6 +9,7 @@ export interface UserTemplate {
   section_schema: Record<string, any>;
   default_customizations: Record<string, any> | null;
   content: string;
+  layout_template: string | null;
   is_user_template: boolean;
   is_system: boolean;
   user_id: string | null;
@@ -25,7 +26,7 @@ export interface UserTemplateCreate {
 
 export async function fetchSystemTemplates(): Promise<UserTemplate[]> {
   const { data } = await client.get("/templates");
-  return data;
+  return data.filter((t: UserTemplate) => !t.is_user_template);
 }
 
 export async function fetchUserTemplates(): Promise<UserTemplate[]> {

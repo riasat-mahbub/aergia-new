@@ -13,3 +13,4 @@ build/
 .DS_Store
 *.pyc
 *.tsbuildinfo
+MIT.html

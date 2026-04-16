@@ -212,7 +212,63 @@ PRINT_STYLES = """
 """
 
 
-def render_modern(instances: list[dict], customizations: dict) -> str:
+def _build_zone_styles(zone: dict) -> str:
+    styles = zone.get("styles", {})
+    if not styles:
+        return ""
+    return "".join(f"{k}:{v};" for k, v in styles.items())
+
+
+def _group_instances_by_zone(instances: list[dict], layout_config: dict | None) -> dict[str, list[dict]]:
+    """Group section instances by their target zone based on layout_config.placement."""
+    if not layout_config or "placement" not in layout_config:
+        # Default: everything goes to "main"
+        return {"main": [i for i in instances if i.get("enabled", True)]}
+
+    placement = layout_config["placement"]
+    groups: dict[str, list[dict]] = {}
+
+    for instance in instances:
+        if not instance.get("enabled", True):
+            continue
+        section_type = instance.get("type", "")
+        zone_id = placement.get(section_type, "main")
+        if zone_id not in groups:
+            groups[zone_id] = []
+        groups[zone_id].append(instance)
+
+    return groups
+
+
+def _render_zones(instances: list[dict], layout_config: dict | None) -> str:
+    """Render all zones with their grouped section instances."""
+    if not layout_config or "zones" not in layout_config:
+        # Fallback: single main zone
+        panels = []
+        for instance in instances:
+            panel = render_instance_panel(instance)
+            if panel:
+                panels.append(f'<div style="margin-bottom:24px;">{panel}</div>')
+        return "".join(panels)
+
+    zones = layout_config["zones"]
+    groups = _group_instances_by_zone(instances, layout_config)
+
+    rendered_zones = []
+    for zone in zones:
+        zone_id = zone.get("id", "")
+        zone_instances = groups.get(zone_id, [])
+        panels = "".join(
+            f'<div style="margin-bottom:var(--section-gap, 24px);">{render_instance_panel(i)}</div>'
+            for i in zone_instances
+        )
+        zone_styles = _build_zone_styles(zone)
+        rendered_zones.append(f'<div style="{zone_styles}">{panels}</div>')
+
+    return "".join(rendered_zones)
+
+
+def render_modern(instances: list[dict], customizations: dict, layout_config: dict | None = None) -> str:
     colors = customizations.get("colors", {})
     fonts = customizations.get("fonts", {})
     spacing = customizations.get("spacing", {})
@@ -222,8 +278,13 @@ def render_modern(instances: list[dict], customizations: dict) -> str:
     heading_font = fonts.get("heading", "Inter, system-ui, sans-serif")
     section_gap = spacing.get("section_gap", "24px")
 
-    sidebar = "".join(render_instance_panel(i) for i in instances if i.get("type") == "profile")
-    main = "".join(render_instance_panel(i) for i in instances if i.get("type") != "profile")
+    # Use zone-based rendering if layout_config is provided
+    if layout_config:
+        zones_html = _render_zones(instances, layout_config)
+    else:
+        sidebar = "".join(render_instance_panel(i) for i in instances if i.get("type") == "profile")
+        main = "".join(render_instance_panel(i) for i in instances if i.get("type") != "profile")
+        zones_html = f'<div style="width:30%;padding:24px;background-color:{bg_sidebar};">{sidebar}</div><div style="width:70%;padding:24px;"><div style="margin-bottom:24px;height:4px;width:64px;background-color:{accent};"></div>{main}</div>'
 
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8" /><style>
@@ -231,19 +292,11 @@ def render_modern(instances: list[dict], customizations: dict) -> str:
   h1,h2,h3,h4,h5,h6 {{ font-family:{heading_font}; }}
   {PRINT_STYLES}
 </style></head><body>
-<div style="display:flex;min-height:297mm;">
-  <div style="width:30%;padding:24px;background-color:{bg_sidebar};">
-    {sidebar}
-  </div>
-  <div style="width:70%;padding:24px;">
-    <div style="margin-bottom:24px;height:4px;width:64px;background-color:{accent};"></div>
-    <div style="display:flex;flex-direction:column;gap:{section_gap};">{main}</div>
-  </div>
-</div>
+<div style="display:flex;min-height:297mm;">{zones_html}</div>
 </body></html>"""
 
 
-def render_classic(instances: list[dict], customizations: dict) -> str:
+def render_classic(instances: list[dict], customizations: dict, layout_config: dict | None = None) -> str:
     colors = customizations.get("colors", {})
     fonts = customizations.get("fonts", {})
     spacing = customizations.get("spacing", {})
@@ -253,13 +306,18 @@ def render_classic(instances: list[dict], customizations: dict) -> str:
     heading_font = fonts.get("heading", "Georgia, Crimson, serif")
     section_gap = spacing.get("section_gap", "20px")
 
-    panels = []
-    for i, instance in enumerate(instances):
-        panel = render_instance_panel(instance)
-        if panel:
-            panels.append(f'<div style="margin-bottom:{section_gap};">{panel}</div>')
-            if i < len(instances) - 1:
-                panels.append(f'<hr style="border-color:{divider_color};margin:16px 0;" />')
+    # Use zone-based rendering if layout_config is provided
+    if layout_config:
+        zones_html = _render_zones(instances, layout_config)
+    else:
+        panels = []
+        for i, instance in enumerate(instances):
+            panel = render_instance_panel(instance)
+            if panel:
+                panels.append(f'<div style="margin-bottom:{section_gap};">{panel}</div>')
+                if i < len(instances) - 1:
+                    panels.append(f'<hr style="border-color:{divider_color};margin:16px 0;" />')
+        zones_html = f'<div style="padding:32px;">{"".join(panels)}</div>'
 
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8" /><style>
@@ -267,11 +325,11 @@ def render_classic(instances: list[dict], customizations: dict) -> str:
   h1,h2,h3,h4,h5,h6 {{ font-family:{heading_font}; color:{header_color}; }}
   {PRINT_STYLES}
 </style></head><body>
-<div style="padding:32px;">{"".join(panels)}</div>
+{zones_html}
 </body></html>"""
 
 
-def render_minimal(instances: list[dict], customizations: dict) -> str:
+def render_minimal(instances: list[dict], customizations: dict, layout_config: dict | None = None) -> str:
     colors = customizations.get("colors", {})
     fonts = customizations.get("fonts", {})
     spacing = customizations.get("spacing", {})
@@ -281,10 +339,15 @@ def render_minimal(instances: list[dict], customizations: dict) -> str:
     heading_font = fonts.get("heading", "system-ui, sans-serif")
     section_gap = spacing.get("section_gap", "16px")
 
-    panels = "".join(
-        f'<div style="margin-bottom:{section_gap};">{render_instance_panel(instance)}</div>'
-        for instance in instances
-    )
+    # Use zone-based rendering if layout_config is provided
+    if layout_config:
+        zones_html = _render_zones(instances, layout_config)
+    else:
+        panels = "".join(
+            f'<div style="margin-bottom:{section_gap};">{render_instance_panel(instance)}</div>'
+            for instance in instances
+        )
+        zones_html = f'<div style="padding:32px;">{panels}</div>'
 
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8" /><style>
@@ -292,7 +355,7 @@ def render_minimal(instances: list[dict], customizations: dict) -> str:
   h1,h2,h3,h4,h5,h6 {{ font-family:{heading_font}; color:{heading_color}; }}
   {PRINT_STYLES}
 </style></head><body>
-<div style="padding:32px;">{panels}</div>
+{zones_html}
 </body></html>"""
 
 
@@ -336,26 +399,46 @@ def render_user_template_unified(
     layout_config: dict | None = None,
     default_customizations: dict | None = None,
 ) -> str:
-    """Render a user template using the same pipeline as system templates.
+    """Render a user template using the zone-based system.
 
     1. Merge CV customizations over template defaults.
-    2. Generate section panels via render_instance_panel().
-    3. Split into sidebar (profile) and main sections based on layout_config.
-    4. Insert panels at {{sidebar}}/{{main}} placeholders in the layout template.
-    5. Substitute CSS custom properties with merged customization values.
+    2. Group section instances by target zone via layout_config.placement.
+    3. Build HTML for each zone and replace {{zone_id}} placeholders in the layout template.
+    4. Substitute CSS custom properties with merged customization values.
     """
     merged = _merge_customizations(default_customizations or {}, customizations)
 
-    sidebar_instances = [i for i in instances if i.get("type") == "profile"]
-    main_instances = [i for i in instances if i.get("type") != "profile"]
+    # Group instances by zone
+    groups = _group_instances_by_zone(instances, layout_config)
 
-    sidebar_html = "".join(render_instance_panel(i) for i in sidebar_instances)
-    main_html = "".join(
-        f'<div style="margin-bottom:var(--section-gap, 24px);">{render_instance_panel(i)}</div>'
-        for i in main_instances
-    )
+    html = layout_template
+    for zone_id, zone_instances in groups.items():
+        if layout_config and "zones" in layout_config:
+            zones = layout_config["zones"]
+            zone = next((z for z in zones if z.get("id") == zone_id), None)
+            if zone:
+                zone_styles = _build_zone_styles(zone)
+                panels = "".join(
+                    f'<div style="margin-bottom:var(--section-gap, 24px);">{render_instance_panel(i)}</div>'
+                    for i in zone_instances
+                )
+                html = html.replace(f"{{{{{zone_id}}}}}", f'<div style="{zone_styles}">{panels}</div>')
+            else:
+                panels = "".join(
+                    f'<div style="margin-bottom:var(--section-gap, 24px);">{render_instance_panel(i)}</div>'
+                    for i in zone_instances
+                )
+                html = html.replace(f"{{{{{zone_id}}}}}", panels)
+        else:
+            panels = "".join(
+                f'<div style="margin-bottom:var(--section-gap, 24px);">{render_instance_panel(i)}</div>'
+                for i in zone_instances
+            )
+            html = html.replace(f"{{{{{zone_id}}}}}", panels)
 
-    html = layout_template.replace("{{sidebar}}", sidebar_html).replace("{{main}}", main_html)
+    # Replace any remaining zone placeholders with empty strings
+    html = _replace_unknown_zones(html, layout_config)
+
     html = _substitute_css_vars(html, merged)
 
     print_styles = """
@@ -378,6 +461,24 @@ def render_user_template_unified(
     if "<style>" not in html:
         html = html.replace("<head>", f"<head><style>{print_styles}</style>")
 
+    return html
+
+
+def _replace_unknown_zones(html: str, layout_config: dict | None) -> str:
+    """Replace any {{zone_id}} placeholders that don't have corresponding instances with empty string."""
+    if not layout_config or "zones" not in layout_config:
+        # Replace {{sidebar}} and {{main}} as fallback
+        html = html.replace("{{sidebar}}", "")
+        html = html.replace("{{main}}", "")
+    else:
+        zones = layout_config["zones"]
+        zone_ids = {z.get("id") for z in zones if isinstance(z, dict)}
+        import re
+        placeholder_pattern = r'\{\{([a-zA-Z0-9_-]+)\}\}'
+        def replace_placeholder(match):
+            zone_id = match.group(1)
+            return zone_id if zone_id in zone_ids else ""
+        html = re.sub(placeholder_pattern, replace_placeholder, html)
     return html
 
 
@@ -412,4 +513,4 @@ def render_preview(
             instances, customizations, layout_template, layout_config, default_customizations
         )
     renderer = TEMPLATE_RENDERERS.get(template_id, render_modern)
-    return renderer(instances, customizations)
+    return renderer(instances, customizations, layout_config)

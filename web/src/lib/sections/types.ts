@@ -129,6 +129,17 @@ export function createDefaultInstance(type: string): SectionInstance {
   };
 }
 
+export interface Zone {
+  id: string;
+  label?: string;
+  styles?: Record<string, string>;
+}
+
+export interface LayoutConfig {
+  zones: Zone[];
+  placement: Record<string, string>;
+}
+
 export function getDefaultInstances(): SectionInstance[] {
   return [createDefaultInstance("profile")];
 }

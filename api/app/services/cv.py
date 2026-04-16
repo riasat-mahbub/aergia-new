@@ -52,6 +52,12 @@ class CVService:
         await self.db.flush()
         return cv
 
+    async def _load_template_content(self, template_id: str) -> str | None:
+        if not template_id.startswith("user_"):
+            return None
+        template = await self.db.get(Template, template_id)
+        return template.layout_template if template else None
+
     async def update_cv(self, cv_id: str, user_id: str, data: CVUpdate) -> CV | None:
         cv = await self.get_cv(cv_id, user_id)
         if not cv:
@@ -60,6 +66,13 @@ class CVService:
         update_data = data.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(cv, key, value)
+        if "template_id" in update_data and update_data["template_id"].startswith("user_"):
+            content = await self._load_template_content(update_data["template_id"])
+            cv.template_content = content
+        elif not cv.template_content and cv.template_id.startswith("user_") and "template_id" not in update_data:
+            content = await self._load_template_content(cv.template_id)
+            if content:
+                cv.template_content = content
         cv.updated_at = datetime.now(timezone.utc)
         await self.db.flush()
         return cv

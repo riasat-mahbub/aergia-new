@@ -46,5 +46,5 @@ async def test_all_templates_have_render_config(client):
         assert "layout_config" in data
         assert "section_schema" in data
         assert "default_customizations" in data
-        assert "columns" in data["layout_config"]
-        assert "widths" in data["layout_config"]
+        assert "zones" in data["layout_config"]
+        assert "placement" in data["layout_config"]

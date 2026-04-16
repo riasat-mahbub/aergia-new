@@ -2,31 +2,32 @@
 
 ## Overview
 
-User templates let you create custom CV layouts while keeping the same customization controls (colors, fonts, spacing) as the built-in templates. Instead of writing raw HTML with JavaScript data injection, you write a layout template with placeholders — the system renders your CV sections and inserts them into your design.
+User templates let you create custom CV layouts while keeping the same customization controls (colors, fonts, spacing) as the built-in templates. Instead of writing raw HTML with JavaScript data injection, you write a layout template with zone placeholders — the system renders your CV sections and inserts them into your design.
 
 ## How It Works
 
 Both system templates (Modern, Classic, Minimal) and user templates follow the same rendering pipeline:
 
 1. The system generates section panel HTML using built-in renderers
-2. Panels are split into **sidebar** (profile/contact) and **main** (all other sections)
-3. Panels are inserted into your layout template at placeholder positions
+2. Sections are grouped by their target **zone** based on `layout_config.placement`
+3. Each zone's sections are inserted into your layout template at `{{zone_id}}` placeholders
 4. CSS custom properties are substituted with the user's customization choices (colors, fonts, spacing)
 
 This means: **your design stays intact, but the CustomizePanel still works.**
 
 ## Template Structure
 
-A user template is an HTML file that defines your layout using two placeholders and CSS variables:
+A user template is an HTML file that defines your layout using zone placeholders and CSS variables:
 
-### Placeholders
+### Zone Placeholders
 
 | Placeholder | Purpose |
 |---|---|
-| `{{sidebar}}` | Where profile/contact sections render (left column in 2-column layouts) |
-| `{{main}}` | Where all other sections render (experience, education, skills, etc.) |
+| `{{zone_id}}` | Where sections assigned to that zone render (e.g., `{{sidebar}}`, `{{main}}, {{header}}, {{left-col}}`) |
 
-Both placeholders are required. The system replaces them with rendered section panels.
+Zone IDs are defined in the template's `layout_config.zones`. The system replaces each placeholder with rendered section panels for all sections mapped to that zone.
+
+**Both placeholders are required.** Every zone ID defined in your `layout_config` must appear exactly once in your HTML body. Any extra `{{zone_id}}` placeholders not defined in the config are replaced with empty strings.
 
 ### CSS Custom Properties
 
@@ -51,12 +52,61 @@ Your template can use CSS variables that the CustomizePanel controls:
 Your template should be a complete HTML document:
 
 1. **HTML5 boilerplate**: `<!DOCTYPE html>` with proper `<html>`, `<head>`, and `<body>` tags
-2. **Both placeholders**: `{{sidebar}}` and `{{main}}` must appear somewhere in the body
+2. **Zone placeholders**: All zone IDs from your `layout_config.zones` must appear somewhere in the body
 3. **CSS custom properties**: Use `var(--accent)`, `var(--body-font)`, etc. for customizable values
 4. **Print styles**: Include `@media print` rules for PDF export
 
+### Zone Configuration (Upload Time)
+
+When uploading a template, you can optionally define zones and placement mapping:
+
+**Zones JSON** — defines named zones with their container styles:
+```json
+[
+  { "id": "sidebar", "styles": { "width": "30%", "backgroundColor": "#f8fafc", "padding": "24px" } },
+  { "id": "main", "styles": { "padding": "24px" } }
+]
+```
+
+**Placement JSON** — maps each section type to a zone ID:
+```json
+{
+  "profile": "sidebar",
+  "experience": "main",
+  "education": "main",
+  "skills": "main",
+  "projects": "main",
+  "languages": "main",
+  "certifications": "main"
+}
+```
+
+## Examples
+
 ### Example: Two-Column Template
 
+**Zone config:**
+```json
+[
+  { "id": "sidebar", "styles": { "width": "30%", "padding": "24px", "backgroundColor": "#f8fafc" } },
+  { "id": "main", "styles": { "padding": "24px" } }
+]
+```
+
+**Placement:**
+```json
+{
+  "profile": "sidebar",
+  "experience": "main",
+  "education": "main",
+  "skills": "main",
+  "projects": "main",
+  "languages": "main",
+  "certifications": "main"
+}
+```
+
+**HTML:**
 ```html
 <!DOCTYPE html>
 <html lang="en">
@@ -79,18 +129,6 @@ Your template should be a complete HTML document:
       min-height: 297mm;
     }
 
-    .sidebar {
-      width: 30%;
-      padding: 24px;
-      background-color: var(--bg-sidebar);
-      border-right: 3px solid var(--accent);
-    }
-
-    .main {
-      width: 70%;
-      padding: 24px;
-    }
-
     /* Section styling */
     .section-title {
       font-family: var(--heading-font);
@@ -110,7 +148,6 @@ Your template should be a complete HTML document:
       margin-bottom: 24px;
     }
 
-    /* Print styles */
     @page { size: A4; margin: 0; }
     @media print {
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -119,10 +156,10 @@ Your template should be a complete HTML document:
 </head>
 <body>
   <div class="container">
-    <div class="sidebar">
+    <div class="sidebar-zone">
       {{sidebar}}
     </div>
-    <div class="main">
+    <div class="main-zone">
       <div class="accent-bar"></div>
       {{main}}
     </div>
@@ -131,8 +168,30 @@ Your template should be a complete HTML document:
 </html>
 ```
 
-### Example: Single-Column Template
+### Example: Single-Column with Header
 
+**Zone config:**
+```json
+[
+  { "id": "header", "styles": { "padding": "32px", "borderBottom": "2px solid var(--accent)" } },
+  { "id": "main", "styles": { "padding": "32px" } }
+]
+```
+
+**Placement:**
+```json
+{
+  "profile": "header",
+  "experience": "main",
+  "education": "main",
+  "skills": "main",
+  "projects": "main",
+  "languages": "main",
+  "certifications": "main"
+}
+```
+
+**HTML:**
 ```html
 <!DOCTYPE html>
 <html lang="en">
@@ -145,7 +204,6 @@ Your template should be a complete HTML document:
       color: var(--text);
       max-width: 210mm;
       margin: 0 auto;
-      padding: 32px;
     }
 
     .section-title {
@@ -158,10 +216,58 @@ Your template should be a complete HTML document:
       margin-bottom: 8px;
     }
 
-    .divider {
-      border-top: 1px solid var(--divider);
-      margin: 16px 0;
+    @page { size: A4; margin: 0; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
+  </style>
+</head>
+<body>
+  <div class="header-zone">
+    {{header}}
+  </div>
+  <div class="content-zone">
+    {{main}}
+  </div>
+</body>
+</html>
+```
+
+### Example: Three-Column Layout
+
+**Zone config:**
+```json
+[
+  { "id": "left", "styles": { "width": "20%", "padding": "24px" } },
+  { "id": "center", "styles": { "width": "50%", "padding": "24px" } },
+  { "id": "right", "styles": { "width": "30%", "padding": "24px" } }
+]
+```
+
+**Placement:**
+```json
+{
+  "profile": "left",
+  "skills": "left",
+  "languages": "left",
+  "experience": "center",
+  "projects": "center",
+  "education": "right",
+  "certifications": "right"
+}
+```
+
+**HTML:**
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{name}} — CV</title>
+  <style>
+    body { font-family: var(--body-font); color: var(--text); max-width: 210mm; margin: 0 auto; }
+
+    .container { display: flex; min-height: 297mm; }
 
     @page { size: A4; margin: 0; }
     @media print {
@@ -170,8 +276,11 @@ Your template should be a complete HTML document:
   </style>
 </head>
 <body>
-  {{sidebar}}
-  {{main}}
+  <div class="container">
+    <div class="left-col">{{left}}</div>
+    <div class="center-col">{{center}}</div>
+    <div class="right-col">{{right}}</div>
+  </div>
 </body>
 </html>
 ```
@@ -196,70 +305,85 @@ The section gap slider updates `var(--section-gap)`, which you can use in margin
 3. Click **Choose file** and select your `.html` file
 4. The template name is auto-generated from the filename (e.g., `mit-cv-template.html` → `mit-cv-template`)
 
-### Upload Format
+### Optional: Configure Zones
 
-The upload endpoint accepts:
-- `name` — template display name (auto-derived from filename)
-- `layout_template` — the HTML content of your file
-- `layout_config` — auto-populated with a default 2-column layout (`{columns: 2, widths: [30, 70]}`)
+Before uploading, click **"Configure zones for new template"** to define your zone structure:
+
+1. **Zones JSON** — defines named zones with their container styles (CSS properties as keys/values). Each zone gets a `{{zone_id}}` placeholder in your HTML.
+2. **Placement JSON** — maps each section type (`profile`, `experience`, `education`, `skills`, `projects`, `languages`, `certifications`) to a zone ID.
+
+If you skip zone configuration, the system uses a default single-column layout with all sections going to a `main` zone.
 
 ## How Sections Are Rendered
 
 The system uses built-in section renderers (same as system templates). Each section type produces styled HTML:
 
 ### Profile Section
-Renders name, title, email, phone, location, summary, and optionally a photo URL. Placed in `{{sidebar}}`.
+Renders name, title, email, phone, location, summary, and optionally a photo URL. Where it appears depends on placement mapping.
 
 ### Experience / Education / Projects
-Renders structured entries with titles, dates, descriptions, and optional details (tech stack, GPA, etc.). Goes in `{{main}}`.
+Renders structured entries with titles, dates, descriptions, and optional details (tech stack, GPA, etc.). Where they appear depends on placement mapping.
 
 ### Skills / Languages / Certifications
-Renders categorized skills, language proficiency bars, or certification entries. Goes in `{{main}}`.
+Renders categorized skills, language proficiency bars, or certification entries. Where they appear depends on placement mapping.
 
 You **do not** need to write any JavaScript or data-fetching code — the system handles all section rendering. Your job is purely layout and styling.
 
 ## Layout Configuration
 
-The `layout_config` controls how sections are split between sidebar and main:
+The `layout_config` controls how sections are grouped into zones and where they render:
 
-| Field | Type | Description | Default |
-|---|---|---|---|
-| `columns` | number | Number of columns (1 or 2) | 2 |
-| `widths` | number[] | Column widths in percentages | [30, 70] |
-| `margins` | object | Page margins: `{top, bottom, left, right}` | `{top: 40, bottom: 40, left: 40, right: 40}` |
+| Field | Type | Description |
+|---|---|---|
+| `zones` | object[] | Named zones with container styles (`id`, `styles`) |
+| `placement` | object | Maps section types to zone IDs (e.g., `"profile": "sidebar"`) |
 
-For single-column templates (like Classic or Minimal), set `columns: 1` and `widths: [100]`. Note that the profile section still renders in the sidebar slot — if you want it inline, include `{{sidebar}}` at the top of your `{{main}}` area.
+### Zone Object Structure
+
+```json
+{
+  "id": "sidebar",
+  "label": "Sidebar",
+  "styles": {
+    "width": "30%",
+    "backgroundColor": "#f8fafc",
+    "padding": "24px"
+  }
+}
+```
+
+### Placement Object Structure
+
+```json
+{
+  "profile": "sidebar",
+  "experience": "main",
+  "education": "main",
+  "skills": "main",
+  "projects": "main",
+  "languages": "main",
+  "certifications": "main"
+}
+```
+
+Every section type (profile, experience, education, skills, projects, languages, certifications) should be mapped to a zone ID. Any unmapped section types default to the `main` zone.
 
 ## Advanced Layout Patterns
 
-### Profile Inside Main Column
+### Overlapping Zones
 
-If you prefer a single-column layout where the profile appears inline:
+You can create overlay effects by positioning zones absolutely:
 
-```html
-<body>
-  <div class="profile-block">
-    {{sidebar}}
-  </div>
-  <div class="content">
-    {{main}}
-  </div>
-</body>
+```json
+[
+  { "id": "background", "styles": { "position": "absolute", "top": "0", "left": "0", "width": "100%", "height": "120px", "backgroundColor": "#1e3a5f" } },
+  { "id": "main", "styles": { "padding": "24px", "marginTop": "80px" } }
+]
 ```
 
-Then style `.profile-block` to display as a full-width header.
+### Section Grouping Within a Zone
 
-### Multi-Column Main Area
-
-You can structure `{{main}}` however you like — it's just a container that the system fills with rendered sections:
-
-```html
-<div class="grid">
-  <div class="col-left">{{main}}</div>
-</div>
-```
-
-The system inserts all non-profile sections into the first `{{main}}` placeholder it finds. If you need multiple main areas, use only one `{{main}}` — extra occurrences are left as-is (which may produce unexpected results).
+Sections within the same zone are rendered in the order they appear in the CV's section list. You can control this order via the Customize panel's section reordering controls. The spacing between sections is controlled by `var(--section-gap)`.
 
 ### Custom Section Styling Overrides
 
@@ -268,16 +392,18 @@ Per-section style overrides (font, color, weight) set on individual section inst
 ## Best Practices
 
 1. **Use CSS variables for everything customizable** — this is what makes the CustomizePanel work
-2. **Keep `{{sidebar}}` and `{{main}}` as direct children of your layout containers** — avoid wrapping them in complex nested structures that might interfere with rendering
+2. **Ensure all zone IDs appear exactly once in your HTML** — every zone defined in `layout_config.zones` must have a corresponding `{{zone_id}}` placeholder
 3. **Include print styles** — PDF export uses Playwright headless Chromium; without `@media print` rules, colors may not render correctly
 4. **Set `max-width: 210mm` on the body or main container** — this matches A4 width and ensures WYSIWYG preview
 5. **Use `box-sizing: border-box` globally** — prevents padding from breaking your layout dimensions
 6. **Test with all section types** — make sure your layout handles empty sections gracefully (the system renders a "No data" placeholder for disabled/empty sections)
+7. **Keep zone IDs simple** — use alphanumeric characters, hyphens, and underscores (e.g., `sidebar`, `left-col`, `main-area`)
 
 ## Troubleshooting
 
 ### Sections not appearing
-- Verify both `{{sidebar}}` and `{{main}}` placeholders are present in your HTML
+- Verify all zone IDs from your `layout_config.zones` have corresponding `{{zone_id}}` placeholders in your HTML
+- Check that every section type in your placement mapping points to a valid zone ID
 - Check that the HTML is valid (no unclosed tags, proper nesting)
 
 ### Customization controls not affecting appearance
@@ -304,7 +430,8 @@ Per-section style overrides (font, color, weight) set on individual section inst
 
 | Feature | System Templates | User Templates |
 |---|---|---|
-| Layout definition | Built-in (Python renderers) | Your HTML with `{{sidebar}}`/`{{main}}` |
+| Layout definition | Built-in (Python renderers) | Your HTML with `{{zone_id}}` placeholders |
+| Zone configuration | Internal to template | Defined at upload time via JSON |
 | Customization panel | Full control | Works via CSS variables |
 | Section rendering | System-generated | Same system renderers |
 | Colors/fonts/spacing | Live-editable | Live-editable via CSS vars |
