@@ -104,15 +104,15 @@ async def preview_cv(
     if isinstance(instances, dict):
         instances = []
 
-    template_content = None
-    if cv.template_id.startswith("user_"):
-        template_content = await service.get_template_content(cv.template_id)
+    template_data = await service.get_template_data(cv.template_id)
 
     html = render_preview(
         instances=instances,
         customizations=cv.customizations or {},
         template_id=cv.template_id,
-        template_content=template_content,
+        layout_template=template_data.get("layout_template") if template_data else None,
+        layout_config=template_data.get("layout_config") if template_data else None,
+        default_customizations=template_data.get("default_customizations") if template_data else None,
     )
     return {"html": html}
 
