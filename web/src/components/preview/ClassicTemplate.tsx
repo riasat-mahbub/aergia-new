@@ -53,7 +53,7 @@ export default function ClassicTemplate({ instances, customizations, layoutConfi
             });
           }
           return (
-            <div key={zone.id} style={zoneStyle}>
+            <div key={zone.id} style={{ ...zoneStyle, flexShrink: 0 }}>
               {zoneInstances.map((instance, i) => (
                 <div key={instance.id}>
                   <div style={{ marginBottom: "var(--section-gap)" }}>

@@ -15,7 +15,42 @@ interface Props {
 function getWidthPercent(zone: Zone): number {
   const w = zone.styles?.width || "";
   const num = parseInt(w.replace("%", ""));
-  return isNaN(num) ? Math.floor(100 / 1) : num;
+  return isNaN(num) ? 0 : num;
+}
+
+function normalizeWidths(zones: Zone[]): Zone[] {
+  if (zones.length === 0) return zones;
+
+  const rawWidths = zones.map((z) => {
+    const w = z.styles?.width || "";
+    const num = parseInt(w.replace("%", ""));
+    return isNaN(num) ? 100 / zones.length : num;
+  });
+
+  const total = rawWidths.reduce((sum, w) => sum + w, 0);
+  if (total === 0) {
+    const equal = Math.floor(100 / zones.length);
+    return zones.map((z, i) => ({
+      ...z,
+      styles: { ...z.styles, width: `${equal + (i === 0 ? 100 - equal * zones.length : 0)}%` },
+    }));
+  }
+
+  const scale = 100 / total;
+  const scaled = rawWidths.map((w) => w * scale);
+  const floored = scaled.map((w) => Math.floor(w));
+  const remainders = scaled.map((w, i) => ({ index: i, remainder: w - floored[i] }));
+  remainders.sort((a, b) => b.remainder - a.remainder);
+
+  let remainder = 100 - floored.reduce((sum, w) => sum + w, 0);
+  for (let i = 0; i < remainder; i++) {
+    floored[remainders[i].index]++;
+  }
+
+  return zones.map((z, i) => ({
+    ...z,
+    styles: { ...z.styles, width: `${floored[i]}%` },
+  }));
 }
 
 export default function ZoneLayoutBar({ zones, placement, onChange }: Props) {
@@ -61,7 +96,7 @@ export default function ZoneLayoutBar({ zones, placement, onChange }: Props) {
           ...z,
           styles: { ...z.styles, width: `${newWidths[i]}%` },
         }));
-        onChange({ zones: updatedZones, placement });
+        onChange({ zones: normalizeWidths(updatedZones), placement });
       };
 
       const handleMouseUp = () => {
@@ -84,13 +119,8 @@ export default function ZoneLayoutBar({ zones, placement, onChange }: Props) {
     if (zones.length <= 1) return;
     const deletedZone = zones.find((z) => z.id === zoneId);
     const remaining = zones.filter((z) => z.id !== zoneId);
-    const redistributedWidth = Math.floor(100 / remaining.length);
-    const remainder = 100 - redistributedWidth * remaining.length;
 
-    const updatedZones = remaining.map((z, i) => ({
-      ...z,
-      styles: { ...z.styles, width: `${redistributedWidth + (i === 0 ? remainder : 0)}%` },
-    }));
+    const updatedZones = normalizeWidths(remaining);
 
     const newPlacement = { ...placement };
     if (deletedZone?.assignedSections) {
@@ -111,37 +141,34 @@ export default function ZoneLayoutBar({ zones, placement, onChange }: Props) {
   };
 
   const handleCreateZone = (zone: Zone) => {
-    const totalExisting = zones.reduce((sum, z) => sum + getWidthPercent(z), 0);
-    const remaining = 100 - totalExisting;
-    const zoneWidth = Math.min(remaining, Math.max(15, parseInt(zone.styles?.width?.replace("%", "") || "50")));
-    const actualWidth = Math.min(zoneWidth, remaining);
+    const requestedWidth = Math.max(15, parseInt(zone.styles?.width?.replace("%", "") || "50"));
 
-    const newZone = {
-      ...zone,
-      styles: { ...zone.styles, width: `${actualWidth}%` },
-    };
-
-    const updatedZones = [...zones, newZone];
-
+    let newZones: Zone[];
     if (zones.length === 0) {
-      newZone.styles.width = "100%";
+      newZones = [{ ...zone, styles: { ...zone.styles, width: "100%" } }];
     } else {
-      const totalNew = updatedZones.reduce((sum, z) => sum + getWidthPercent(z), 0);
-      if (totalNew > 100) {
-        const scale = 100 / totalNew;
-        for (const z of updatedZones) {
+      const totalExisting = zones.reduce((sum, z) => sum + getWidthPercent(z), 0);
+      const available = 100 - requestedWidth;
+
+      if (totalExisting > 0 && available > 0) {
+        const scale = available / totalExisting;
+        const scaledZones = zones.map((z) => {
           const w = getWidthPercent(z);
-          z.styles = { ...z.styles, width: `${Math.round(w * scale)}%` };
-        }
+          return { ...z, styles: { ...z.styles, width: `${Math.round(w * scale)}%` } };
+        });
+        newZones = [...scaledZones, { ...zone, styles: { ...zone.styles, width: `${requestedWidth}%` } }];
+      } else {
+        newZones = [...zones, { ...zone, styles: { ...zone.styles, width: `${requestedWidth}%` } }];
       }
     }
 
-    onChange({ zones: updatedZones, placement });
+    const normalized = normalizeWidths(newZones);
+    onChange({ zones: normalized, placement });
   };
 
   const handleZoneUpdate = (zone: Zone) => {
     const updatedZones = zones.map((z) => (z.id === zone.id ? zone : z));
-    onChange({ zones: updatedZones, placement });
+    onChange({ zones: normalizeWidths(updatedZones), placement });
   };
 
   const handleAssignSection = (zoneId: string, sectionType: string) => {

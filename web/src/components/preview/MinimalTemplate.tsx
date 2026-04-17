@@ -53,7 +53,7 @@ export default function MinimalTemplate({ instances, customizations, layoutConfi
             });
           }
           return (
-            <div key={zone.id} style={zoneStyle}>
+            <div key={zone.id} style={{ ...zoneStyle, flexShrink: 0 }}>
               {zoneInstances.map((instance) => (
                 <div key={instance.id} style={{ marginBottom: "var(--section-gap)" }}>
                   <SectionPreviewPanel instance={instance} />
