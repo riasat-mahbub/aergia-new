@@ -259,18 +259,18 @@ export function renderUserTemplateHTML(
         panels = zoneInstances
           .map((i) => `<div style="margin-bottom:var(--section-gap, 24px);">${renderInstancePanel(i)}</div>`)
           .join("");
-        html = html.replace(`{{${zoneId}}}`, `<div style="${zoneStyles}">${panels}</div>`);
+        html = html.replace(new RegExp(`\\{\\{${zoneId}\\}\\}`, "g"), `<div style="${zoneStyles}">${panels}</div>`);
       } else {
         panels = zoneInstances
           .map((i) => `<div style="margin-bottom:var(--section-gap, 24px);">${renderInstancePanel(i)}</div>`)
           .join("");
-        html = html.replace(`{{${zoneId}}}`, panels);
+        html = html.replace(new RegExp(`\\{\\{${zoneId}\\}\\}`, "g"), panels);
       }
     } else {
       panels = zoneInstances
         .map((i) => `<div style="margin-bottom:var(--section-gap, 24px);">${renderInstancePanel(i)}</div>`)
         .join("");
-      html = html.replace(`{{${zoneId}}}`, panels);
+      html = html.replace(new RegExp(`\\{\\{${zoneId}\\}\\}`, "g"), panels);
     }
   }
 

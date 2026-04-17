@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState, useRef } from "react";
+import { useEffect, useCallback, useState, useRef, useMemo } from "react";
 import { useLocation, useNavigate, useBlocker } from "react-router-dom";
 import { motion } from "motion/react";
 
@@ -65,6 +65,21 @@ export default function BuilderPage() {
 
   const instances = localInstances;
   const customizations = localCustomizations;
+
+  const effectiveLayoutConfig = useMemo(() => {
+    const cvLayout = localCustomizations.layout as LayoutConfig | undefined;
+    if (cvLayout && cvLayout.zones) return cvLayout;
+    return templateLayoutConfig;
+  }, [localCustomizations.layout, templateLayoutConfig]);
+
+  const handleLayoutConfigChange = useCallback(
+    (config: LayoutConfig) => {
+      hasChangesRef.current = true;
+      setLocalCustomizations((prev) => ({ ...prev, layout: config }));
+    },
+    []
+  );
+
   const instancesRef = useRef(instances);
   instancesRef.current = instances;
   const idRef = useRef(id);
@@ -353,6 +368,8 @@ export default function BuilderPage() {
                   onTemplateChange={handleTemplateChange}
                   instances={instances}
                   onUpdateStyle={handleUpdateStyle}
+                  layoutConfig={effectiveLayoutConfig}
+                  onLayoutConfigChange={handleLayoutConfigChange}
                 />
               )}
             </div>
@@ -371,7 +388,7 @@ export default function BuilderPage() {
                 instances={instances}
                 customizations={customizations}
                 templateContent={currentCV.template_content || undefined}
-                layoutConfig={templateLayoutConfig || undefined}
+                layoutConfig={effectiveLayoutConfig || undefined}
               />
             </div>
           </motion.div>

@@ -133,6 +133,7 @@ export interface Zone {
   id: string;
   label?: string;
   styles?: Record<string, string>;
+  assignedSections?: string[];
 }
 
 export interface LayoutConfig {
