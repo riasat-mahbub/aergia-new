@@ -121,7 +121,7 @@ export default function TemplateSelectorModal({ open, onClose, templateId, onSel
           <label className="block">
             <div className="cursor-pointer rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-4 text-center transition-colors hover:bg-gray-100">
               <div className="text-sm font-medium text-gray-700">Add New Template</div>
-              <div className="mt-1 text-xs text-gray-500">Upload an HTML file with {{sidebar}} and {{main}} placeholders</div>
+              <div className="mt-1 text-xs text-gray-500">Upload an HTML file with {"{{sidebar}}"} and {"{{main}}"} placeholders</div>
               <input
                 type="file"
                 accept=".html,.htm"

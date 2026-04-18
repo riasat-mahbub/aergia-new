@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { persist, PersistOptions } from "zustand/middleware";
 import * as templatesApi from "../api/templates";
 
 interface UserTemplate {

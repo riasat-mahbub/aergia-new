@@ -8,7 +8,7 @@ interface Props {
   templateContent?: string;
 }
 
-export default function UserTemplateRenderer({ templateId, instances, customizations, templateContent }: Props) {
+export default function UserTemplateRenderer({ instances, templateContent }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
