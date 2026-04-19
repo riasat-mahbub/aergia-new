@@ -136,9 +136,16 @@ export interface Zone {
   assignedSections?: string[];
 }
 
+export interface HeaderConfig {
+  enabled: boolean;
+  sections: string[];
+  styles?: Record<string, string>;
+}
+
 export interface LayoutConfig {
   zones: Zone[];
   placement: Record<string, string>;
+  header?: HeaderConfig;
 }
 
 export function getDefaultInstances(): SectionInstance[] {

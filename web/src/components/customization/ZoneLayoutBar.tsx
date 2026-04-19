@@ -10,6 +10,7 @@ interface Props {
   zones: Zone[];
   placement: Record<string, string>;
   onChange: (config: LayoutConfig) => void;
+  headerSections?: string[];
 }
 
 function getWidthPercent(zone: Zone): number {
@@ -53,13 +54,13 @@ function normalizeWidths(zones: Zone[]): Zone[] {
   }));
 }
 
-export default function ZoneLayoutBar({ zones, placement, onChange }: Props) {
+export default function ZoneLayoutBar({ zones, placement, onChange, headerSections = [] }: Props) {
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const dragRef = useRef<{ index: number; startX: number; widths: number[] } | null>(null);
   const barRef = useRef<HTMLDivElement>(null);
 
-  const allSectionTypes = [...SECTION_TYPES];
+  const allSectionTypes = SECTION_TYPES.filter((s) => !headerSections.includes(s));
 
   const handleMouseDown = useCallback(
     (index: number, e: React.MouseEvent) => {
