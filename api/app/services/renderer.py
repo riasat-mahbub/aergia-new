@@ -230,27 +230,23 @@ def _group_instances_by_zone(instances: list[dict], layout_config: dict | None, 
     """Group section instances by their target zone based on layout_config.placement.
 
     When no placement config is provided, infer defaults from the template:
-    - If the template contains {{header}}, map profile → header, rest → main
-    - Otherwise, put everything in "main"
+    - Scan template for zone placeholders and assign sections accordingly
+    - Fallback: put everything in "main"
     """
-    header_config = layout_config.get("header") if layout_config else None
-    header_sections = set(header_config.get("sections", [])) if header_config and header_config.get("enabled") else set()
-
     if not layout_config or "placement" not in layout_config:
         # Smart default: scan template for known zone placeholders
         if layout_template:
             zone_placeholders = _extract_zone_placeholders(layout_template)
-            if "header" in zone_placeholders:
-                # Profile goes to header, everything else to main
+            if "main" not in zone_placeholders and zone_placeholders:
+                # Template has zones but no "main" — assign first zone to all
+                target_zone = next(iter(zone_placeholders))
                 groups: dict[str, list[dict]] = {}
                 for instance in instances:
                     if not instance.get("enabled", True):
                         continue
-                    section_type = instance.get("type", "")
-                    zone_id = "header" if section_type == "profile" else "main"
-                    if zone_id not in groups:
-                        groups[zone_id] = []
-                    groups[zone_id].append(instance)
+                    if target_zone not in groups:
+                        groups[target_zone] = []
+                    groups[target_zone].append(instance)
                 return groups
 
         # Fallback: everything goes to "main"
@@ -263,8 +259,6 @@ def _group_instances_by_zone(instances: list[dict], layout_config: dict | None, 
         if not instance.get("enabled", True):
             continue
         section_type = instance.get("type", "")
-        if section_type in header_sections:
-            continue
         zone_id = placement.get(section_type, "main")
         if zone_id not in groups:
             groups[zone_id] = []
@@ -273,33 +267,12 @@ def _group_instances_by_zone(instances: list[dict], layout_config: dict | None, 
     return groups
 
 
-def _get_header_instances(instances: list[dict], layout_config: dict | None) -> list[dict]:
-    """Get section instances assigned to the header zone."""
-    if not layout_config:
-        return []
-    header_config = layout_config.get("header")
-    if not header_config or not header_config.get("enabled"):
-        return []
-    header_sections = set(header_config.get("sections", []))
-    return [i for i in instances if i.get("enabled", True) and i.get("type", "") in header_sections]
-
-
-def _render_header(instances: list[dict], layout_config: dict | None) -> str:
-    """Render the header zone if enabled."""
-    header_instances = _get_header_instances(instances, layout_config)
-    if not header_instances:
-        return ""
-    header_config = layout_config.get("header", {})
-    header_styles = _build_zone_styles({"styles": header_config.get("styles", {})})
-    panels = "".join(
-        f'<div style="margin-bottom:var(--section-gap, 24px);">{render_instance_panel(i)}</div>'
-        for i in header_instances
-    )
-    return f'<div style="{header_styles}">{panels}</div>'
-
-
 def _render_zones(instances: list[dict], layout_config: dict | None) -> str:
-    """Render all zones with their grouped section instances."""
+    """Render all zones with their grouped section instances.
+
+    Zones are grouped by their `row` value (default 0). Each row becomes
+    a flex container with zones laid out horizontally. Rows stack vertically.
+    """
     if not layout_config or "zones" not in layout_config:
         # Fallback: single main zone
         panels = []
@@ -312,18 +285,37 @@ def _render_zones(instances: list[dict], layout_config: dict | None) -> str:
     zones = layout_config["zones"]
     groups = _group_instances_by_zone(instances, layout_config)
 
-    rendered_zones = []
+    # Group zones by row (default row 0)
+    from collections import defaultdict
+    rows: dict[int, list[dict]] = defaultdict(list)
     for zone in zones:
-        zone_id = zone.get("id", "")
-        zone_instances = groups.get(zone_id, [])
-        panels = "".join(
-            f'<div style="margin-bottom:var(--section-gap, 24px);">{render_instance_panel(i)}</div>'
-            for i in zone_instances
-        )
-        zone_styles = _build_zone_styles(zone)
-        rendered_zones.append(f'<div style="{zone_styles}">{panels}</div>')
+        row_num = zone.get("row", 0)
+        rows[row_num].append(zone)
 
-    return "".join(rendered_zones)
+    rendered_rows = []
+    row_heights = layout_config.get("rowHeights", {})
+    for row_num in sorted(rows.keys()):
+        row_zones = rows[row_num]
+        rendered_zones = []
+        for zone in row_zones:
+            zone_id = zone.get("id", "")
+            zone_instances = groups.get(zone_id, [])
+            panels = "".join(
+                f'<div style="margin-bottom:var(--section-gap, 24px);">{render_instance_panel(i)}</div>'
+                for i in zone_instances
+            )
+            zone_styles = _build_zone_styles(zone)
+            rendered_zones.append(f'<div style="{zone_styles}">{panels}</div>')
+
+        # Apply row height if configured, otherwise equal distribution via flex
+        row_height_spec = row_heights.get(str(row_num))
+        if row_height_spec:
+            flex_val = f"{int(row_height_spec.replace('%', ''))} 0 0%"
+        else:
+            flex_val = "1 0 auto"
+        rendered_rows.append(f'<div style="display:flex;flex:{flex_val};">{"".join(rendered_zones)}</div>')
+
+    return "".join(rendered_rows)
 
 
 def render_modern(instances: list[dict], customizations: dict, layout_config: dict | None = None) -> str:
@@ -338,10 +330,7 @@ def render_modern(instances: list[dict], customizations: dict, layout_config: di
 
     # Use zone-based rendering if layout_config is provided
     if layout_config:
-        header_html = _render_header(instances, layout_config)
-        zones_html = f'<div style="display:flex;">{_render_zones(instances, layout_config)}</div>'
-        if header_html:
-            zones_html = header_html + zones_html
+        zones_html = _render_zones(instances, layout_config)
     else:
         sidebar = "".join(render_instance_panel(i) for i in instances if i.get("type") == "profile")
         main = "".join(render_instance_panel(i) for i in instances if i.get("type") != "profile")
@@ -353,7 +342,7 @@ def render_modern(instances: list[dict], customizations: dict, layout_config: di
   h1,h2,h3,h4,h5,h6 {{ font-family:{heading_font}; }}
   {PRINT_STYLES}
 </style></head><body>
-<div style="min-height:297mm;">{zones_html}</div>
+<div style="min-height:297mm;display:flex;flex-direction:column;">{zones_html}</div>
 </body></html>"""
 
 
@@ -369,8 +358,7 @@ def render_classic(instances: list[dict], customizations: dict, layout_config: d
 
     # Use zone-based rendering if layout_config is provided
     if layout_config:
-        header_html = _render_header(instances, layout_config)
-        zones_html = header_html + _render_zones(instances, layout_config)
+        zones_html = _render_zones(instances, layout_config)
     else:
         panels = []
         for i, instance in enumerate(instances):
@@ -387,7 +375,7 @@ def render_classic(instances: list[dict], customizations: dict, layout_config: d
   h1,h2,h3,h4,h5,h6 {{ font-family:{heading_font}; color:{header_color}; }}
   {PRINT_STYLES}
 </style></head><body>
-{zones_html}
+<div style="min-height:297mm;display:flex;flex-direction:column;">{zones_html}</div>
 </body></html>"""
 
 
@@ -403,8 +391,7 @@ def render_minimal(instances: list[dict], customizations: dict, layout_config: d
 
     # Use zone-based rendering if layout_config is provided
     if layout_config:
-        header_html = _render_header(instances, layout_config)
-        zones_html = header_html + _render_zones(instances, layout_config)
+        zones_html = _render_zones(instances, layout_config)
     else:
         panels = "".join(
             f'<div style="margin-bottom:{section_gap};">{render_instance_panel(instance)}</div>'
@@ -418,7 +405,7 @@ def render_minimal(instances: list[dict], customizations: dict, layout_config: d
   h1,h2,h3,h4,h5,h6 {{ font-family:{heading_font}; color:{heading_color}; }}
   {PRINT_STYLES}
 </style></head><body>
-{zones_html}
+<div style="min-height:297mm;display:flex;flex-direction:column;">{zones_html}</div>
 </body></html>"""
 
 
@@ -471,46 +458,35 @@ def render_user_template_unified(
     """
     merged = _merge_customizations(default_customizations or {}, customizations)
 
-    # Handle header zone
-    header_html = _render_header(instances, layout_config)
-    if header_html and "{{header}}" in layout_template:
-        html = layout_template.replace("{{header}}", header_html)
-    else:
-        html = layout_template
-
     # Group instances by zone (pass template for smart zone detection)
     groups = _group_instances_by_zone(instances, layout_config, layout_template)
 
     # Track which zones got content so we can clean up unknown ones later
     populated_zone_ids: set[str] = set()
-    all_template_placeholders: set[str] = set()
 
     html = layout_template
-    for zone_id, zone_instances in groups.items():
-        if layout_config and "zones" in layout_config:
-            zones = layout_config["zones"]
-            zone = next((z for z in zones if z.get("id") == zone_id), None)
-            if zone:
-                zone_styles = _build_zone_styles(zone)
-                panels = "".join(
-                    f'<div style="margin-bottom:var(--section-gap, 24px);">{render_instance_panel(i)}</div>'
-                    for i in zone_instances
-                )
-                html = html.replace(f"{{{{{zone_id}}}}}", f'<div style="{zone_styles}">{panels}</div>')
-            else:
-                panels = "".join(
-                    f'<div style="margin-bottom:var(--section-gap, 24px);">{render_instance_panel(i)}</div>'
-                    for i in zone_instances
-                )
-                html = html.replace(f"{{{{{zone_id}}}}}", panels)
-        else:
+
+    # Iterate zones in layout_config order (not dict insertion order)
+    # to ensure correct rendering sequence and that all defined zones are processed
+    if layout_config and "zones" in layout_config:
+        for zone in layout_config["zones"]:
+            zone_id = zone.get("id", "")
+            zone_instances = groups.get(zone_id, [])
+            zone_styles = _build_zone_styles(zone)
+            panels = "".join(
+                f'<div style="margin-bottom:var(--section-gap, 24px);">{render_instance_panel(i)}</div>'
+                for i in zone_instances
+            )
+            html = html.replace(f"{{{{{zone_id}}}}}", f'<div style="{zone_styles}">{panels}</div>')
+            populated_zone_ids.add(zone_id)
+    else:
+        for zone_id, zone_instances in groups.items():
             panels = "".join(
                 f'<div style="margin-bottom:var(--section-gap, 24px);">{render_instance_panel(i)}</div>'
                 for i in zone_instances
             )
             html = html.replace(f"{{{{{zone_id}}}}}", panels)
-
-        populated_zone_ids.add(zone_id)
+            populated_zone_ids.add(zone_id)
 
     # Scan the original template for all {{...}} placeholders
     all_template_placeholders = _extract_zone_placeholders(layout_template)

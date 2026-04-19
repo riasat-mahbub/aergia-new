@@ -20,6 +20,7 @@ import CustomizePanel from "../components/customization/CustomizePanel";
 
 import type { SectionInstance, SectionStyle, LayoutConfig } from "../lib/sections/types";
 import { createDefaultInstance } from "../lib/sections/types";
+import { normalizeWidths, groupByRow } from "../lib/sections/zones";
 import { updateCV } from "../lib/api/cvs";
 import * as templatesApi from "../lib/api/templates";
 
@@ -34,7 +35,8 @@ export default function BuilderPage() {
   const [localInstances, setLocalInstances] = useState<SectionInstance[]>([]);
   const [localCustomizations, setLocalCustomizations] = useState<Record<string, unknown>>({});
   const [templateLayoutConfig, setTemplateLayoutConfig] = useState<LayoutConfig | null>(null);
-  const loadedRef = useRef(false);
+  const [templateDefaultCustomizations, setTemplateDefaultCustomizations] = useState<Record<string, unknown> | null>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
   const hasChangesRef = useRef(false);
   const pendingSaveRef = useRef<Promise<unknown> | null>(null);
 
@@ -46,7 +48,7 @@ export default function BuilderPage() {
 
     setLocalInstances([]);
     setLocalCustomizations({});
-    loadedRef.current = false;
+    setIsLoaded(false);
 
     (async () => {
       await loadCV(id);
@@ -56,7 +58,7 @@ export default function BuilderPage() {
       if (state.currentCV?.sections) {
         setLocalInstances(state.currentCV.sections as SectionInstance[]);
         setLocalCustomizations(state.currentCV.customizations || {});
-        loadedRef.current = true;
+        setIsLoaded(true);
       }
     })();
 
@@ -68,9 +70,21 @@ export default function BuilderPage() {
 
   const effectiveLayoutConfig = useMemo(() => {
     const cvLayout = localCustomizations.layout as LayoutConfig | undefined;
-    if (cvLayout && cvLayout.zones) return cvLayout;
-    return templateLayoutConfig;
+    if (cvLayout && cvLayout.zones?.length) return cvLayout;
+    if (templateLayoutConfig && templateLayoutConfig.zones?.length) return templateLayoutConfig;
+    return null;
   }, [localCustomizations.layout, templateLayoutConfig]);
+
+  // Normalize zone widths at the data level so preview templates always get valid widths
+  const normalizedLayoutConfig = useMemo(() => {
+    if (!effectiveLayoutConfig?.zones?.length) return effectiveLayoutConfig;
+    const grouped = groupByRow(effectiveLayoutConfig.zones);
+    const normalizedZones: typeof effectiveLayoutConfig.zones = [];
+    for (const [, rowZones] of grouped) {
+      normalizedZones.push(...normalizeWidths(rowZones));
+    }
+    return { ...effectiveLayoutConfig, zones: normalizedZones };
+  }, [effectiveLayoutConfig]);
 
   const handleLayoutConfigChange = useCallback(
     (config: LayoutConfig) => {
@@ -90,24 +104,28 @@ export default function BuilderPage() {
   instancesForUnloadRef.current = { sections: localInstances, customizations: localCustomizations };
 
   useEffect(() => {
-    if (!currentCV || !loadedRef.current) return;
+    if (!currentCV || !isLoaded) return;
+
+    setTemplateLayoutConfig(null);
+    setTemplateDefaultCustomizations(null);
 
     (async () => {
-      if (!currentCV.template_content && currentCV.template_id.startsWith("user_")) {
-        try {
-          const template = await templatesApi.fetchTemplate(currentCV.template_id);
-          if (template.layout_template) {
-            useCVStore.getState().patchCurrentCV({ template_content: template.layout_template });
-          }
-          if (template.layout_config != null) {
-            setTemplateLayoutConfig(template.layout_config as LayoutConfig);
-          }
-        } catch {
-          // Template fetch failed — will render without content
+      try {
+        const template = await templatesApi.fetchTemplate(currentCV.template_id);
+        if (template.layout_template && !currentCV.template_content) {
+          useCVStore.getState().patchCurrentCV({ template_content: template.layout_template });
         }
+        if (template.layout_config != null) {
+          setTemplateLayoutConfig(template.layout_config as LayoutConfig);
+        }
+        if (template.default_customizations != null) {
+          setTemplateDefaultCustomizations(template.default_customizations);
+        }
+      } catch {
+        // Template fetch failed
       }
     })();
-  }, [currentCV?.template_id, currentCV?.template_content, id]);
+  }, [currentCV?.template_id, isLoaded, id]);
 
   const triggerSave = useCallback(
     async (saveData: { sections: SectionInstance[]; customizations: Record<string, unknown> }) => {
@@ -139,7 +157,7 @@ export default function BuilderPage() {
     cvId: id,
     data: autoSaveDataRef.current as Record<string, unknown>,
     debounceMs: 3000,
-    enabled: loadedRef.current && !!id,
+    enabled: isLoaded && !!id,
     onSaveComplete: handleAutoSaveComplete,
     isPending,
   });
@@ -269,14 +287,25 @@ export default function BuilderPage() {
   const handleTemplateChange = useCallback(
     async (newTemplateId: string) => {
       if (!id) return;
+      if (
+        !window.confirm(
+          "Switching templates will reset your zone layout and section styles to the new template's defaults. Continue?"
+        )
+      ) {
+        return;
+      }
       try {
         setIsSaving(true);
         const cleanInstances = localInstances.map((i) => ({ ...i, style: undefined }));
         setLocalInstances(cleanInstances);
-        
+        const { layout: _, ...customizationsWithoutLayout } = localCustomizations;
+        setLocalCustomizations(customizationsWithoutLayout);
 
-        
-        await updateCV(id, { template_id: newTemplateId, sections: cleanInstances, customizations: localCustomizations });
+        await updateCV(id, {
+          template_id: newTemplateId,
+          sections: cleanInstances,
+          customizations: customizationsWithoutLayout,
+        });
         await loadCV(id);
       } finally {
         setIsSaving(false);
@@ -368,8 +397,9 @@ export default function BuilderPage() {
                   onTemplateChange={handleTemplateChange}
                   instances={instances}
                   onUpdateStyle={handleUpdateStyle}
-                  layoutConfig={effectiveLayoutConfig}
+                  layoutConfig={normalizedLayoutConfig}
                   onLayoutConfigChange={handleLayoutConfigChange}
+                  templateLayoutConfig={templateLayoutConfig}
                 />
               )}
             </div>
@@ -388,7 +418,8 @@ export default function BuilderPage() {
                 instances={instances}
                 customizations={customizations}
                 templateContent={currentCV.template_content || undefined}
-                layoutConfig={effectiveLayoutConfig || undefined}
+                layoutConfig={normalizedLayoutConfig || undefined}
+                defaultCustomizations={templateDefaultCustomizations || undefined}
               />
             </div>
           </motion.div>

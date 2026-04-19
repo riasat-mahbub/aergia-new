@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Check, ChevronDown } from "lucide-react";
-import type { SectionInstance, SectionStyle, LayoutConfig, HeaderConfig } from "../../lib/sections/types";
-import { SECTION_LABELS, SECTION_TYPES } from "../../lib/sections/types";
+import type { SectionInstance, SectionStyle, LayoutConfig } from "../../lib/sections/types";
+import { SECTION_LABELS } from "../../lib/sections/types";
 import TemplateSelectorModal from "./TemplateSelectorModal";
 import ZoneLayoutBar from "./ZoneLayoutBar";
 
@@ -15,6 +15,7 @@ interface Props {
   onUpdateStyle: (id: string, style: SectionStyle) => void;
   layoutConfig: LayoutConfig | null;
   onLayoutConfigChange: (config: LayoutConfig) => void;
+  templateLayoutConfig: LayoutConfig | null;
 }
 
 const FONT_OPTIONS = [
@@ -33,12 +34,11 @@ const WEIGHT_OPTIONS = [
   { label: "Bold", value: "700" },
 ];
 
-export default function CustomizePanel({ customizations, onChange, templateId, onTemplateChange, instances, onUpdateStyle, layoutConfig, onLayoutConfigChange }: Props) {
+export default function CustomizePanel({ customizations, onChange, templateId, onTemplateChange, instances, onUpdateStyle, layoutConfig, onLayoutConfigChange, templateLayoutConfig }: Props) {
   const [globalOpen, setGlobalOpen] = useState(true);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [zonesOpen, setZonesOpen] = useState(true);
-  const [headerOpen, setHeaderOpen] = useState(true);
 
   const isUserTemplate = templateId.startsWith("user_");
 
@@ -54,37 +54,6 @@ export default function CustomizePanel({ customizations, onChange, templateId, o
   };
   const updateSpacing = (key: string, value: string) => {
     onChange({ ...customizations, spacing: { ...spacing, [key]: value } });
-  };
-
-  const headerConfig: HeaderConfig = layoutConfig?.header || { enabled: false, sections: [], styles: {} };
-
-  const updateHeader = (partial: Partial<HeaderConfig>) => {
-    if (!layoutConfig) return;
-    const newHeader = { ...headerConfig, ...partial };
-    onLayoutConfigChange({ ...layoutConfig, header: newHeader });
-  };
-
-  const toggleHeaderSection = (sectionType: string) => {
-    if (!layoutConfig) return;
-    const isAssigned = headerConfig.sections.includes(sectionType);
-    let newSections: string[];
-    if (isAssigned) {
-      newSections = headerConfig.sections.filter((s) => s !== sectionType);
-    } else {
-      newSections = [...headerConfig.sections, sectionType];
-    }
-    const newHeader = { ...headerConfig, sections: newSections };
-    const newPlacement = { ...layoutConfig.placement };
-    if (!isAssigned) {
-      delete newPlacement[sectionType];
-    }
-    onLayoutConfigChange({ ...layoutConfig, header: newHeader, placement: newPlacement });
-  };
-
-  const updateHeaderStyle = (key: string, value: string) => {
-    const styles = { ...headerConfig.styles, [key]: value };
-    if (!value) delete styles[key];
-    updateHeader({ styles });
   };
 
   return (
@@ -130,143 +99,23 @@ export default function CustomizePanel({ customizations, onChange, templateId, o
               className="overflow-hidden"
             >
               <div className="border-t p-3">
-                {layoutConfig && layoutConfig.zones.length > 0 ? (
+                {layoutConfig?.zones?.length ? (
                   <ZoneLayoutBar
-                    zones={layoutConfig.zones}
-                    placement={layoutConfig.placement}
+                    layoutConfig={layoutConfig}
                     onChange={onLayoutConfigChange}
-                    headerSections={headerConfig.enabled ? headerConfig.sections : []}
                   />
                 ) : (
                   <div className="py-2 text-center">
                     <p className="mb-2 text-xs text-gray-400">No zones configured</p>
-                    <button
-                      onClick={() => {
-                        onLayoutConfigChange({
-                          zones: [{ id: "main", label: "Main", styles: { width: "100%", padding: "24px" }, assignedSections: ["profile", "experience", "education", "skills", "projects", "languages", "certifications"] }],
-                          placement: {
-                            profile: "main",
-                            experience: "main",
-                            education: "main",
-                            skills: "main",
-                            projects: "main",
-                            languages: "main",
-                            certifications: "main",
-                          },
-                        });
-                      }}
-                      className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
-                    >
-                      Initialize Zones
-                    </button>
                   </div>
                 )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      <div className="mb-4 rounded-lg border border-gray-200">
-        <button
-          onClick={() => setHeaderOpen(!headerOpen)}
-          className="flex w-full items-center justify-between rounded-t-lg px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 hover:bg-gray-50"
-        >
-          Header
-          <motion.div animate={{ rotate: headerOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
-            <ChevronDown className="h-3 w-3" />
-          </motion.div>
-        </button>
-        <AnimatePresence>
-          {headerOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden"
-            >
-              <div className="space-y-3 border-t p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-600">Enable header zone</span>
+                {templateLayoutConfig && layoutConfig !== templateLayoutConfig && (
                   <button
-                    type="button"
-                    onClick={() => updateHeader({ enabled: !headerConfig.enabled })}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                      headerConfig.enabled ? "bg-blue-600" : "bg-gray-200"
-                    }`}
+                    onClick={() => onLayoutConfigChange(templateLayoutConfig)}
+                    className="mt-2 text-xs text-gray-400 hover:text-blue-600"
                   >
-                    <span
-                      className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
-                        headerConfig.enabled ? "translate-x-4.5" : "translate-x-0.5"
-                      }`}
-                    />
+                    Reset to template defaults
                   </button>
-                </div>
-
-                {headerConfig.enabled && (
-                  <>
-                    <div className="border-t pt-3">
-                      <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                        Sections in Header
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {SECTION_TYPES.map((sectionType) => {
-                          const isAssigned = headerConfig.sections.includes(sectionType);
-                          return (
-                            <button
-                              key={sectionType}
-                              type="button"
-                              onClick={() => toggleHeaderSection(sectionType)}
-                              className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
-                                isAssigned
-                                  ? "bg-blue-100 text-blue-700 hover:bg-blue-200"
-                                  : "border border-gray-200 bg-gray-50 text-gray-400 hover:border-gray-300 hover:bg-gray-100"
-                              }`}
-                            >
-                              {SECTION_LABELS[sectionType] || sectionType}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="border-t pt-3">
-                      <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                        Header Styles
-                      </div>
-                      <div className="space-y-2">
-                        <div>
-                          <label className="mb-1 block text-xs font-medium text-gray-600">
-                            Padding: {parseInt(headerConfig.styles?.padding || "0") || 0}px
-                          </label>
-                          <input
-                            type="range"
-                            min={0}
-                            max={48}
-                            value={parseInt(headerConfig.styles?.padding || "0")}
-                            onChange={(e) => updateHeaderStyle("padding", `${e.target.value}px`)}
-                            className="w-full"
-                          />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <label className="w-20 text-xs font-medium text-gray-600">Background</label>
-                          <input
-                            type="color"
-                            value={headerConfig.styles?.["background-color"] || "#ffffff"}
-                            onChange={(e) => updateHeaderStyle("background-color", e.target.value)}
-                            className="h-7 w-10 cursor-pointer rounded border"
-                          />
-                          <input
-                            type="text"
-                            value={headerConfig.styles?.["background-color"] || ""}
-                            onChange={(e) => updateHeaderStyle("background-color", e.target.value)}
-                            className="flex-1 rounded border px-2 py-1 text-xs"
-                            placeholder="Transparent"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </>
                 )}
               </div>
             </motion.div>

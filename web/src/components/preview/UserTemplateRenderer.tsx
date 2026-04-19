@@ -8,9 +8,10 @@ interface Props {
   customizations?: Record<string, any>;
   templateContent?: string;
   layoutConfig?: LayoutConfig;
+  defaultCustomizations?: Record<string, unknown>;
 }
 
-export default function UserTemplateRenderer({ instances, customizations, templateContent, layoutConfig }: Props) {
+export default function UserTemplateRenderer({ instances, customizations, templateContent, layoutConfig, defaultCustomizations }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -20,7 +21,7 @@ export default function UserTemplateRenderer({ instances, customizations, templa
       instances,
       customizations || {},
       templateContent,
-      undefined,
+      defaultCustomizations,
       layoutConfig,
     );
 
@@ -31,7 +32,7 @@ export default function UserTemplateRenderer({ instances, customizations, templa
     iframeDoc.open();
     iframeDoc.write(html);
     iframeDoc.close();
-  }, [templateContent, instances, customizations, layoutConfig]);
+  }, [templateContent, instances, customizations, layoutConfig, defaultCustomizations]);
 
   return (
     <div className="mx-auto max-w-[210mm] rounded bg-white shadow-sm">

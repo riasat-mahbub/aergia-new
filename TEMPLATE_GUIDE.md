@@ -23,13 +23,13 @@ A user template is an HTML file that defines your layout using zone placeholders
 
 | Placeholder | Purpose |
 |---|---|
-| `{{zone_id}}` | Where sections assigned to that zone render (e.g., `{{sidebar}}`, `{{main}}, {{header}}, {{left-col}}`) |
+| `{{zone_id}}` | Where sections assigned to that zone render (e.g., `{{sidebar}}`, `{{main}}, {{left-col}}`) |
 
 Zone IDs are defined in the template's `layout_config.zones`. The system replaces **all occurrences** of each placeholder with rendered section panels for all sections mapped to that zone.
 
-**Every zone ID defined in your `layout_config` must appear in your HTML body.** If you provide a `layout_config`, any extra `{{zone_id}}` placeholders not matching a defined zone are replaced with empty strings. If you skip zone configuration entirely, the system uses smart defaults: templates with `{{header}}` map profile sections to the header zone and everything else to `main`. Data variables like `{{name}}` in your template are preserved as-is.
+**Every zone ID defined in your `layout_config` must appear in your HTML body.** If you provide a `layout_config`, any extra `{{zone_id}}` placeholders not matching a defined zone are replaced with empty strings. If you skip zone configuration entirely, the system auto-generates zones from your HTML by scanning for `{{zone}}` placeholders and assigning all sections to the first zone found. Data variables like `{{name}}` in your template are preserved as-is.
 
-> **Note on placeholder syntax:** Placeholders must use the exact format `{{zone_id}}` — no spaces inside, lowercase recommended for zone IDs (e.g., `{{header}}`, not `{{ header }}` or `{{Header}}`). The system replaces all occurrences of each placeholder throughout the entire HTML document.
+> **Note on placeholder syntax:** Placeholders must use the exact format `{{zone_id}}` — no spaces inside, lowercase recommended for zone IDs (e.g., `{{sidebar}}`, not `{{ sidebar }}` or `{{Sidebar}}`). The system replaces all occurrences of each placeholder throughout the entire HTML document.
 
 ### CSS Custom Properties
 
@@ -39,7 +39,6 @@ Your template can use CSS variables that the CustomizePanel controls:
 |---|---|---|
 | `var(--accent)` | Accent color | `#2563eb` |
 | `var(--bg-sidebar)` | Sidebar background | `#f8fafc` |
-| `var(--header)` | Header color | `#000000` |
 | `var(--divider)` | Divider color | `#d1d5db` |
 | `var(--text)` | Body text color | `#374151` |
 | `var(--heading)` | Heading color | `#111827` |
@@ -65,10 +64,12 @@ When uploading a template, you can optionally define zones and placement mapping
 **Zones JSON** — defines named zones with their container styles:
 ```json
 [
-  { "id": "sidebar", "styles": { "width": "30%", "backgroundColor": "#f8fafc", "padding": "24px" } },
-  { "id": "main", "styles": { "padding": "24px" } }
+  { "id": "sidebar", "row": 0, "styles": { "width": "30%", "background-color": "#f8fafc", "padding": "24px" } },
+  { "id": "main", "row": 0, "styles": { "padding": "24px" } }
 ]
 ```
+
+The optional `row` field controls horizontal layering. Zones with the same `row` value share a horizontal row (their widths sum to 100%). Zones in different rows stack vertically. Zones without a `row` field default to `row: 0`.
 
 **Placement JSON** — maps each section type to a zone ID:
 ```json
@@ -90,8 +91,8 @@ When uploading a template, you can optionally define zones and placement mapping
 **Zone config:**
 ```json
 [
-  { "id": "sidebar", "styles": { "width": "30%", "padding": "24px", "backgroundColor": "#f8fafc" } },
-  { "id": "main", "styles": { "padding": "24px" } }
+  { "id": "sidebar", "row": 0, "styles": { "width": "30%", "padding": "24px", "background-color": "#f8fafc" } },
+  { "id": "main", "row": 0, "styles": { "padding": "24px" } }
 ]
 ```
 
@@ -170,79 +171,14 @@ When uploading a template, you can optionally define zones and placement mapping
 </html>
 ```
 
-### Example: Single-Column with Header
-
-**Zone config:**
-```json
-[
-  { "id": "header", "styles": { "padding": "32px", "borderBottom": "2px solid var(--accent)" } },
-  { "id": "main", "styles": { "padding": "32px" } }
-]
-```
-
-**Placement:**
-```json
-{
-  "profile": "header",
-  "experience": "main",
-  "education": "main",
-  "skills": "main",
-  "projects": "main",
-  "languages": "main",
-  "certifications": "main"
-}
-```
-
-**HTML:**
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>{{name}} — CV</title>
-  <style>
-    body {
-      font-family: var(--body-font);
-      color: var(--text);
-      max-width: 210mm;
-      margin: 0 auto;
-    }
-
-    .section-title {
-      font-family: var(--heading-font);
-      color: var(--heading);
-      font-size: 1rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-bottom: 8px;
-    }
-
-    @page { size: A4; margin: 0; }
-    @media print {
-      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    }
-  </style>
-</head>
-<body>
-  <div class="header-zone">
-    {{header}}
-  </div>
-  <div class="content-zone">
-    {{main}}
-  </div>
-</body>
-</html>
-```
-
 ### Example: Three-Column Layout
 
 **Zone config:**
 ```json
 [
-  { "id": "left", "styles": { "width": "20%", "padding": "24px" } },
-  { "id": "center", "styles": { "width": "50%", "padding": "24px" } },
-  { "id": "right", "styles": { "width": "30%", "padding": "24px" } }
+  { "id": "left", "row": 0, "styles": { "width": "20%", "padding": "24px" } },
+  { "id": "center", "row": 0, "styles": { "width": "50%", "padding": "24px" } },
+  { "id": "right", "row": 0, "styles": { "width": "30%", "padding": "24px" } }
 ]
 ```
 
@@ -311,10 +247,10 @@ The section gap slider updates `var(--section-gap)`, which you can use in margin
 
 Before uploading, click **"Configure zones for new template"** to define your zone structure:
 
-1. **Zones JSON** — defines named zones with their container styles (CSS properties as keys/values). Each zone gets a `{{zone_id}}` placeholder in your HTML.
+1. **Zones JSON** — defines named zones with their container styles (CSS properties as kebab-case keys/values). Each zone gets a `{{zone_id}}` placeholder in your HTML.
 2. **Placement JSON** — maps each section type (`profile`, `experience`, `education`, `skills`, `projects`, `languages`, `certifications`) to a zone ID.
 
-If you skip zone configuration, the system uses smart defaults: if your template contains `{{header}}`, profile sections (name, title, contact) are automatically placed in the header zone and all other sections go to `main`. This means templates like MIT.html work out of the box without any configuration. Data variables like `{{name}}` in your HTML are preserved as-is.
+If you skip zone configuration, the system auto-generates zones from your template HTML by scanning for `{{zone}}` placeholders and assigning all sections to the first zone found. This means templates work out of the box without any configuration. Data variables like `{{name}}` in your HTML are preserved as-is.
 
 ## How Sections Are Rendered
 
@@ -337,18 +273,20 @@ The `layout_config` controls how sections are grouped into zones and where they 
 
 | Field | Type | Description |
 |---|---|---|
-| `zones` | object[] | Named zones with container styles (`id`, `styles`) |
+| `zones` | object[] | Named zones with container styles (`id`, `row`, `styles`) |
 | `placement` | object | Maps section types to zone IDs (e.g., `"profile": "sidebar"`) |
+| `rowHeights` | object | Optional. Maps row numbers to height percentages (e.g., `{ "0": "60%", "1": "40%" }`). Rows without an entry default to equal distribution. |
 
 ### Zone Object Structure
 
 ```json
 {
   "id": "sidebar",
+  "row": 0,
   "label": "Sidebar",
   "styles": {
     "width": "30%",
-    "backgroundColor": "#f8fafc",
+    "background-color": "#f8fafc",
     "padding": "24px"
   }
 }
@@ -378,10 +316,55 @@ You can create overlay effects by positioning zones absolutely:
 
 ```json
 [
-  { "id": "background", "styles": { "position": "absolute", "top": "0", "left": "0", "width": "100%", "height": "120px", "backgroundColor": "#1e3a5f" } },
-  { "id": "main", "styles": { "padding": "24px", "marginTop": "80px" } }
+  { "id": "background", "row": 0, "styles": { "position": "absolute", "top": "0", "left": "0", "width": "100%", "height": "120px", "background-color": "#1e3a5f" } },
+  { "id": "main", "row": 0, "styles": { "padding": "24px", "margin-top": "80px" } }
 ]
 ```
+
+### Multi-Row Layouts
+
+Zones with the same `row` value are rendered as horizontal columns within that row. Zones in different rows stack vertically, each row taking a full-width flex container.
+
+**Zone config:**
+```json
+[
+  { "id": "header", "row": 0, "styles": { "width": "100%", "padding": "16px 32px", "background-color": "#1e3a5f", "color": "#ffffff" } },
+  { "id": "sidebar", "row": 1, "styles": { "width": "25%", "padding": "24px", "background-color": "#f8fafc" } },
+  { "id": "main", "row": 1, "styles": { "width": "75%", "padding": "24px" } },
+  { "id": "footer", "row": 2, "styles": { "width": "100%", "padding": "12px 32px", "background-color": "#f3f4f6", "text-align": "center" } }
+]
+```
+
+**Placement:**
+```json
+{
+  "profile": "header",
+  "experience": "main",
+  "education": "main",
+  "skills": "sidebar",
+  "projects": "main",
+  "languages": "sidebar",
+  "certifications": "footer"
+}
+```
+
+**Row heights** (optional) — controls how much vertical space each row takes:
+```json
+{
+  "0": "20%",
+  "1": "60%",
+  "2": "20%"
+}
+```
+
+If `rowHeights` is omitted, rows split the available height equally. Heights are percentages that sum to 100%.
+
+This creates a layout with:
+- **Row 0**: Full-width header with profile (20% height)
+- **Row 1**: Sidebar (25%) + Main (75%) side by side (60% height)
+- **Row 2**: Full-width footer with certifications (20% height)
+
+Widths within each row sum to 100%. Row heights across all rows sum to 100%. The Customize panel provides a proportional vertical bar where you can drag handles to resize row heights, drag grip icons to reorder rows, and drag horizontal handles to resize zones within each row.
 
 ### Section Grouping Within a Zone
 
@@ -400,21 +383,21 @@ Per-section style overrides (font, color, weight) set on individual section inst
 5. **Use `box-sizing: border-box` globally** — prevents padding from breaking your layout dimensions
 6. **Test with all section types** — make sure your layout handles empty sections gracefully (the system renders a "No data" placeholder for disabled/empty sections)
 7. **Keep zone IDs simple** — use alphanumeric characters, hyphens, and underscores (e.g., `sidebar`, `left-col`, `main-area`)
-8. **Use `{{header}}` for profile content** — if your template uses `{{header}}`, the system automatically maps profile sections there when no placement config is provided
-9. **Avoid zone-like names in data variables** — names like `name`, `company`, or `title` are safe as data variables. But avoid using zone-like words such as `sidebar`, `footer`, `nav`, or `main` as variable names, since they will be treated as zones and replaced with empty content if no instances exist for them.
+8. **Avoid zone-like names in data variables** — names like `name`, `company`, or `title` are safe as data variables. But avoid using zone-like words such as `sidebar`, `footer`, `nav`, or `main` as variable names, since they will be treated as zones and replaced with empty content if no instances exist for them.
+9. **Use multi-row layouts for complex CVs** — if you need a header/footer alongside a sidebar+main body, use different `row` values. Zones in the same row share 100% width horizontally; different rows stack vertically.
 
 ## Troubleshooting
 
-### Literal zone placeholders showing in preview (e.g., `{{header}}` visible as text)
+### Literal zone placeholders showing in preview (e.g., `{{sidebar}}` visible as text)
 This usually means the zone placeholder was not replaced during rendering. Check:
-- Ensure your template actually contains the zone placeholder (e.g., `{{header}}`, not `{{ header }}` with spaces — spaces are not allowed inside placeholders)
-- If you skipped zone configuration, verify the template contains `{{header}}` (profile sections auto-map there). Without `{{header}}`, everything goes to `{{main}}` and `{{header}}` would be cleaned up as empty.
-- Make sure the placeholder text matches exactly — no extra spaces, different casing, or special characters: `{{header}}` is correct; `{{Header}}`, `{{ header }}`, or `{header}` will not work.
+- Ensure your template actually contains the zone placeholder (e.g., `{{sidebar}}`, not `{{ sidebar }}` with spaces — spaces are not allowed inside placeholders)
+- If you skipped zone configuration, verify the template contains at least one `{{zone}}` placeholder. The system auto-generates zones from your HTML.
+- Make sure the placeholder text matches exactly — no extra spaces, different casing, or special characters: `{{sidebar}}` is correct; `{{Sidebar}}`, `{{ sidebar }}`, or `{sidebar}` will not work.
 
 ### Sections not appearing
 - Verify all zone IDs from your `layout_config.zones` have corresponding `{{zone_id}}` placeholders in your HTML
 - Check that every section type in your placement mapping points to a valid zone ID
-- If you skipped zone configuration, note that profile sections automatically map to `{{header}}` if present, otherwise to `{{main}}`
+- If you skipped zone configuration, note that all sections are assigned to the first zone found in your HTML
 - Check that the HTML is valid (no unclosed tags, proper nesting)
 
 ### Customization controls not affecting appearance

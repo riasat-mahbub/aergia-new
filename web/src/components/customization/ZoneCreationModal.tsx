@@ -26,15 +26,18 @@ interface Props {
   onClose: () => void;
   onCreate: (zone: Zone) => void;
   existingZoneCount: number;
+  targetRow?: number;
+  availableRows?: number[];
 }
 
-export default function ZoneCreationModal({ open, onClose, onCreate, existingZoneCount }: Props) {
+export default function ZoneCreationModal({ open, onClose, onCreate, existingZoneCount, targetRow, availableRows }: Props) {
   const [name, setName] = useState(`Zone ${existingZoneCount + 1}`);
   const [width, setWidth] = useState(50);
   const [padding, setPadding] = useState(24);
   const [backgroundColor, setBackgroundColor] = useState("#ffffff");
   const [font, setFont] = useState("");
   const [textColor, setTextColor] = useState("#374151");
+  const [selectedRow, setSelectedRow] = useState(targetRow ?? 0);
 
   const availableWidth = 100;
   const maxWidth = Math.max(15, availableWidth - 15);
@@ -50,6 +53,7 @@ export default function ZoneCreationModal({ open, onClose, onCreate, existingZon
     const zone: Zone = {
       id: generateZoneId(),
       label: name,
+      row: selectedRow,
       styles,
       assignedSections: [],
     };
@@ -72,6 +76,23 @@ export default function ZoneCreationModal({ open, onClose, onCreate, existingZon
             placeholder="e.g. Sidebar, Main, Header"
           />
         </div>
+
+        {availableRows && availableRows.length > 0 && (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">Row</label>
+            <select
+              value={selectedRow}
+              onChange={(e) => setSelectedRow(parseInt(e.target.value))}
+              className="w-full rounded border px-2 py-1.5 text-sm"
+            >
+              {availableRows.map((r) => (
+                <option key={r} value={r}>
+                  Row {r + 1}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-600">Width: {width}%</label>

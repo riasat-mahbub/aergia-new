@@ -18,9 +18,11 @@ interface Props {
   assignedSections: string[];
   onAssignSection: (sectionType: string) => void;
   onUnassignSection: (sectionType: string) => void;
+  availableRows?: number[];
+  onMoveToRow?: (row: number) => void;
 }
 
-export default function ZoneStyleEditor({ zone, onChange, allSectionTypes, assignedSections, onAssignSection, onUnassignSection }: Props) {
+export default function ZoneStyleEditor({ zone, onChange, allSectionTypes, assignedSections, onAssignSection, onUnassignSection, availableRows, onMoveToRow }: Props) {
   const styles = zone.styles || {};
 
   const getStyle = (key: string): string => styles[key] || "";
@@ -58,6 +60,23 @@ export default function ZoneStyleEditor({ zone, onChange, allSectionTypes, assig
             placeholder="Zone name"
           />
         </div>
+
+        {availableRows && onMoveToRow && availableRows.length > 1 && (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">Row</label>
+            <select
+              value={zone.row ?? 0}
+              onChange={(e) => onMoveToRow(parseInt(e.target.value))}
+              className="w-full rounded border px-2 py-1 text-xs"
+            >
+              {availableRows.map((r) => (
+                <option key={r} value={r}>
+                  Row {r + 1}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-600">Width: {widthVal}%</label>
