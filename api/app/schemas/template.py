@@ -44,6 +44,6 @@ class TemplateDetail(BaseModel):
 class UserTemplateCreate(BaseModel):
     name: str
     layout_template: str
-    layout_config: dict | None = None
+    layout_config: dict[str, object] | None = None
     section_schema: dict | None = None
     default_customizations: dict | None = None

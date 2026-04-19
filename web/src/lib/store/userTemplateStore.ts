@@ -22,7 +22,7 @@ interface UserTemplateStore {
   error: string | null;
   
   fetchUserTemplates: () => Promise<void>;
-    uploadTemplate: (name: string, layout_template: string, layout_config?: Record<string, unknown>) => Promise<void>;
+  uploadTemplate: (name: string, layout_template: string, layout_config?: Record<string, unknown>) => Promise<void>;
   deleteTemplate: (id: string) => Promise<void>;
   getTemplateById: (id: string) => UserTemplate | undefined;
 }

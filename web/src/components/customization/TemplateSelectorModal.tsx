@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import Modal from "../common/Modal";
 import useUserTemplateStore from "../../lib/store/userTemplateStore";
-import { fetchSystemTemplates } from "../../lib/api/templates";
-import type { UserTemplate } from "../../lib/api/templates";
+import { fetchSystemTemplates, UserTemplate } from "../../lib/api/templates";
+import type { LayoutConfig } from "../../lib/sections/types";
 
 interface Props {
   open: boolean;
@@ -15,12 +15,31 @@ export default function TemplateSelectorModal({ open, onClose, templateId, onSel
   const [systemTemplates, setSystemTemplates] = useState<UserTemplate[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [zoneInput, setZoneInput] = useState("");
+  const [placementInput, setPlacementInput] = useState(
+    JSON.stringify({
+      profile: "sidebar",
+      experience: "main",
+      education: "main",
+      skills: "main",
+      projects: "main",
+      languages: "main",
+      certifications: "main",
+    }, null, 2)
+  );
+  const [showZoneForm, setShowZoneForm] = useState(false);
   const { templates: userTemplates, fetchUserTemplates, uploadTemplate, deleteTemplate } = useUserTemplateStore();
 
   useEffect(() => {
     if (open) {
       fetchSystemTemplates().then(setSystemTemplates).catch(() => {});
       fetchUserTemplates();
+      setZoneInput(JSON.stringify([
+        { id: "sidebar", styles: { width: "30%", backgroundColor: "#f8fafc", padding: "24px" } },
+        { id: "main", styles: { padding: "24px" } },
+      ], null, 2));
+      setShowZoneForm(false);
+      setUploadError(null);
     }
   }, [open, fetchUserTemplates]);
 
@@ -34,7 +53,21 @@ export default function TemplateSelectorModal({ open, onClose, templateId, onSel
     try {
       const content = await file.text();
       const name = file.name.replace(/\.html?$/i, "");
-      const layoutConfig = { columns: 2, widths: [30, 70], margins: { top: 40, bottom: 40, left: 40, right: 40 } };
+
+      let layoutConfig: LayoutConfig | undefined;
+      if (showZoneForm && zoneInput && placementInput) {
+        try {
+          layoutConfig = {
+            zones: JSON.parse(zoneInput),
+            placement: JSON.parse(placementInput),
+          };
+        } catch {
+          setUploadError("Invalid JSON in zone or placement configuration. Please check the format.");
+          setIsUploading(false);
+          return;
+        }
+      }
+
       await uploadTemplate(name, content, layoutConfig);
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : "Failed to upload template");
@@ -57,9 +90,9 @@ export default function TemplateSelectorModal({ open, onClose, templateId, onSel
     <Modal open={open} onClose={onClose}>
       <h2 className="mb-4 text-lg font-semibold text-gray-900">Select Template</h2>
 
-      <div className="space-y-4">
+      <div className="space-y-6">
         <div>
-          <h3 className="mb-2 text-sm font-semibold text-gray-700">System Templates</h3>
+          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">System Templates</h3>
           <div className="space-y-2">
             {systemTemplates.map((t) => (
               <button
@@ -83,8 +116,8 @@ export default function TemplateSelectorModal({ open, onClose, templateId, onSel
           </div>
         </div>
 
-        <div>
-          <h3 className="mb-2 text-sm font-semibold text-gray-700">Your Templates</h3>
+        <div className="border-t border-gray-200 pt-2">
+          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">Your Templates</h3>
           <div className="space-y-2">
             {userTemplates.map((t) => (
               <button
@@ -108,20 +141,22 @@ export default function TemplateSelectorModal({ open, onClose, templateId, onSel
                       className="rounded p-1 text-gray-400 hover:text-red-600"
                       title="Delete template"
                     >
-                      🗑️
+                      {t.id === templateId ? "✕" : "🗑️"}
                     </button>
                   </div>
                 </div>
               </button>
             ))}
+            {!userTemplates.length && (
+              <p className="text-xs text-gray-400 italic">No user templates yet</p>
+            )}
           </div>
         </div>
 
-        <div className="pt-2">
+        <div className="border-t border-gray-200 pt-2">
           <label className="block">
             <div className="cursor-pointer rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-4 text-center transition-colors hover:bg-gray-100">
               <div className="text-sm font-medium text-gray-700">Add New Template</div>
-              <div className="mt-1 text-xs text-gray-500">Upload an HTML file with {"{{sidebar}}"} and {"{{main}}"} placeholders</div>
               <input
                 type="file"
                 accept=".html,.htm"
@@ -135,6 +170,44 @@ export default function TemplateSelectorModal({ open, onClose, templateId, onSel
               </label>
             </div>
           </label>
+
+          <div className="mt-2 text-center">
+            <button
+              type="button"
+              onClick={() => setShowZoneForm(!showZoneForm)}
+              className="text-xs text-blue-600 hover:text-blue-700"
+            >
+              {showZoneForm ? "Hide zone configuration" : "Configure zones for new template"}
+            </button>
+          </div>
+
+          {showZoneForm && (
+            <div className="mt-3 space-y-3 rounded-lg border border-gray-200 p-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">Zones (JSON)</label>
+                <p className="mb-1 text-[10px] text-gray-400">Define zones with their styles. Each zone gets a {{zone_id}} placeholder in your HTML.</p>
+                <textarea
+                  value={zoneInput}
+                  onChange={(e) => setZoneInput(e.target.value)}
+                  rows={5}
+                  className="w-full rounded border px-2 py-1 font-mono text-xs"
+                  placeholder='[{"id": "sidebar", "styles": {"width": "30%", "padding": "24px"}}, {"id": "main", "styles": {"padding": "24px"}}]'
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">Section Placement (JSON)</label>
+                <p className="mb-1 text-[10px] text-gray-400">Map each section type to a zone ID.</p>
+                <textarea
+                  value={placementInput}
+                  onChange={(e) => setPlacementInput(e.target.value)}
+                  rows={7}
+                  className="w-full rounded border px-2 py-1 font-mono text-xs"
+                  placeholder='{"profile": "sidebar", "experience": "main", ...}'
+                />
+              </div>
+            </div>
+          )}
+
           {uploadError && <p className="mt-2 text-xs text-red-600">{uploadError}</p>}
         </div>
 

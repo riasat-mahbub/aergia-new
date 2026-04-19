@@ -7,9 +7,19 @@ SEED_TEMPLATES = [
         "name": "Modern",
         "description": "Two-column layout with accent color header and light sidebar",
         "layout_config": {
-            "columns": 2,
-            "widths": [30, 70],
-            "margins": {"top": 40, "bottom": 40, "left": 40, "right": 40},
+            "zones": [
+                {"id": "sidebar", "styles": {"width": "30%", "backgroundColor": "#f8fafc", "padding": "24px"}},
+                {"id": "main", "styles": {"padding": "24px"}}
+            ],
+            "placement": {
+                "profile": "sidebar",
+                "experience": "main",
+                "education": "main",
+                "skills": "main",
+                "projects": "main",
+                "languages": "main",
+                "certifications": "main"
+            }
         },
         "section_schema": {
             "profile": {"fields": ["name", "title", "email", "phone", "location", "summary", "photo_url"]},
@@ -31,9 +41,18 @@ SEED_TEMPLATES = [
         "name": "Classic",
         "description": "Single-column layout with serif fonts and traditional styling",
         "layout_config": {
-            "columns": 1,
-            "widths": [100],
-            "margins": {"top": 50, "bottom": 50, "left": 60, "right": 60},
+            "zones": [
+                {"id": "main", "styles": {"padding": "32px"}}
+            ],
+            "placement": {
+                "profile": "main",
+                "experience": "main",
+                "education": "main",
+                "skills": "main",
+                "projects": "main",
+                "languages": "main",
+                "certifications": "main"
+            }
         },
         "section_schema": {
             "profile": {"fields": ["name", "title", "email", "phone", "location", "summary"]},
@@ -55,9 +74,18 @@ SEED_TEMPLATES = [
         "name": "Minimal",
         "description": "Clean single-column layout with grayscale styling and no decoration",
         "layout_config": {
-            "columns": 1,
-            "widths": [100],
-            "margins": {"top": 40, "bottom": 40, "left": 50, "right": 50},
+            "zones": [
+                {"id": "main", "styles": {"padding": "32px"}}
+            ],
+            "placement": {
+                "profile": "main",
+                "experience": "main",
+                "education": "main",
+                "skills": "main",
+                "projects": "main",
+                "languages": "main",
+                "certifications": "main"
+            }
         },
         "section_schema": {
             "profile": {"fields": ["name", "title", "email", "phone", "location"]},

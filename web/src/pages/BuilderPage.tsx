@@ -18,9 +18,10 @@ import SectionList from "../components/sections/SectionList";
 import TemplateSwitcher from "../components/preview/TemplateSwitcher";
 import CustomizePanel from "../components/customization/CustomizePanel";
 
-import type { SectionInstance, SectionStyle } from "../lib/sections/types";
+import type { SectionInstance, SectionStyle, LayoutConfig } from "../lib/sections/types";
 import { createDefaultInstance } from "../lib/sections/types";
-import { updateCV, fetchPreview } from "../lib/api/cvs";
+import { updateCV } from "../lib/api/cvs";
+import * as templatesApi from "../lib/api/templates";
 
 export default function BuilderPage() {
   const location = useLocation();
@@ -32,6 +33,7 @@ export default function BuilderPage() {
   const [activeTab, setActiveTab] = useState<"content" | "customize">("content");
   const [localInstances, setLocalInstances] = useState<SectionInstance[]>([]);
   const [localCustomizations, setLocalCustomizations] = useState<Record<string, unknown>>({});
+  const [templateLayoutConfig, setTemplateLayoutConfig] = useState<LayoutConfig | null>(null);
   const loadedRef = useRef(false);
   const hasChangesRef = useRef(false);
   const pendingSaveRef = useRef<Promise<unknown> | null>(null);
@@ -71,25 +73,28 @@ export default function BuilderPage() {
   customizationsRef.current = customizations;
   const instancesForUnloadRef = useRef({ sections: localInstances, customizations: localCustomizations });
   instancesForUnloadRef.current = { sections: localInstances, customizations: localCustomizations };
-  const previewHtmlRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!currentCV || !loadedRef.current) return;
-    let cancelled = false;
 
     (async () => {
-      try {
-        const preview = await fetchPreview(id);
-        if (!cancelled) {
-          previewHtmlRef.current = preview.html;
+      if (!currentCV.template_content && currentCV.template_id.startsWith("user_")) {
+        try {
+          const template = await templatesApi.fetchTemplate(currentCV.template_id);
+          if (template.layout_template) {
+            useCVStore.getState().patchCurrentCV({ template_content: template.layout_template });
+          }
+          if (template.layout_config && Object.keys(template.layout_config).length > 0) {
+            setTemplateLayoutConfig(template.layout_config as LayoutConfig);
+          }
+        } catch {
+          // Template fetch failed — will render without content
         }
-      } catch {
-        // Preview fetch failed — will fall back to client rendering
+      } else if (currentCV.template_id.startsWith("user_") && currentCV.layout_config) {
+        setTemplateLayoutConfig(currentCV.layout_config as LayoutConfig);
       }
     })();
-
-    return () => { cancelled = true; };
-  }, [currentCV?.template_id, id]);
+  }, [currentCV?.template_id, currentCV?.template_content, id]);
 
   const triggerSave = useCallback(
     async (saveData: { sections: SectionInstance[]; customizations: Record<string, unknown> }) => {
@@ -363,21 +368,13 @@ export default function BuilderPage() {
           >
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-500">Preview</h2>
             <div className="mx-auto max-w-[210mm] rounded bg-white shadow-sm">
-              {currentCV.template_id.startsWith("user_") && previewHtmlRef.current ? (
-                <iframe
-                  title="User Template Preview"
-                  className="h-[297mm] w-full"
-                  srcDoc={previewHtmlRef.current}
-                  sandbox="allow-scripts allow-same-origin"
-                />
-              ) : (
-                <TemplateSwitcher
-                  templateId={currentCV.template_id}
-                  instances={instances}
-                  customizations={customizations}
-                  templateContent={undefined}
-                />
-              )}
+              <TemplateSwitcher
+                templateId={currentCV.template_id}
+                instances={instances}
+                customizations={customizations}
+                templateContent={currentCV.template_content || undefined}
+                layoutConfig={templateLayoutConfig || undefined}
+              />
             </div>
           </motion.div>
         </div>
