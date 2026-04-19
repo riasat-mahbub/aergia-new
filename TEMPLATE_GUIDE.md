@@ -27,7 +27,7 @@ A user template is an HTML file that defines your layout using zone placeholders
 
 Zone IDs are defined in the template's `layout_config.zones`. The system replaces each placeholder with rendered section panels for all sections mapped to that zone.
 
-**Both placeholders are required.** Every zone ID defined in your `layout_config` must appear exactly once in your HTML body. Any extra `{{zone_id}}` placeholders not defined in the config are replaced with empty strings.
+**Every zone ID defined in your `layout_config` must appear exactly once in your HTML body.** If you provide a `layout_config`, any extra `{{zone_id}}` placeholders not matching a defined zone are replaced with empty strings. If you skip zone configuration entirely, the system uses smart defaults: templates with `{{header}}` map profile sections to the header zone and everything else to `main`. Data variables like `{{name}}` in your template are preserved as-is.
 
 ### CSS Custom Properties
 
@@ -312,7 +312,7 @@ Before uploading, click **"Configure zones for new template"** to define your zo
 1. **Zones JSON** — defines named zones with their container styles (CSS properties as keys/values). Each zone gets a `{{zone_id}}` placeholder in your HTML.
 2. **Placement JSON** — maps each section type (`profile`, `experience`, `education`, `skills`, `projects`, `languages`, `certifications`) to a zone ID.
 
-If you skip zone configuration, the system uses a default single-column layout with all sections going to a `main` zone.
+If you skip zone configuration, the system uses smart defaults: if your template contains `{{header}}`, profile sections (name, title, contact) are automatically placed in the header zone and all other sections go to `main`. This means templates like MIT.html work out of the box without any configuration. Data variables like `{{name}}` in your HTML are preserved as-is.
 
 ## How Sections Are Rendered
 
@@ -398,12 +398,14 @@ Per-section style overrides (font, color, weight) set on individual section inst
 5. **Use `box-sizing: border-box` globally** — prevents padding from breaking your layout dimensions
 6. **Test with all section types** — make sure your layout handles empty sections gracefully (the system renders a "No data" placeholder for disabled/empty sections)
 7. **Keep zone IDs simple** — use alphanumeric characters, hyphens, and underscores (e.g., `sidebar`, `left-col`, `main-area`)
+8. **Use `{{header}}` for profile content** — if your template uses `{{header}}`, the system automatically maps profile sections there when no placement config is provided
 
 ## Troubleshooting
 
 ### Sections not appearing
 - Verify all zone IDs from your `layout_config.zones` have corresponding `{{zone_id}}` placeholders in your HTML
 - Check that every section type in your placement mapping points to a valid zone ID
+- If you skipped zone configuration, note that profile sections automatically map to `{{header}}` if present, otherwise to `{{main}}`
 - Check that the HTML is valid (no unclosed tags, proper nesting)
 
 ### Customization controls not affecting appearance

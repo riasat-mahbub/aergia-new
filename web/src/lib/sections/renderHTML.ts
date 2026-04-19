@@ -186,8 +186,33 @@ ${displayContent}
 </div>`;
 }
 
-function groupInstancesByZone(instances: SectionInstance[], layoutConfig: LayoutConfig | undefined): Record<string, SectionInstance[]> {
+function extractZonePlaceholders(template: string): Set<string> {
+  const matches = template.match(/\{\{([a-zA-Z0-9_-]+)\}\}/g);
+  if (!matches) return new Set();
+  return new Set(matches.map((m) => m.slice(2, -2)));
+}
+
+function groupInstancesByZone(instances: SectionInstance[], layoutConfig: LayoutConfig | undefined, templateContent?: string): Record<string, SectionInstance[]> {
   if (!layoutConfig || !layoutConfig.placement) {
+    // Smart default: scan template for known zone placeholders
+    if (templateContent) {
+      const zonePlaceholders = extractZonePlaceholders(templateContent);
+      if (zonePlaceholders.has("header")) {
+        // Profile → header, everything else → main
+        const groups: Record<string, SectionInstance[]> = {};
+        for (const instance of instances) {
+          if (!instance.enabled) continue;
+          const sectionType = instance.type;
+          const zoneId = sectionType === "profile" ? "header" : "main";
+          if (!(zoneId in groups)) {
+            groups[zoneId] = [];
+          }
+          groups[zoneId].push(instance);
+        }
+        return groups;
+      }
+    }
+    // Fallback: everything goes to "main"
     return { main: instances.filter((i) => i.enabled) };
   }
 
@@ -219,8 +244,8 @@ export function renderUserTemplateHTML(
 ): string {
   const merged = mergeCustomizations(defaultCustomizations || {}, customizations);
 
-  // Group instances by zone
-  const groups = groupInstancesByZone(instances, layoutConfig);
+  // Group instances by zone (pass template for smart zone detection)
+  const groups = groupInstancesByZone(instances, layoutConfig, layoutTemplate);
 
   let html = layoutTemplate;
 
@@ -249,14 +274,22 @@ export function renderUserTemplateHTML(
     }
   }
 
-  // Replace unknown zone placeholders with empty strings
-  if (layoutConfig && layoutConfig.zones) {
-    const zoneIds = new Set(layoutConfig.zones.map((z) => z.id));
-    html = html.replace(/\{\{([a-zA-Z0-9_-]+)\}\}/g, (_, id) => (zoneIds.has(id) ? `{{${id}}}` : ""));
-  } else {
-    // Fallback: remove {{sidebar}} and {{main}} if they weren't replaced
-    html = html.replace(/\{\{sidebar\}\}/g, "").replace(/\{\{main\}\}/g, "");
-  }
+  // Replace unknown zone placeholders with empty strings, but preserve data variables (e.g., {{name}})
+  const populatedZoneIds = new Set(Object.keys(groups));
+
+  html = html.replace(/\{\{([a-zA-Z0-9_-]+)\}\}/g, (_, id) => {
+    // Keep it if it was populated with content
+    if (populatedZoneIds.has(id)) return `{{${id}}}`;
+    // Zone-like names get replaced with empty string
+    const zoneNamePatterns = new Set(["main", "sidebar", "header", "left", "right", "center",
+      "col", "panel", "zone", "area", "top", "bottom", "nav", "footer", "foot", "aside",
+      "primary", "secondary"]);
+    if (zoneNamePatterns.has(id) || id.endsWith("-col") || id.endsWith("-zone") || id.endsWith("-panel")) {
+      return "";
+    }
+    // Otherwise leave it — likely a data variable like {{name}}, {{company}}, etc.
+    return `{{${id}}}`;
+  });
 
   html = substituteCSSVars(html, merged);
 
