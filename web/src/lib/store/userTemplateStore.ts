@@ -23,6 +23,12 @@ interface UserTemplateStore {
   
   fetchUserTemplates: () => Promise<void>;
   uploadTemplate: (name: string, layout_template: string, layout_config?: Record<string, unknown>) => Promise<void>;
+  createTemplate: (data: {
+    name: string;
+    layout_template: string;
+    layout_config?: Record<string, unknown>;
+    default_customizations?: Record<string, unknown>;
+  }) => Promise<void>;
   deleteTemplate: (id: string) => Promise<void>;
   getTemplateById: (id: string) => UserTemplate | undefined;
 }
@@ -52,6 +58,24 @@ const useUserTemplateStore = create<UserTemplateStore>()(
         set({ templates: [...get().templates, newTemplate] });
       } catch (error) {
         set({ error: error instanceof Error ? error.message : "Failed to upload template" });
+        throw error;
+      } finally {
+        set({ isLoading: false });
+      }
+    },
+
+    createTemplate: async (data: {
+      name: string;
+      layout_template: string;
+      layout_config?: Record<string, unknown>;
+      default_customizations?: Record<string, unknown>;
+    }) => {
+      set({ isLoading: true, error: null });
+      try {
+        const newTemplate = await templatesApi.uploadUserTemplate(data);
+        set({ templates: [...get().templates, newTemplate] });
+      } catch (error) {
+        set({ error: error instanceof Error ? error.message : "Failed to create template" });
         throw error;
       } finally {
         set({ isLoading: false });

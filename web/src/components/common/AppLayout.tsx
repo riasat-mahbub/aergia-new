@@ -1,7 +1,7 @@
 import { type ReactNode } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "../../lib/store/authStore";
-import { FileText, Settings, LogOut } from "lucide-react";
+import { FileText, Settings, LogOut, LayoutTemplate } from "lucide-react";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -36,13 +36,22 @@ export default function AppLayout({ children }: AppLayoutProps) {
             </Link>
           )}
           {!isBuilder && (
-            <Link
-              to="/dashboard"
-              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700"
-            >
-              <FileText className="h-4 w-4" />
-              My CVs
-            </Link>
+            <>
+              <Link
+                to="/dashboard"
+                className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700"
+              >
+                <FileText className="h-4 w-4" />
+                My CVs
+              </Link>
+              <Link
+                to="/dashboard/template-creator"
+                className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700"
+              >
+                <LayoutTemplate className="h-4 w-4" />
+                Templates
+              </Link>
+            </>
           )}
         </div>
         <div className="flex items-center gap-3">
