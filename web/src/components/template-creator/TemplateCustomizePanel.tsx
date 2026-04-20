@@ -64,16 +64,10 @@ export default function TemplateCustomizePanel({
               className="overflow-hidden"
             >
               <div className="border-t p-3">
-                {layoutConfig?.zones?.length ? (
-                  <ZoneLayoutBar
-                    layoutConfig={layoutConfig}
-                    onChange={onLayoutConfigChange}
-                  />
-                ) : (
-                  <div className="py-2 text-center">
-                    <p className="text-xs text-gray-400">No zones configured</p>
-                  </div>
-                )}
+                <ZoneLayoutBar
+                  layoutConfig={layoutConfig}
+                  onChange={onLayoutConfigChange}
+                />
               </div>
             </motion.div>
           )}

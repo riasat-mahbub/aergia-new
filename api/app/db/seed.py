@@ -1,6 +1,71 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.template import Template
 
+
+def generate_layout_template(layout_config: dict) -> str:
+    """Generate a full HTML document template from layout_config.
+    
+    Mirrors the logic in web/src/lib/sections/templateHtml.ts
+    """
+    zones = layout_config.get("zones", [])
+    row_heights = layout_config.get("rowHeights", {})
+    
+    # Group zones by row
+    rows: dict[int, list[dict]] = {}
+    for zone in zones:
+        r = zone.get("row", 0)
+        if r not in rows:
+            rows[r] = []
+        rows[r].append(zone)
+    
+    sorted_rows = sorted(rows.items())
+    
+    body_content = ""
+    for row_num, row_zones in sorted_rows:
+        row_height = row_heights.get(str(row_num)) or row_heights.get(row_num)
+        if row_height:
+            try:
+                pct = int(str(row_height).replace("%", ""))
+                if pct > 0:
+                    flex_val = f"{pct} 0 0%"
+                else:
+                    flex_val = "1 0 auto"
+            except (ValueError, AttributeError):
+                flex_val = "1 0 auto"
+        else:
+            flex_val = "1 0 auto"
+        
+        body_content += f'  <div style="display:flex;flex:{flex_val};">\n'
+        for zone in row_zones:
+            body_content += f'    {{{{{zone["id"]}}}}}\n'
+        body_content += '  </div>\n'
+    
+    return f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {{
+      margin: 0;
+      padding: 0;
+      font-family: {{body_font}};
+      color: var(--text, #374151);
+    }}
+    h1, h2, h3, h4, h5, h6 {{
+      font-family: {{heading_font}};
+      color: var(--heading, #111827);
+    }}
+    {{print_styles}}
+  </style>
+</head>
+<body>
+<div style="min-height:297mm;display:flex;flex-direction:column;">
+{body_content}</div>
+</body>
+</html>'''
+
+
 SEED_TEMPLATES = [
     {
         "id": "generic-modern",
@@ -103,6 +168,10 @@ SEED_TEMPLATES = [
         },
     },
 ]
+
+# Add layout_template to each seed template
+for template in SEED_TEMPLATES:
+    template["layout_template"] = generate_layout_template(template["layout_config"])
 
 
 async def seed_templates(db: AsyncSession) -> None:

@@ -1,10 +1,10 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { Save, ArrowLeft, Loader2 } from "lucide-react";
+import { Save, ArrowLeft, Loader2, Upload } from "lucide-react";
 import type { UserTemplate } from "../lib/api/templates";
 import type { LayoutConfig } from "../lib/sections/types";
-import { fetchSystemTemplates, uploadUserTemplate } from "../lib/api/templates";
+import { fetchSystemTemplates, uploadUserTemplate, fetchTemplate } from "../lib/api/templates";
 import { layoutConfigToHTML } from "../lib/sections/templateHtml";
 import { sampleInstances } from "../lib/sections/sampleData";
 import BaseTemplateCard from "../components/template-creator/BaseTemplateCard";
@@ -12,6 +12,7 @@ import TemplateCustomizePanel from "../components/template-creator/TemplateCusto
 import TemplateSwitcher from "../components/preview/TemplateSwitcher";
 
 type Mode = "picker" | "editor";
+type EditorTab = "design" | "html";
 
 interface EditorState {
   baseTemplateId: string;
@@ -41,36 +42,61 @@ export default function TemplateCreatorPage() {
     templateName: "",
   });
 
+  // Editor tabs & HTML state
+  const [activeTab, setActiveTab] = useState<EditorTab>("design");
+  const [htmlContent, setHtmlContent] = useState("");
+
   // Load system templates on mount
-  const loadTemplates = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const templates = await fetchSystemTemplates();
-      setSystemTemplates(templates);
-    } catch {
-      // If fetch fails, use empty list — user can still proceed with defaults
-    } finally {
-      setIsLoading(false);
-    }
+  useEffect(() => {
+    const load = async () => {
+      setIsLoading(true);
+      try {
+        const templates = await fetchSystemTemplates();
+        setSystemTemplates(templates);
+      } catch {
+        // If fetch fails, use empty list — user can still proceed with defaults
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    load();
   }, []);
 
-  useState(() => { loadTemplates(); });
+  const handleSelectBase = useCallback(async (templateId: string) => {
+    try {
+      const detail = await fetchTemplate(templateId);
+      const layoutConfig = (detail.layout_config || { zones: [], placement: {} }) as LayoutConfig;
+      const customizations = detail.default_customizations || DEFAULT_CUSTOMIZATIONS;
+      const name = `My ${detail.name}`;
 
-  const handleSelectBase = useCallback((templateId: string) => {
-    const tpl = systemTemplates.find((t) => t.id === templateId);
-    if (!tpl) return;
+      setEditor({
+        baseTemplateId: templateId,
+        layoutConfig,
+        customizations,
+        templateName: name,
+      });
+      setHtmlContent(layoutConfigToHTML(layoutConfig));
+      setActiveTab("design");
+      setMode("editor");
+    } catch {
+      // Fallback to list data if fetchTemplate fails
+      const tpl = systemTemplates.find((t) => t.id === templateId);
+      if (!tpl) return;
 
-    const layoutConfig = (tpl.layout_config || { zones: [], placement: {} }) as LayoutConfig;
-    const customizations = tpl.default_customizations || DEFAULT_CUSTOMIZATIONS;
-    const name = `My ${tpl.name}`;
+      const layoutConfig = (tpl.layout_config || { zones: [], placement: {} }) as LayoutConfig;
+      const customizations = tpl.default_customizations || DEFAULT_CUSTOMIZATIONS;
+      const name = `My ${tpl.name}`;
 
-    setEditor({
-      baseTemplateId: templateId,
-      layoutConfig,
-      customizations,
-      templateName: name,
-    });
-    setMode("editor");
+      setEditor({
+        baseTemplateId: templateId,
+        layoutConfig,
+        customizations,
+        templateName: name,
+      });
+      setHtmlContent(layoutConfigToHTML(layoutConfig));
+      setActiveTab("design");
+      setMode("editor");
+    }
   }, [systemTemplates]);
 
   const handleBackToPicker = useCallback(() => {
@@ -80,6 +106,8 @@ export default function TemplateCreatorPage() {
 
   const handleLayoutConfigChange = useCallback((config: LayoutConfig) => {
     setEditor((prev) => ({ ...prev, layoutConfig: config }));
+    // Sync HTML when switching to HTML tab later
+    setHtmlContent(layoutConfigToHTML(config));
   }, []);
 
   const handleCustomizationsChange = useCallback((customizations: Record<string, any>) => {
@@ -90,6 +118,33 @@ export default function TemplateCreatorPage() {
     setEditor((prev) => ({ ...prev, templateName: name }));
   }, []);
 
+  // Sync HTML content when switching to HTML tab from Design
+  useEffect(() => {
+    if (activeTab === "html" && !htmlContent.trim()) {
+      setHtmlContent(layoutConfigToHTML(editor.layoutConfig));
+    }
+  }, [activeTab, editor.layoutConfig, htmlContent]);
+
+  const handleImportFile = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      if (content) {
+        setHtmlContent(content);
+        setActiveTab("html");
+      }
+    };
+    reader.readAsText(file);
+
+    // Reset file input so same file can be selected again
+    if (event.target) {
+      event.target.value = "";
+    }
+  }, []);
+
   const handleSave = useCallback(async () => {
     if (!editor.templateName.trim()) return;
 
@@ -97,7 +152,7 @@ export default function TemplateCreatorPage() {
     setSaveError(null);
 
     try {
-      const layoutTemplate = layoutConfigToHTML(editor.layoutConfig);
+      const layoutTemplate = htmlContent || layoutConfigToHTML(editor.layoutConfig);
       await uploadUserTemplate({
         name: editor.templateName.trim(),
         layout_template: layoutTemplate,
@@ -110,7 +165,7 @@ export default function TemplateCreatorPage() {
     } finally {
       setIsSaving(false);
     }
-  }, [editor.templateName, editor.layoutConfig, editor.customizations, navigate]);
+  }, [editor.templateName, editor.layoutConfig, editor.customizations, htmlContent, navigate]);
 
   // Generate a simple template ID for preview
   const previewTemplateId = useMemo(() => {
@@ -200,34 +255,119 @@ export default function TemplateCreatorPage() {
               </div>
             )}
 
-            {/* Two-panel layout */}
-            <div className="flex h-[calc(100vh-12rem)] gap-4 overflow-hidden">
-              {/* Left: Customize */}
-              <div className="w-5/12 overflow-y-auto rounded-lg border bg-white shadow-sm">
-                <div className="p-4">
-                  <TemplateCustomizePanel
-                    layoutConfig={editor.layoutConfig}
-                    onLayoutConfigChange={handleLayoutConfigChange}
-                    customizations={editor.customizations}
-                    onCustomizationsChange={handleCustomizationsChange}
-                  />
-                </div>
-              </div>
-
-              {/* Right: Preview */}
-              <div className="w-7/12 overflow-y-auto rounded-lg bg-gray-100 p-6">
-                <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-500">Preview</h2>
-                <div className="mx-auto max-w-[210mm] rounded bg-white shadow-sm">
-                  <TemplateSwitcher
-                    templateId={previewTemplateId}
-                    instances={sampleInstances as unknown as typeof sampleInstances}
-                    customizations={editor.customizations}
-                    layoutConfig={editor.layoutConfig}
-                    defaultCustomizations={editor.customizations}
-                  />
-                </div>
-              </div>
+            {/* Tab bar */}
+            <div className="mb-4 flex gap-1 rounded-lg border bg-white p-1 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setActiveTab("design")}
+                className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  activeTab === "design"
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                }`}
+              >
+                Design
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("html")}
+                className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  activeTab === "html"
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                }`}
+              >
+                HTML
+              </button>
             </div>
+
+            {/* Tab content */}
+            <AnimatePresence mode="wait">
+              {activeTab === "design" ? (
+                <motion.div
+                  key="design"
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 10 }}
+                  transition={{ duration: 0.15 }}
+                  className="flex h-[calc(100vh-12rem)] gap-4 overflow-hidden"
+                >
+                  {/* Left: Customize */}
+                  <div className="w-5/12 overflow-y-auto rounded-lg border bg-white shadow-sm">
+                    <div className="p-4">
+                      <TemplateCustomizePanel
+                        layoutConfig={editor.layoutConfig}
+                        onLayoutConfigChange={handleLayoutConfigChange}
+                        customizations={editor.customizations}
+                        onCustomizationsChange={handleCustomizationsChange}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Right: Preview */}
+                  <div className="w-7/12 overflow-y-auto rounded-lg bg-gray-100 p-6">
+                    <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-500">Preview</h2>
+                    <div className="mx-auto max-w-[210mm] rounded bg-white shadow-sm">
+                      <TemplateSwitcher
+                        templateId={previewTemplateId}
+                        instances={sampleInstances as unknown as typeof sampleInstances}
+                        customizations={editor.customizations}
+                        layoutConfig={editor.layoutConfig}
+                        defaultCustomizations={editor.customizations}
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="html"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ duration: 0.15 }}
+                  className="flex h-[calc(100vh-12rem)] gap-4 overflow-hidden"
+                >
+                  {/* Left: HTML editor */}
+                  <div className="w-5/12 flex flex-col gap-3 overflow-hidden rounded-lg border bg-white shadow-sm">
+                    <div className="flex items-center justify-between border-b px-3 py-2">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Layout Template</span>
+                      <label className="cursor-pointer rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50">
+                        <div className="flex items-center gap-1">
+                          <Upload className="h-3 w-3" />
+                          Import HTML
+                        </div>
+                        <input
+                          type="file"
+                          accept=".html,.htm"
+                          onChange={handleImportFile}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                    <textarea
+                      value={htmlContent}
+                      onChange={(e) => setHtmlContent(e.target.value)}
+                      className="flex-1 resize-none border-t bg-gray-50 p-3 font-mono text-xs leading-relaxed focus:outline-none"
+                      spellCheck={false}
+                    />
+                  </div>
+
+                  {/* Right: Preview */}
+                  <div className="w-7/12 overflow-y-auto rounded-lg bg-gray-100 p-6">
+                    <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-500">Preview</h2>
+                    <div className="mx-auto max-w-[210mm] rounded bg-white shadow-sm">
+                      <TemplateSwitcher
+                        templateId={previewTemplateId}
+                        instances={sampleInstances as unknown as typeof sampleInstances}
+                        customizations={editor.customizations}
+                        layoutConfig={editor.layoutConfig}
+                        defaultCustomizations={editor.customizations}
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
       </AnimatePresence>

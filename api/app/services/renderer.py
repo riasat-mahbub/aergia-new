@@ -321,12 +321,10 @@ def _render_zones(instances: list[dict], layout_config: dict | None) -> str:
 def render_modern(instances: list[dict], customizations: dict, layout_config: dict | None = None) -> str:
     colors = customizations.get("colors", {})
     fonts = customizations.get("fonts", {})
-    spacing = customizations.get("spacing", {})
     accent = colors.get("accent", "#2563eb")
     bg_sidebar = colors.get("bg_sidebar", "#f8fafc")
     body_font = fonts.get("body", "Inter, system-ui, sans-serif")
     heading_font = fonts.get("heading", "Inter, system-ui, sans-serif")
-    section_gap = spacing.get("section_gap", "24px")
 
     # Use zone-based rendering if layout_config is provided
     if layout_config:
@@ -451,10 +449,9 @@ def render_user_template_unified(
 ) -> str:
     """Render a user template using the zone-based system.
 
-    1. Merge CV customizations over template defaults.
-    2. Group section instances by target zone via layout_config.placement.
-    3. Build HTML for each zone and replace {{zone_id}} placeholders in the layout template.
-    4. Substitute CSS custom properties with merged customization values.
+    Expects layout_template to be a full HTML document with bare {{zone_id}} placeholders,
+    {{print_styles}}, {{body_font}}, {{heading_font}} placeholders.
+    Returns a full HTML document with zones replaced and CSS vars substituted.
     """
     merged = _merge_customizations(default_customizations or {}, customizations)
 
@@ -504,7 +501,6 @@ def render_user_template_unified(
   }
 """
 
-    colors = merged.get("colors", {})
     fonts = merged.get("fonts", {})
     body_font = fonts.get("body", "system-ui, sans-serif")
     heading_font = fonts.get("heading", body_font)
@@ -512,9 +508,6 @@ def render_user_template_unified(
     html = html.replace("{{print_styles}}", print_styles)
     html = html.replace("{{body_font}}", body_font)
     html = html.replace("{{heading_font}}", heading_font)
-
-    if "<style>" not in html:
-        html = html.replace("<head>", f"<head><style>{print_styles}</style>")
 
     return html
 

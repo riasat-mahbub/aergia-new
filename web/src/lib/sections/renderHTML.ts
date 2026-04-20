@@ -250,9 +250,12 @@ export function renderUserTemplateHTML(
 
   let html = layoutTemplate;
 
+  // Track which zones got content so we can clean up unknown ones later
+  const populatedZoneIds = new Set<string>();
+
   // Iterate zones in layoutConfig order (not dict insertion order)
   // to ensure correct rendering sequence and that all defined zones are processed
-  if (layoutConfig) {
+  if (layoutConfig && layoutConfig.zones) {
     for (const zone of layoutConfig.zones) {
       const zoneInstances = groups[zone.id] || [];
       const zoneStyles = buildZoneStyles(zone);
@@ -260,6 +263,7 @@ export function renderUserTemplateHTML(
         .map((i) => `<div style="margin-bottom:var(--section-gap, 24px);">${renderInstancePanel(i)}</div>`)
         .join("");
       html = html.replace(new RegExp(`\\{\\{${zone.id}\\}\\}`, "g"), `<div style="${zoneStyles}">${panels}</div>`);
+      populatedZoneIds.add(zone.id);
     }
   } else {
     for (const [zoneId, zoneInstances] of Object.entries(groups)) {
@@ -267,11 +271,11 @@ export function renderUserTemplateHTML(
         .map((i) => `<div style="margin-bottom:var(--section-gap, 24px);">${renderInstancePanel(i)}</div>`)
         .join("");
       html = html.replace(new RegExp(`\\{\\{${zoneId}\\}\\}`, "g"), panels);
+      populatedZoneIds.add(zoneId);
     }
   }
 
-  // Replace unknown zone placeholders with empty strings, but preserve data variables (e.g., {{name}})
-  const populatedZoneIds = new Set(Object.keys(groups));
+  // Replace unknown zone placeholders with empty strings, but preserve data variables
   const definedZoneIds = new Set(layoutConfig?.zones?.map((z) => z.id) || []);
 
   html = html.replace(/\{\{([a-zA-Z0-9_-]+)\}\}/g, (_, id) => {
@@ -307,10 +311,6 @@ export function renderUserTemplateHTML(
   html = html.replace("{{print_styles}}", printStyles);
   html = html.replace("{{body_font}}", bodyFont);
   html = html.replace("{{heading_font}}", headingFont);
-
-  if (!html.includes("<style>")) {
-    html = html.replace("<head>", `<head><style>${printStyles}</style>`);
-  }
 
   return html;
 }
