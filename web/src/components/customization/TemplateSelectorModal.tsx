@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import Modal from "../common/Modal";
 import useUserTemplateStore from "../../lib/store/userTemplateStore";
 import { fetchSystemTemplates, UserTemplate } from "../../lib/api/templates";
-import type { LayoutConfig } from "../../lib/sections/types";
+import { useToastStore } from "../../lib/store/uiStore";
 
 interface Props {
   open: boolean;
@@ -15,64 +15,41 @@ export default function TemplateSelectorModal({ open, onClose, templateId, onSel
   const [systemTemplates, setSystemTemplates] = useState<UserTemplate[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [zoneInput, setZoneInput] = useState("");
-  const [placementInput, setPlacementInput] = useState(
-    JSON.stringify({
-      profile: "sidebar",
-      experience: "main",
-      education: "main",
-      skills: "main",
-      projects: "main",
-      languages: "main",
-      certifications: "main",
-    }, null, 2)
-  );
-  const [showZoneForm, setShowZoneForm] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const addToast = useToastStore((s) => s.addToast);
   const { templates: userTemplates, fetchUserTemplates, uploadTemplate, deleteTemplate } = useUserTemplateStore();
 
   useEffect(() => {
     if (open) {
       fetchSystemTemplates().then(setSystemTemplates).catch(() => {});
       fetchUserTemplates();
-      setZoneInput(JSON.stringify([
-        { id: "sidebar", styles: { width: "30%", backgroundColor: "#f8fafc", padding: "24px" } },
-        { id: "main", styles: { padding: "24px" } },
-      ], null, 2));
-      setShowZoneForm(false);
       setUploadError(null);
     }
   }, [open, fetchUserTemplates]);
+
+  const performUpload = async (name: string, content: string) => {
+    setIsUploading(true);
+    setUploadError(null);
+
+    try {
+      await uploadTemplate(name, content);
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Failed to upload template");
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    setIsUploading(true);
-    setUploadError(null);
-
     try {
       const content = await file.text();
       const name = file.name.replace(/\.html?$/i, "");
-
-      let layoutConfig: LayoutConfig | undefined;
-      if (showZoneForm && zoneInput && placementInput) {
-        try {
-          layoutConfig = {
-            zones: JSON.parse(zoneInput),
-            placement: JSON.parse(placementInput),
-          };
-        } catch {
-          setUploadError("Invalid JSON in zone or placement configuration. Please check the format.");
-          setIsUploading(false);
-          return;
-        }
-      }
-
-      await uploadTemplate(name, content, layoutConfig as Record<string, unknown> | undefined);
-    } catch (error) {
-      setUploadError(error instanceof Error ? error.message : "Failed to upload template");
+      await performUpload(name, content);
     } finally {
-      setIsUploading(false);
       if (event.target) {
         event.target.value = "";
       }
@@ -81,9 +58,16 @@ export default function TemplateSelectorModal({ open, onClose, templateId, onSel
 
   const handleDelete = async (templateId: string, event: React.MouseEvent) => {
     event.stopPropagation();
-    if (window.confirm("Are you sure you want to delete this template?")) {
-      await deleteTemplate(templateId);
-    }
+    setPendingDeleteId(templateId);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDeleteId) return;
+    await deleteTemplate(pendingDeleteId);
+    setDeleteConfirmOpen(false);
+    setPendingDeleteId(null);
+    addToast("Template deleted", "success");
   };
 
   return (
@@ -171,45 +155,30 @@ export default function TemplateSelectorModal({ open, onClose, templateId, onSel
             </div>
           </label>
 
-          <div className="mt-2 text-center">
-            <button
-              type="button"
-              onClick={() => setShowZoneForm(!showZoneForm)}
-              className="text-xs text-blue-600 hover:text-blue-700"
-            >
-              {showZoneForm ? "Hide zone configuration" : "Configure zones for new template"}
-            </button>
-          </div>
-
-          {showZoneForm && (
-            <div className="mt-3 space-y-3 rounded-lg border border-gray-200 p-3">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Zones (JSON)</label>
-                <p className="mb-1 text-[10px] text-gray-400">Define zones with their styles. Each zone gets a {"{{"}zone_id{"}}"} placeholder in your HTML.</p>
-                <textarea
-                  value={zoneInput}
-                  onChange={(e) => setZoneInput(e.target.value)}
-                  rows={5}
-                  className="w-full rounded border px-2 py-1 font-mono text-xs"
-                  placeholder='[{"id": "sidebar", "styles": {"width": "30%", "padding": "24px"}}, {"id": "main", "styles": {"padding": "24px"}}]'
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Section Placement (JSON)</label>
-                <p className="mb-1 text-[10px] text-gray-400">Map each section type to a zone ID.</p>
-                <textarea
-                  value={placementInput}
-                  onChange={(e) => setPlacementInput(e.target.value)}
-                  rows={7}
-                  className="w-full rounded border px-2 py-1 font-mono text-xs"
-                  placeholder='{"profile": "sidebar", "experience": "main", ...}'
-                />
-              </div>
-            </div>
-          )}
-
           {uploadError && <p className="mt-2 text-xs text-red-600">{uploadError}</p>}
         </div>
+
+        {deleteConfirmOpen && pendingDeleteId && (
+          <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3">
+            <p className="text-sm text-red-800">
+              Are you sure you want to delete this template? This action cannot be undone.
+            </p>
+            <div className="mt-3 flex justify-end gap-2">
+              <button
+                onClick={() => { setDeleteConfirmOpen(false); setPendingDeleteId(null); }}
+                className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="flex justify-end pt-2">
           <button

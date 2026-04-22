@@ -25,9 +25,11 @@ A user template is an HTML file that defines your layout using zone placeholders
 |---|---|
 | `{{zone_id}}` | Where sections assigned to that zone render (e.g., `{{sidebar}}`, `{{main}}, {{header}}, {{left-col}}`) |
 
-Zone IDs are defined in the template's `layout_config.zones`. The system replaces each placeholder with rendered section panels for all sections mapped to that zone.
+Zone IDs are defined in the template's `layout_config.zones`. The system replaces **all occurrences** of each placeholder with rendered section panels for all sections mapped to that zone.
 
-**Every zone ID defined in your `layout_config` must appear exactly once in your HTML body.** If you provide a `layout_config`, any extra `{{zone_id}}` placeholders not matching a defined zone are replaced with empty strings. If you skip zone configuration entirely, the system uses smart defaults: templates with `{{header}}` map profile sections to the header zone and everything else to `main`. Data variables like `{{name}}` in your template are preserved as-is.
+**Every zone ID defined in your `layout_config` must appear in your HTML body.** If you provide a `layout_config`, any extra `{{zone_id}}` placeholders not matching a defined zone are replaced with empty strings. If you skip zone configuration entirely, the system uses smart defaults: templates with `{{header}}` map profile sections to the header zone and everything else to `main`. Data variables like `{{name}}` in your template are preserved as-is.
+
+> **Note on placeholder syntax:** Placeholders must use the exact format `{{zone_id}}` — no spaces inside, lowercase recommended for zone IDs (e.g., `{{header}}`, not `{{ header }}` or `{{Header}}`). The system replaces all occurrences of each placeholder throughout the entire HTML document.
 
 ### CSS Custom Properties
 
@@ -392,15 +394,22 @@ Per-section style overrides (font, color, weight) set on individual section inst
 ## Best Practices
 
 1. **Use CSS variables for everything customizable** — this is what makes the CustomizePanel work
-2. **Ensure all zone IDs appear exactly once in your HTML** — every zone defined in `layout_config.zones` must have a corresponding `{{zone_id}}` placeholder
+2. **Every zone ID defined in `layout_config.zones` must appear in your HTML** — each zone needs a corresponding `{{zone_id}}` placeholder. The system replaces all occurrences of each placeholder, so duplicates (e.g., in comments) are harmless but unnecessary.
 3. **Include print styles** — PDF export uses Playwright headless Chromium; without `@media print` rules, colors may not render correctly
 4. **Set `max-width: 210mm` on the body or main container** — this matches A4 width and ensures WYSIWYG preview
 5. **Use `box-sizing: border-box` globally** — prevents padding from breaking your layout dimensions
 6. **Test with all section types** — make sure your layout handles empty sections gracefully (the system renders a "No data" placeholder for disabled/empty sections)
 7. **Keep zone IDs simple** — use alphanumeric characters, hyphens, and underscores (e.g., `sidebar`, `left-col`, `main-area`)
 8. **Use `{{header}}` for profile content** — if your template uses `{{header}}`, the system automatically maps profile sections there when no placement config is provided
+9. **Avoid zone-like names in data variables** — names like `name`, `company`, or `title` are safe as data variables. But avoid using zone-like words such as `sidebar`, `footer`, `nav`, or `main` as variable names, since they will be treated as zones and replaced with empty content if no instances exist for them.
 
 ## Troubleshooting
+
+### Literal zone placeholders showing in preview (e.g., `{{header}}` visible as text)
+This usually means the zone placeholder was not replaced during rendering. Check:
+- Ensure your template actually contains the zone placeholder (e.g., `{{header}}`, not `{{ header }}` with spaces — spaces are not allowed inside placeholders)
+- If you skipped zone configuration, verify the template contains `{{header}}` (profile sections auto-map there). Without `{{header}}`, everything goes to `{{main}}` and `{{header}}` would be cleaned up as empty.
+- Make sure the placeholder text matches exactly — no extra spaces, different casing, or special characters: `{{header}}` is correct; `{{Header}}`, `{{ header }}`, or `{header}` will not work.
 
 ### Sections not appearing
 - Verify all zone IDs from your `layout_config.zones` have corresponding `{{zone_id}}` placeholders in your HTML

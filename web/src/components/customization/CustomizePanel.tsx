@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Check, ChevronDown } from "lucide-react";
-import type { SectionInstance, SectionStyle } from "../../lib/sections/types";
+import type { SectionInstance, SectionStyle, LayoutConfig } from "../../lib/sections/types";
 import { SECTION_LABELS } from "../../lib/sections/types";
 import TemplateSelectorModal from "./TemplateSelectorModal";
+import ZoneLayoutBar from "./ZoneLayoutBar";
 
 interface Props {
   customizations: Record<string, any>;
@@ -12,6 +13,8 @@ interface Props {
   onTemplateChange: (templateId: string) => void;
   instances: SectionInstance[];
   onUpdateStyle: (id: string, style: SectionStyle) => void;
+  layoutConfig: LayoutConfig | null;
+  onLayoutConfigChange: (config: LayoutConfig) => void;
 }
 
 const FONT_OPTIONS = [
@@ -30,10 +33,11 @@ const WEIGHT_OPTIONS = [
   { label: "Bold", value: "700" },
 ];
 
-export default function CustomizePanel({ customizations, onChange, templateId, onTemplateChange, instances, onUpdateStyle }: Props) {
+export default function CustomizePanel({ customizations, onChange, templateId, onTemplateChange, instances, onUpdateStyle, layoutConfig, onLayoutConfigChange }: Props) {
   const [globalOpen, setGlobalOpen] = useState(true);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [zonesOpen, setZonesOpen] = useState(true);
 
   const isUserTemplate = templateId.startsWith("user_");
 
@@ -73,6 +77,61 @@ export default function CustomizePanel({ customizations, onChange, templateId, o
             <Check className="h-4 w-4 text-blue-600" />
           </button>
         </div>
+      </div>
+
+      <div className="mb-4 rounded-lg border border-gray-200">
+        <button
+          onClick={() => setZonesOpen(!zonesOpen)}
+          className="flex w-full items-center justify-between rounded-t-lg px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 hover:bg-gray-50"
+        >
+          Zones
+          <motion.div animate={{ rotate: zonesOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+            <ChevronDown className="h-3 w-3" />
+          </motion.div>
+        </button>
+        <AnimatePresence>
+          {zonesOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="border-t p-3">
+                {layoutConfig && layoutConfig.zones.length > 0 ? (
+                  <ZoneLayoutBar
+                    zones={layoutConfig.zones}
+                    placement={layoutConfig.placement}
+                    onChange={onLayoutConfigChange}
+                  />
+                ) : (
+                  <div className="py-2 text-center">
+                    <p className="mb-2 text-xs text-gray-400">No zones configured</p>
+                    <button
+                      onClick={() => {
+                        onLayoutConfigChange({
+                          zones: [{ id: "main", label: "Main", styles: { width: "100%", padding: "24px" }, assignedSections: ["profile", "experience", "education", "skills", "projects", "languages", "certifications"] }],
+                          placement: {
+                            profile: "main",
+                            experience: "main",
+                            education: "main",
+                            skills: "main",
+                            projects: "main",
+                            languages: "main",
+                            certifications: "main",
+                          },
+                        });
+                      }}
+                      className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                    >
+                      Initialize Zones
+                    </button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {!isUserTemplate && (
