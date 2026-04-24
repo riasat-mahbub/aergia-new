@@ -49,7 +49,6 @@ interface SortableRowProps {
   onSelectZone: (id: string | null) => void;
   onDeleteZone: (id: string) => void;
   onMouseDownHorizontal: (rowNum: number, localIndex: number, e: React.MouseEvent) => void;
-  onMouseDownVertical: (rowNum: number, e: React.MouseEvent) => void;
   onDeleteRow: (rowNum: number) => void;
   isLastRow: boolean;
 }
@@ -149,17 +148,6 @@ function SortableRow({
           })}
         </div>
       </div>
-
-      {/* Vertical drag handle between rows */}
-      {!isLastRow && (
-        <div
-          onMouseDown={(e) => onMouseDownVertical(rowNum, e)}
-          className="flex h-2.5 cursor-row-resize items-center justify-center bg-gray-100 hover:bg-gray-200"
-          title="Drag to resize row"
-        >
-          <div className="h-px w-6 bg-gray-300" />
-        </div>
-      )}
     </div>
   );
 }
@@ -171,13 +159,6 @@ export default function ZoneLayoutBar({ layoutConfig, onChange }: Props) {
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createTargetRow, setCreateTargetRow] = useState<number>(0);
-
-  const verticalDragRef = useRef<{
-    aboveRowNum: number;
-    belowRowNum: number;
-    startY: number;
-    startHeights: Record<number, string>;
-  } | null>(null);
 
   const horizontalDragRef = useRef<{
     rowZones: Zone[];
@@ -251,55 +232,6 @@ export default function ZoneLayoutBar({ layoutConfig, onChange }: Props) {
       document.body.style.userSelect = "none";
     },
     [layoutConfig, onChange]
-  );
-
-  /* ── Row height drag ──────────────────────────────────────────── */
-  const handleVerticalMouseDown = useCallback(
-    (aboveRowNum: number, e: React.MouseEvent) => {
-      e.preventDefault();
-      const belowRowNum = rowNumbers[rowNumbers.indexOf(aboveRowNum) + 1];
-      if (belowRowNum === undefined) return;
-
-      verticalDragRef.current = {
-        aboveRowNum,
-        belowRowNum,
-        startY: e.clientY,
-        startHeights: { ...rowHeights },
-      };
-
-      const handleMouseMove = (moveEvent: MouseEvent) => {
-        if (!verticalDragRef.current) return;
-        const { aboveRowNum: an, belowRowNum: bn, startY, startHeights: sh } = verticalDragRef.current;
-        const delta = moveEvent.clientY - startY;
-        const deltaPct = Math.round((delta / ROW_BAR_HEIGHT) * 100);
-
-        const ah = parseInt((sh[an] || "").replace("%", "")) || Math.floor(100 / rowNumbers.length);
-        const bh = parseInt((sh[bn] || "").replace("%", "")) || Math.floor(100 / rowNumbers.length);
-
-        let newAbove = ah + deltaPct;
-        let newBelow = bh - deltaPct;
-
-        if (newAbove < MIN_ROW_PCT) { newAbove = MIN_ROW_PCT; newBelow = ah + bh - MIN_ROW_PCT; }
-        if (newBelow < MIN_ROW_PCT) { newBelow = MIN_ROW_PCT; newAbove = ah + bh - MIN_ROW_PCT; }
-
-        const newHeights = { ...sh, [an]: `${Math.round(newAbove)}%`, [bn]: `${Math.round(newBelow)}%` };
-        onChange({ ...layoutConfig, rowHeights: normalizeRowHeights(rowNumbers, newHeights) });
-      };
-
-      const handleMouseUp = () => {
-        verticalDragRef.current = null;
-        document.removeEventListener("mousemove", handleMouseMove);
-        document.removeEventListener("mouseup", handleMouseUp);
-        document.body.style.cursor = "";
-        document.body.style.userSelect = "";
-      };
-
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
-      document.body.style.cursor = "row-resize";
-      document.body.style.userSelect = "none";
-    },
-    [layoutConfig, onChange, rowNumbers, rowHeights]
   );
 
   /* ── DnD row reorder ──────────────────────────────────────────── */
@@ -474,7 +406,6 @@ export default function ZoneLayoutBar({ layoutConfig, onChange }: Props) {
                   onSelectZone={setSelectedZoneId}
                   onDeleteZone={handleDeleteZone}
                   onMouseDownHorizontal={handleHorizontalMouseDown}
-                  onMouseDownVertical={handleVerticalMouseDown}
                   onDeleteRow={handleDeleteRow}
                   isLastRow={i === rowNumbers.length - 1}
                 />
