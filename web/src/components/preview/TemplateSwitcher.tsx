@@ -11,11 +11,12 @@ interface Props {
   customizations?: Record<string, any>;
   templateContent?: string;
   layoutConfig?: LayoutConfig;
+  defaultCustomizations?: Record<string, unknown>;
 }
 
-export default function TemplateSwitcher({ templateId, instances, customizations, templateContent, layoutConfig }: Props) {
+export default function TemplateSwitcher({ templateId, instances, customizations, templateContent, layoutConfig, defaultCustomizations }: Props) {
   if (templateId.startsWith("user_")) {
-    return <UserTemplateRenderer templateId={templateId} instances={instances} templateContent={templateContent} layoutConfig={layoutConfig} />;
+    return <UserTemplateRenderer templateId={templateId} instances={instances} templateContent={templateContent} layoutConfig={layoutConfig} defaultCustomizations={defaultCustomizations} />;
   }
 
   const shared = { instances, customizations, layoutConfig };

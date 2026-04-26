@@ -26,9 +26,7 @@ class CVService:
         return result.scalar_one_or_none()
 
     async def get_template_data(self, template_id: str) -> dict | None:
-        """Get full template data for user templates (layout_template, layout_config, default_customizations)."""
-        if not template_id.startswith("user_"):
-            return None
+        """Get full template data (layout_template, layout_config, default_customizations)."""
         template = await self.db.get(Template, template_id)
         if not template:
             return None
@@ -69,6 +67,8 @@ class CVService:
         if "template_id" in update_data and update_data["template_id"].startswith("user_"):
             content = await self._load_template_content(update_data["template_id"])
             cv.template_content = content
+        elif "template_id" in update_data and not update_data["template_id"].startswith("user_"):
+            cv.template_content = None
         elif not cv.template_content and cv.template_id.startswith("user_") and "template_id" not in update_data:
             content = await self._load_template_content(cv.template_id)
             if content:

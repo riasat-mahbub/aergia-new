@@ -70,6 +70,7 @@ const renderCustomizePanel = (props?: Partial<Parameters<typeof CustomizePanel>[
       onUpdateStyle={vi.fn()}
       layoutConfig={null}
       onLayoutConfigChange={vi.fn()}
+      templateLayoutConfig={null}
       {...props}
     />
   );

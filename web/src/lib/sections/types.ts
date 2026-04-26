@@ -134,18 +134,13 @@ export interface Zone {
   label?: string;
   styles?: Record<string, string>;
   assignedSections?: string[];
-}
-
-export interface HeaderConfig {
-  enabled: boolean;
-  sections: string[];
-  styles?: Record<string, string>;
+  row?: number; // zones with same row share 100% width horizontally; different rows stack vertically
 }
 
 export interface LayoutConfig {
   zones: Zone[];
   placement: Record<string, string>;
-  header?: HeaderConfig;
+  rowHeights?: Record<number, string>; // row number → height% string, e.g. { 0: "60%", 1: "40%" }
 }
 
 export function getDefaultInstances(): SectionInstance[] {
