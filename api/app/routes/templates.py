@@ -94,7 +94,7 @@ async def create_user_template(
     template = Template(
         id=template_id,
         name=data.name,
-        description=f"User template: {data.name}",
+        description=data.description or f"User template: {data.name}",
         preview_image_url=None,
         layout_config=data.layout_config or generate_layout_config(data.layout_template) or {},
         section_schema=data.section_schema or {},
