@@ -106,12 +106,17 @@ async def preview_cv(
 
     template_data = await service.get_template_data(cv.template_id)
 
+    layout_config = template_data.get("layout_config") if template_data else None
+    cv_layout = (cv.customizations or {}).get("layout")
+    if isinstance(cv_layout, dict) and cv_layout.get("zones"):
+        layout_config = cv_layout
+
     html = render_preview(
         instances=instances,
         customizations=cv.customizations or {},
         template_id=cv.template_id,
         layout_template=template_data.get("layout_template") if template_data else None,
-        layout_config=template_data.get("layout_config") if template_data else None,
+        layout_config=layout_config,
         default_customizations=template_data.get("default_customizations") if template_data else None,
     )
     return {"html": html}
