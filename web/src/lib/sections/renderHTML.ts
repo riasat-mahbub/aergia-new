@@ -192,7 +192,15 @@ function extractZonePlaceholders(template: string): Set<string> {
   return new Set(matches.map((m) => m.slice(2, -2)));
 }
 
+function getHeaderInstances(instances: SectionInstance[], layoutConfig: LayoutConfig | undefined): SectionInstance[] {
+  if (!layoutConfig?.header?.enabled || !layoutConfig.header.sections.length) return [];
+  const headerSet = new Set(layoutConfig.header.sections);
+  return instances.filter((i) => i.enabled && headerSet.has(i.type));
+}
+
 function groupInstancesByZone(instances: SectionInstance[], layoutConfig: LayoutConfig | undefined, templateContent?: string): Record<string, SectionInstance[]> {
+  const headerTypes = new Set(layoutConfig?.header?.enabled ? layoutConfig.header.sections : []);
+
   if (!layoutConfig || !layoutConfig.placement) {
     // Smart default: scan template for known zone placeholders
     if (templateContent) {
@@ -213,12 +221,13 @@ function groupInstancesByZone(instances: SectionInstance[], layoutConfig: Layout
       }
     }
     // Fallback: everything goes to "main"
-    return { main: instances.filter((i) => i.enabled) };
+    return { main: instances.filter((i) => i.enabled && !headerTypes.has(i.type)) };
   }
 
   const groups: Record<string, SectionInstance[]> = {};
   for (const instance of instances) {
     if (!instance.enabled) continue;
+    if (headerTypes.has(instance.type)) continue;
     const sectionType = instance.type;
     const zoneId = layoutConfig.placement[sectionType] || "main";
     if (!(zoneId in groups)) {
@@ -244,10 +253,24 @@ export function renderUserTemplateHTML(
 ): string {
   const merged = mergeCustomizations(defaultCustomizations || {}, customizations);
 
+  // Handle header zone only when explicitly configured
+  const headerInstances = getHeaderInstances(instances, layoutConfig);
+  let html = layoutTemplate;
+
+  if (layoutConfig?.header?.enabled && html.includes("{{header}}")) {
+    if (headerInstances.length > 0) {
+      const headerStyles = layoutConfig.header.styles ? buildZoneStyles({ styles: layoutConfig.header.styles }) : "";
+      const panels = headerInstances
+        .map((i) => `<div style="margin-bottom:var(--section-gap, 24px);">${renderInstancePanel(i)}</div>`)
+        .join("");
+      html = html.replace(/\{\{header\}\}/g, `<div style="${headerStyles}">${panels}</div>`);
+    } else {
+      html = html.replace(/\{\{header\}\}/g, "");
+    }
+  }
+
   // Group instances by zone (pass template for smart zone detection)
   const groups = groupInstancesByZone(instances, layoutConfig, layoutTemplate);
-
-  let html = layoutTemplate;
 
   // Fill each zone with its sections
   for (const [zoneId, zoneInstances] of Object.entries(groups)) {
@@ -276,10 +299,13 @@ export function renderUserTemplateHTML(
 
   // Replace unknown zone placeholders with empty strings, but preserve data variables (e.g., {{name}})
   const populatedZoneIds = new Set(Object.keys(groups));
+  const definedZoneIds = new Set(layoutConfig?.zones?.map((z) => z.id) || []);
 
   html = html.replace(/\{\{([a-zA-Z0-9_-]+)\}\}/g, (_, id) => {
     // Keep it if it was populated with content
     if (populatedZoneIds.has(id)) return `{{${id}}}`;
+    // Keep it if it's defined in layout_config zones (even if empty)
+    if (definedZoneIds.has(id)) return `{{${id}}}`;
     // Zone-like names get replaced with empty string
     const zoneNamePatterns = new Set(["main", "sidebar", "header", "left", "right", "center",
       "col", "panel", "zone", "area", "top", "bottom", "nav", "footer", "foot", "aside",

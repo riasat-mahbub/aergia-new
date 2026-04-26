@@ -233,6 +233,9 @@ def _group_instances_by_zone(instances: list[dict], layout_config: dict | None, 
     - If the template contains {{header}}, map profile → header, rest → main
     - Otherwise, put everything in "main"
     """
+    header_config = layout_config.get("header") if layout_config else None
+    header_sections = set(header_config.get("sections", [])) if header_config and header_config.get("enabled") else set()
+
     if not layout_config or "placement" not in layout_config:
         # Smart default: scan template for known zone placeholders
         if layout_template:
@@ -260,12 +263,39 @@ def _group_instances_by_zone(instances: list[dict], layout_config: dict | None, 
         if not instance.get("enabled", True):
             continue
         section_type = instance.get("type", "")
+        if section_type in header_sections:
+            continue
         zone_id = placement.get(section_type, "main")
         if zone_id not in groups:
             groups[zone_id] = []
         groups[zone_id].append(instance)
 
     return groups
+
+
+def _get_header_instances(instances: list[dict], layout_config: dict | None) -> list[dict]:
+    """Get section instances assigned to the header zone."""
+    if not layout_config:
+        return []
+    header_config = layout_config.get("header")
+    if not header_config or not header_config.get("enabled"):
+        return []
+    header_sections = set(header_config.get("sections", []))
+    return [i for i in instances if i.get("enabled", True) and i.get("type", "") in header_sections]
+
+
+def _render_header(instances: list[dict], layout_config: dict | None) -> str:
+    """Render the header zone if enabled."""
+    header_instances = _get_header_instances(instances, layout_config)
+    if not header_instances:
+        return ""
+    header_config = layout_config.get("header", {})
+    header_styles = _build_zone_styles({"styles": header_config.get("styles", {})})
+    panels = "".join(
+        f'<div style="margin-bottom:var(--section-gap, 24px);">{render_instance_panel(i)}</div>'
+        for i in header_instances
+    )
+    return f'<div style="{header_styles}">{panels}</div>'
 
 
 def _render_zones(instances: list[dict], layout_config: dict | None) -> str:
@@ -308,7 +338,10 @@ def render_modern(instances: list[dict], customizations: dict, layout_config: di
 
     # Use zone-based rendering if layout_config is provided
     if layout_config:
-        zones_html = _render_zones(instances, layout_config)
+        header_html = _render_header(instances, layout_config)
+        zones_html = f'<div style="display:flex;">{_render_zones(instances, layout_config)}</div>'
+        if header_html:
+            zones_html = header_html + zones_html
     else:
         sidebar = "".join(render_instance_panel(i) for i in instances if i.get("type") == "profile")
         main = "".join(render_instance_panel(i) for i in instances if i.get("type") != "profile")
@@ -320,7 +353,7 @@ def render_modern(instances: list[dict], customizations: dict, layout_config: di
   h1,h2,h3,h4,h5,h6 {{ font-family:{heading_font}; }}
   {PRINT_STYLES}
 </style></head><body>
-<div style="display:flex;min-height:297mm;">{zones_html}</div>
+<div style="min-height:297mm;">{zones_html}</div>
 </body></html>"""
 
 
@@ -336,7 +369,8 @@ def render_classic(instances: list[dict], customizations: dict, layout_config: d
 
     # Use zone-based rendering if layout_config is provided
     if layout_config:
-        zones_html = _render_zones(instances, layout_config)
+        header_html = _render_header(instances, layout_config)
+        zones_html = header_html + _render_zones(instances, layout_config)
     else:
         panels = []
         for i, instance in enumerate(instances):
@@ -369,7 +403,8 @@ def render_minimal(instances: list[dict], customizations: dict, layout_config: d
 
     # Use zone-based rendering if layout_config is provided
     if layout_config:
-        zones_html = _render_zones(instances, layout_config)
+        header_html = _render_header(instances, layout_config)
+        zones_html = header_html + _render_zones(instances, layout_config)
     else:
         panels = "".join(
             f'<div style="margin-bottom:{section_gap};">{render_instance_panel(instance)}</div>'
@@ -435,6 +470,13 @@ def render_user_template_unified(
     4. Substitute CSS custom properties with merged customization values.
     """
     merged = _merge_customizations(default_customizations or {}, customizations)
+
+    # Handle header zone
+    header_html = _render_header(instances, layout_config)
+    if header_html and "{{header}}" in layout_template:
+        html = layout_template.replace("{{header}}", header_html)
+    else:
+        html = layout_template
 
     # Group instances by zone (pass template for smart zone detection)
     groups = _group_instances_by_zone(instances, layout_config, layout_template)
@@ -511,10 +553,14 @@ def _replace_unknown_zones(html: str, layout_config: dict | None, populated_zone
     A placeholder is treated as a zone ID if it matches common zone naming patterns:
     - It's in populated_zone_ids (it was a real zone)
     - It's in layout_config zones (it was defined but had no instances)
-    - It looks like a zone name (main, sidebar, header, left, right, col, panel, zone, area)
+    - It looks like a zone name (main, sidebar, left, right, col, panel, zone, area)
     """
     import re
     placeholder_pattern = r'\{\{([a-zA-Z0-9_-]+)\}\}'
+
+    defined_zone_ids = set()
+    if layout_config and "zones" in layout_config:
+        defined_zone_ids = {z.get("id") for z in layout_config["zones"] if isinstance(z, dict)}
 
     if populated_zone_ids is not None:
         # Called from render_user_template_unified — distinguish zones from data variables
@@ -524,6 +570,9 @@ def _replace_unknown_zones(html: str, layout_config: dict | None, populated_zone
             zone_id = match.group(1)
             # Keep it if it was populated
             if zone_id in known_zones:
+                return match.group(0)
+            # Keep it if it's defined in layout_config zones (even if empty)
+            if zone_id in defined_zone_ids:
                 return match.group(0)
             # Check if it's a data variable (not a zone-like name)
             if all_placeholders and zone_id not in all_placeholders:
