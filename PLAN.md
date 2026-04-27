@@ -1,956 +1,315 @@
-# Aergia CV Builder — Final Plan
+# Aergia CV Builder — Active Plan
 
-## 1. Architecture Overview
-
-### Single-Origin Design
-
-FastAPI serves both the built frontend and the API from the same domain/port.
-
-```
-http://api-server:8000/        ← React SPA (index.html)
-http://api-server:8000/api/v1/auth/login         ← API
-http://api-server:8000/api/v1/cvs                ← API
-
-http://api-server:8000/static/index.html         ← SPA entry
-http://api-server:8000/static/assets/abc.js      ← SPA bundles
-```
-
-CORS is not needed at all. The desktop Tauri wrapper loads the same URL.
-
-### Tech Stack
-
-| Layer | Choice |
-|---|---|
-| **Backend** | FastAPI (Python 3.12) + uvicorn |
-| **Database** | PostgreSQL 16 |
-| **ORM** | SQLAlchemy 2.0 + Alembic |
-| **Auth** | bcrypt + JWT (python-jose) |
-| **Files** | Local filesystem (`/app/uploads/`) |
-| **PDF** | Puppeteer in-process |
-| **Frontend** | React 19 + TypeScript 5 + Vite 5 |
-| **State** | Zustand |
-| **Forms** | React Hook Form + Zod |
-| **Styling** | Tailwind CSS + CSS Modules (templates) |
-| **Drag & Drop** | dnd-kit |
-| **Icons** | lucide-react |
-| **Animations** | motion (motion.dev) |
-| **HTTP Client** | axios |
-| **Container** | Docker + docker-compose (2 containers) |
-| **Desktop** | Tauri 2.x (future, loads same URL) |
-
-### VPS Specs (Netcup Starter Dedicated)
-
-2 vCore (x86), 4GB DDR5 ECC, 128GB NVMe, 1GB/s port
-
-```
-Service            Memory     CPU (idle)     CPU (active)
-Postgres           ~150MB     0.1-0.3        0.3-0.5
-FastAPI (2w)       ~100MB     0              0.1
-Puppeteer (on)     ~150MB     0              0.5-1.0
-Nginx (if used)    ~30MB      0              0.05
-OS + buffers       ~300MB     -              -
-─────────────────
-Total              ~730MB     0.1-0.3        0.6-1.4
-```
-
-Budget: 730MB used, 4GB available. Comfortable margin.
+**Last updated:** 2026-06-27  
+**Scope:** Manifest-first template system rewrite with visual step-by-step editor.
 
 ---
 
-## 2. Database Schema
+## Vision
 
-### users
+Replace the current dual-pipeline template system (hard-coded system templates + HTML-only user templates) with a **single manifest-driven pipeline** where:
 
-| Column | Type | Notes |
-|---|---|---|
-| id | UUID PK | gen_random_uuid() |
-| email | VARCHAR(255) UNIQUE | Login credential |
-| password_hash | VARCHAR(255) NOT NULL | bcrypt cost 12 |
-| is_verified | BOOLEAN DEFAULT true | Auto-verified |
-| created_at | TIMESTAMP DEFAULT now() | |
-| updated_at | TIMESTAMP DEFAULT now() | |
-
-### cvs
-
-| Column | Type | Notes |
-|---|---|---|
-| id | UUID PK | gen_random_uuid() |
-| user_id | UUID FK → users.id ON DELETE CASCADE | Owner |
-| title | VARCHAR(255) NOT NULL | |
-| description | VARCHAR(500) | |
-| template_id | VARCHAR(50) NOT NULL | Refers to template |
-| customizations | JSONB DEFAULT '{}' | Colors, fonts, spacing |
-| sections | JSONB NOT NULL | Section order + data |
-| metadata | JSONB DEFAULT '{}' | |
-| is_active | BOOLEAN DEFAULT true | Soft-delete flag |
-| created_at | TIMESTAMP DEFAULT now() | |
-| updated_at | TIMESTAMP DEFAULT now() | |
-
-### templates (read-only, seeded once)
-
-| Column | Type | Notes |
-|---|---|---|
-| id | VARCHAR(50) PK | Template identifier |
-| name | VARCHAR(100) NOT NULL | Display name |
-| description | TEXT | |
-| preview_image_url | VARCHAR(500) | Local static path |
-| layout_config | JSONB NOT NULL | {columns, widths, margins} |
-| section_schema | JSONB NOT NULL | Sections & field definitions |
-| default_customizations | JSONB | Default colors/fonts/spacing |
-| is_system | BOOLEAN DEFAULT true | Can't delete system templates |
-| created_at | TIMESTAMP DEFAULT now() | |
+1. **Every template** (system or user) is defined by the same 4 artefacts: `manifest.json`, `template.html`, `styles.css`, optional assets.
+2. **The visual editor is the source of truth** — it writes the manifest; HTML/CSS are *derived* artefacts.
+3. **One renderer** (IR → HTML / PDF) serves both preview and export, extensible to LaTeX/DOCX later.
+4. **System templates** are merely seeded manifest rows with `is_system=true` (delete-protected, grouped in UI).
 
 ---
 
-## 3. CV Section Data Model
+## 5-Phase Roadmap
+
+| Phase | Goal | Est. Effort |
+|-------|------|-------------|
+| **1 – Frontend Cleanup** | Extract reusable UI, simplify existing components so the coming editor rewrite starts from a clean base. | ~1 week |
+| **2 – Manifest Data Model & Upload** | Define the on-disk/DB representation, multipart upload API, and DB migration. | ~1 week |
+| **3 – New Renderer (IR → HTML / PDF)** | Build a pure-function pipeline that consumes manifest + CV data with pluggable back-ends. | ~2 weeks |
+| **4 – Preview & PDF Integration** | Wire the new renderer into front-end preview (`UserTemplateRenderer`) and the PDF service. | ~1 week |
+| **5 – Visual Template Creator (Step-by-Step Wizard)** | Replace the two-tab creator with a guided manifest-centric wizard. | ~2 weeks |
+
+**Total:** ~7 weeks
+
+---
+
+## Phase 1 – Frontend Cleanup (Independent, Do First)
+
+*Extracted from old Phase 3 to reduce noise before the big rewrite.*
+
+| # | Task | Files |
+|---|------|-------|
+| 1.1 | Create `StyleEditor.tsx` (global colors/fonts/spacing) | `web/src/components/customization/StyleEditor.tsx` |
+| 1.2 | Create `ZonesSection.tsx` (zone layout accordion + `ZoneLayoutBar`) | `web/src/components/customization/ZonesSection.tsx` |
+| 1.3 | Refactor `CustomizePanel.tsx` → use `StyleEditor` + `ZonesSection` | `web/src/components/customization/CustomizePanel.tsx` |
+| 1.4 | Refactor `TemplateCustomizePanel.tsx` → use shared components | `web/src/components/template-creator/TemplateCustomizePanel.tsx` |
+| 1.5 | **Remove vertical row-height drag** from `ZoneLayoutBar` | `web/src/components/customization/ZoneLayoutBar.tsx` |
+| 1.6 | Add `normalizeAllZones()` helper to `zones.ts`; use in 6 handlers | `web/src/lib/sections/zones.ts`, `ZoneLayoutBar.tsx` |
+| 1.7 | Collapse `validateSection.ts`: profile / `SECTION_TYPES` array / default | `web/src/lib/validators/validateSection.ts` |
+| 1.8 | Run `npm run lint && npm run test` — zero regressions | — |
+
+**Deliverable:** Clean, deduplicated customization UI; `ZoneLayoutBar` slimmed to horizontal resize only.
+
+---
+
+## Phase 2 – Manifest Data Model & Upload
+
+### 2.1 Manifest Schema (`manifest.json`)
 
 ```json
 {
-  "instances": [
-    {
-      "id": "sec_uuid_1",
-      "type": "profile",
-      "title": "Profile",
-      "enabled": true,
-      "data": {
-        "name": "Jane Doe",
-        "title": "Software Engineer",
-        "email": "jane@example.com",
-        "phone": "+1 555-1234",
-        "location": "Boston, MA",
-        "summary": "5+ years building...",
-        "photo_url": "/uploads/user_photo.jpg"
-      }
-    },
-    {
-      "id": "sec_uuid_2",
-      "type": "experience",
-      "title": "Work Experience",
-      "enabled": true,
-      "data": [
-        {
-          "id": "exp_1",
-          "company": "Acme Corp",
-          "position": "Senior Engineer",
-          "start_date": "2022-01",
-          "end_date": null,
-          "current": true,
-          "location": "Boston, MA",
-          "description": "Led team of 5..."
-        }
-      ]
-    },
-    {
-      "id": "sec_uuid_3",
-      "type": "education",
-      "title": "Education",
-      "enabled": true,
-      "data": [...]
-    }
-  ]
+  "version": 1,
+  "zones": [
+    { "id": "sidebar", "row": 0, "styles": { "width": "30%", "background-color": "#f8fafc", "padding": "24px" }, "label": "Sidebar" },
+    { "id": "main", "row": 0, "styles": { "width": "70%", "padding": "24px" }, "label": "Main" }
+  ],
+  "placement": {
+    "profile": "sidebar",
+    "experience": "main",
+    "education": "main",
+    "skills": "main",
+    "projects": "main",
+    "languages": "main",
+    "certifications": "main"
+  },
+  "rowHeights": { "0": "100%" },
+  "globalStyleSchema": [
+    { "key": "accent", "type": "color", "label": "Accent", "default": "#2563eb" },
+    { "key": "bg_sidebar", "type": "color", "label": "Sidebar BG", "default": "#f8fafc" },
+    { "key": "header", "type": "color", "label": "Header", "default": "#000000" },
+    { "key": "divider", "type": "color", "label": "Divider", "default": "#d1d5db" },
+    { "key": "text", "type": "color", "label": "Text", "default": "#374151" },
+    { "key": "heading", "type": "color", "label": "Heading", "default": "#111827" },
+    { "key": "body_font", "type": "font", "label": "Body Font", "default": "Inter, system-ui, sans-serif" },
+    { "key": "heading_font", "type": "font", "label": "Heading Font", "default": "Inter, system-ui, sans-serif" },
+    { "key": "section_gap", "type": "length", "label": "Section Gap", "default": "24px" }
+  ],
+  "assets": {
+    "font-inter": "fonts/Inter.woff2"
+  },
+  "sectionSchema": {
+    "profile": { "fields": ["name","title","email","phone","location","summary","photo_url"] },
+    "experience": { "fields": ["company","position","start_date","end_date","current","location","description"] },
+    ...
+  }
 }
 ```
 
-Each section is a self-contained instance with its own ID, type, title, enabled state, and data. Order is determined by array position. Multiple instances of the same type are permitted (e.g. two "experience" sections with different titles).
+* `globalStyleSchema` lets **users declare their own style variables** (type = `color|font|length|enum`). The visual editor builds the StyleEditor UI from this schema.
+* `assets` maps logical names → relative paths inside the template bundle.
 
----
+### 2.2 Database Changes
 
-## 4. CV Section Types (7 Section Types)
+| Table | Change |
+|-------|--------|
+| `templates` | Add `manifest JSONB NOT NULL DEFAULT '{}'`, `assets BYTEA[]` (or side table `template_assets`), make `layout_template`, `layout_config`, `default_customizations` **generated columns** (or computed on read). |
+| `templates` | Keep `is_system BOOLEAN DEFAULT false`, `user_id UUID FK` (NULL for system). |
 
-Each section is a **SectionInstance** — a self-contained object with its own `id`, `type`, `title` (user-customizable), `enabled` flag, and `data`. Multiple instances of the same type are allowed (e.g. two "Experience" sections). The data shapes per type:
-
-| Section Type | Fields | Data Shape |
-|---|---|---|
-| Profile | name, title, email, phone, location, summary, photo_url | Single object |
-| Experience | company, position, start_date, end_date, current, location, description | Array |
-| Education | institution, degree, start_date, end_date, current, gpa | Array |
-| Skills | id, category, items[] | Array |
-| Projects | name, url, start_date, end_date, description, tech_stack[] | Array |
-| Languages | language, proficiency | Array |
-| Certifications | name, issuer, date, credential_url | Array |
-
----
-
-## 5. Seed Templates (3 Generic)
-
-### Generic Modern
-- Layout: 2 columns (30% sidebar / 70% content)
-- Colors: accent color header, light sidebar background
-- Font: Inter or system-ui
-- Sections: profile in sidebar, main content with experience → education → skills
-
-### Generic Classic
-- Layout: single column
-- Colors: black headers, gray divider lines
-- Font: Georgia or Crimson
-- Sections: bold name header, sections below in order
-
-### Generic Minimal
-- Layout: single column
-- Colors: grayscale, no decoration
-- Font: clean sans-serif, medium weight
-- Sections: pure content, no borders or backgrounds
-
----
-
-## 6. API Endpoints
-
-### Auth
-| Method | Path | Description |
-|---|---|---|
-| POST | `/api/v1/auth/register` | Create account (auto-verified) |
-| POST | `/api/v1/auth/login` | Access token + refresh token |
-| POST | `/api/v1/auth/refresh` | New access token |
-| POST | `/api/v1/auth/logout` | Invalidate refresh token |
-| POST | `/api/v1/auth/change-password` | Change own password |
-
-### CVs
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/v1/cvs` | List user's CVs |
-| POST | `/api/v1/cvs` | Create new CV |
-| GET | `/api/v1/cvs/{id}` | Get CV detail |
-| PATCH | `/api/v1/cvs/{id}` | Update sections/customizations |
-| DELETE | `/api/v1/cvs/{id}` | Soft-delete |
-| POST | `/api/v1/cvs/{id}/copy` | Clone CV |
-| POST | `/api/v1/cvs/{id}/export/pdf` | Generate PDF |
-| GET | `/api/v1/cvs/{id}/preview` | Render preview HTML |
-
-### Assets
-| Method | Path | Description |
-|---|---|---|
-| POST | `/api/v1/assets` | Upload photo |
-| DELETE | `/api/v1/assets/{id}` | Remove photo |
-
-### Templates
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/v1/templates` | List all templates |
-| GET | `/api/v1/templates/{id}` | Get template config |
-
-### Response Shapes
+### 2.3 Upload API
 
 ```
-/auth/register    → 201 Created
-/auth/login       → { access_token, refresh_token, token_type: "bearer" }
-/auth/refresh     → { access_token }
-/auth/logout      → 200 OK
-/auth/change-password → 200 OK
-
-/cvs POST         → { id, title, template_id, sections, created_at }
-/cvs GET          → [ { id, title, template_id, created_at, updated_at } ]
-/cvs/{id} GET     → { id, title, description, template_id, customizations, sections, metadata }
-/cvs/{id} PATCH   → updated CV object
-/cvs/{id} DELETE  → 204 No Content
-/cvs/{id}/copy    → { id, title, template_id, sections, created_at } (new CV)
-/cvs/{id}/export/pdf → application/pdf stream
-/cvs/{id}/preview → { html: "string" }
-
-/assets POST      → 200 OK
-/assets/{id} DELETE → 200 OK
-
-/templates GET    → [ { id, name, description, preview_image_url } ]
-/templates/{id} GET → { ...config, section_schema, default_customizations }
+POST /api/v1/templates          (multipart)
+  - manifest.json (required)
+  - template.html (optional – generated if missing)
+  - styles.css    (optional – generated if missing)
+  - assets/*      (optional)
+Response: TemplateDetail with generated HTML/CSS preview URLs
 ```
+
+* Server validates manifest against a Pydantic model, generates missing `template.html`/`styles.css` via `layoutConfigToHTML` + CSS var injection, stores blobs.
+
+### 2.4 Seed System Templates
+
+Run a one-off script that converts the three existing seed templates into manifest rows (`is_system=true`). No migration of user data needed (clean DB for dev/staging).
+
+### 2.5 Tasks
+
+| # | Task |
+|---|------|
+| 2.1 | Write `Manifest` Pydantic model + JSON Schema |
+| 2.2 | Alembic migration: add `manifest`, `assets` columns; make legacy cols generated |
+| 2.3 | `POST /templates` multipart endpoint with validation + generation |
+| 2.4 | `GET /templates/{id}/manifest` (raw) + `GET /templates/{id}/html` (generated) |
+| 2.5 | Seed script for 3 system templates |
+| 2.6 | Update `TemplateDetail` schema to include manifest + generated URLs |
+| 2.7 | Integration tests: upload manifest → fetch generated HTML → render preview |
 
 ---
 
-## 7. Auth Flow
+## Phase 3 – New Renderer (IR → HTML / PDF)
+
+### 3.1 Package Layout
 
 ```
-REGISTER:
-  POST /api/v1/auth/register
-  Body: { email, password }
-  Response: 201 Created
-  → Account auto-verified, no email required
-
-LOGIN:
-  POST /api/v1/auth/login
-  Body: { email, password }
-  Response: { access_token (15min), refresh_token (7d), token_type: "bearer" }
-  → Tokens stored in Zustand store (localStorage)
-
-ACCESS:
-  → axios interceptor adds Authorization: Bearer {access_token} on every API call
-
-REFRESH:
-  POST /api/v1/auth/refresh
-  Body: { refresh_token }
-  → New access_token only
-
-LOGOUT:
-  POST /api/v1/auth/logout
-  → Invalidate refresh token on server, clear tokens from client
-
-CHANGE PASSWORD:
-  POST /api/v1/auth/change-password
-  Body: { old_password, new_password }
-  Response: 200 OK
+api/app/services/renderer/
+├── __init__.py              # exports: render_html, render_pdf
+├── ir.py                    # build_intermediate_representation(manifest, cv_data, customizations) → IR
+├── html.py                  # ir_to_html(ir) → complete HTML5 string
+├── pdf.py                   # ir_to_pdf(ir) → bytes (Playwright)
+├── section_renderers/
+│   ├── __init__.py          # SECTION_RENDERERS dict
+│   ├── profile.py
+│   ├── experience.py
+│   ├── education.py
+│   ├── skills.py
+│   ├── projects.py
+│   ├── languages.py
+│   └── certifications.py
+├── css_vars.py              # substitute_css_vars, merge_customizations
+├── placeholders.py          # replace_unknown_zones (3 helpers)
+└── types.py                 # IR dataclasses, shared types
 ```
 
-**Implementation details:**
-- Password hashing: bcrypt with cost factor 12
-- JWT: python-jose (algorithm HS256)
-- Token storage: Zustand store in localStorage
+### 3.2 Intermediate Representation (IR)
 
----
-
-## 8. PDF Flow (In-Process Puppeteer)
-
-1. User clicks "Export PDF" in BuilderPage
-2. POST `/api/v1/cvs/{id}/export/pdf`
-3. Backend fetches CV data + template config
-4. Builds HTML string matching the CVPreview component exactly
-5. Launches Puppeteer (headless, no-sandbox)
-6. Renders HTML string to PDF (A4, margins: 0)
-7. Returns PDF as response stream
-8. Closes browser
-
-Key: HTML is built from the **same React templates** as the preview component. Same DOM structure, same class names, same inline styles.
-
----
-
-## 9. File Storage (Local)
-
-Photo upload flow:
-1. User selects file in ProfileForm
-2. Client sends multipart/form-data to POST `/api/v1/assets`
-3. Backend generates filename `{user_id}_{uuid}.{ext}`
-4. Validates: max 5MB, image/jpeg/png/webp
-5. Saves to `/app/uploads/`
-6. Returns `{ url: `/uploads/${filename}` }`
-
-Serving photos via FastAPI:
 ```python
-@app.get("/uploads/{filename}")
-async def serve_photo(filename: str):
-    return FileResponse(f"/app/uploads/{filename}")
+@dataclass
+class ZoneIR:
+    id: str
+    styles: dict[str, str]          # resolved CSS (width, background-color, padding…)
+    panels: list[SectionPanelIR]    # ordered, already rendered HTML strings
+
+@dataclass
+class SectionPanelIR:
+    type: str
+    title: str
+    html: str
+    wrapper_style: str
+    heading_style: str
+
+@dataclass
+class DocumentIR:
+    zones_by_row: dict[int, list[ZoneIR]]
+    row_heights: dict[int, str]     # "60%", "40%" …
+    css_vars: dict[str, str]        # --accent, --body-font, …
+    print_styles: str
+    body_font: str
+    heading_font: str
 ```
 
-Static files served by FastAPI:
+`ir.py` does **all logic**: grouping sections by zone via `placement`, normalising widths per row, resolving CSS vars, building section HTML via `section_renderers`. It is **pure** (no I/O, no side-effects).
+
+### 3.3 Back-ends
+
+* **HTML back-end** (`html.py`) → emits complete HTML5 with `{{print_styles}}`, `{{body_font}}`, `{{heading_font}}` placeholders already substituted.
+* **PDF back-end** (`pdf.py`) → `page.setContent(html)` → `page.pdf(format="A4", margin={"top":0,"bottom":0,"left":0,"right":0})`. Re-uses `html.py`.
+
+**Interface for future back-ends:**
+
 ```python
-app.mount("/static", StaticFiles(directory="/app/static"))
+class RendererBackend(Protocol):
+    def render(self, ir: DocumentIR) -> bytes | str: ...
 ```
 
-SPA fallback route for client-side routing.
+### 3.4 Tasks
+
+| # | Task |
+|---|------|
+| 3.1 | Create `renderer/` package skeleton |
+| 3.2 | Extract 7 section renderers into `section_renderers/` |
+| 3.3 | Move `_group_instances_by_zone`, `_render_zones`, `_build_zone_styles` → `ir.py` |
+| 3.4 | Move `_substitute_css_vars`, `_merge_customizations` → `css_vars.py` |
+| 3.5 | Split `_replace_unknown_zones` → `placeholders.py` (3 pure functions) |
+| 3.6 | Implement `build_ir(manifest, cv_data, customizations)` in `ir.py` |
+| 3.7 | Implement `ir_to_html(ir)` in `html.py` |
+| 3.8 | Implement `ir_to_pdf(ir)` in `pdf.py` (Playwright) |
+| 3.9 | Wire `render_html` / `render_pdf` in `__init__.py` |
+| 3.10 | Update `api/app/services/pdf.py` to call new `render_pdf` |
+| 3.11 | Unit tests: IR builder, HTML output, PDF bytes for all 3 system templates |
 
 ---
 
-## 10. Template System
+## Phase 4 – Preview & PDF Integration
 
-1. User picks a template from the gallery
-2. Backend stores `template_id` on the CV record
-3. Frontend loads template config (layout + section schema)
-4. Frontend renders sections using the selected template's React components (CSS Modules)
-5. Customization panel overrides template defaults (colors, fonts, spacing)
-
-Template config structure:
-```json
-{
-  "id": "generic-modern",
-  "name": "Modern",
-  "layout": { "columns": 2, "widths": [30, 70], "margins": {...} },
-  "section_order": ["profile", "experience", "education", "skills", "projects", "languages", "certifications"],
-  "section_schema": { "profile": { "fields": [...] }, ... },
-  "default_customizations": { "colors": {}, "fonts": {}, "spacing": {} }
-}
-```
-
-Customization overrides stored in `cvs.customizations`, applied as CSS variables on the preview root element.
+| # | Task |
+|---|------|
+| 4.1 | `TemplateSwitcher.tsx` → always fetch template manifest (if not in context) and render `UserTemplateRenderer` with generated `layout_template` + `layout_config` + `default_customizations`. |
+| 4.2 | `UserTemplateRenderer.tsx` → call **new HTML back-end** via a tiny server endpoint (`POST /api/v1/render/html { manifest, cv_data, customizations }`) or a WASM port of `html.py`. Simpler: keep current iframe + `renderUserTemplateHTML` **but** point it at the new Python renderer via a preview endpoint. |
+| 4.3 | Delete `ModernTemplate.tsx`, `ClassicTemplate.tsx`, `MinimalTemplate.tsx`. |
+| 4.4 | `BaseTemplateCard.tsx` thumbnail → generate from manifest `zones` (mini SVG zone diagram). |
+| 4.5 | `CustomizePanel.tsx` → drop `isUserTemplate` guard; global style controls work for every template because every manifest has `globalStyleSchema`. |
+| 4.6 | `BuilderPage.tsx` → ensure it passes `templateLayoutConfig` (now derived from manifest) and `templateDefaultCustomizations` to `TemplateSwitcher`. |
+| 4.7 | PDF export (`api/app/services/pdf.py`) → calls new `render_pdf`. |
+| 4.8 | Integration tests: preview + PDF for system templates + a sample user template. |
 
 ---
 
-## 11. State Management (Zustand)
+## Phase 5 – Visual Template Creator (Step-by-Step Wizard)
 
-### authStore
-- user, access_token, refresh_token, isAuthenticated
-- login(), register(), logout(), changePassword()
+Replace the current two-tab (`Design` / `HTML`) creator with a **guided 4-step wizard** that writes the manifest directly.
 
-### cvStore
-- currentCV, cvList
-- **Instance CRUD:** addInstance(), removeInstance(), updateInstanceData(), reorderInstances(), toggleInstance(), renameInstance()
-- createCV(), copyCV(), deleteCV(), setTemplate(), saveCV(), exportPDF(), autoSave()
+### 5.1 Wizard Steps
 
-### templateStore
-- templateList, currentTemplate, availableSections
-- customize(color, font, spacing)
+| Step | UI Component | Manifest Fields Written |
+|------|--------------|------------------------|
+| **1 – Layout** | `ZoneLayoutBar` (rows, zones, drag-resize, placement) | `zones`, `placement`, `rowHeights` |
+| **2 – Global Styles** | `StyleEditor` **built from** `globalStyleSchema` (user can add/remove variables, pick type) | `globalStyleSchema`, `default_customizations` |
+| **3 – Assets (optional)** | Drag-drop zone for fonts / images → stored in `assets` map | `assets` |
+| **4 – Review** | Read-only generated HTML preview (calls `layoutConfigToHTML` + injects current `default_customizations`) | — |
 
-### uiStore
-- builderSidebarOpen, cvListSidebarOpen, toast, isSaving, zoomLevel
+**Save** → `POST /api/v1/templates` multipart (manifest + generated HTML/CSS + assets). System templates stay read-only (`is_system` only used for UI grouping & delete protection).
+
+### 5.2 Picker UI (`TemplateCreatorPage`)
+
+```
+┌─────────────────────────────────────┐
+│  System Templates (read-only)       │  ← grouped by is_system=true
+│  ┌─────┐ ┌─────┐ ┌─────┐           │
+│  │Modern│ │Classic│ │Minimal│ ...  │  ← thumbnails GENERATED from manifest
+│  └─────┘ └─────┘ └─────┘           │
+├─────────────────────────────────────┤
+│  Your Templates (editable)          │  ← grouped by is_system=false
+│  ┌─────┐ ┌─────┐                   │
+│  │My CV│ │Clean │ ...              │
+│  └─────┘ └─────┘                   │
+└─────────────────────────────────────┘
+```
+
+### 5.3 Tasks
+
+| # | Task |
+|---|------|
+| 5.1 | Build `TemplateWizard` component (stepper + step components) |
+| 5.2 | Step 1: embed `ZoneLayoutBar` (horizontal resize only) |
+| 5.3 | Step 2: dynamic `StyleEditor` driven by `globalStyleSchema` editor (add/remove variables) |
+| 5.4 | Step 3: asset drop-zone (optional) |
+| 5.5 | Step 4: live generated HTML preview |
+| 5.6 | `POST /templates` upload on wizard completion |
+| 5.7 | Update `TemplateCreatorPage` → wizard replaces Design/HTML tabs |
+| 5.8 | `BaseTemplateCard` thumbnail generator from manifest |
+| 5.9 | Delete old `TemplateCustomizePanel`, `TemplateCreatorPage` two-tab logic |
+| 5.10 | Rewrite `TEMPLATE_GUIDE.md` to match new manifest + wizard workflow |
+| 5.11 | E2E test: create template via wizard → use in builder → export PDF |
 
 ---
 
-## 12. Docker Compose
+## Future / Out of Scope (Do Not Append as Phases)
 
-```yaml
-services:
-  api:
-    build:
-      context: .
-      dockerfile: api/Dockerfile
-    ports:
-      - "8000:8000"
-    volumes:
-      - uploads_data:/app/uploads
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://${DB_USER}:${DB_PASS}@postgres:5432/${DB_NAME}
-      - SECRET_KEY=${SECRET_KEY}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: ${DB_USER:-aergia_user}
-      POSTGRES_PASSWORD: ${DB_PASS:-aergia_pass}
-      POSTGRES_DB: ${DB_NAME:-aergia}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-aergia_user}"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    restart: unless-stopped
-
-volumes:
-  uploads_data:
-  postgres_data:
-```
-
-Build context is the repo root (`.`), because the Dockerfile needs access to both `api/` and `web/` directories for the multi-stage build.
+- Desktop Tauri 2.x wrapper (`desktop/`)
+- LaTeX / DOCX renderer back-ends (interface ready in Phase 3)
+- Per-section style override tests (T11.2–T11.5)
+- Migration of existing user templates (clean DB, re-upload)
 
 ---
 
-## 13. Deployment Checklist
+## Reference: Key Files to Touch
 
-1. Provision VPS (minimum 2 vCPU, 4GB RAM, 50GB SSD)
-2. Install Docker + Docker Compose
-3. Clone repo to `/opt/aergia`
-4. Copy `.env.example` to `.env`, fill in secrets (`SECRET_KEY`, `DB_PASS`)
-5. `docker compose up -d`
-6. Run migrations: `docker compose exec api alembic upgrade head`
-7. Verify: `curl http://your-vps-ip:8000/healthz`
-8. (Optional) Set up Cloudflare Tunnel or Caddy for HTTPS
-
----
-
-## 14. Security Summary
-
-- Password hashing: bcrypt cost factor 12
-- Access token: 15-minute JWT expiry
-- Refresh token: 7-day JWT expiry
-- File upload: 5MB max, image/jpeg/png/webp only
-- SQL injection: prevented by SQLAlchemy ORM
-- XSS: prevented by React auto-escape, sanitize photo filenames
-- CSRF: not a concern with bearer token in localStorage (single-origin)
-- Rate limiting: 10 req/min per IP on auth endpoints
-- Data isolation: user_id FK on all queries (middleware check)
+| Area | Files |
+|------|-------|
+| Frontend UI (Phase 1) | `web/src/components/customization/*.tsx`, `web/src/lib/sections/zones.ts`, `web/src/lib/validators/validateSection.ts` |
+| Manifest model & API (Phase 2) | `api/app/models/template.py`, `api/app/schemas/template.py`, `api/app/routes/templates.py`, `api/app/db/seed.py`, new migration |
+| Renderer (Phase 3) | New `api/app/services/renderer/` package |
+| Preview / PDF (Phase 4) | `web/src/components/preview/*.tsx`, `api/app/services/pdf.py`, `api/app/routes/cvs.py` |
+| Template Creator (Phase 5) | `web/src/pages/TemplateCreatorPage.tsx`, new `web/src/components/template-creator/TemplateWizard.tsx` |
+| Docs | `TEMPLATE_GUIDE.md` (rewrite) |
 
 ---
 
-## 15. Testing Summary
+## Success Criteria
 
-### Frameworks
-- Backend: pytest + httpx (TestClient)
-- Frontend: Vitest + React Testing Library
-
-### Test Inventory
-- Backend: 16 tests (3 unit + 13 integration)
-- Frontend: 20 tests (12 component + 6 unit + 2 infrastructure)
-- End-to-end: 1 comprehensive flow test
-- Total: 37 tests
-
-### Locations
-```
-api/tests/
-├── conftest.py
-├── test_auth.py                    ← T1, T2, T3
-├── test_cvs.py                     ← T6, T7, T8
-├── test_assets.py                  ← T9
-├── test_templates.py               ← T10
-├── test_preview.py                 ← T44              ⚡ Phase 4
-├── test_sections.py                ← T13, T14, T15
-├── unit/
-│   ├── conftest.py
-│   ├── test_security.py            ← T1 (password hashing, JWT)
-│   └── test_schemas.py             ← T2, T15 (Pydantic validation)
-
-web/src/
-├── lib/store/__tests__/
-│   ├── authStore.test.ts           ← T4
-│   ├── cvStore.test.ts             ← T11
-│   └── sectionInstanceStore.test.ts ← T46              ⚡ Phase 5
-├── components/__tests__/
-│   ├── LoginForm.test.tsx          ← T5
-│   ├── RegisterForm.test.tsx       ← T5
-│   ├── CvList.test.tsx             ← T12, T35.2       ⚡ Phase 3.5
-│   ├── SectionList.test.tsx        ← T17, T18, T35.1  ⚡ Phase 5
-│   ├── TemplateSwitcher.test.tsx   ← T19
-│   ├── CustomizePanel.test.tsx     ← T20, T48          ⚡ Phase 6
-│   ├── SectionEditors.test.tsx     ← T17, T35.3       ⚡ Phase 3.5
-│   ├── AddSectionModal.test.tsx    ← T47              ⚡ Phase 6
-│   ├── ExportButton.test.tsx       ← T53
-│   └── Toast.test.tsx              ← T55
-├── hooks/__tests__/
-│   └── useAutoSave.test.ts         ← T51, T54
-└── api/__tests__/
-    └── client.test.ts              ← auth interceptor injection
-```
+1. **Single render path** – `render_preview` / `render_pdf` identical for system & user templates.
+2. **Zero hard-coded template components** – `ModernTemplate.tsx` etc. deleted.
+3. **Visual editor is source of truth** – HTML/CSS are generated artefacts.
+4. **User-defined global styles** – schema lives in manifest, UI built dynamically.
+5. **Clean test suite** – all integration tests pass for preview + PDF on all templates.
 
 ---
 
-## 16. Folder Structure
-
-```
-aergia/
-├── docker-compose.yml
-├── .env.example
-│
-├── api/
-│   ├── Dockerfile
-│   ├── pyproject.toml
-│   ├── alembic.ini
-│   ├── alembic/
-│   │   └── env.py
-│   ├── main.py
-│   └── app/
-│       ├── __init__.py
-│       ├── app.py                      ← FastAPI app (mount routers + serve static)
-│       ├── config.py                   ← pydantic-settings
-│       ├── core/
-│       │   ├── auth.py                 ← JWT create/verify/refresh
-│       │   ├── deps.py                 ← FastAPI injection deps
-│       │   └── auth.py                 ← bcrypt hashing + JWT
-│       ├── db/
-│       │   ├── session.py              ← SessionLocal, engine, Base
-│       │   └── seed.py                 ← seed templates on boot
-│       ├── models/
-│       │   ├── user.py
-│       │   ├── cv.py
-│       │   └── template.py
-│       ├── schemas/
-│       │   ├── auth.py
-│       │   ├── cv.py
-│       │   ├── template.py
-│       │   └── photo.py
-│       ├── routes/
-│       │   ├── auth.py
-│       │   ├── cvs.py
-│       │   └── assets.py
-│       ├── services/
-│       │   ├── auth.py
-│       │   ├── cv.py
-│       │   ├── photo.py
-│       │   ├── pdf.py
-│       │   └── renderer.py              ← HTML preview generation (Phase 4)
-│       └── uploads/
-│
-├── web/
-│   ├── Dockerfile
-│   ├── package.json
-│   ├── tsconfig.json
-│   ├── vite.config.ts
-│   ├── tailwind.config.ts
-│   ├── postcss.config.ts
-│   ├── index.html
-│   └── src/
-│       ├── main.tsx
-│       ├── App.tsx
-│       ├── components/
-│       │   ├── auth/
-│       │   ├── builder/
-│       │   ├── preview/
-│       │   ├── cv-list/
-│       │   │   ├── CvCard.tsx
-│       │   │   ├── CreateCvModal.tsx          ← Phase 3.5
-│       │   │   └── DeleteCvModal.tsx          ← Phase 3.5
-│       │   ├── template-browser/
-│       │   │   └── TemplateBrowser.tsx        ← Phase 3.5
-│       │   ├── customization/
-│       │   └── common/
-│       │       ├── PhotoUpload.tsx
-│       │       ├── ProtectedRoute.tsx
-│       │       ├── Modal.tsx                  ← Phase 3.5 (shared)
-│       │       └── AccordionPanel.tsx         ← Phase 3.5 (shared)
-│       ├── lib/
-│       │   ├── store/
-│       │   ├── api/
-│       │   ├── sections/
-│       │   ├── validators/
-│       │   │   ├── auth.ts                    ← login + register schemas
-│       │   │   └── sections.ts               ← 7 section Zod schemas (Phase 4)
-│       │   └── templates/
-│       │       └── config.ts                 ← Frontend template metadata (Phase 3.5)
-│       └── pages/
-│
-├── scripts/
-│   └── seed_generic_templates.py
-├── desktop/                            ← Tauri wrapper (future)
-├── PLAN.md                             ← This file (will be in .gitignore)
-├── .gitignore
-└── README.md
-```
-
----
-
-## 17. Phased Development Plan
-
-### Phase 1 — Foundation (Auth)
-
-| # | Task | Status |
-|---|---|---|---|
-| 1 | Set up docker-compose.yml with Postgres service | ✅ |
-| 2 | Initialize FastAPI project (main.py, config, models, schemas) | ✅ |
-| 3 | Implement users model + table migration | ✅ |
-| 4 | Auth: register, login, refresh, logout, change-password | ✅ |
-| 5 | Initialize React + TS + Vite + Tailwind project | ✅ |
-| 6 | Login + register pages with forms (HookForm + Zod) | ✅ |
-| 7 | Zustand authStore + JWT token management | ✅ |
-| 8 | Axios interceptor for Bearer token | ✅ |
-| 9 | Protected routes (redirect to login if unauthenticated) | ✅ |
-| T1 | Pytest: password hashing + JWT creation/validation (unit) | ✅ |
-| T2 | Pytest: register endpoint schema validation (unit) | ✅ |
-| T3 | Pytest: auth flow (register → login → protected call → logout) (integration) | ✅ |
-| T4 | Vitest: authStore actions (login, logout, refresh) (unit) | ✅ |
-| T5 | Vitest: register + login form validation + submission (component) | ✅ |
-| 10 | Manual test: register → login → protected API call → logout | ☐ |
-
-### Phase 2 — CV Core
-
-| # | Task | Status |
-|---|---|---|
-| 11 | Implement cvs + templates models + migrations | ✅ |
-| 12 | CV CRUD endpoints (list, create, get, update, delete, copy) | ✅ |
-| 13 | Seed 3 generic templates (modern, classic, minimal) | ✅ |
-| 14 | CV list page with cards (title, template indicator, actions) | ✅ |
-| 15 | Copy/clone CV UI (copy action on card) | ✅ |
-| 16 | Build builder page layout (split pane: editor | preview) | ✅ |
-| 17 | Asset upload endpoint (filesystem) + photo UI | ✅ |
-| T6 | Pytest: CV CRUD flow (create → get → update → delete) | ✅ |
-| T7 | Pytest: CV copy creates independent clone | ✅ |
-| T8 | Pytest: CV data isolation by user_id | ✅ |
-| T9 | Pytest: photo upload (valid + invalid file, size limit) | ✅ |
-| T10 | Pytest: template seed creates 3 templates | ✅ |
-| T11 | Vitest: cvStore actions (create, copy, delete, save) | ✅ |
-| T12 | Vitest: cvList page renders cards with actions | ✅ |
-| 18 | Manual test: create CV → see in list → copy → both work | ☐ |
-
-### Phase 3 — Sections + Preview
-
-| # | Task | Status |
-|---|---|---|
-| 19 | ProfileSection editor + renderer | ✅ |
-| 20 | ExperienceSection editor (repeatable entries) + renderer | ✅ |
-| 21 | EducationSection editor + renderer | ✅ |
-| 22 | SkillsSection editor + renderer | ✅ |
-| 23 | ProjectsSection editor + renderer | ✅ |
-| 24 | LanguagesSection editor + renderer | ✅ |
-| 25 | CertificationsSection editor + renderer | ✅ |
-| 26 | Section list with drag-and-drop (dnd-kit) | ✅ |
-| 27 | Enable/disable section toggles | ✅ |
-| 28 | Build generic-modern template renderer | ✅ |
-| 29 | Build generic-classic template renderer | ✅ |
-| 30 | Build generic-minimal template renderer | ✅ |
-| 31 | Template switching in preview (instant) | ✅ |
-| 32 | Customization panel (color, font, spacing) | ✅ |
-| T13 | Pytest: section data stored correctly in JSONB | ✅ |
-| T14 | Pytest: section ordering preserved through update | ✅ |
-| T15 | Pytest: validation rejects invalid section data | ✅ |
-| T16 | Pytest: all 3 templates render preview HTML correctly | ✅ |
-| T17 | Vitest: each section editor renders + accepts input (7 tests) | ✅ |
-| T18 | Vitest: section drag-and-drop reorders correctly | ✅ |
-| T19 | Vitest: template switcher swaps renderer + applies config | ✅ |
-| T20 | Vitest: customization panel updates CSS variables | ✅ |
-
-### Phase 3.5 — Polish & UX (NEW)
-
-| # | Task | Status |
-|---|---|---|
-| 33 | Install lucide-react, motion, @tailwindcss/forms | ✅ |
-| 34 | Create shared Modal + AccordionPanel components | ✅ |
-| 35 | Replace enable/disable checkboxes with eye icons (Eye/EyeOff) | ✅ |
-| 36 | Create CV modal (title + template selection) | ✅ |
-| 37 | Delete CV confirmation modal | ✅ |
-| 38 | Repeatable entry accordion (6 section editors) | ✅ |
-| 39 | CV grid layout refinement (responsive cols, card polish) | ✅ |
-| 40 | Add Section UI (dropdown to add new section types) | ✅ |
-| 41 | Template Browser UI (visual template selector in builder) | ✅ |
-| 42 | Motion animations across all components | ✅ |
-| T35.1 | Vitest: section list eye icons, add section dropdown | ✅ |
-| T35.2 | Vitest: create/delete CV modals | ☐ |
-| T35.3 | Vitest: accordion expand/collapse on all 6 editors | ☐ |
-
-### Phase 4 — Data Integrity & Backend Preview (NEW)
-
-| # | Task | Status |
-|---|---|---|
-| 43 | Section Zod validation schemas (7 sections) | ✅ |
-| 44 | Backend preview endpoint (HTML renderer service + route) | ✅ |
-| T44 | Pytest: preview endpoint renders correct HTML for all 3 templates | ✅ |
-
-### Phase 5 — Section Instance Model (Architectural Refactor)
-
-The core data model for sections is restructured from `{ order, enabled, data }` to `SectionInstance[]`. This enables multiple sections of the same type, per-instance custom titles, and a simpler data flow throughout the app.
-
-| # | Task | Status |
-|---|---|---|---|
-| 45 | Define `SectionInstance` type + restructure `types.ts` | ✅ |
-| 46 | Update `cvStore.ts` with instance CRUD (add, remove, reorder, toggle, rename) | ✅ |
-| 47 | Update `SectionList.tsx` + `SectionEditorPanel.tsx` + `SectionRegistry.tsx` for instances | ✅ |
-| 48 | Update `TemplateSwitcher.tsx` + all 3 template renderers to accept instances[] | ✅ |
-| 49 | Update `BuilderPage.tsx` — replace old section handlers with instance-focused ones | ✅ |
-| 50 | Default: new CVs start with only 1 enabled profile instance | ✅ |
-| 51 | Update backend `CVCreate` default, `renderer.py` for new format | ✅ |
-| 52 | Investigate & fix sub-section CRUD controls (trace EducationEditor → PATCH → reload) | ✅ |
-| T45 | Update existing test data shapes for new SectionInstance format | ✅ |
-| T46 | Vitest: section instance CRUD (add, remove, reorder, toggle, rename) | ✅ |
-
-### Phase 6 — Add Section Modal & Customization UX
-
-| # | Task | Status |
-|---|---|---|
-| 53 | Grid modal for adding sections (replaces dropdown, 3-column card grid) | ✅ |
-| 54 | Collapsible customization panel (toggle icon in builder header) | ✅ |
-| 55 | Inline section title editing (click title → text input) | ✅ |
-| T47 | Vitest: add section grid modal renders all types, click adds instance | ✅ |
-| T48 | Vitest: customization panel hidden by default, icon toggles visibility | ✅ |
-
-### Phase 7 — PDF Export & Auto-Save
-
-| # | Task | Status |
-|---|---|---|
-| 56 | In-process PDF export (Playwright) | ✅ |
-| 57 | Preview = PDF exact match (print styles) | ✅ |
-| 58 | Auto-save with debounce (3s) | ✅ |
-| 59 | Validation errors display (Zod + components) | ✅ |
-| 60 | Toast notifications, loading states, empty states | ✅ |
-| 61 | Error handling UI (ErrorBoundary, axios toasts) | ✅ |
-| 56.5 | Routing paths overhaul (AppLayout, Settings, 404) | ✅ |
-| T49 | Pytest: PDF export returns valid PDF for all templates | ✅ |
-| T50 | Pytest: PDF content matches CV data | ✅ |
-| T51 | Pytest/TS: auto-save debounces correctly (unit) | ☐ |
-| T52 | Pytest: PDF export fails gracefully for non-existent CV | ✅ |
-| T53 | Vitest: PDF export trigger + success/fail handling | ☐ |
-| T54 | Vitest: auto-save debounced save fires at correct interval | ☐ |
-| T55 | Vitest: toast system renders success/error (component) | ☐ |
-| T56 | E2E: full user journey (login → create → edit → switch template → export → logout) | ☐ |
-| 62 | Final integration testing | ☐ |
-
-### Phase 8 — Production Deployment ✅
-
-| # | Task | Status |
-|---|---|---|
-| 8.1 | Docker Compose: add api service with uploads volume | ✅ |
-| 8.2 | Multi-stage Dockerfile (frontend builds inside API image) | ✅ |
-| 8.3 | dev.sh: playwright install, .env loading, --prod/--build flags | ✅ |
-| 8.4 | Rate limiting with slowapi (auth 10/min, global 100/min) | ✅ |
-| 8.5 | Enhanced health check + security middleware | ✅ |
-| 8.6 | DEPLOY.md documentation | ✅ |
-
-### Phase 9 — Builder UX & Polish
-
-| # | Task | Status |
-|---|---|---|
-| 63 | Delete confirmation modal on section remove | ✅ |
-| 64 | Sub-section accordions closed by default | ✅ |
-| 65 | Sub-section drag-to-reorder via dnd-kit (6 editors) | ✅ |
-| 66 | Builder tabs: replace side-by-side panel with "Content" / "Customize" tabs | ✅ |
-| T9.1 | Vitest: section delete modal renders and confirms/aborts | ☐ |
-| T9.2 | Vitest: accordion starts closed by default | ☐ |
-| T9.3 | Vitest: sub-section drag reorders entries array correctly | ☐ |
-| T9.4 | Vitest: builder tab switching renders correct panel | ☐ |
-| 67 | Manual test: full flow — reorder sub-sections in experience, confirm order persists after reload | ☐ |
-
-### Phase 9.5 — Bug Fixes for Phase 9
-
-| # | Task | Status |
-|---|---|---|
-| 9.5.1 | Install @testing-library/user-event (missing dep) | ✅ |
-| 9.5.2 | Fix localStorage not available in jsdom (authStore tests) | ✅ |
-| 9.5.3 | Delete stale sectionInstanceStore.test.ts (methods removed from cvStore) | ✅ |
-| 9.5.4 | Fix SectionEditors.test.tsx: click accordion to expand before asserting fields | ✅ |
-| 9.5.5 | Fix CustomizePanel.test.tsx: add missing store mocks, rewrite T48 for tab layout | ✅ |
-| 9.5.6 | Single DndContext refactor: unify nested DndContexts to fix sub-section drag auto-save | ✅ |
-| T9.5 | All frontend tests pass (0 failures) | ✅ |
-
-### Phase 10 — Customize Tab Enhancement & UI Cleanup
-
-| # | Task | Status |
-|---|---|---|
-| 70 | Remove Palette button from BuilderPage header | ✅ |
-| 71 | Remove template "Change" badge from BuilderPage header | ✅ |
-| 72 | Add `templateId` and `onTemplateChange` props to `CustomizePanel` + inline template selector (3 cards: Modern, Classic, Minimal) | ✅ |
-| 73 | Remove `TemplateBrowser` modal component entirely | ✅ |
-| 74 | Remove `showTemplateBrowser` state and related logic from `BuilderPage` | ✅ |
-| 75 | Clean up unused imports in `BuilderPage` | ✅ |
-| T10.1 | Vitest: CustomizePanel renders inline template selector with correct active state | ✅ |
-| T10.2 | Vitest: clicking a template card triggers `onTemplateChange` | ✅ |
-| T10.3 | Vitest: template selector only visible in Customize tab (not Content) | ✅ |
-| 76 | Manual test: switch template from Customize → preview updates → persists after reload | ✅ |
-
-**Files changed:**
-- `web/src/pages/BuilderPage.tsx` — removed Palette button, template badge, TemplateBrowser import/modal/state
-- `web/src/components/customization/CustomizePanel.tsx` — added inline template cards at top
-- `web/src/components/template-browser/TemplateBrowser.tsx` — deleted (replaced by inline selector)
-- `web/src/components/__tests__/CustomizePanel.test.tsx` — updated props, replaced Palette-button tests with tab-bar tests
-
-### Phase 10.5 — Per-Instance Style Overrides
-
-**Goal:** Let users customize font, color, and weight on individual section instances (by `id`). Global styles remain as defaults. Per-instance overrides beat globals. Changing templates strips all per-instance styles.
-
-**No DB migration needed** — `SectionInstance[]` is stored as JSONB. The new `style` field passes through automatically. No Pydantic schema change needed.
-
-**Architecture:** Per-section style controls live in the `Customize` tab alongside global settings. The global Colors/Fonts/Spacing sub-tabs are merged into a single "Global" section.
-
-| # | Task | Status |
-|---|---|---|
-| 78 | Add `SectionStyle` type (`font`, `color`, `weight`) + `style?: SectionStyle` to `SectionInstance` in `types.ts` | ✅ |
-| 79 | Add `section-{type}` CSS class to preview wrapper in `SectionPreviewPanel.tsx` | ✅ |
-| 80 | Apply `instance.style` inline overrides (font, color, weight) in `SectionPreviewPanel` — on wrapper div + heading | ✅ |
-| 83 | Wire `handleUpdateStyle` in `BuilderPage.tsx` → `setLocalInstances` | ✅ |
-| 84 | In `handleTemplateChange`, strip `style` from all instances before saving | ✅ |
-| 86 | Update backend `renderer.py` to apply per-instance styles in `render_instance_panel` | ✅ |
-| 87 | **Revert SectionEditorPanel** — remove style imports, `onUpdateStyle` prop, style state/UI. Restore to original simple component. | ✅ |
-| 88 | **Revert SectionList** — remove `onUpdateStyle` from Props and threading. | ✅ |
-| 89 | **Rewrite CustomizePanel** — remove Colors/Fonts/Spacing sub-tab bar. Add `instances` + `onUpdateStyle` props. Structure: Template selector → collapsible "Global" section (all colors, fonts, spacing) → per-instance style cards (font/color/weight each). | ✅ |
-| 90 | **Update BuilderPage** — remove `onUpdateStyle` from `<SectionList>`, pass `instances` + `onUpdateStyle` to `<CustomizePanel>`. | ✅ |
-| T10.4 | Vitest: update CustomizePanel tests for combined Global + section overrides | ✅ |
-| T11.2 | Vitest: `SectionPreviewPanel` renders with per-instance styles applied | ☐ |
-| T11.3 | Vitest: `section-{type}` class present on preview wrapper | ☐ |
-| T11.4 | Vitest: template change strips per-instance styles | ☐ |
-| T11.5 | Pytest: backend renders per-instance styles | ☐ |
-| 85 | Manual test: set per-instance style → preview updates → switch template → styles reset | ☐ |
-
-### Phase 11 — UX Polish: Style Accordions, Login Persistence, Home Page
-
-| # | Task | Status |
-|---|---|---|
-| 91 | Make per-section style cards accordions (expand/collapse with chevron) in CustomizePanel | ✅ |
-| 92 | Fix auth store — initialize tokens from `localStorage` synchronously to prevent login flash on refresh | ✅ |
-| 93 | Create public `HomePage` at `/` with app name + login/register buttons | ✅ |
-| 94 | Restructure routes: `/` → HomePage, `/dashboard` → CvListPage (protected) | ✅ |
-| 95 | Update LoginForm fallback redirect from `"/"` to `"/dashboard"` | ✅ |
-| 96 | Add hydrated guard to ProtectedRoute to prevent redirect flash | ✅ |
-| T11.1 | Vitest: section style accordion expands/collapses on click | ☐ |
-| T11.2 | Vitest: auth store initializes from localStorage correctly | ☐ |
-
-### Phase 11 Bugfix — Route Cleanup
-
-| # | Task | Status |
-|---|---|---|
-| R1 | Fix CvListPage: navigate to `/dashboard/builder/:id` (was 404) | ✅ |
-| R2 | Fix CreateCvModal: navigate to `/dashboard/builder/:id` (was 404) | ✅ |
-| R3 | Fix LoginForm: hardcode redirect to `/dashboard` (ignore `location.state.from`) | ✅ |
-| R4 | Fix BuilderPage back button: `/` → `/dashboard` | ✅ |
-| R5 | Fix AppLayout brand link: `"/dashboard"` → `"/"` (public home), dynamic "My CVs" in builder | ✅ |
-| R6 | Fix AppLayout "My CVs" link: `/` → `/dashboard` | ✅ |
-| R7 | Fix AppLayout Settings link: `/settings` → `/dashboard/settings` | ✅ |
-| R8 | Fix NotFoundPage "Go to Dashboard": `/` → `/dashboard` | ✅ |
-| R9 | Fix ErrorBoundary "Go to Dashboard": `/` → `/dashboard` | ✅ |
-| R10 | Fix CvList test: route path `/` → `/dashboard` | ✅ |
-
-### Phase 11.5 — Home Page Polish & Navbar Refinements
-
-| # | Task | Status |
-|---|---|---|
-| H1 | Redesign HomePage with full marketing layout (emerald theme, features grid, conditional CTAs) | ✅ |
-| H2 | AppLayout: show "My CVs" link instead of "Aergia" logo when inside builder page | ✅ |
-| H3 | AppLayout brand logo always links to `/` (public home) | ✅ |
-
-### Phase 12 — User-Defined Templates
-
-**Goal:** Let users upload their own HTML templates. Templates are saved to the server so PDF export works. Template switching resets customizations. A guide documents the template format.
-
-#### Backend
-
-| # | Task | Status |
-|---|---|---|
-| U1 | Alembic migration: add `content` (TEXT) and `user_id` (UUID FK) columns to `templates` table | ✅ |
-| U2 | Update Template model with new columns | ✅ |
-| U3 | Update Pydantic schemas (`TemplateDetail` includes `content`, list includes `is_user_template` flag) | ✅ |
-| U4 | Add `POST /api/v1/templates/user` — upload user template (multipart: name + HTML file) | ✅ |
-| U5 | Add `DELETE /api/v1/templates/user/{id}` — delete own user template | ✅ |
-| U6 | Update `GET /api/v1/templates` to include current user's templates | ✅ |
-| U7 | Add `render_user_template` to `renderer.py` — injects `window.__CV_DATA__` into user HTML | ✅ |
-| U8 | Update `render_preview` to accept optional `template_content` param | ✅ |
-| U9 | Update PDF service to fetch template content for user templates | ✅ |
-| U10 | Update preview endpoint to pass template content | ✅ |
-
-#### Frontend
-
-| # | Task | Status |
-|---|---|---|
-| U11 | Create `web/src/lib/api/templates.ts` — API client for user template CRUD | ✅ |
-| U12 | Create `web/src/lib/store/userTemplateStore.ts` — Zustand store (list cache) | ✅ |
-| U13 | Create `UserTemplateRenderer.tsx` — iframe with `srcdoc` + injected data | ✅ |
-| U14 | Create `TemplateSelectorModal.tsx` — modal showing system + user templates, upload button | ✅ |
-| U15 | Update `CustomizePanel.tsx` — replace inline template list with "Change Template" → modal; hide Global for user templates | ✅ |
-| U16 | Update `TemplateSwitcher.tsx` — route `user_*` templates to iframe renderer | ✅ |
-| U17 | Update `BuilderPage.tsx` — fetch template content, reset customizations on switch | ✅ |
-| U18 | Update `CreateCvModal.tsx` — list user templates alongside system ones | ✅ |
-
-#### Docs & Tests
-
-| # | Task | Status |
-|---|---|---|
-| U19 | Write `TEMPLATE_GUIDE.md` — user template format, data shape, examples | ✅ |
-| U20 | Backend tests: user template upload, delete, render | ❌ (cancelled due to test infrastructure issues) |
-| U21 | Frontend tests: CustomizePanel, TemplateSwitcher, TemplateSelectorModal | ❌ (cancelled due to test infrastructure issues) |
-
----
-
-### Future
-
-| # | Task | Status |
-|---|---|---|
-| — | Desktop Tauri 2.x wrapper (`desktop/` directory) | ☐ |
-| — | Per-section style override tests (T11.2–T11.5) | ☐ |
-
----
-
-## 18. Frontend Serving (Single Origin)
-
-FastAPI serves static files directly from the built React app:
-
-```
-Single image (api:8000):
-  /              → index.html (SPA entry)
-  /static/*      → bundled JS/CSS assets
-  /api/v1/*      → API routes
-  /uploads/*     → user uploaded photos
-```
-
-Static serving implemented in `app.py` — mounts `StaticFiles` for `/static/` and `/uploads/`, with an SPA catch-all for client-side routing.
-
-No reverse proxy required. The FastAPI app is the only web server.
-
----
-
-## 19. Key Configuration Files
-
-### .env
-```
-DATABASE_URL=postgresql+asyncpg://aergia_user:aergia_pass@postgres:5432/aergia
-SECRET_KEY=generate_with_secrets module
-```
-
-### API dependencies
-```
-fastapi>=0.115
-uvicorn[standard]>=0.30
-sqlalchemy>=2.0
-alembic>=1.13
-asyncpg>=0.29
-python-jose[cryptography]>=3.3
-bcrypt>=4.1
-python-multipart>=0.0.9
-pydantic>=2.7
-pypdf>=4.2
-pillow>=10.4
-slowapi>=0.1.9
-playwright>=1.48
-```
-
+*End of active plan. Completed work archived in COMPLETED.md.*
