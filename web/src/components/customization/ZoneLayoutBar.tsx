@@ -230,7 +230,11 @@ export default function ZoneLayoutBar({ layoutConfig, onChange }: Props) {
         for (let i = 0; i < gi.length; i++) {
           updatedZones[gi[i]] = { ...updatedZones[gi[i]], styles: { ...updatedZones[gi[i]].styles, width: `${newWidths[i]}%` } };
         }
-        onChange({ ...layoutConfig, zones: normalizeWidths(updatedZones) });
+        // Normalize widths per row (not globally)
+        const rowGrouped = groupByRow(updatedZones);
+        const normalized: Zone[] = [];
+        for (const [, rZones] of rowGrouped) normalized.push(...normalizeWidths(rZones));
+        onChange({ ...layoutConfig, zones: normalized });
       };
 
       const handleMouseUp = () => {

@@ -11,27 +11,52 @@ export function layoutConfigToHTML(config: LayoutConfig): string {
   const sortedRows = [...rows.entries()].sort(([a], [b]) => a - b);
   const rowHeights = config.rowHeights;
 
-  let html = '<div class="template-layout" style="min-height:297mm;display:flex;flex-direction:column;">\n';
+  let bodyContent = "";
 
   for (const [rowNum, rowZones] of sortedRows) {
     const rowHeight = rowHeights?.[rowNum];
+    let flexVal: string;
     if (rowHeight) {
-      html += `  <div style="display:flex;flex:${parseInt(rowHeight)} 0 0%;">\n`;
+      const pct = parseInt(rowHeight.replace("%", ""));
+      if (!isNaN(pct) && pct > 0) {
+        flexVal = `${pct} 0 0%`;
+      } else {
+        flexVal = "1 0 auto";
+      }
     } else {
-      html += `  <div style="display:flex;flex:1 0 auto;">\n`;
+      flexVal = "1 0 auto";
     }
+    bodyContent += `  <div style="display:flex;flex:${flexVal};">\n`;
 
     for (const zone of rowZones) {
-      const styles = zone.styles || {};
-      const width = styles.width || "100%";
-      const padding = styles.padding || "24px";
-      const bg = styles["background-color"] ? `;background-color:${styles["background-color"]}` : "";
-      html += `    <div id="{{${zone.id}}}" style="width:${width};padding:${padding}${bg};"></div>\n`;
+      bodyContent += `    {{${zone.id}}}\n`;
     }
 
-    html += `  </div>\n`;
+    bodyContent += `  </div>\n`;
   }
 
-  html += "</div>";
-  return html;
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: {{body_font}};
+      color: var(--text, #374151);
+    }
+    h1, h2, h3, h4, h5, h6 {
+      font-family: {{heading_font}};
+      color: var(--heading, #111827);
+    }
+    {{print_styles}}
+  </style>
+</head>
+<body>
+<div style="min-height:297mm;display:flex;flex-direction:column;">
+${bodyContent}</div>
+</body>
+</html>`;
 }

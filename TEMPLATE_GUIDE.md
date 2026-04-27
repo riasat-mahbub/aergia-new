@@ -6,14 +6,60 @@ User templates let you create custom CV layouts while keeping the same customiza
 
 ## How It Works
 
-Both system templates (Modern, Classic, Minimal) and user templates follow the same rendering pipeline:
+Both system templates (Modern, Classic, Minimal) and user templates follow the same **unified rendering pipeline**:
 
 1. The system generates section panel HTML using built-in renderers
 2. Sections are grouped by their target **zone** based on `layout_config.placement`
-3. Each zone's sections are inserted into your layout template at `{{zone_id}}` placeholders
+3. Each zone's sections are inserted into your layout template at **bare** `{{zone_id}}` placeholders (the placeholder is replaced entirely)
 4. CSS custom properties are substituted with the user's customization choices (colors, fonts, spacing)
+5. Print styles and font placeholders are injected
 
 This means: **your design stays intact, but the CustomizePanel still works.**
+
+### Template Format: Complete HTML Document
+
+**Important:** The `layout_template` must be a **complete HTML5 document** with the following structure:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { margin:0; font-family:{{body_font}}; color:var(--text, #374151); }
+    h1,h2,h3,h4,h5,h6 { font-family:{{heading_font}}; color:var(--heading, #111827); }
+    {{print_styles}}
+  </style>
+</head>
+<body>
+<div style="min-height:297mm;display:flex;flex-direction:column;">
+  <!-- Rows (flex containers) -->
+  <div style="display:flex;flex:1 0 auto;">
+    <!-- Bare placeholders - will be replaced entirely by renderer -->
+    {{sidebar}}
+    {{main}}
+  </div>
+</div>
+</body>
+</html>
+```
+
+**Required placeholders in `<head><style>`:**
+- `{{print_styles}}` — replaced with `@page` + print media query for PDF export
+- `{{body_font}}` — replaced with body font from customizations
+- `{{heading_font}}` — replaced with heading font from customizations
+
+**Required placeholders in `<body>`:**
+- **Bare** `{{zone_id}}` — one per zone defined in `layout_config.zones`. The placeholder is replaced **entirely** with a `<div style="...">panels</div>` wrapper containing the rendered sections.
+
+**Row flex values:**
+- When `rowHeights[row]` is defined: `flex:N 0 0%` (e.g., `flex:50 0 0%`)
+- When not defined: `flex:1 0 auto` (equal distribution)
+
+**CSS custom properties** (available for use in your `<style>` block):
+- `var(--accent)`, `var(--bg-sidebar)`, `var(--header)`, `var(--divider)`, `var(--text)`, `var(--heading)`
+- `var(--body-font)`, `var(--heading-font)`, `var(--section-gap)`
 
 ## Template Structure
 
@@ -308,6 +354,17 @@ The `layout_config` controls how sections are grouped into zones and where they 
 
 Every section type (profile, experience, education, skills, projects, languages, certifications) should be mapped to a zone ID. Any unmapped section types default to the `main` zone.
 
+## Zone Width Normalization (Per Row)
+
+Zone widths within each row are **normalized to sum to 100%**. When you configure zones in the Customize panel (or via JSON), the `width` style of zones in the same row will be automatically adjusted so that the total equals 100%. This normalization happens **per row independently** — zones in row 0 are normalized among themselves, zones in row 1 among themselves, etc.
+
+**Example:** If row 0 has zones with widths 30% and 70%, they remain 30%/70%. If you add a third zone with requested width 40%, the existing zones scale proportionally to make room, and the final widths are normalized to sum to 100%.
+
+The Customize panel provides:
+- **Horizontal drag handles** between zones to visually resize (triggers per-row normalization)
+- **Width sliders** in the zone style editor for precise control (also triggers per-row normalization)
+- **Add Zone** button that distributes space among existing zones
+
 ## Advanced Layout Patterns
 
 ### Overlapping Zones
@@ -377,8 +434,12 @@ Per-section style overrides (font, color, weight) set on individual section inst
 ## Best Practices
 
 1. **Use CSS variables for everything customizable** — this is what makes the CustomizePanel work
-2. **Every zone ID defined in `layout_config.zones` must appear in your HTML** — each zone needs a corresponding `{{zone_id}}` placeholder. The system replaces all occurrences of each placeholder, so duplicates (e.g., in comments) are harmless but unnecessary.
-3. **Include print styles** — PDF export uses Playwright headless Chromium; without `@media print` rules, colors may not render correctly
+2. **Include required placeholders in your template** — your HTML must contain:
+   - `{{print_styles}}` in the `<style>` block
+   - `{{body_font}}` and `{{heading_font}}` in the `<style>` block (for font-family declarations)
+   - Bare `{{zone_id}}` placeholders in the body for each zone in `layout_config.zones`
+3. **Every zone ID defined in `layout_config.zones` must appear in your HTML** — each zone needs a corresponding `{{zone_id}}` placeholder. The system replaces all occurrences of each placeholder, so duplicates (e.g., in comments) are harmless but unnecessary.
+4. **Include print styles** — PDF export uses Playwright headless Chromium; without `@media print` rules, colors may not render correctly
 4. **Set `max-width: 210mm` on the body or main container** — this matches A4 width and ensures WYSIWYG preview
 5. **Use `box-sizing: border-box` globally** — prevents padding from breaking your layout dimensions
 6. **Test with all section types** — make sure your layout handles empty sections gracefully (the system renders a "No data" placeholder for disabled/empty sections)
