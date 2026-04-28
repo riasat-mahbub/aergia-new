@@ -114,3 +114,12 @@ export function normalizeRowHeights(rowNumbers: number[], rowHeights?: Record<nu
   });
   return result;
 }
+
+export function normalizeAllZones(zones: Zone[]): Zone[] {
+  const grouped = groupByRow(zones);
+  const normalized: Zone[] = [];
+  for (const [, rowZones] of grouped) {
+    normalized.push(...normalizeWidths(rowZones));
+  }
+  return normalized;
+}

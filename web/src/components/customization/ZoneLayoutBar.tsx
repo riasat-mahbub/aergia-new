@@ -26,6 +26,7 @@ import {
   groupByRow,
   getRowHeightPercent,
   normalizeRowHeights,
+  normalizeAllZones,
   MIN_ROW_PCT,
 } from "../../lib/sections/zones";
 import { SECTION_TYPES } from "../../lib/sections/types";
@@ -275,9 +276,7 @@ export default function ZoneLayoutBar({ layoutConfig, onChange }: Props) {
         for (const section of deletedZone.assignedSections) newPlacement[section] = targetZone.id;
       }
     }
-    const rowGrouped = groupByRow(remaining);
-    const normalized: Zone[] = [];
-    for (const [, rZones] of rowGrouped) normalized.push(...normalizeWidths(rZones));
+    const normalized = normalizeAllZones(remaining);
     onChange({ ...layoutConfig, zones: normalized, placement: newPlacement });
     if (selectedZoneId === zoneId) setSelectedZoneId(null);
   };
@@ -301,9 +300,7 @@ export default function ZoneLayoutBar({ layoutConfig, onChange }: Props) {
       const otherZones = zones.filter((z) => (z.row ?? 0) !== targetRow);
       newZones = [...otherZones, ...updatedExisting, { ...zoneWithRow, styles: { ...zoneWithRow.styles, width: `${requestedWidth}%` } }];
     }
-    const rowGrouped = groupByRow(newZones);
-    const normalized: Zone[] = [];
-    for (const [, rZones] of rowGrouped) normalized.push(...normalizeWidths(rZones));
+    const normalized = normalizeAllZones(newZones);
     onChange({ ...layoutConfig, zones: normalized });
   };
 
@@ -322,7 +319,7 @@ export default function ZoneLayoutBar({ layoutConfig, onChange }: Props) {
     onChange({ ...layoutConfig, zones: [...zones, newZone], rowHeights: normalizeRowHeights(newRowNums, newHeights) });
   };
 
-  const handleDeleteRow = (rowNum: number) => {
+const handleDeleteRow = (rowNum: number) => {
     const rowZones = zones.filter((z) => (z.row ?? 0) === rowNum);
     const remainingZones = zones.filter((z) => (z.row ?? 0) !== rowNum);
     if (remainingZones.length === 0) return;
@@ -337,9 +334,7 @@ export default function ZoneLayoutBar({ layoutConfig, onChange }: Props) {
         }
       }
     }
-    const rowGrouped = groupByRow(remainingZones);
-    const normalized: Zone[] = [];
-    for (const [, rZones] of rowGrouped) normalized.push(...normalizeWidths(rZones));
+    const normalized = normalizeAllZones(remainingZones);
 
     const newHeights = { ...rowHeights };
     delete newHeights[rowNum];
@@ -349,9 +344,7 @@ export default function ZoneLayoutBar({ layoutConfig, onChange }: Props) {
 
   const handleZoneUpdate = (zone: Zone) => {
     const updatedZones = zones.map((z) => (z.id === zone.id ? zone : z));
-    const rowGrouped = groupByRow(updatedZones);
-    const normalized: Zone[] = [];
-    for (const [, rZones] of rowGrouped) normalized.push(...normalizeWidths(rZones));
+    const normalized = normalizeAllZones(updatedZones);
     onChange({ ...layoutConfig, zones: normalized });
   };
 
@@ -379,9 +372,7 @@ export default function ZoneLayoutBar({ layoutConfig, onChange }: Props) {
 
   const handleMoveZoneToRow = (zoneId: string, newRow: number) => {
     const updatedZones = zones.map((z) => (z.id === zoneId ? { ...z, row: newRow } : z));
-    const rowGrouped = groupByRow(updatedZones);
-    const normalized: Zone[] = [];
-    for (const [, rZones] of rowGrouped) normalized.push(...normalizeWidths(rZones));
+    const normalized = normalizeAllZones(updatedZones);
     onChange({ ...layoutConfig, zones: normalized });
   };
 
