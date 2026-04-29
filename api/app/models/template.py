@@ -21,6 +21,8 @@ class Template(Base):
     content: Mapped[str | None] = mapped_column(Text, nullable=True)
     layout_template: Mapped[str | None] = mapped_column(Text, nullable=True)
     user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    manifest: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    assets: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="templates")

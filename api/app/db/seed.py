@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.template import Template
+import json
 
 
 def generate_layout_template(layout_config: dict) -> str:
@@ -64,6 +65,56 @@ def generate_layout_template(layout_config: dict) -> str:
 {body_content}</div>
 </body>
 </html>'''
+
+
+def build_manifest(template: dict) -> dict:
+    """Construct a manifest dict from the seed template data."""
+    layout_config = template["layout_config"]
+    customizations = template.get("default_customizations", {})
+    colors = customizations.get("colors", {})
+    fonts = customizations.get("fonts", {})
+    spacing = customizations.get("spacing", {})
+    
+    # Build global style schema from default_customizations
+    global_style_schema = []
+    # Colors
+    for key, default in colors.items():
+        global_style_schema.append({
+            "key": key,
+            "type": "color",
+            "label": key.replace("_", " ").title(),
+            "default": default
+        })
+    # Fonts
+    for key, default in fonts.items():
+        global_style_schema.append({
+            "key": key,
+            "type": "font",
+            "label": key.replace("_", " ").title(),
+            "default": default
+        })
+    # Spacing
+    for key, default in spacing.items():
+        global_style_schema.append({
+            "key": key,
+            "type": "length",
+            "label": key.replace("_", " ").title(),
+            "default": default
+        })
+    
+    manifest = {
+        "version": 1,
+        "id": template["id"],
+        "name": template["name"],
+        "description": template.get("description"),
+        "zones": layout_config.get("zones", []),
+        "placement": layout_config.get("placement", {}),
+        "rowHeights": layout_config.get("rowHeights", {}),
+        "globalStyleSchema": global_style_schema,
+        "assets": {},
+        "sectionSchema": template.get("section_schema", {}),
+    }
+    return manifest
 
 
 SEED_TEMPLATES = [
@@ -169,9 +220,11 @@ SEED_TEMPLATES = [
     },
 ]
 
-# Add layout_template to each seed template
+# Add layout_template and manifest to each seed template
 for template in SEED_TEMPLATES:
     template["layout_template"] = generate_layout_template(template["layout_config"])
+    template["manifest"] = build_manifest(template)
+    template["assets"] = {}
 
 
 async def seed_templates(db: AsyncSession) -> None:
