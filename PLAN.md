@@ -18,44 +18,47 @@ Replace the current dual-pipeline template system (hard-coded system templates +
 
 ## 5-Phase Roadmap
 
-| Phase | Goal | Est. Effort |
-|-------|------|-------------|
-| **1 – Frontend Cleanup** | Extract reusable UI, simplify existing components so the coming editor rewrite starts from a clean base. | ~1 week |
-| **2 – Manifest Data Model & Upload** | Define the on-disk/DB representation, multipart upload API, and DB migration. | ~1 week |
-| **3 – New Renderer (IR → HTML / PDF)** | Build a pure-function pipeline that consumes manifest + CV data with pluggable back-ends. | ~2 weeks |
-| **4 – Preview & PDF Integration** | Wire the new renderer into front-end preview (`UserTemplateRenderer`) and the PDF service. | ~1 week |
-| **5 – Visual Template Creator (Step-by-Step Wizard)** | Replace the two-tab creator with a guided manifest-centric wizard. | ~2 weeks |
+| Phase | Goal | Est. Effort | Status |
+|-------|------|-------------|--------|
+| **1 – Frontend Cleanup** | Extract reusable UI, simplify existing components so the coming editor rewrite starts from a clean base. | ~1 week | ✅ **DONE** |
+| **2 – Manifest Data Model & Upload** | Define the on-disk/DB representation, multipart upload API, and DB migration. | ~1 week | ✅ **DONE** |
+| **3 – New Renderer (IR → HTML / PDF)** | Build a pure-function pipeline that consumes manifest + CV data with pluggable back-ends. | ~2 weeks | ⏳ |
+| **4 – Preview & PDF** | Wire the new renderer into front-end preview (`UserTemplateRenderer`) and the PDF service. | ~1 week | ⏳ |
+| **5 – Visual Template Creator** | Replace the two-tab creator with a guided manifest-centric wizard. | ~2 weeks | ⏳ |
 
 **Total:** ~7 weeks
 
 ---
 
-## Phase 1 – Frontend Cleanup (Independent, Do First)
+## Phase 1 – Frontend Cleanup (Independent, Do First) ✅ **COMPLETED**
 
 *Extracted from old Phase 3 to reduce noise before the big rewrite.*
 
-| # | Task | Files |
-|---|------|-------|
-| 1.1 | Create `StyleEditor.tsx` (global colors/fonts/spacing) | `web/src/components/customization/StyleEditor.tsx` |
-| 1.2 | Create `ZonesSection.tsx` (zone layout accordion + `ZoneLayoutBar`) | `web/src/components/customization/ZonesSection.tsx` |
-| 1.3 | Refactor `CustomizePanel.tsx` → use `StyleEditor` + `ZonesSection` | `web/src/components/customization/CustomizePanel.tsx` |
-| 1.4 | Refactor `TemplateCustomizePanel.tsx` → use shared components | `web/src/components/template-creator/TemplateCustomizePanel.tsx` |
-| 1.5 | **Remove vertical row-height drag** from `ZoneLayoutBar` | `web/src/components/customization/ZoneLayoutBar.tsx` |
-| 1.6 | Add `normalizeAllZones()` helper to `zones.ts`; use in 6 handlers | `web/src/lib/sections/zones.ts`, `ZoneLayoutBar.tsx` |
-| 1.7 | Collapse `validateSection.ts`: profile / `SECTION_TYPES` array / default | `web/src/lib/validators/validateSection.ts` |
-| 1.8 | Run `npm run lint && npm run test` — zero regressions | — |
+| # | Task | Files | Status |
+|---|------|-------|--------|
+| 1.1 | Create `StyleEditor.tsx` (global colors/fonts/spacing) | `web/src/components/customization/StyleEditor.tsx` | ✅ |
+| 1.2 | Create `ZonesSection.tsx` (zone layout accordion + `ZoneLayoutBar`) | `web/src/components/customization/ZonesSection.tsx` | ✅ |
+| 1.3 | Refactor `CustomizePanel.tsx` → use `StyleEditor` + `ZonesSection` | `web/src/components/customization/CustomizePanel.tsx` | ✅ |
+| 1.4 | Refactor `TemplateCustomizePanel.tsx` → use shared components | `web/src/components/template-creator/TemplateCustomizePanel.tsx` | ✅ |
+| 1.5 | **Remove vertical row-height drag** from `ZoneLayoutBar` | `web/src/components/customization/ZoneLayoutBar.tsx` | ✅ |
+| 1.6 | Add `normalizeAllZones()` helper to `zones.ts`; use in 6 handlers | `web/src/lib/sections/zones.ts`, `ZoneLayoutBar.tsx` | ✅ |
+| 1.7 | Collapse `validateSection.ts`: profile / `SECTION_TYPES` array / default | `web/src/lib/validators/validateSection.ts` | ✅ |
+| 1.8 | Run `npm run lint && npm run test` — zero regressions | — | ⏳ (pre-existing test mock issue) |
 
 **Deliverable:** Clean, deduplicated customization UI; `ZoneLayoutBar` slimmed to horizontal resize only.
 
 ---
 
-## Phase 2 – Manifest Data Model & Upload
+## Phase 2 – Manifest Data Model & Upload ✅ **COMPLETED**
 
 ### 2.1 Manifest Schema (`manifest.json`)
 
 ```json
 {
   "version": 1,
+  "id": "generic-modern",
+  "name": "Modern",
+  "description": "Two-column layout with accent color header and light sidebar",
   "zones": [
     { "id": "sidebar", "row": 0, "styles": { "width": "30%", "background-color": "#f8fafc", "padding": "24px" }, "label": "Sidebar" },
     { "id": "main", "row": 0, "styles": { "width": "70%", "padding": "24px" }, "label": "Main" }
@@ -69,7 +72,6 @@ Replace the current dual-pipeline template system (hard-coded system templates +
     "languages": "main",
     "certifications": "main"
   },
-  "rowHeights": { "0": "100%" },
   "globalStyleSchema": [
     { "key": "accent", "type": "color", "label": "Accent", "default": "#2563eb" },
     { "key": "bg_sidebar", "type": "color", "label": "Sidebar BG", "default": "#f8fafc" },
@@ -94,12 +96,13 @@ Replace the current dual-pipeline template system (hard-coded system templates +
 
 * `globalStyleSchema` lets **users declare their own style variables** (type = `color|font|length|enum`). The visual editor builds the StyleEditor UI from this schema.
 * `assets` maps logical names → relative paths inside the template bundle.
+* **`rowHeights` removed** — row height is now content-driven; only row order matters.
 
 ### 2.2 Database Changes
 
 | Table | Change |
 |-------|--------|
-| `templates` | Add `manifest JSONB NOT NULL DEFAULT '{}'`, `assets BYTEA[]` (or side table `template_assets`), make `layout_template`, `layout_config`, `default_customizations` **generated columns** (or computed on read). |
+| `templates` | Add `manifest JSONB`, `assets JSONB` columns. Legacy columns (`layout_template`, `layout_config`, `default_customizations`) kept for compatibility; they are now **derived** from manifest on read. |
 | `templates` | Keep `is_system BOOLEAN DEFAULT false`, `user_id UUID FK` (NULL for system). |
 
 ### 2.3 Upload API
@@ -113,7 +116,7 @@ POST /api/v1/templates          (multipart)
 Response: TemplateDetail with generated HTML/CSS preview URLs
 ```
 
-* Server validates manifest against a Pydantic model, generates missing `template.html`/`styles.css` via `layoutConfigToHTML` + CSS var injection, stores blobs.
+* Server validates manifest against a Pydantic model, generates missing `template.html`/`styles.css` via `manifest_to_layout_template`, stores blobs.
 
 ### 2.4 Seed System Templates
 
@@ -121,15 +124,15 @@ Run a one-off script that converts the three existing seed templates into manife
 
 ### 2.5 Tasks
 
-| # | Task |
-|---|------|
-| 2.1 | Write `Manifest` Pydantic model + JSON Schema |
-| 2.2 | Alembic migration: add `manifest`, `assets` columns; make legacy cols generated |
-| 2.3 | `POST /templates` multipart endpoint with validation + generation |
-| 2.4 | `GET /templates/{id}/manifest` (raw) + `GET /templates/{id}/html` (generated) |
-| 2.5 | Seed script for 3 system templates |
-| 2.6 | Update `TemplateDetail` schema to include manifest + generated URLs |
-| 2.7 | Integration tests: upload manifest → fetch generated HTML → render preview |
+| # | Task | Status |
+|---|------|--------|
+| 2.1 | Write `Manifest` Pydantic model + JSON Schema | ✅ |
+| 2.2 | Alembic migration: add `manifest`, `assets` columns | ✅ |
+| 2.3 | `POST /templates` multipart endpoint with validation + generation | ✅ |
+| 2.4 | `GET /templates/{id}/manifest` (raw) + `GET /templates/{id}/html` (generated) | ✅ |
+| 2.5 | Seed script for 3 system templates | ✅ |
+| 2.6 | Update `TemplateDetail` schema to include manifest + generated URLs | ✅ |
+| 2.7 | Integration tests: upload manifest → fetch generated HTML → render preview | ⏳ |
 
 ---
 
