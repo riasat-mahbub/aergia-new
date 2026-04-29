@@ -3,7 +3,8 @@ import re
 import json
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status, File, Form, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, status, Form, File, UploadFile, Body
+from fastapi.responses import PlainTextResponse, File, Form, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -141,6 +142,22 @@ async def get_template(template_id: str, db: AsyncSession = Depends(get_db)):
     if not template:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
     return TemplateDetail.model_validate(template)
+
+
+@router.get("/{template_id}/manifest", response_model=dict)
+async def get_template_manifest(template_id: str, db: AsyncSession = Depends(get_db)):
+    template = await db.get(Template, template_id)
+    if not template:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+    return template.manifest or {}
+
+
+@router.get("/{template_id}/html", response_class=PlainTextResponse)
+async def get_template_html(template_id: str, db: AsyncSession = Depends(get_db)):
+    template = await db.get(Template, template_id)
+    if not template:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+    return template.layout_template or ""
 
 
 @router.post("", response_model=TemplateDetail)
