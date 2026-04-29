@@ -29,6 +29,9 @@ class TemplateDetail(BaseModel):
     default_customizations: dict | None
     content: str | None = None
     layout_template: str | None = None
+    manifest: dict | None = None
+    assets: dict | None = None
+    generated_html_url: str | None = None
     is_user_template: bool = False
 
     @classmethod
