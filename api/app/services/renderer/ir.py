@@ -38,7 +38,7 @@ def _group_instances_by_zone(
             import re
             matches = re.findall(r'\{\{([a-zA-Z0-9_-]+)\}\}', layout_template)
             zone_placeholders = set(matches)
-            if "main" not in zone_place_placeholders and zone_placeholders:
+            if "main" not in zone_placeholders and zone_placeholders:
                 target_zone = next(iter(zone_placeholders))
                 groups: dict[str, list[dict]] = {}
                 for instance in instances:

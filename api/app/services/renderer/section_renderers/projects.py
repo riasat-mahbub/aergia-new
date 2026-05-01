@@ -1,6 +1,5 @@
 """Projects section renderer."""
 
-
 def render_projects(data: list[dict] | None) -> str:
     if not data:
         return '<p style="font-size:0.875rem;color:#9ca3af;font-style:italic;">No data</p>'

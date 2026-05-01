@@ -1,7 +1,7 @@
 """HTML rendering entry point."""
 
-from ..types import DocumentIR
-from ..ir import build_ir
+from .types import DocumentIR
+from .ir import build_ir
 from .backends import get_backend, RendererBackend
 
 
