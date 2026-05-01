@@ -9,6 +9,7 @@ import type { LayoutConfig } from "../../lib/sections/types";
 interface WizardProps {
   initialManifest?: Record<string, any>;
   onSave?: (manifest: Record<string, any>) => void;
+  onComplete?: () => void;
 }
 
 type StepId = "layout" | "styles" | "assets" | "review";
@@ -20,7 +21,7 @@ const steps: { id: StepId; label: string; description: string }[] = [
   { id: "review", label: "Review", description: "Preview and save" },
 ];
 
-export default function TemplateWizard({ initialManifest = {}, onSave }: WizardProps) {
+export default function TemplateWizard({ initialManifest = {}, onSave, onComplete }: WizardProps) {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [manifest, setManifest] = useState<Record<string, any>>({
     version: 1,
@@ -51,7 +52,7 @@ export default function TemplateWizard({ initialManifest = {}, onSave }: WizardP
   };
 
   const handleLayoutChange = (config: LayoutConfig) => {
-    updateManifest({ zones: config.zones, placement: config.placement, rowHeights: config.rowHeights });
+    updateManifest({ zones: config.zones, placement: config.placement });
   };
 
   const handleStyleChange = (customizations: Record<string, any>) => {
@@ -78,7 +79,7 @@ export default function TemplateWizard({ initialManifest = {}, onSave }: WizardP
 
   const generatePreview = async () => {
     try {
-      const response = await client.post("/api/v1/render/html", {
+      const response = await client.post("/render/html", {
         manifest: {
           zones: manifest.zones,
           placement: manifest.placement,
@@ -105,6 +106,7 @@ export default function TemplateWizard({ initialManifest = {}, onSave }: WizardP
       });
       
       onSave?.(response.data);
+      onComplete?.();
     } catch (e) {
       console.error("Save failed", e);
     } finally {
@@ -116,7 +118,7 @@ export default function TemplateWizard({ initialManifest = {}, onSave }: WizardP
     switch (currentStep.id) {
       case "layout":
         return (
-          <ZoneLayoutBar layoutConfig={{ zones: manifest.zones, placement: manifest.placement, rowHeights: manifest.rowHeights }} onChange={handleLayoutChange} />
+          <ZoneLayoutBar layoutConfig={{ zones: manifest.zones, placement: manifest.placement }} onChange={handleLayoutChange} />
         );
       case "styles":
         return (

@@ -108,6 +108,7 @@ const handleBackToPicker = useCallback(() => {
                 <TemplateWizard
                   initialManifest={selectedManifest || undefined}
                   onSave={(manifest) => console.log("Template saved:", manifest)}
+                  onComplete={handleBackToPicker}
                 />
               </div>
 
