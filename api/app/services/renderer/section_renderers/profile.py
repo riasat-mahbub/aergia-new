@@ -1,6 +1,14 @@
 """Profile section renderer."""
 
-from ..section_renderers import SECTION_LABELS
+SECTION_LABELS = {
+    "profile": "Profile",
+    "experience": "Experience",
+    "education": "Education",
+    "skills": "Skills",
+    "projects": "Projects",
+    "languages": "Languages",
+    "certifications": "Certifications",
+}
 
 
 def render_profile(data: dict) -> str:
