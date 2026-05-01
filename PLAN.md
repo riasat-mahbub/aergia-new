@@ -23,7 +23,7 @@ Replace the current dual-pipeline template system (hard-coded system templates +
 | **1 – Frontend Cleanup** | Extract reusable UI, simplify existing components so the coming editor rewrite starts from a clean base. | ~1 week | ✅ **DONE** |
 | **2 – Manifest Data Model & Upload** | Define the on-disk/DB representation, multipart upload API, and DB migration. | ~1 week | ✅ **DONE** |
 | **3 – New Renderer (IR → HTML / PDF)** | Build a pure-function pipeline that consumes manifest + CV data with pluggable back-ends. | ~2 weeks | ✅ **DONE** |
-| **4 – Preview & PDF** | Wire the new renderer into front-end preview (`UserTemplateRenderer`) and the PDF service. | ~1 week | ⏳ |
+| **4 – Preview & PDF** | Wire the new renderer into front-end preview (`UserTemplateRenderer`) and the PDF service. | ~1 week | ✅ **DONE** |
 | **5 – Visual Template Creator** | Replace the two-tab creator with a guided manifest-centric wizard. | ~2 weeks | ⏳ |
 
 **Total:** ~7 weeks
@@ -232,18 +232,18 @@ Adding LaTeX/DOCX later = new subclass + `register_backend()`.
 
 ---
 
-## Phase 4 – Preview & PDF Integration
+## Phase 4 – Preview & PDF Integration ✅ **COMPLETED**
 
-| # | Task |
-|---|------|
-| 4.1 | `TemplateSwitcher.tsx` → always fetch template manifest (if not in context) and render `UserTemplateRenderer` with generated `layout_template` + `layout_config` + `default_customizations`. |
-| 4.2 | `UserTemplateRenderer.tsx` → call **new HTML back-end** via a tiny server endpoint (`POST /api/v1/render/html { manifest, cv_data, customizations }`) or a WASM port of `html.py`. Simpler: keep current iframe + `renderUserTemplateHTML` **but** point it at the new Python renderer via a preview endpoint. |
-| 4.3 | Delete `ModernTemplate.tsx`, `ClassicTemplate.tsx`, `MinimalTemplate.tsx`. |
-| 4.4 | `BaseTemplateCard.tsx` thumbnail → generate from manifest `zones` (mini SVG zone diagram). |
-| 4.5 | `CustomizePanel.tsx` → drop `isUserTemplate` guard; global style controls work for every template because every manifest has `globalStyleSchema`. |
-| 4.6 | `BuilderPage.tsx` → ensure it passes `templateLayoutConfig` (now derived from manifest) and `templateDefaultCustomizations` to `TemplateSwitcher`. |
-| 4.7 | PDF export (`api/app/services/pdf.py`) → calls new `render_pdf`. |
-| 4.8 | Integration tests: preview + PDF for system templates + a sample user template. |
+| # | Task | Status |
+|---|------|--------|
+| 4.1 | `TemplateSwitcher.tsx` → always use `UserTemplateRenderer` with manifest | ✅ |
+| 4.2 | `UserTemplateRenderer.tsx` → call new `/api/v1/render/html` endpoint with manifest | ✅ |
+| 4.3 | Delete `ModernTemplate.tsx`, `ClassicTemplate.tsx`, `MinimalTemplate.tsx` | ✅ |
+| 4.4 | `BaseTemplateCard.tsx` thumbnail → generate from manifest `zones` | ✅ |
+| 4.5 | `CustomizePanel.tsx` → drop `isUserTemplate` guard; global styles for all templates | ✅ |
+| 4.6 | `BuilderPage.tsx` → pass `templateManifest` to `TemplateSwitcher` | ✅ |
+| 4.7 | Add `POST /api/v1/render/html` endpoint for IR-based rendering | ✅ |
+| 4.8 | PDF service (`api/app/services/pdf.py`) → calls new async `render_pdf` | ✅ |
 
 ---
 

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import type { LayoutConfig } from "../../lib/sections/types";
 import StyleEditor from "../customization/StyleEditor";
 import ZonesSection from "../customization/ZonesSection";
@@ -9,15 +8,6 @@ interface Props {
   customizations: Record<string, any>;
   onCustomizationsChange: (customizations: Record<string, any>) => void;
 }
-
-const FONT_OPTIONS = [
-  "Inter, system-ui, sans-serif",
-  "Georgia, Crimson, serif",
-  "system-ui, sans-serif",
-  "Arial, Helvetica, sans-serif",
-  "Times New Roman, serif",
-  "Courier New, monospace",
-];
 
 export default function TemplateCustomizePanel({
   layoutConfig,

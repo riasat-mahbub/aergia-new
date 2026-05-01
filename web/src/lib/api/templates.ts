@@ -10,6 +10,7 @@ export interface UserTemplate {
   default_customizations: Record<string, any> | null;
   content: string;
   layout_template: string | null;
+  manifest: Record<string, any> | null;
   is_user_template: boolean;
   is_system: boolean;
   user_id: string | null;
