@@ -24,8 +24,6 @@ import {
   getWidthPercent,
   getRowNumbers,
   groupByRow,
-  getRowHeightPercent,
-  normalizeRowHeights,
   normalizeAllZones,
 } from "../../lib/sections/zones";
 import { SECTION_TYPES } from "../../lib/sections/types";
@@ -37,14 +35,12 @@ interface Props {
   onChange: (config: LayoutConfig) => void;
 }
 
-const ROW_BAR_HEIGHT = 240; // total height of the proportional row bar in px
 
 /* ── Sortable Row Item ─────────────────────────────────────────────── */
 
 interface SortableRowProps {
   rowNum: number;
   rowZones: Zone[];
-  rowHeightPct: number;
   selectedZoneId: string | null;
   onSelectZone: (id: string | null) => void;
   onDeleteZone: (id: string) => void;
@@ -55,7 +51,6 @@ interface SortableRowProps {
 function SortableRow({
   rowNum,
   rowZones,
-  rowHeightPct,
   selectedZoneId,
   onSelectZone,
   onDeleteZone,
@@ -72,7 +67,7 @@ function SortableRow({
     zIndex: isDragging ? 50 : undefined,
     opacity: isDragging ? 0.8 : 1,
     flexBasis: 0,
-    flexGrow: rowHeightPct,
+    flexGrow: 1,
     position: "relative",
   };
 
@@ -89,7 +84,7 @@ function SortableRow({
           <GripVertical className="h-3 w-3" />
         </button>
         <span className="flex-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-          Row {rowNum + 1}: {rowHeightPct}%
+          Row {rowNum + 1}
         </span>
         <button
           type="button"
@@ -152,7 +147,7 @@ function SortableRow({
 /* ── Main Component ─────────────────────────────────────────────── */
 
 export default function ZoneLayoutBar({ layoutConfig, onChange }: Props) {
-  const { zones, placement, rowHeights } = layoutConfig;
+  const { zones, placement } = layoutConfig;
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createTargetRow, setCreateTargetRow] = useState<number>(0);
@@ -166,7 +161,7 @@ export default function ZoneLayoutBar({ layoutConfig, onChange }: Props) {
     barWidth: number;
   } | null>(null);
 
-  const barContainerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -181,7 +176,7 @@ export default function ZoneLayoutBar({ layoutConfig, onChange }: Props) {
     (rowNum: number, localIndex: number, e: React.MouseEvent) => {
       e.preventDefault();
       const rowZones = zones.filter((z) => (z.row ?? 0) === rowNum);
-      const barEl = barContainerRef.current;
+      const barEl = containerRef.current;
       const barWidth = barEl?.getBoundingClientRect().width || 300;
       const widths = rowZones.map((z) => getWidthPercent(z));
       const globalIndices: number[] = [];
@@ -249,15 +244,9 @@ export default function ZoneLayoutBar({ layoutConfig, onChange }: Props) {
 
       const newZones = zones.map((z) => ({ ...z, row: newMapping.get(z.row ?? 0) ?? 0 }));
 
-      // Remap rowHeights to new row numbers
-      const newHeights: Record<number, string> = {};
-      reorderedRowNums.forEach((oldRow, i) => {
-        if (rowHeights?.[oldRow] !== undefined) newHeights[i] = rowHeights[oldRow];
-      });
-
-      onChange({ ...layoutConfig, zones: normalizeWidths(newZones), rowHeights: normalizeRowHeights(reorderedRowNums.map((_, i) => i), newHeights) });
+      onChange({ ...layoutConfig, zones: normalizeWidths(newZones) });
     },
-    [layoutConfig, onChange, rowNumbers, zones, rowHeights]
+    [layoutConfig, onChange, rowNumbers, zones]
   );
 
   /* ── Zone CRUD ────────────────────────────────────────────────── */
@@ -309,10 +298,7 @@ export default function ZoneLayoutBar({ layoutConfig, onChange }: Props) {
       styles: { width: "100%", padding: "24px" },
       assignedSections: [],
     };
-    const newHeights = { ...rowHeights, [nextRow]: "30%" };
-    // Renormalize heights to include the new row
-    const newRowNums = [...rowNumbers, nextRow];
-    onChange({ ...layoutConfig, zones: [...zones, newZone], rowHeights: normalizeRowHeights(newRowNums, newHeights) });
+    onChange({ ...layoutConfig, zones: [...zones, newZone] });
   };
 
 const handleDeleteRow = (rowNum: number) => {
@@ -331,10 +317,7 @@ const handleDeleteRow = (rowNum: number) => {
       }
     }
     const normalized = normalizeAllZones(remainingZones);
-
-    const newHeights = { ...rowHeights };
-    delete newHeights[rowNum];
-    onChange({ ...layoutConfig, zones: normalized, placement: newPlacement, rowHeights: normalizeRowHeights(remainingRowNums, newHeights) });
+    onChange({ ...layoutConfig, zones: normalized, placement: newPlacement });
     if (selectedZoneId && rowZones.some((z) => z.id === selectedZoneId)) setSelectedZoneId(null);
   };
 
@@ -375,31 +358,26 @@ const handleDeleteRow = (rowNum: number) => {
   const selectedZone = zones.find((z) => z.id === selectedZoneId);
 
   return (
-    <div>
-      {/* Proportional row height bar */}
-      <div ref={barContainerRef} style={{ height: `${ROW_BAR_HEIGHT}px` }} className="flex flex-col overflow-hidden rounded-lg border border-gray-200">
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={rowNumbers.map((r) => `row-${r}`)} strategy={verticalListSortingStrategy}>
-            {rowNumbers.map((rowNum) => {
-              const rowZones = rowGroups.get(rowNum) || [];
-              const heightPct = getRowHeightPercent(rowNum, rowNumbers, rowHeights);
-              return (
-                <SortableRow
-                  key={rowNum}
-                  rowNum={rowNum}
-                  rowZones={rowZones}
-                  rowHeightPct={heightPct}
-                  selectedZoneId={selectedZoneId}
-                  onSelectZone={setSelectedZoneId}
-                  onDeleteZone={handleDeleteZone}
-                  onMouseDownHorizontal={handleHorizontalMouseDown}
-                  onDeleteRow={handleDeleteRow}
-                />
-              );
-            })}
-          </SortableContext>
-        </DndContext>
-      </div>
+    <div ref={containerRef}>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={rowNumbers.map((r) => `row-${r}`)} strategy={verticalListSortingStrategy}>
+          {rowNumbers.map((rowNum) => {
+            const rowZones = rowGroups.get(rowNum) || [];
+            return (
+              <SortableRow
+                key={rowNum}
+                rowNum={rowNum}
+                rowZones={rowZones}
+                selectedZoneId={selectedZoneId}
+                onSelectZone={setSelectedZoneId}
+                onDeleteZone={handleDeleteZone}
+                onMouseDownHorizontal={handleHorizontalMouseDown}
+                onDeleteRow={handleDeleteRow}
+              />
+            );
+          })}
+        </SortableContext>
+      </DndContext>
 
       <div className="mt-2 flex gap-2">
         <button
