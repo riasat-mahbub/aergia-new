@@ -22,5 +22,5 @@ SECTION_RENDERERS = {
 def render_section_preview(section_type: str, data: any) -> str:
     renderer = SECTION_RENDERERS.get(section_type)
     if not renderer:
-        return ""
+        raise ValueError(f"Unknown section type: '{section_type}'")
     return renderer(data)

@@ -28,36 +28,40 @@ def _build_zone_styles(zone: dict) -> dict[str, str]:
 def _group_instances_by_zone(
     instances: list[dict],
     layout_config: dict | None,
-    layout_template: str | None = None
+    zones: list[dict],
 ) -> dict[str, list[dict]]:
-    """Group section instances by their target zone."""
+    """Group section instances by their target zone.
+
+    Raises ValueError if layout_config or placement is missing, or if a
+    section instance has no matching zone and no fallback zone is available.
+    """
     if not layout_config or "placement" not in layout_config:
-        # Smart default: scan template for zone placeholders
-        if layout_template:
-            import re
-            matches = re.findall(r'\{\{([a-zA-Z0-9_-]+)\}\}', layout_template)
-            zone_placeholders = set(matches)
-            if "main" not in zone_placeholders and zone_placeholders:
-                target_zone = next(iter(zone_placeholders))
-                groups: dict[str, list[dict]] = {}
-                for instance in instances:
-                    if not instance.get("enabled", True):
-                        continue
-                    if target_zone not in groups:
-                        groups[target_zone] = []
-                    groups[target_zone].append(instance)
-                return groups
-        # Fallback: everything goes to "main"
-        return {"main": [i for i in instances if i.get("enabled", True)]}
+        raise ValueError("layout_config with placement is required")
 
     placement = layout_config["placement"]
+
+    # Find the first zone in the first row as fallback for unplaced types
+    fallback_zone_id: str | None = None
+    if zones:
+        sorted_zones = sorted(zones, key=lambda z: (z.get("row", 0), z.get("id", "")))
+        fallback_zone_id = sorted_zones[0].get("id", "")
+        if not fallback_zone_id:
+            fallback_zone_id = None
+
     groups: dict[str, list[dict]] = {}
 
     for instance in instances:
         if not instance.get("enabled", True):
             continue
         section_type = instance.get("type", "")
-        zone_id = placement.get(section_type, "main")
+        if not section_type:
+            raise ValueError("Section instance is missing 'type'")
+        zone_id = placement.get(section_type)
+        if not zone_id:
+            if fallback_zone_id:
+                zone_id = fallback_zone_id
+            else:
+                raise ValueError(f"No zone defined for section type '{section_type}' and no fallback zone available")
         if zone_id not in groups:
             groups[zone_id] = []
         groups[zone_id].append(instance)
@@ -70,11 +74,11 @@ def _render_instance_panel(instance: dict) -> str:
     if not instance.get("enabled", True):
         return ""
     section_type = instance.get("type", "")
+    if not section_type:
+        raise ValueError("Section instance is missing 'type'")
     label = instance.get("title", SECTION_LABELS.get(section_type, section_type))
     section_data = instance.get("data")
     content = render_section_preview(section_type, section_data)
-    if not content:
-        content = '<p style="font-size:0.875rem;color:#9ca3af;font-style:italic;">No data</p>'
 
     per_style = instance.get("style") or {}
     wrapper_extra = ""
@@ -124,7 +128,7 @@ def build_ir(
     from .types import RowIR, ZoneIR, SectionPanelIR
 
     instances = cv_data.get("instances", [])
-    layout_config = manifest.get("layout_config") or {}
+    layout_config = manifest.get("layout_config")
     layout_template = manifest.get("layout_template")
 
     # Merge customizations with manifest defaults
@@ -154,10 +158,8 @@ def build_ir(
     css_vars = {k: v for k, v in css_vars.items() if v is not None}
 
     # Group instances by zone
-    groups = _group_instances_by_zone(instances, layout_config, layout_template)
-
-    # Build rows from manifest zones
     zones = manifest.get("zones", [])
+    groups = _group_instances_by_zone(instances, layout_config, zones)
     rows_dict: dict[int, list[dict]] = {}
     for zone in zones:
         row_num = zone.get("row", 0)

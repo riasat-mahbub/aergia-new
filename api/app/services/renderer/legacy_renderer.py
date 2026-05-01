@@ -109,7 +109,7 @@ def _render_zones(instances: list[dict], layout_config: dict | None) -> str:
         return "".join(panels)
 
     zones = layout_config["zones"]
-    groups = _group_instances_by_zone(instances, layout_config)
+    groups = _group_instances_by_zone(instances, layout_config, zones)
 
     from collections import defaultdict
     rows: dict[int, list[dict]] = defaultdict(list)
@@ -276,7 +276,8 @@ def render_user_template_unified(
 ) -> str:
     merged = _merge_customizations(default_customizations or {}, customizations)
 
-    groups = _group_instances_by_zone(instances, layout_config, layout_template)
+    zones = layout_config.get("zones", []) if layout_config else []
+    groups = _group_instances_by_zone(instances, layout_config, zones)
 
     populated_zone_ids: set[str] = set()
 
