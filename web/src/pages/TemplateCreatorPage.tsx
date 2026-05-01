@@ -40,9 +40,10 @@ export default function TemplateCreatorPage() {
       setMode("editor");
     } catch {
       const tpl = systemTemplates.find((t) => t.id === templateId);
-      if (tpl?.manifest) {
-        setSelectedManifest(tpl.manifest);
-        setLiveManifest(tpl.manifest);
+      if (tpl) {
+        const fallback = { version: 1, name: tpl.name || "", zones: [], placement: {} };
+        setSelectedManifest(fallback);
+        setLiveManifest(fallback);
         setMode("editor");
       }
     }
