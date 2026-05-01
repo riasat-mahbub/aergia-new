@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Check, Loader2, X } from "lucide-react";
 import ZoneLayoutBar from "../customization/ZoneLayoutBar";
 import StyleEditor from "../customization/StyleEditor";
 import client from "../../lib/api/client";
+import { useToastStore } from "../../lib/store/uiStore";
 import type { LayoutConfig, Zone, AssetItem } from "../../lib/sections/types";
 
 /* ── Asset Manager ─────────────────────────────────────────────── */
@@ -154,6 +155,8 @@ export default function TemplateWizard({ initialManifest = {}, onSave, onComplet
     });
   };
 
+  const addToast = useToastStore((s) => s.addToast);
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -164,10 +167,14 @@ export default function TemplateWizard({ initialManifest = {}, onSave, onComplet
         headers: { "Content-Type": "multipart/form-data" },
       });
       
+      addToast("Template saved", "success");
       onSave?.(response.data);
       onComplete?.();
     } catch (e) {
-      console.error("Save failed", e);
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+        || (e as Error)?.message
+        || "Failed to save template";
+      addToast(detail, "error");
     } finally {
       setSaving(false);
     }
