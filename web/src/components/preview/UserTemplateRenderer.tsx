@@ -1,6 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { SectionInstance, LayoutConfig } from "../../lib/sections/types";
-import { renderUserTemplateHTML } from "../../lib/sections/renderHTML";
+import client from "../../lib/api/client";
 
 interface Props {
   templateId: string;
@@ -9,21 +9,39 @@ interface Props {
   templateContent?: string;
   layoutConfig?: LayoutConfig;
   defaultCustomizations?: Record<string, unknown>;
+  manifest?: Record<string, any>;
 }
 
-export default function UserTemplateRenderer({ instances, customizations, templateContent, layoutConfig, defaultCustomizations }: Props) {
+export default function UserTemplateRenderer({ instances, customizations, templateContent, layoutConfig, defaultCustomizations, manifest }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [html, setHtml] = useState<string>("");
 
   useEffect(() => {
-    if (!templateContent || !iframeRef.current) return;
+    // Use manifest if available, otherwise fall back to layoutConfig
+    const renderManifest = manifest || {
+      zones: layoutConfig?.zones || [],
+      placement: layoutConfig?.placement || {},
+      globalStyleSchema: [],
+      default_customizations: defaultCustomizations || {},
+    };
 
-    const html = renderUserTemplateHTML(
-      instances,
-      customizations || {},
-      templateContent,
-      defaultCustomizations,
-      layoutConfig,
-    );
+    async function renderTemplate() {
+      try {
+        const response = await client.post("/api/v1/render/html", {
+          manifest: renderManifest,
+          cv_data: { instances },
+          customizations: customizations || {},
+        });
+        setHtml(response.data.html);
+      } catch (error) {
+        console.error("Failed to render template:", error);
+      }
+    }
+    renderTemplate();
+  }, [manifest, templateContent, instances, customizations, layoutConfig, defaultCustomizations]);
+
+  useEffect(() => {
+    if (!html || !iframeRef.current) return;
 
     const iframe = iframeRef.current;
     const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
@@ -32,7 +50,7 @@ export default function UserTemplateRenderer({ instances, customizations, templa
     iframeDoc.open();
     iframeDoc.write(html);
     iframeDoc.close();
-  }, [templateContent, instances, customizations, layoutConfig, defaultCustomizations]);
+  }, [html]);
 
   return (
     <div className="mx-auto max-w-[210mm] rounded bg-white shadow-sm">

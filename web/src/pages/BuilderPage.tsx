@@ -36,6 +36,7 @@ export default function BuilderPage() {
   const [localCustomizations, setLocalCustomizations] = useState<Record<string, unknown>>({});
   const [templateLayoutConfig, setTemplateLayoutConfig] = useState<LayoutConfig | null>(null);
   const [templateDefaultCustomizations, setTemplateDefaultCustomizations] = useState<Record<string, unknown> | null>(null);
+  const [templateManifest, setTemplateManifest] = useState<Record<string, any> | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const hasChangesRef = useRef(false);
   const pendingSaveRef = useRef<Promise<unknown> | null>(null);
@@ -108,6 +109,7 @@ export default function BuilderPage() {
 
     setTemplateLayoutConfig(null);
     setTemplateDefaultCustomizations(null);
+    setTemplateManifest(null);
 
     (async () => {
       try {
@@ -120,6 +122,9 @@ export default function BuilderPage() {
         }
         if (template.default_customizations != null) {
           setTemplateDefaultCustomizations(template.default_customizations);
+        }
+        if (template.manifest != null) {
+          setTemplateManifest(template.manifest);
         }
       } catch {
         // Template fetch failed
@@ -420,6 +425,7 @@ export default function BuilderPage() {
                 templateContent={currentCV.template_content || undefined}
                 layoutConfig={normalizedLayoutConfig || undefined}
                 defaultCustomizations={templateDefaultCustomizations || undefined}
+                manifest={templateManifest || undefined}
               />
             </div>
           </motion.div>
