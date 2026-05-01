@@ -86,9 +86,10 @@ interface WizardProps {
   onManifestChange?: (manifest: Record<string, any>) => void;
 }
 
-type StepId = "layout" | "styles" | "assets" | "review";
+type StepId = "basics" | "layout" | "styles" | "assets" | "review";
 
 const steps: { id: StepId; label: string; description: string }[] = [
+  { id: "basics", label: "Basics", description: "Name and describe your template" },
   { id: "layout", label: "Layout", description: "Arrange zones and rows" },
   { id: "styles", label: "Styles", description: "Colors, fonts, spacing" },
   { id: "assets", label: "Assets", description: "Upload images and place them in zones" },
@@ -182,6 +183,31 @@ export default function TemplateWizard({ initialManifest = {}, onSave, onComplet
 
   const renderStepContent = () => {
     switch (currentStep.id) {
+      case "basics":
+        return (
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-500">Template Name</label>
+              <input
+                type="text"
+                value={manifest.name || ""}
+                onChange={(e) => updateManifest({ name: e.target.value })}
+                placeholder="My Template"
+                className="w-full rounded border px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-500">Description</label>
+              <textarea
+                value={manifest.description || ""}
+                onChange={(e) => updateManifest({ description: e.target.value })}
+                placeholder="Brief description of your template"
+                rows={3}
+                className="w-full rounded border px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+        );
       case "layout":
         return (
           <ZoneLayoutBar layoutConfig={{ zones: manifest.zones, placement: manifest.placement }} onChange={handleLayoutChange} />
