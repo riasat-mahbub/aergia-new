@@ -3,7 +3,7 @@ import re
 import json
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status, Form, File, UploadFile, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Form, File, UploadFile
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -80,9 +80,7 @@ def manifest_to_layout_template(manifest: Manifest) -> str:
 
     body_content = ""
     for row_num, row_zones in sorted_rows:
-        # No rowHeights, use equal distribution
-        flex_val = len = len(row_zones)
-        body_content += f'  <div style="display:flex;flex:1 0 auto;">\n'
+        body_content += '  <div style="display:flex;flex:1 0 auto;">\n'
         for zone in row_zones:
             body_content += f'    {{{{{zone.id}}}}}\n'
         body_content += '  </div>\n'

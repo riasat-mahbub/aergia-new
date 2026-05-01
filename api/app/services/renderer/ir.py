@@ -1,7 +1,6 @@
 """Build intermediate representation (IR) from manifest + CV data."""
 
-from typing import Any
-from .types import DocumentIR, RowIR, ZoneIR, SectionPanelIR
+from .types import DocumentIR
 from .section_renderers import render_section_preview
 from .section_renderers import SECTION_LABELS
 
@@ -122,7 +121,7 @@ def build_ir(
     customizations: dict
 ) -> DocumentIR:
     """Build DocumentIR from manifest, CV data, and customizations."""
-    from .types import DocumentIR, RowIR, ZoneIR, SectionPanelIR
+    from .types import RowIR, ZoneIR, SectionPanelIR
 
     instances = cv_data.get("instances", [])
     layout_config = manifest.get("layout_config") or {}
@@ -180,14 +179,32 @@ def build_ir(
             for instance in zone_instances:
                 panel_html = _render_instance_panel(instance)
                 if panel_html:
-                    # Extract wrapper and heading styles from the rendered panel
-                    # This is a simplification - in reality we'd parse the panel
                     panels.append(SectionPanelIR(
                         type=instance.get("type", ""),
                         title=instance.get("title", SECTION_LABELS.get(instance.get("type", ""), instance.get("type", ""))),
                         html=panel_html,
                         wrapper_style="margin-bottom:24px",
                         heading_style="margin-bottom:8px;font-size:1rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#1f2937"
+                    ))
+
+            # Render assets assigned to this zone
+            asset_items = manifest.get("asset_items", [])
+            asset_placement = manifest.get("asset_placement", {})
+            for asset in asset_items:
+                if asset_placement.get(asset["id"]) == zone_id:
+                    asset_html = (
+                        f'<div style="margin-bottom:16px;text-align:center">'
+                        f'<img src="{asset["data"]}" '
+                        f'style="max-width:100%;height:auto;" '
+                        f'alt="{asset["name"]}" />'
+                        f'</div>'
+                    )
+                    panels.append(SectionPanelIR(
+                        type="asset",
+                        title=asset["name"],
+                        html=asset_html,
+                        wrapper_style="margin-bottom:16px",
+                        heading_style="font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#6b7280;margin-bottom:4px"
                     ))
 
             zone_irs.append(ZoneIR(

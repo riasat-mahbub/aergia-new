@@ -20,12 +20,13 @@ interface Props {
   onUnassignSection: (sectionType: string) => void;
   availableRows?: number[];
   onMoveToRow?: (row: number) => void;
+  assets?: Record<string, string>; // asset name -> data URL
 }
 
-export default function ZoneStyleEditor({ zone, onChange, allSectionTypes, assignedSections, onAssignSection, onUnassignSection, availableRows, onMoveToRow }: Props) {
+export default function ZoneStyleEditor({ zone, onChange, allSectionTypes, assignedSections, onAssignSection, onUnassignSection, availableRows, onMoveToRow, assets = {} }: Props) {
   const styles = zone.styles || {};
 
-  const getStyle = (key: string): string => styles[key] || "";
+  const getStyle = (key: string): string => styles[key] ?? "";
   const getStyleNumber = (key: string, unit: string): number => {
     const val = styles[key] || "";
     return parseInt(val.replace(unit, "")) || 0;
@@ -119,6 +120,82 @@ export default function ZoneStyleEditor({ zone, onChange, allSectionTypes, assig
             className="flex-1 rounded border px-2 py-1 text-xs"
             placeholder="Transparent"
           />
+        </div>
+
+        {/* Background Image Section */}
+        <div className="space-y-2 border-t pt-3">
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Background Image</div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">Image</label>
+            <select
+              value={getStyle("background-image") || ""}
+              onChange={(e) => updateStyle("background-image", e.target.value || "")}
+              className="w-full rounded border px-2 py-1 text-xs"
+            >
+              <option value="">None</option>
+              {Object.keys(assets).map((name) => (
+                <option key={name} value={`url(${assets[name]})`}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {getStyle("background-image") && (
+            <div className="space-y-2 mt-2">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">
+                  Position X: {getStyleNumber("background-position-x", "%") || 50}%
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={getStyleNumber("background-position-x", "%") || 50}
+                  onChange={(e) => updateStyle("background-position-x", `${e.target.value}%`)}
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">
+                  Position Y: {getStyleNumber("background-position-y", "%") || 50}%
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={getStyleNumber("background-position-y", "%") || 50}
+                  onChange={(e) => updateStyle("background-position-y", `${e.target.value}%`)}
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">
+                  Size: {getStyleNumber("background-size", "%") || 100}%
+                </label>
+                <input
+                  type="range"
+                  min={50}
+                  max={200}
+                  value={getStyleNumber("background-size", "%") || 100}
+                  onChange={(e) => updateStyle("background-size", `${e.target.value}%`)}
+                  className="w-full"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="w-20 text-xs font-medium text-gray-600">Repeat</label>
+                <select
+                  value={getStyle("background-repeat") || "no-repeat"}
+                  onChange={(e) => updateStyle("background-repeat", e.target.value || "no-repeat")}
+                  className="flex-1 rounded border px-2 py-1 text-xs"
+                >
+                  <option value="no-repeat">No Repeat</option>
+                  <option value="repeat">Repeat</option>
+                  <option value="repeat-x">Repeat X</option>
+                  <option value="repeat-y">Repeat Y</option>
+                </select>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="border-t border-gray-200 pt-3">

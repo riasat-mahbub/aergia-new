@@ -33,6 +33,7 @@ import ZoneCreationModal from "./ZoneCreationModal";
 interface Props {
   layoutConfig: LayoutConfig;
   onChange: (config: LayoutConfig) => void;
+  assets?: Record<string, string>;
 }
 
 
@@ -146,7 +147,7 @@ function SortableRow({
 
 /* ── Main Component ─────────────────────────────────────────────── */
 
-export default function ZoneLayoutBar({ layoutConfig, onChange }: Props) {
+export default function ZoneLayoutBar({ layoutConfig, onChange, assets }: Props) {
   const { zones, placement } = layoutConfig;
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -419,6 +420,7 @@ const handleDeleteRow = (rowNum: number) => {
                 onUnassignSection={(sectionType) => handleUnassignSection(selectedZone.id, sectionType)}
                 availableRows={rowNumbers}
                 onMoveToRow={(row) => handleMoveZoneToRow(selectedZone.id, row)}
+                assets={assets}
               />
             </div>
           </motion.div>

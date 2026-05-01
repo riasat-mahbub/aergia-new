@@ -137,6 +137,13 @@ export interface Zone {
   row?: number; // zones with same row share 100% width horizontally; different rows stack vertically
 }
 
+export interface AssetItem {
+  id: string;
+  name: string;
+  data: string;
+  type: "image" | "other";
+}
+
 export interface LayoutConfig {
   zones: Zone[];
   placement: Record<string, string>;

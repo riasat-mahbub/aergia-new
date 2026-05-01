@@ -15,6 +15,7 @@ export default function TemplateCreatorPage() {
   const [systemTemplates, setSystemTemplates] = useState<UserTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedManifest, setSelectedManifest] = useState<Record<string, any> | null>(null);
+  const [liveManifest, setLiveManifest] = useState<Record<string, any> | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -35,11 +36,13 @@ export default function TemplateCreatorPage() {
     try {
       const detail = await fetchTemplate(templateId);
       setSelectedManifest(detail.manifest || {});
+      setLiveManifest(detail.manifest || {});
       setMode("editor");
     } catch {
       const tpl = systemTemplates.find((t) => t.id === templateId);
       if (tpl?.manifest) {
         setSelectedManifest(tpl.manifest);
+        setLiveManifest(tpl.manifest);
         setMode("editor");
       }
     }
@@ -48,6 +51,7 @@ export default function TemplateCreatorPage() {
 const handleBackToPicker = useCallback(() => {
     setMode("picker");
     setSelectedManifest(null);
+    setLiveManifest(null);
   }, []);
 
   if (isLoading) {
@@ -107,8 +111,8 @@ const handleBackToPicker = useCallback(() => {
               <div className="w-5/12 overflow-y-auto rounded-lg border bg-white shadow-sm p-4">
                 <TemplateWizard
                   initialManifest={selectedManifest || undefined}
+                  onManifestChange={(m) => setLiveManifest(m)}
                   onSave={(manifest) => console.log("Template saved:", manifest)}
-                  onComplete={handleBackToPicker}
                 />
               </div>
 
@@ -119,10 +123,10 @@ const handleBackToPicker = useCallback(() => {
                   <TemplateSwitcher
                     templateId="wizard"
                     instances={sampleInstances as unknown as typeof sampleInstances}
-                    customizations={selectedManifest?.default_customizations || {}}
-                    layoutConfig={selectedManifest ? { zones: selectedManifest.zones, placement: selectedManifest.placement } : undefined}
-                    defaultCustomizations={selectedManifest?.default_customizations || {}}
-                    manifest={selectedManifest || undefined}
+                    customizations={liveManifest?.default_customizations || {}}
+                    layoutConfig={liveManifest ? { zones: liveManifest.zones, placement: liveManifest.placement } : undefined}
+                    defaultCustomizations={liveManifest?.default_customizations || {}}
+                    manifest={liveManifest || undefined}
                   />
                 </div>
               </div>

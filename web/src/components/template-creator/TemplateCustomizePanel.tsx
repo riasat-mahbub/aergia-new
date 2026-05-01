@@ -7,6 +7,7 @@ interface Props {
   onLayoutConfigChange: (config: LayoutConfig) => void;
   customizations: Record<string, any>;
   onCustomizationsChange: (customizations: Record<string, any>) => void;
+  assets?: Record<string, string>;
 }
 
 export default function TemplateCustomizePanel({
@@ -14,6 +15,7 @@ export default function TemplateCustomizePanel({
   onLayoutConfigChange,
   customizations,
   onCustomizationsChange,
+  assets,
 }: Props) {
   return (
     <div>
@@ -21,6 +23,7 @@ export default function TemplateCustomizePanel({
         layoutConfig={layoutConfig}
         onChange={onLayoutConfigChange}
         title="Zones & Layout"
+        assets={assets}
       />
       <StyleEditor
         customizations={customizations}
