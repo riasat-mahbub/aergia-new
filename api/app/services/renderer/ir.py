@@ -1,11 +1,10 @@
-"""Build intermediate representation (IR) from manifest + CV data."""
+"""Intermediate representation builder and abstract renderer blueprint."""
 
-from .types import DocumentIR
-from .section_renderers import render_section_preview
-from .section_renderers import SECTION_LABELS
+from abc import ABC, abstractmethod
+from .types import DocumentIR, RowIR, ZoneIR, SectionPanelIR
+from .section_renderers import render_section_preview, SECTION_LABELS
 
 
-# Constants
 PRINT_STYLES = """
   @page { size: A4; margin: 0; }
   @media print {
@@ -15,8 +14,21 @@ PRINT_STYLES = """
 """
 
 
+def _normalize_manifest(manifest: dict) -> dict:
+    """Normalize manifest to always have layout_config with zones/placement/rowHeights."""
+    if "layout_config" in manifest:
+        return manifest
+    return {
+        **manifest,
+        "layout_config": {
+            "zones": manifest.get("zones", []),
+            "placement": manifest.get("placement", {}),
+            "rowHeights": manifest.get("rowHeights", {}),
+        },
+    }
+
+
 def _build_zone_styles(zone: dict) -> dict[str, str]:
-    """Extract and normalize zone styles."""
     styles = zone.get("styles", {})
     normalized = {}
     for k, v in styles.items():
@@ -30,17 +42,11 @@ def _group_instances_by_zone(
     layout_config: dict | None,
     zones: list[dict],
 ) -> dict[str, list[dict]]:
-    """Group section instances by their target zone.
-
-    Raises ValueError if layout_config or placement is missing, or if a
-    section instance has no matching zone and no fallback zone is available.
-    """
     if not layout_config or "placement" not in layout_config:
         raise ValueError("layout_config with placement is required")
 
     placement = layout_config["placement"]
 
-    # Find the first zone in the first row as fallback for unplaced types
     fallback_zone_id: str | None = None
     if zones:
         sorted_zones = sorted(zones, key=lambda z: (z.get("row", 0), z.get("id", "")))
@@ -70,40 +76,17 @@ def _group_instances_by_zone(
 
 
 def _render_instance_panel(instance: dict) -> str:
-    """Render a single section instance to HTML panel."""
+    """Render a single section instance's content HTML (no heading/wrapper)."""
     if not instance.get("enabled", True):
         return ""
     section_type = instance.get("type", "")
     if not section_type:
         raise ValueError("Section instance is missing 'type'")
-    label = instance.get("title", SECTION_LABELS.get(section_type, section_type))
     section_data = instance.get("data")
-    content = render_section_preview(section_type, section_data)
-
-    per_style = instance.get("style") or {}
-    wrapper_extra = ""
-    heading_extra = ""
-    if per_style.get("font"):
-        wrapper_extra += f"font-family:{per_style['font']};"
-    if per_style.get("color"):
-        wrapper_extra += f"color:{per_style['color']};"
-        heading_extra += f"color:{per_style['color']};"
-    if per_style.get("weight"):
-        heading_extra += f"font-weight:{per_style['weight']};"
-
-    base_wrapper = "margin-bottom:24px"
-    wrapper_style = f"{base_wrapper};{wrapper_extra}" if wrapper_extra else base_wrapper
-    base_heading = "margin-bottom:8px;font-size:1rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#1f2937"
-    heading_style = f"{base_heading};{heading_extra}" if heading_extra else base_heading
-
-    return f"""<div style="{wrapper_style}">
-  <h2 style="{heading_style}">{label}</h2>
-  {content}
-</div>"""
+    return render_section_preview(section_type, section_data)
 
 
 def _merge_customizations(defaults: dict, overrides: dict) -> dict:
-    """Deep merge overrides on top of defaults."""
     merged = {}
     for key in defaults:
         if key in overrides:
@@ -125,19 +108,16 @@ def build_ir(
     customizations: dict
 ) -> DocumentIR:
     """Build DocumentIR from manifest, CV data, and customizations."""
-    from .types import RowIR, ZoneIR, SectionPanelIR
+    manifest = _normalize_manifest(manifest)
+    layout_config = manifest["layout_config"]
 
     instances = cv_data.get("instances", [])
-    layout_config = manifest.get("layout_config")
-    layout_template = manifest.get("layout_template")
 
-    # Merge customizations with manifest defaults
     default_customizations = {}
     for var in manifest.get("globalStyleSchema", []):
         default_customizations.setdefault(var["type"] + "s", {})[var["key"]] = var["default"]
     merged_customizations = _merge_customizations(default_customizations, customizations)
 
-    # Extract CSS variables
     colors = merged_customizations.get("colors", {})
     fonts = merged_customizations.get("fonts", {})
     spacing = merged_customizations.get("spacing", {})
@@ -153,11 +133,8 @@ def build_ir(
         "--heading-font": fonts.get("heading"),
         "--section-gap": spacing.get("section_gap"),
     }
-
-    # Filter out None values
     css_vars = {k: v for k, v in css_vars.items() if v is not None}
 
-    # Group instances by zone
     zones = manifest.get("zones", [])
     groups = _group_instances_by_zone(instances, layout_config, zones)
     rows_dict: dict[int, list[dict]] = {}
@@ -181,15 +158,30 @@ def build_ir(
             for instance in zone_instances:
                 panel_html = _render_instance_panel(instance)
                 if panel_html:
+                    per_style = instance.get("style") or {}
+                    wrapper_extra = ""
+                    heading_extra = ""
+                    if per_style.get("font"):
+                        wrapper_extra += f"font-family:{per_style['font']};"
+                    if per_style.get("color"):
+                        wrapper_extra += f"color:{per_style['color']};"
+                        heading_extra += f"color:{per_style['color']};"
+                    if per_style.get("weight"):
+                        heading_extra += f"font-weight:{per_style['weight']};"
+                    wrapper_style = "margin-bottom:24px"
+                    if wrapper_extra:
+                        wrapper_style = f"{wrapper_style};{wrapper_extra}"
+                    heading_style = "margin-bottom:8px;font-size:1rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#1f2937"
+                    if heading_extra:
+                        heading_style = f"{heading_style};{heading_extra}"
                     panels.append(SectionPanelIR(
                         type=instance.get("type", ""),
                         title=instance.get("title", SECTION_LABELS.get(instance.get("type", ""), instance.get("type", ""))),
                         html=panel_html,
-                        wrapper_style="margin-bottom:24px",
-                        heading_style="margin-bottom:8px;font-size:1rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#1f2937"
+                        wrapper_style=wrapper_style,
+                        heading_style=heading_style,
                     ))
 
-            # Render assets assigned to this zone
             asset_items = manifest.get("asset_items", [])
             asset_placement = manifest.get("asset_placement", {})
             for asset in asset_items:
@@ -224,3 +216,19 @@ def build_ir(
         body_font=fonts.get("body", "system-ui, sans-serif"),
         heading_font=fonts.get("heading", fonts.get("body", "system-ui, sans-serif"))
     )
+
+
+class AbstractRenderer(ABC):
+    """Template Method: build_ir then _format.
+
+    Subclasses override _format() to produce the target output format.
+    The template method render() calls build_ir() then _format().
+    """
+
+    def render(self, manifest: dict, cv_data: dict, customizations: dict):
+        ir = build_ir(manifest, cv_data, customizations)
+        return self._format(ir)
+
+    @abstractmethod
+    def _format(self, ir: DocumentIR):
+        pass

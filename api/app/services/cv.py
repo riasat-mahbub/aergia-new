@@ -34,6 +34,7 @@ class CVService:
             "layout_template": template.layout_template,
             "layout_config": template.layout_config,
             "default_customizations": template.default_customizations,
+            "manifest": template.manifest,
         }
 
     async def create_cv(self, user_id: str, data: CVCreate) -> CV:
