@@ -6,10 +6,79 @@ interface Props {
   onSelect: (templateId: string) => void;
 }
 
+function renderThumbnail(manifest: any) {
+  if (!manifest?.zones || manifest.zones.length === 0) {
+    return (
+      <div className="flex h-full w-2/3 flex-col items-center justify-center gap-1">
+        <div className="h-px w-8 bg-gray-8 bg-gray-300" />
+        <div className="h-1.5 w-6 rounded bg-gray-200" />
+      </div>
+    );
+  }
+
+  const zones = manifest.zones;
+  const rows: Record<number, typeof zones> = {};
+  
+  for (const zone of zones) {
+    const row = zone.row || 0;
+    if (!rows[row]) rows[row] = [];
+    rows[row].push(zone);
+  }
+
+  const sortedRows = Object.keys(rows).sort((a, b) => Number(a) - Number(b));
+
+  if (sortedRows.length === 1) {
+    // Single row - horizontal layout
+    const rowZones = rows[sortedRows[0]];
+    return (
+      <div className="flex h-full w-2/3 gap-0.5">
+        {rowZones.map((zone: any) => (
+          <div
+            key={zone.id}
+            className="h-full rounded"
+            style={{ 
+              width: zone.styles?.width || "100%",
+              backgroundColor: zone.styles?.["background-color"] || "transparent",
+              border: zone.styles?.["background-color"] ? "none" : "1px dashed #d1d5db",
+            }}
+          />
+        ))}
+      </div>
+    );
+  } else {
+    // Multiple rows - vertical stack
+    return (
+      <div className="flex h-full w-2/3 flex-col gap-1">
+        {sortedRows.map((rowKey) => {
+          const rowZones = rows[Number(rowKey)];
+          return (
+            <div key={rowKey} className="flex h-1/3 gap-0.5">
+              {rowZones.map((zone: any) => (
+                <div
+                  key={zone.id}
+                  className="h-full rounded"
+                  style={{ 
+                    width: zone.styles?.width || "100%",
+                    backgroundColor: zone.styles?.["background-color"] || "transparent",
+                    border: zone.styles?.["background-color"] ? "none" : "1px dashed #d1d5db",
+                  }}
+                />
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+}
+
+interface Props {
+  template: UserTemplate;
+  onSelect: (templateId: string) => void;
+}
+
 export default function BaseTemplateCard({ template, onSelect }: Props) {
-  const isModern = template.id === "generic-modern";
-  const isClassic = template.id === "generic-classic";
-  const isMinimal = template.id === "generic-minimal";
+  const manifest = template.manifest;
 
   return (
     <motion.button
@@ -20,35 +89,7 @@ export default function BaseTemplateCard({ template, onSelect }: Props) {
       className="flex w-full flex-col items-start rounded-xl border-2 border-gray-200 bg-white p-5 text-left transition-all hover:border-blue-400"
     >
       <div className="mb-3 flex h-16 w-full items-center justify-center rounded-lg bg-gray-50">
-        {isModern && (
-          <div className="flex h-full w-2/3 gap-0.5">
-            <div className="h-full w-[30%] rounded bg-blue-400" />
-            <div className="h-full w-[70%] rounded bg-gray-200" />
-          </div>
-        )}
-        {isClassic && (
-          <div className="flex h-full w-2/3 flex-col gap-1">
-            <div className="h-1.5 w-full rounded bg-gray-400" />
-            <div className="h-px w-full bg-gray-300" />
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-1 w-full rounded bg-gray-200" />
-            ))}
-          </div>
-        )}
-        {isMinimal && (
-          <div className="flex h-full w-2/3 flex-col items-start gap-1.5">
-            <div className="h-1.5 w-1/2 rounded bg-gray-400" />
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-1 w-full rounded bg-gray-200" />
-            ))}
-          </div>
-        )}
-        {!isModern && !isClassic && !isMinimal && (
-          <div className="flex h-full w-2/3 flex-col items-center justify-center gap-1">
-            <div className="h-px w-8 bg-gray-300" />
-            <div className="h-1.5 w-6 rounded bg-gray-200" />
-          </div>
-        )}
+        {renderThumbnail(manifest)}
       </div>
 
       <h3 className="text-sm font-semibold text-gray-900">{template.name}</h3>

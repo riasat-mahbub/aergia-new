@@ -1,6 +1,4 @@
-import ModernTemplate from "./ModernTemplate";
-import ClassicTemplate from "./ClassicTemplate";
-import MinimalTemplate from "./MinimalTemplate";
+import { useEffect, useState } from "react";
 import UserTemplateRenderer from "./UserTemplateRenderer";
 import type { SectionInstance } from "../../lib/sections/types";
 import type { LayoutConfig } from "../../lib/sections/types";
@@ -12,22 +10,17 @@ interface Props {
   templateContent?: string;
   layoutConfig?: LayoutConfig;
   defaultCustomizations?: Record<string, unknown>;
+  manifest?: Record<string, any>;
 }
 
-export default function TemplateSwitcher({ templateId, instances, customizations, templateContent, layoutConfig, defaultCustomizations }: Props) {
-  if (templateId.startsWith("user_")) {
-    return <UserTemplateRenderer templateId={templateId} instances={instances} templateContent={templateContent} layoutConfig={layoutConfig} defaultCustomizations={defaultCustomizations} />;
-  }
-
-  const shared = { instances, customizations, layoutConfig };
-
-  switch (templateId) {
-    case "generic-classic":
-      return <ClassicTemplate {...shared} />;
-    case "generic-minimal":
-      return <MinimalTemplate {...shared} />;
-    case "generic-modern":
-    default:
-      return <ModernTemplate {...shared} />;
-  }
+export default function TemplateSwitcher({ templateId, instances, customizations, templateContent, layoutConfig, defaultCustomizations, manifest }: Props) {
+  return <UserTemplateRenderer 
+    templateId={templateId} 
+    instances={instances} 
+    templateContent={templateContent} 
+    layoutConfig={layoutConfig} 
+    defaultCustomizations={defaultCustomizations}
+    customizations={customizations}
+    manifest={manifest}
+  />;
 }
