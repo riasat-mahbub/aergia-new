@@ -62,7 +62,14 @@ def _group_instances_by_zone(
         section_type = instance.get("type", "")
         if not section_type:
             raise ValueError("Section instance is missing 'type'")
-        zone_id = placement.get(section_type)
+
+        instance_id = instance.get("id", "")
+        zone_id = placement.get(instance_id)
+
+        # Fallback: try type-based placement (old format) if instance not found
+        if not zone_id:
+            zone_id = placement.get(section_type)
+
         if not zone_id:
             if fallback_zone_id:
                 zone_id = fallback_zone_id
