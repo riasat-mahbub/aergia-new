@@ -22,7 +22,7 @@ Replace the current dual-pipeline template system (hard-coded system templates +
 |-------|------|-------------|--------|
 | **1 – Frontend Cleanup** | Extract reusable UI, simplify existing components so the coming editor rewrite starts from a clean base. | ~1 week | ✅ **DONE** |
 | **2 – Manifest Data Model & Upload** | Define the on-disk/DB representation, multipart upload API, and DB migration. | ~1 week | ✅ **DONE** |
-| **3 – New Renderer (IR → HTML / PDF)** | Build a pure-function pipeline that consumes manifest + CV data with pluggable back-ends. | ~2 weeks | ⏳ |
+| **3 – New Renderer (IR → HTML / PDF)** | Build a pure-function pipeline that consumes manifest + CV data with pluggable back-ends. | ~2 weeks | ✅ **DONE** |
 | **4 – Preview & PDF** | Wire the new renderer into front-end preview (`UserTemplateRenderer`) and the PDF service. | ~1 week | ⏳ |
 | **5 – Visual Template Creator** | Replace the two-tab creator with a guided manifest-centric wizard. | ~2 weeks | ⏳ |
 
@@ -136,16 +136,21 @@ Run a one-off script that converts the three existing seed templates into manife
 
 ---
 
-## Phase 3 – New Renderer (IR → HTML / PDF)
+## Phase 3 – New Renderer (IR → HTML / PDF) ✅ **COMPLETED**
 
 ### 3.1 Package Layout
 
 ```
 api/app/services/renderer/
-├── __init__.py              # exports: render_html, render_pdf
+├── __init__.py              # exports: render_html, render_pdf, render_preview (legacy)
 ├── ir.py                    # build_intermediate_representation(manifest, cv_data, customizations) → IR
 ├── html.py                  # ir_to_html(ir) → complete HTML5 string
-├── pdf.py                   # ir_to_pdf(ir) → bytes (Playwright)
+├── pdf.py                   # ir_to_pdf(ir) → bytes (Playwright async)
+├── legacy_renderer.py       # backward-compat render_preview for system templates
+├── backends/
+│   ├── __init__.py          # RendererBackend ABC + registry (html, pdf)
+│   ├── html.py              # HTMLBackend
+│   └── pdf.py               # PDFBackend (wraps Playwright)
 ├── section_renderers/
 │   ├── __init__.py          # SECTION_RENDERERS dict
 │   ├── profile.py
@@ -156,8 +161,8 @@ api/app/services/renderer/
 │   ├── languages.py
 │   └── certifications.py
 ├── css_vars.py              # substitute_css_vars, merge_customizations
-├── placeholders.py          # replace_unknown_zones (3 helpers)
-└── types.py                 # IR dataclasses, shared types
+├── placeholders.py          # replace_unknown_zones (3 pure functions)
+└── types.py                 # IR dataclasses (DocumentIR, RowIR, ZoneIR, SectionPanelIR)
 ```
 
 ### 3.2 Intermediate Representation (IR)
@@ -166,8 +171,8 @@ api/app/services/renderer/
 @dataclass
 class ZoneIR:
     id: str
-    styles: dict[str, str]          # resolved CSS (width, background-color, padding…)
-    panels: list[SectionPanelIR]    # ordered, already rendered HTML strings
+    styles: dict[str, str]          # resolved CSS
+    panels: list[SectionPanelIR]    # ordered rendered HTML strings
 
 @dataclass
 class SectionPanelIR:
@@ -178,9 +183,13 @@ class SectionPanelIR:
     heading_style: str
 
 @dataclass
+class RowIR:
+    index: int
+    zones: list[ZoneIR]
+
+@dataclass
 class DocumentIR:
-    zones_by_row: dict[int, list[ZoneIR]]
-    row_heights: dict[int, str]     # "60%", "40%" …
+    rows: list[RowIR]               # row order = vertical stacking (no rowHeights)
     css_vars: dict[str, str]        # --accent, --body-font, …
     print_styles: str
     body_font: str
@@ -191,31 +200,35 @@ class DocumentIR:
 
 ### 3.3 Back-ends
 
-* **HTML back-end** (`html.py`) → emits complete HTML5 with `{{print_styles}}`, `{{body_font}}`, `{{heading_font}}` placeholders already substituted.
-* **PDF back-end** (`pdf.py`) → `page.setContent(html)` → `page.pdf(format="A4", margin={"top":0,"bottom":0,"left":0,"right":0})`. Re-uses `html.py`.
+* **HTML back-end** (`html.py` via `HTMLBackend`) → emits complete HTML5 with `{{print_styles}}`, `{{body_font}}`, `{{heading_font}}` placeholders already substituted.
+* **PDF back-end** (`pdf.py` via `PDFBackend`) → async Playwright rendering of HTML output.
 
-**Interface for future back-ends:**
+**Extensible via `RendererBackend` ABC:**
 
 ```python
-class RendererBackend(Protocol):
+class RendererBackend(ABC):
     def render(self, ir: DocumentIR) -> bytes | str: ...
+    def prepare(self, ir): ...      # optional hook
+    def finalize(self, out): ...    # optional hook
 ```
+
+Adding LaTeX/DOCX later = new subclass + `register_backend()`.
 
 ### 3.4 Tasks
 
-| # | Task |
-|---|------|
-| 3.1 | Create `renderer/` package skeleton |
-| 3.2 | Extract 7 section renderers into `section_renderers/` |
-| 3.3 | Move `_group_instances_by_zone`, `_render_zones`, `_build_zone_styles` → `ir.py` |
-| 3.4 | Move `_substitute_css_vars`, `_merge_customizations` → `css_vars.py` |
-| 3.5 | Split `_replace_unknown_zones` → `placeholders.py` (3 pure functions) |
-| 3.6 | Implement `build_ir(manifest, cv_data, customizations)` in `ir.py` |
-| 3.7 | Implement `ir_to_html(ir)` in `html.py` |
-| 3.8 | Implement `ir_to_pdf(ir)` in `pdf.py` (Playwright) |
-| 3.9 | Wire `render_html` / `render_pdf` in `__init__.py` |
-| 3.10 | Update `api/app/services/pdf.py` to call new `render_pdf` |
-| 3.11 | Unit tests: IR builder, HTML output, PDF bytes for all 3 system templates |
+| # | Task | Status |
+|---|------|--------|
+| 3.1 | Create `renderer/` package skeleton | ✅ |
+| 3.2 | Extract 7 section renderers into `section_renderers/` | ✅ |
+| 3.3 | Move zone layout functions to `ir.py` | ✅ |
+| 3.4 | Move `_substitute_css_vars`, `_merge_customizations` → `css_vars.py` | ✅ |
+| 3.5 | Split `_replace_unknown_zones` → `placeholders.py` (3 pure functions) | ✅ |
+| 3.6 | Implement `build_ir(manifest, cv_data, customizations)` in `ir.py` | ✅ |
+| 3.7 | Implement `ir_to_html(ir)` in `html.py` | ✅ |
+| 3.8 | Implement `ir_to_pdf(ir)` in `pdf.py` (Playwright async) | ✅ |
+| 3.9 | Wire `render_html` / `render_pdf` in `__init__.py` | ✅ |
+| 3.10 | Update `api/app/services/pdf.py` to call new `render_pdf` | ✅ |
+| 3.11 | Manual verification: HTML + PDF render correctly for manifest-driven templates | ✅ |
 
 ---
 
