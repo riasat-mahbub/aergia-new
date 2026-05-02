@@ -2,19 +2,12 @@ import { useEffect, useCallback, useState, useRef, useMemo } from "react";
 import { useLocation, useNavigate, useBlocker } from "react-router-dom";
 import { motion } from "motion/react";
 
-import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
+import type { DragEndEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import ExportPDFButton from "../components/builder/ExportPDFButton";
 import { useCVStore } from "../lib/store/cvStore";
 import { useAutoSave } from "../hooks/useAutoSave";
-import SectionList from "../components/sections/SectionList";
+import SectionZoneView from "../components/layout/SectionZoneView";
 import TemplateSwitcher from "../components/preview/TemplateSwitcher";
 import CustomizePanel from "../components/customization/CustomizePanel";
 
@@ -207,8 +200,6 @@ export default function BuilderPage() {
     return () => window.removeEventListener("beforeunload", handler);
   }, []);
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-
   const handleToggle = useCallback(
     (sectionId: string) => {
       hasChangesRef.current = true;
@@ -225,7 +216,7 @@ export default function BuilderPage() {
     []
   );
 
-  const handleDragEnd = useCallback(
+  const handleEntryDragEnd = useCallback(
     (event: DragEndEvent) => {
       const { active, over } = event;
       if (!over || active.id === over.id) return;
@@ -233,27 +224,19 @@ export default function BuilderPage() {
       const currentInstances = instancesRef.current;
       let updatedInstances: SectionInstance[] | null = null;
 
-      const sectionIdx = currentInstances.findIndex((i) => i.id === active.id);
-      if (sectionIdx !== -1) {
-        const oldIndex = currentInstances.findIndex((i) => i.id === active.id);
-        const newIndex = currentInstances.findIndex((i) => i.id === over.id);
-        updatedInstances = arrayMove(currentInstances, oldIndex, newIndex);
-        setLocalInstances(updatedInstances);
-      } else {
-        for (const instance of currentInstances) {
-          const entries = instance.data as any[];
-          if (Array.isArray(entries)) {
-            const entryIdx = entries.findIndex((e: any) => e.id === active.id);
-            if (entryIdx !== -1) {
-              const oldIndex = entries.findIndex((e: any) => e.id === active.id);
-              const newIndex = entries.findIndex((e: any) => e.id === over.id);
-              const reordered = arrayMove(entries, oldIndex, newIndex);
-              updatedInstances = currentInstances.map((i) =>
-                i.id === instance.id ? { ...i, data: reordered } : i
-              );
-              setLocalInstances(updatedInstances);
-              break;
-            }
+      for (const instance of currentInstances) {
+        const entries = instance.data as any[];
+        if (Array.isArray(entries)) {
+          const entryIdx = entries.findIndex((e: any) => e.id === active.id);
+          if (entryIdx !== -1) {
+            const oldIndex = entries.findIndex((e: any) => e.id === active.id);
+            const newIndex = entries.findIndex((e: any) => e.id === over.id);
+            const reordered = arrayMove(entries, oldIndex, newIndex);
+            updatedInstances = currentInstances.map((i) =>
+              i.id === instance.id ? { ...i, data: reordered } : i
+            );
+            setLocalInstances(updatedInstances);
+            break;
           }
         }
       }
@@ -265,11 +248,26 @@ export default function BuilderPage() {
     [triggerSave]
   );
 
+  const handleReorderInstances = useCallback(
+    (newInstances: SectionInstance[]) => {
+      hasChangesRef.current = true;
+      setLocalInstances(newInstances);
+    },
+    []
+  );
+
   const handleAddSection = useCallback(
-    (type: string) => {
+    (type: string, zoneId?: string) => {
       hasChangesRef.current = true;
       const newInstance = createDefaultInstance(type);
       setLocalInstances((prev) => [...prev, newInstance]);
+      if (zoneId) {
+        setLocalCustomizations((prev) => {
+          const layout = (prev.layout as LayoutConfig) || { zones: [], placement: {} };
+          const newPlacement = { ...layout.placement, [newInstance.id]: zoneId };
+          return { ...prev, layout: { ...layout, placement: newPlacement } };
+        });
+      }
     },
     []
   );
@@ -337,7 +335,7 @@ export default function BuilderPage() {
   );
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+    <>
     {showLoading ? (
       <motion.div
         initial={{ opacity: 0 }}
@@ -394,13 +392,18 @@ export default function BuilderPage() {
             </div>
             <div className="flex-1 overflow-y-auto p-4">
               {activeTab === "content" && (
-                <SectionList
+                <SectionZoneView
                   instances={instances}
+                  layoutConfig={normalizedLayoutConfig || { zones: [], placement: {} }}
+                  assets={templateManifest?.assets}
                   onToggle={handleToggle}
                   onUpdateData={handleUpdateData}
                   onAddSection={handleAddSection}
                   onRemoveInstance={handleRemoveInstance}
                   onRenameInstance={handleRenameInstance}
+                  onLayoutConfigChange={handleLayoutConfigChange}
+                  onReorderInstances={handleReorderInstances}
+                  onEntryDragEnd={handleEntryDragEnd}
                 />
               )}
               {activeTab === "customize" && (
@@ -411,10 +414,6 @@ export default function BuilderPage() {
                   onTemplateChange={handleTemplateChange}
                   instances={instances}
                   onUpdateStyle={handleUpdateStyle}
-                  layoutConfig={normalizedLayoutConfig}
-                  onLayoutConfigChange={handleLayoutConfigChange}
-                  templateLayoutConfig={templateLayoutConfig}
-                  assets={templateManifest?.assets}
                 />
               )}
             </div>
@@ -450,6 +449,6 @@ export default function BuilderPage() {
         <p className="text-gray-500">CV not found</p>
       </motion.div>
     )}
-    </DndContext>
+    </>
   );
 }
