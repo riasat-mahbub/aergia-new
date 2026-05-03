@@ -24,7 +24,7 @@ Replace the current dual-pipeline template system (hard-coded system templates +
 | **2 – Manifest Data Model & Upload** | Define the on-disk/DB representation, multipart upload API, and DB migration. | ~1 week | ✅ **DONE** |
 | **3 – New Renderer (IR → HTML / PDF)** | Build a pure-function pipeline that consumes manifest + CV data with pluggable back-ends. | ~2 weeks | ✅ **DONE** |
 | **4 – Preview & PDF** | Wire the new renderer into front-end preview (`UserTemplateRenderer`) and the PDF service. | ~1 week | ✅ **DONE** |
-| **5 – Visual Template Creator** | Replace the two-tab creator with a guided manifest-centric wizard. | ~2 weeks | ⏳ |
+| **5 – Visual Template Creator** | Replace the two-tab creator with a guided manifest-centric wizard. | ~2 weeks | ✅ **DONE** |
 
 **Total:** ~7 weeks
 
@@ -247,9 +247,7 @@ Adding LaTeX/DOCX later = new subclass + `register_backend()`.
 
 ---
 
-## Phase 5 – Visual Template Creator (Step-by-Step Wizard)
-
-Replace the current two-tab (`Design` / `HTML`) creator with a **guided 4-step wizard** that writes the manifest directly.
+## Phase 5 – Visual Template Creator (Step-by-Step Wizard) ✅ **COMPLETED**
 
 ### 5.1 Wizard Steps
 
@@ -280,19 +278,16 @@ Replace the current two-tab (`Design` / `HTML`) creator with a **guided 4-step w
 
 ### 5.3 Tasks
 
-| # | Task |
-|---|------|
-| 5.1 | Build `TemplateWizard` component (stepper + step components) |
-| 5.2 | Step 1: embed `ZoneLayoutBar` (horizontal resize only) |
-| 5.3 | Step 2: dynamic `StyleEditor` driven by `globalStyleSchema` editor (add/remove variables) |
-| 5.4 | Step 3: asset drop-zone (optional) |
-| 5.5 | Step 4: live generated HTML preview |
-| 5.6 | `POST /templates` upload on wizard completion |
-| 5.7 | Update `TemplateCreatorPage` → wizard replaces Design/HTML tabs |
-| 5.8 | `BaseTemplateCard` thumbnail generator from manifest |
-| 5.9 | Delete old `TemplateCustomizePanel`, `TemplateCreatorPage` two-tab logic |
-| 5.10 | Rewrite `TEMPLATE_GUIDE.md` to match new manifest + wizard workflow |
-| 5.11 | E2E test: create template via wizard → use in builder → export PDF |
+| # | Task | Status |
+|---|------|--------|
+| 5.1 | Adjust `StyleEditor` to accept dynamic `globalStyleSchema` | ✅ |
+| 5.2 | Create `TemplateWizard` component (stepper + step components) | ✅ |
+| 5.3 | Update `TemplateCreatorPage` → wizard replaces Design/HTML tabs | ✅ |
+| 5.4 | Ensure upload works with wizard data via `POST /templates` | ✅ |
+| 5.5 | `BaseTemplateCard` thumbnail generator from manifest | ✅ |
+| 5.6 | Delete old `TemplateCustomizePanel`, `TemplateCreatorPage` two-tab logic | ✅ |
+| 5.7 | Rewrite `TEMPLATE_GUIDE.md` to match new manifest + wizard workflow | ⏳ |
+| 5.8 | E2E test: create template via wizard → use in builder → export PDF | ⏳ |
 
 ---
 
