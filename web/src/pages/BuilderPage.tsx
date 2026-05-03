@@ -6,7 +6,6 @@ import type { DragEndEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import ExportPDFButton from "../components/builder/ExportPDFButton";
 import { useCVStore } from "../lib/store/cvStore";
-import { useAutoSave } from "../hooks/useAutoSave";
 import SectionZoneView from "../components/layout/SectionZoneView";
 import TemplateSwitcher from "../components/preview/TemplateSwitcher";
 import CustomizePanel from "../components/customization/CustomizePanel";
@@ -31,10 +30,10 @@ export default function BuilderPage() {
   const [templateDefaultCustomizations, setTemplateDefaultCustomizations] = useState<Record<string, unknown> | null>(null);
   const [templateManifest, setTemplateManifest] = useState<Record<string, any> | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showSavedFeedback, setShowSavedFeedback] = useState(false);
   const hasChangesRef = useRef(false);
   const pendingSaveRef = useRef<Promise<unknown> | null>(null);
-
-  const isPending = useCallback(() => pendingSaveRef.current != null, []);
 
   useEffect(() => {
     if (!id) return;
@@ -92,6 +91,7 @@ export default function BuilderPage() {
   const handleLayoutConfigChange = useCallback(
     (config: LayoutConfig) => {
       hasChangesRef.current = true;
+      setHasUnsavedChanges(true);
       setLocalCustomizations((prev) => ({ ...prev, layout: config }));
     },
     []
@@ -145,33 +145,34 @@ export default function BuilderPage() {
         await p;
         setLastSaved(new Date());
         hasChangesRef.current = false;
+        setHasUnsavedChanges(false);
       } finally {
         setIsSaving(false);
         pendingSaveRef.current = null;
       }
     },
-    [setIsSaving, setLastSaved]
+    [setIsSaving, setLastSaved, setHasUnsavedChanges]
   );
 
-  const autoSaveDataRef = useRef({ sections: localInstances, customizations: localCustomizations });
-  autoSaveDataRef.current = { sections: localInstances, customizations: localCustomizations };
-
-  const handleAutoSaveComplete = useCallback(() => {
-    setLastSaved(new Date());
-  }, [setLastSaved]);
-
-  const { isSaving: hookSaving } = useAutoSave({
-    cvId: id,
-    data: autoSaveDataRef.current as Record<string, unknown>,
-    debounceMs: 3000,
-    enabled: isLoaded && !!id,
-    onSaveComplete: handleAutoSaveComplete,
-    isPending,
-  });
-
-  useEffect(() => {
-    setIsSaving(hookSaving);
-  }, [hookSaving, setIsSaving]);
+  const handleSave = useCallback(async () => {
+    const cvId = idRef.current;
+    const data = { sections: instancesRef.current, customizations: customizationsRef.current };
+    if (!cvId) return;
+    try {
+      setIsSaving(true);
+      const p = updateCV(cvId, data);
+      pendingSaveRef.current = p;
+      await p;
+      setLastSaved(new Date());
+      hasChangesRef.current = false;
+      setHasUnsavedChanges(false);
+      setShowSavedFeedback(true);
+      setTimeout(() => setShowSavedFeedback(false), 2000);
+    } finally {
+      setIsSaving(false);
+      pendingSaveRef.current = null;
+    }
+  }, [setIsSaving, setLastSaved, setHasUnsavedChanges, setShowSavedFeedback]);
 
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
@@ -203,6 +204,7 @@ export default function BuilderPage() {
   const handleToggle = useCallback(
     (sectionId: string) => {
       hasChangesRef.current = true;
+      setHasUnsavedChanges(true);
       setLocalInstances((prev) => prev.map((i) => (i.id === sectionId ? { ...i, enabled: !i.enabled } : i)));
     },
     []
@@ -211,6 +213,7 @@ export default function BuilderPage() {
   const handleUpdateData = useCallback(
     (sectionId: string, data: any) => {
       hasChangesRef.current = true;
+      setHasUnsavedChanges(true);
       setLocalInstances((prev) => prev.map((i) => (i.id === sectionId ? { ...i, data } : i)));
     },
     []
@@ -236,21 +239,20 @@ export default function BuilderPage() {
               i.id === instance.id ? { ...i, data: reordered } : i
             );
             setLocalInstances(updatedInstances);
+            hasChangesRef.current = true;
+            setHasUnsavedChanges(true);
             break;
           }
         }
       }
-
-      if (updatedInstances) {
-        triggerSave({ sections: updatedInstances, customizations: customizationsRef.current });
-      }
     },
-    [triggerSave]
+  []
   );
 
   const handleReorderInstances = useCallback(
     (newInstances: SectionInstance[]) => {
       hasChangesRef.current = true;
+      setHasUnsavedChanges(true);
       setLocalInstances(newInstances);
     },
     []
@@ -259,6 +261,7 @@ export default function BuilderPage() {
   const handleAddSection = useCallback(
     (type: string, zoneId?: string) => {
       hasChangesRef.current = true;
+      setHasUnsavedChanges(true);
       const newInstance = createDefaultInstance(type);
       setLocalInstances((prev) => [...prev, newInstance]);
       if (zoneId) {
@@ -275,6 +278,7 @@ export default function BuilderPage() {
   const handleRemoveInstance = useCallback(
     (sectionId: string) => {
       hasChangesRef.current = true;
+      setHasUnsavedChanges(true);
       setLocalInstances((prev) => prev.filter((i) => i.id !== sectionId));
     },
     []
@@ -283,6 +287,7 @@ export default function BuilderPage() {
   const handleRenameInstance = useCallback(
     (sectionId: string, title: string) => {
       hasChangesRef.current = true;
+      setHasUnsavedChanges(true);
       setLocalInstances((prev) => prev.map((i) => (i.id === sectionId ? { ...i, title } : i)));
     },
     []
@@ -291,6 +296,7 @@ export default function BuilderPage() {
   const handleUpdateStyle = useCallback(
     (sectionId: string, style: SectionStyle) => {
       hasChangesRef.current = true;
+      setHasUnsavedChanges(true);
       setLocalInstances((prev) => prev.map((i) => (i.id === sectionId ? { ...i, style: style.font || style.color || style.weight ? style : undefined } : i)));
     },
     []
@@ -329,10 +335,37 @@ export default function BuilderPage() {
   const handleCustomizationsChange = useCallback(
     (newCustomizations: Record<string, unknown>) => {
       hasChangesRef.current = true;
+      setHasUnsavedChanges(true);
       setLocalCustomizations(newCustomizations);
     },
     []
   );
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault();
+        if (hasUnsavedChanges) {
+          handleSave();
+        }
+      }
+    },
+    [handleSave, hasUnsavedChanges]
+  );
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
+
+  const formatLastSaved = useCallback((date: Date) => {
+    const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (seconds < 60) return "just now";
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours}h ago`;
+  }, []);
 
   return (
     <>
@@ -352,10 +385,6 @@ export default function BuilderPage() {
               &larr; Back
             </button>
             <h1 className="text-lg font-semibold text-gray-900">{currentCV.title}</h1>
-            {isSaving && <span className="text-xs text-gray-400">Saving...</span>}
-            {lastSaved && !isSaving && (
-              <span className="text-xs text-gray-400">Saved</span>
-            )}
           </div>
           <div className="flex items-center gap-2">
             {id && <ExportPDFButton cvId={id} cvTitle={currentCV.title} />}
@@ -438,6 +467,29 @@ export default function BuilderPage() {
               />
             </div>
           </motion.div>
+        </div>
+
+        <div className="flex items-center justify-between border-t bg-white px-4 py-2">
+          <div className="flex items-center gap-2">
+            {hasUnsavedChanges && (
+              <>
+                <span className="h-2 w-2 rounded-full bg-orange-500" />
+                <span className="text-sm text-orange-600">Unsaved changes</span>
+              </>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {lastSaved && !isSaving && !showSavedFeedback && (
+              <span className="text-xs text-gray-400">{formatLastSaved(lastSaved)}</span>
+            )}
+            <button
+              onClick={handleSave}
+              disabled={(!hasUnsavedChanges && !showSavedFeedback) || isSaving}
+              className="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSaving ? "Saving..." : showSavedFeedback ? "Saved!" : "Save"}
+            </button>
+          </div>
         </div>
       </div>
     ) : (
