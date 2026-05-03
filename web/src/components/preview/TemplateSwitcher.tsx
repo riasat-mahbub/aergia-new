@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import UserTemplateRenderer from "./UserTemplateRenderer";
 import type { SectionInstance } from "../../lib/sections/types";
 import type { LayoutConfig } from "../../lib/sections/types";

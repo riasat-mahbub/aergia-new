@@ -27,7 +27,6 @@ import {
   getRowHeightPercent,
   normalizeRowHeights,
   normalizeAllZones,
-  MIN_ROW_PCT,
 } from "../../lib/sections/zones";
 import { SECTION_TYPES } from "../../lib/sections/types";
 import ZoneStyleEditor from "./ZoneStyleEditor";
@@ -51,7 +50,6 @@ interface SortableRowProps {
   onDeleteZone: (id: string) => void;
   onMouseDownHorizontal: (rowNum: number, localIndex: number, e: React.MouseEvent) => void;
   onDeleteRow: (rowNum: number) => void;
-  isLastRow: boolean;
 }
 
 function SortableRow({
@@ -62,9 +60,7 @@ function SortableRow({
   onSelectZone,
   onDeleteZone,
   onMouseDownHorizontal,
-  onMouseDownVertical,
   onDeleteRow,
-  isLastRow,
 }: SortableRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `row-${rowNum}`,
@@ -384,7 +380,7 @@ const handleDeleteRow = (rowNum: number) => {
       <div ref={barContainerRef} style={{ height: `${ROW_BAR_HEIGHT}px` }} className="flex flex-col overflow-hidden rounded-lg border border-gray-200">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={rowNumbers.map((r) => `row-${r}`)} strategy={verticalListSortingStrategy}>
-            {rowNumbers.map((rowNum, i) => {
+            {rowNumbers.map((rowNum) => {
               const rowZones = rowGroups.get(rowNum) || [];
               const heightPct = getRowHeightPercent(rowNum, rowNumbers, rowHeights);
               return (
@@ -398,7 +394,6 @@ const handleDeleteRow = (rowNum: number) => {
                   onDeleteZone={handleDeleteZone}
                   onMouseDownHorizontal={handleHorizontalMouseDown}
                   onDeleteRow={handleDeleteRow}
-                  isLastRow={i === rowNumbers.length - 1}
                 />
               );
             })}

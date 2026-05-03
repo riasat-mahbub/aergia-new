@@ -29,7 +29,7 @@ function renderThumbnail(manifest: any) {
 
   if (sortedRows.length === 1) {
     // Single row - horizontal layout
-    const rowZones = rows[sortedRows[0]];
+    const rowZones = rows[Number(sortedRows[0])];
     return (
       <div className="flex h-full w-2/3 gap-0.5">
         {rowZones.map((zone: any) => (
