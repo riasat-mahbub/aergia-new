@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import CustomizePanel from "../customization/CustomizePanel";
 import BuilderPage from "../../pages/BuilderPage";
 
@@ -7,6 +7,7 @@ vi.mock("react-router-dom", () => ({
   useParams: () => ({ id: "test-id" }),
   useNavigate: () => vi.fn(),
   useBlocker: () => ({ state: "unblocked" }),
+  useLocation: () => ({ pathname: "/dashboard/builder/test-cv-id" }),
 }));
 
 const mockLoadCV = vi.fn();
@@ -19,24 +20,40 @@ const mockCurrentCV = Object.freeze({
   sections: [],
   customizations: {},
 });
+const mockStoreState = {
+  currentCV: mockCurrentCV,
+  loadCV: mockLoadCV,
+  isLoading: false,
+  isSaving: false,
+  lastSaved: null,
+  setIsSaving: mockSetIsSaving,
+  setLastSaved: mockSetLastSaved,
+  patchCurrentCV: vi.fn(),
+};
 vi.mock("../../lib/store/cvStore", () => ({
-  useCVStore: vi.fn(() => ({
-    currentCV: mockCurrentCV,
-    loadCV: mockLoadCV,
-    isLoading: false,
-    isSaving: false,
-    lastSaved: null,
-    setIsSaving: mockSetIsSaving,
-    setLastSaved: mockSetLastSaved,
-  })),
+  useCVStore: Object.assign(vi.fn(() => mockStoreState), { getState: () => mockStoreState }),
 }));
 
 vi.mock("../../lib/api/cvs", () => ({
   updateCV: vi.fn(() => Promise.resolve({})),
 }));
 
+vi.mock("../../lib/api/templates", () => ({
+  fetchTemplate: vi.fn(() => Promise.resolve({})),
+}));
+
+vi.mock("../../lib/api/client", () => ({ default: vi.fn() }));
+
+vi.mock("../sections/SectionEditorPanel", () => ({ default: () => <div /> }));
+vi.mock("../sections/AddSectionModal", () => ({ default: ({ open }: any) => open ? <div>AddSectionModal</div> : null }));
+vi.mock("../customization/ZoneStyleEditor", () => ({ default: () => <div /> }));
+vi.mock("../customization/ZoneCreationModal", () => ({ default: () => <div /> }));
+vi.mock("../common/Modal", () => ({ default: ({ open, children }: any) => open ? <div>{children}</div> : null }));
+
 vi.mock("@dnd-kit/core", () => ({
   DndContext: ({ children }: any) => <div>{children}</div>,
+  DragOverlay: ({ children }: any) => <div>{children}</div>,
+  useDroppable: () => ({ isOver: false, setNodeRef: vi.fn() }),
   closestCenter: vi.fn(),
   PointerSensor: vi.fn(),
   useSensor: vi.fn(() => ({})),
@@ -58,6 +75,11 @@ vi.mock("@dnd-kit/sortable", () => ({
 }));
 
 vi.mock("@dnd-kit/utilities", () => ({ CSS: { Transform: { toString: () => "" } } }));
+
+vi.mock("motion/react", () => ({
+  motion: { div: ({ children, ...props }: any) => <div {...props}>{children}</div> },
+  AnimatePresence: ({ children }: any) => <>{children}</>,
+}));
 
 const renderCustomizePanel = (props?: Partial<Parameters<typeof CustomizePanel>[0]>) =>
   render(
@@ -115,22 +137,24 @@ describe("CustomizePanel", () => {
 });
 
 describe("T48: customization panel switches via tab bar in BuilderPage", () => {
-  it("is hidden in Content tab by default", () => {
+  it("is hidden in Content tab by default", async () => {
     render(<BuilderPage />);
-    expect(screen.queryByText("Accent")).toBeNull();
+    await waitFor(() => expect(screen.queryByText("Accent")).toBeNull());
   });
 
-  it("appears after clicking Customize tab", () => {
+  it("appears after clicking Customize tab", async () => {
     render(<BuilderPage />);
+    await waitFor(() => expect(screen.getByText("Customize")).toBeDefined());
     fireEvent.click(screen.getByText("Customize"));
-    expect(screen.getByText("Accent")).toBeDefined();
+    await waitFor(() => expect(screen.getByText("Accent")).toBeDefined());
   });
 
-  it("hides when switching back to Content tab", () => {
+  it("hides when switching back to Content tab", async () => {
     render(<BuilderPage />);
+    await waitFor(() => expect(screen.getByText("Customize")).toBeDefined());
     fireEvent.click(screen.getByText("Customize"));
-    expect(screen.getByText("Accent")).toBeDefined();
+    await waitFor(() => expect(screen.getByText("Accent")).toBeDefined());
     fireEvent.click(screen.getByText("Content"));
-    expect(screen.queryByText("Accent")).toBeNull();
+    await waitFor(() => expect(screen.queryByText("Accent")).toBeNull());
   });
 });
