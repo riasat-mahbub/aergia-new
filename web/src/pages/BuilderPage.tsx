@@ -393,7 +393,7 @@ export default function BuilderPage() {
             <h1 className="text-lg font-semibold text-gray-900">{currentCV.title}</h1>
           </div>
           <div className="flex items-center gap-2">
-            {id && <ExportPDFButton cvId={id} cvTitle={currentCV.title} />}
+            {id && <ExportPDFButton cvId={id} cvTitle={currentCV.title} onBeforeExport={handleSave} />}
           </div>
         </header>
 

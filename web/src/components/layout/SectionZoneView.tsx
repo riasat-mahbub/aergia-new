@@ -640,6 +640,47 @@ export default function SectionZoneView({
             </div>
           )}
         </DragOverlay>
+
+        {unassignedInstances.length > 0 && (
+          <div className="mt-3 rounded border border-amber-200 bg-amber-50 p-2">
+            <p className="text-xs font-medium text-amber-700">
+              {unassignedInstances.length} section(s) not assigned to any zone
+            </p>
+            <UnassignedDroppable />
+            <SortableContext items={unassignedInstances.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+              <div className="mt-1 space-y-1">
+                {unassignedInstances.map((inst) => (
+                  <div key={inst.id}>
+                    <SortableSection
+                      instance={inst}
+                      isExpanded={expandedSections.has(inst.id)}
+                      editingTitle={editingTitle}
+                      onToggle={() => onToggle(inst.id)}
+                      onRenameInstance={onRenameInstance}
+                      setEditingTitle={setEditingTitle}
+                      setDeleteConfirmId={setDeleteConfirmId}
+                      onClick={() => toggleSectionExpand(inst.id)}
+                    />
+                    <AnimatePresence>
+                      {expandedSections.has(inst.id) && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="rounded-b-lg border-x border-b bg-gray-50 p-3">
+                            <SectionEditorPanel instance={inst} onChange={onUpdateData} />
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                ))}
+              </div>
+            </SortableContext>
+          </div>
+        )}
       </DndContext>
 
       <div className="mt-3 flex gap-2">
@@ -663,47 +704,6 @@ export default function SectionZoneView({
           Add Row
         </button>
       </div>
-
-      {unassignedInstances.length > 0 && (
-        <div className="mt-3 rounded border border-amber-200 bg-amber-50 p-2">
-          <p className="text-xs font-medium text-amber-700">
-            {unassignedInstances.length} section(s) not assigned to any zone
-          </p>
-          <UnassignedDroppable />
-          <SortableContext items={unassignedInstances.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-            <div className="mt-1 space-y-1">
-              {unassignedInstances.map((inst) => (
-                <div key={inst.id}>
-                  <SortableSection
-                    instance={inst}
-                    isExpanded={expandedSections.has(inst.id)}
-                    editingTitle={editingTitle}
-                    onToggle={() => onToggle(inst.id)}
-                    onRenameInstance={onRenameInstance}
-                    setEditingTitle={setEditingTitle}
-                    setDeleteConfirmId={setDeleteConfirmId}
-                    onClick={() => toggleSectionExpand(inst.id)}
-                  />
-                  <AnimatePresence>
-                    {expandedSections.has(inst.id) && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="rounded-b-lg border-x border-b bg-gray-50 p-3">
-                          <SectionEditorPanel instance={inst} onChange={onUpdateData} />
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              ))}
-            </div>
-          </SortableContext>
-        </div>
-      )}
 
       <AddSectionModal
         open={showAddModal}
