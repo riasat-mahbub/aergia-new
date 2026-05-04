@@ -212,6 +212,16 @@ function ZoneDroppable({ zoneId }: { zoneId: string }) {
   );
 }
 
+function UnassignedDroppable() {
+  const { isOver, setNodeRef } = useDroppable({ id: "unassigned-drop" });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`h-1 rounded transition-colors ${isOver ? "h-2 bg-amber-300" : ""}`}
+    />
+  );
+}
+
 /* ── Main Component ───────────────────────────────────────────────── */
 
 export default function SectionZoneView({
@@ -357,9 +367,17 @@ export default function SectionZoneView({
       return;
     }
 
-    // Section reorder / cross-zone move
+    // Section reorder / cross-zone move / unassigned assignment
     const sourceZoneId = findSectionZone(activeId);
-    if (!sourceZoneId) return;
+
+    // Dropped on unassigned area — remove from placement
+    if (overId === "unassigned-drop") {
+      if (sourceZoneId) {
+        const { [activeId]: _, ...rest } = placement;
+        onLayoutConfigChange({ ...layoutConfig, zones, placement: rest });
+      }
+      return;
+    }
 
     let targetZoneId: string | null = null;
     if (overId.startsWith("zone-end-")) {
@@ -369,10 +387,20 @@ export default function SectionZoneView({
       const rowZones = zones.filter((z) => (z.row ?? 0) === rowNum);
       if (rowZones.length > 0) targetZoneId = rowZones[0].id;
     } else if (overId.startsWith("sec_")) {
-      targetZoneId = findSectionZone(overId) || sourceZoneId;
+      targetZoneId = findSectionZone(overId) || sourceZoneId || null;
     }
 
-    if (!targetZoneId) targetZoneId = sourceZoneId;
+    if (!targetZoneId) {
+      if (sourceZoneId) targetZoneId = sourceZoneId;
+      else return;
+    }
+
+    // Unassigned → zone: set placement
+    if (!sourceZoneId) {
+      const newPlacement = { ...placement, [activeId]: targetZoneId };
+      onLayoutConfigChange({ ...layoutConfig, zones, placement: newPlacement });
+      return;
+    }
 
     if (sourceZoneId === targetZoneId) {
       // Same zone — reorder instances array so renderer sees correct order
@@ -641,16 +669,39 @@ export default function SectionZoneView({
           <p className="text-xs font-medium text-amber-700">
             {unassignedInstances.length} section(s) not assigned to any zone
           </p>
-          <div className="mt-1 flex flex-wrap gap-1">
-            {unassignedInstances.map((inst) => (
-              <span
-                key={inst.id}
-                className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-800"
-              >
-                {inst.title}
-              </span>
-            ))}
-          </div>
+          <UnassignedDroppable />
+          <SortableContext items={unassignedInstances.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+            <div className="mt-1 space-y-1">
+              {unassignedInstances.map((inst) => (
+                <div key={inst.id}>
+                  <SortableSection
+                    instance={inst}
+                    isExpanded={expandedSections.has(inst.id)}
+                    editingTitle={editingTitle}
+                    onToggle={() => onToggle(inst.id)}
+                    onRenameInstance={onRenameInstance}
+                    setEditingTitle={setEditingTitle}
+                    setDeleteConfirmId={setDeleteConfirmId}
+                    onClick={() => toggleSectionExpand(inst.id)}
+                  />
+                  <AnimatePresence>
+                    {expandedSections.has(inst.id) && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="rounded-b-lg border-x border-b bg-gray-50 p-3">
+                          <SectionEditorPanel instance={inst} onChange={onUpdateData} />
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              ))}
+            </div>
+          </SortableContext>
         </div>
       )}
 
