@@ -27,7 +27,7 @@ export default function UserTemplateRenderer({ instances, customizations, templa
 
     async function renderTemplate() {
       try {
-        const response = await client.post("/api/v1/render/html", {
+        const response = await client.post("/render/html", {
           manifest: renderManifest,
           cv_data: { instances },
           customizations: customizations || {},
