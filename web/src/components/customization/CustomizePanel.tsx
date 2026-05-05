@@ -17,6 +17,7 @@ interface Props {
   layoutConfig: LayoutConfig | null;
   onLayoutConfigChange: (config: LayoutConfig) => void;
   templateLayoutConfig: LayoutConfig | null;
+  assets?: Record<string, string>;
 }
 
 const FONT_OPTIONS = [
@@ -35,7 +36,7 @@ const WEIGHT_OPTIONS = [
   { label: "Bold", value: "700" },
 ];
 
-export default function CustomizePanel({ customizations, onChange, templateId, onTemplateChange, instances, onUpdateStyle, layoutConfig, onLayoutConfigChange, templateLayoutConfig }: Props) {
+export default function CustomizePanel({ customizations, onChange, templateId, onTemplateChange, instances, onUpdateStyle, layoutConfig, onLayoutConfigChange, templateLayoutConfig, assets }: Props) {
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
 
@@ -67,6 +68,7 @@ export default function CustomizePanel({ customizations, onChange, templateId, o
         layoutConfig={layoutConfig}
         onChange={onLayoutConfigChange}
         templateLayoutConfig={templateLayoutConfig}
+        assets={assets}
       />
 
       <StyleEditor customizations={customizations} onChange={onChange} title="Global" />

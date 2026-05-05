@@ -405,6 +405,7 @@ export default function BuilderPage() {
                   layoutConfig={normalizedLayoutConfig}
                   onLayoutConfigChange={handleLayoutConfigChange}
                   templateLayoutConfig={templateLayoutConfig}
+                  assets={templateManifest?.assets}
                 />
               )}
             </div>

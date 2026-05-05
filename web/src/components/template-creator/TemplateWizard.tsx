@@ -1,15 +1,88 @@
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Loader2, X } from "lucide-react";
 import ZoneLayoutBar from "../customization/ZoneLayoutBar";
 import StyleEditor from "../customization/StyleEditor";
 import client from "../../lib/api/client";
-import type { LayoutConfig } from "../../lib/sections/types";
+import type { LayoutConfig, Zone, AssetItem } from "../../lib/sections/types";
+
+/* ── Asset Manager ─────────────────────────────────────────────── */
+
+function generateAssetId(): string {
+  return `ast_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+interface AssetManagerProps {
+  zones: Zone[];
+  assetItems: AssetItem[];
+  assetPlacement: Record<string, string>;
+  onUpdate: (items: AssetItem[], placement: Record<string, string>, assets: Record<string, string>) => void;
+}
+
+function AssetManager({ zones, assetItems, assetPlacement, onUpdate }: AssetManagerProps) {
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    Array.from(e.target.files || []).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const id = generateAssetId();
+        const data = reader.result as string;
+        const item: AssetItem = { id, name: file.name, data, type: "image" };
+        onUpdate(
+          [...assetItems, item],
+          { ...assetPlacement },
+          { [file.name]: data },
+        );
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removeAsset = (id: string) => {
+    const remaining = assetItems.filter((a) => a.id !== id);
+    const { [id]: _, ...restPlacement } = assetPlacement;
+    onUpdate(remaining, restPlacement, {});
+  };
+
+  const setPlacement = (assetId: string, zoneId: string) => {
+    onUpdate(assetItems, { ...assetPlacement, [assetId]: zoneId }, {});
+  };
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-500">Upload images and place them in a zone.</p>
+      <input type="file" multiple accept="image/*" onChange={handleUpload} className="block w-full text-sm text-gray-500 file:mr-2 file:rounded file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-blue-700 hover:file:bg-blue-100" />
+      {assetItems.length > 0 && (
+        <div className="space-y-2">
+          {assetItems.map((asset) => (
+            <div key={asset.id} className="flex items-center gap-3 rounded-lg border bg-white p-2">
+              <img src={asset.data} alt={asset.name} className="h-10 w-10 flex-shrink-0 rounded object-cover" />
+              <span className="min-w-0 flex-1 truncate text-xs text-gray-700">{asset.name}</span>
+              <select
+                value={assetPlacement[asset.id] || ""}
+                onChange={(e) => setPlacement(asset.id, e.target.value)}
+                className="rounded border px-2 py-1 text-xs"
+              >
+                <option value="">Not placed</option>
+                {zones.map((zone) => (
+                  <option key={zone.id} value={zone.id}>{zone.label || zone.id}</option>
+                ))}
+              </select>
+              <button onClick={() => removeAsset(asset.id)} className="flex-shrink-0 text-gray-300 hover:text-red-500">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface WizardProps {
   initialManifest?: Record<string, any>;
   onSave?: (manifest: Record<string, any>) => void;
   onComplete?: () => void;
+  onManifestChange?: (manifest: Record<string, any>) => void;
 }
 
 type StepId = "layout" | "styles" | "assets" | "review";
@@ -17,11 +90,11 @@ type StepId = "layout" | "styles" | "assets" | "review";
 const steps: { id: StepId; label: string; description: string }[] = [
   { id: "layout", label: "Layout", description: "Arrange zones and rows" },
   { id: "styles", label: "Styles", description: "Colors, fonts, spacing" },
-  { id: "assets", label: "Assets", description: "Fonts, images (optional)" },
+  { id: "assets", label: "Assets", description: "Upload images and place them in zones" },
   { id: "review", label: "Review", description: "Preview and save" },
 ];
 
-export default function TemplateWizard({ initialManifest = {}, onSave, onComplete }: WizardProps) {
+export default function TemplateWizard({ initialManifest = {}, onSave, onComplete, onManifestChange }: WizardProps) {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [manifest, setManifest] = useState<Record<string, any>>({
     version: 1,
@@ -31,17 +104,22 @@ export default function TemplateWizard({ initialManifest = {}, onSave, onComplet
     placement: initialManifest.placement || { profile: "main" },
     globalStyleSchema: initialManifest.globalStyleSchema || [],
     assets: initialManifest.assets || {},
+    asset_items: initialManifest.asset_items || [],
+    asset_placement: initialManifest.asset_placement || {},
     sectionSchema: initialManifest.sectionSchema || {},
     ...initialManifest,
   });
   const [saving, setSaving] = useState(false);
-  const [previewHtml, setPreviewHtml] = useState<string>("");
 
   const currentStep = steps[currentStepIndex];
 
   const updateManifest = useCallback((partial: Record<string, any>) => {
-    setManifest((prev) => ({ ...prev, ...partial }));
-  }, []);
+    setManifest((prev) => {
+      const next = { ...prev, ...partial };
+      onManifestChange?.(next);
+      return next;
+    });
+  }, [onManifestChange]);
 
   const goNext = () => {
     if (currentStepIndex < steps.length - 1) setCurrentStepIndex((i) => i + 1);
@@ -56,7 +134,6 @@ export default function TemplateWizard({ initialManifest = {}, onSave, onComplet
   };
 
   const handleStyleChange = (customizations: Record<string, any>) => {
-    // Build globalStyleSchema from customizations
     const schema: any[] = [];
     const colors = customizations.colors || {};
     const fonts = customizations.fonts || {};
@@ -70,29 +147,11 @@ export default function TemplateWizard({ initialManifest = {}, onSave, onComplet
     Object.entries(spacing).forEach(([key, value]) => {
       schema.push({ key, type: "length", label: key, default: value });
     });
-    setManifest((prev) => ({
-      ...prev,
-      globalStyleSchema: schema,
-      default_customizations: customizations,
-    }));
-  };
-
-  const generatePreview = async () => {
-    try {
-      const response = await client.post("/render/html", {
-        manifest: {
-          zones: manifest.zones,
-          placement: manifest.placement,
-          globalStyleSchema: manifest.globalStyleSchema,
-          default_customizations: manifest.default_customizations,
-        },
-        cv_data: { instances: [] },
-        customizations: manifest.default_customizations || {},
-      });
-      setPreviewHtml(response.data.html);
-    } catch (e) {
-      console.error("Preview generation failed", e);
-    }
+    setManifest((prev) => {
+      const next = { ...prev, globalStyleSchema: schema, default_customizations: customizations };
+      onManifestChange?.(next);
+      return next;
+    });
   };
 
   const handleSave = async () => {
@@ -130,41 +189,38 @@ export default function TemplateWizard({ initialManifest = {}, onSave, onComplet
         );
       case "assets":
         return (
-          <div className="space-y-4">
-            <p className="text-sm text-gray-500">Drag and drop fonts or images (optional).</p>
-            {/* simple file input for assets */}
-            <input type="file" multiple onChange={(e) => {
-              Array.from(e.target.files || []).forEach((file) => {
-                const reader = new FileReader();
-                reader.onload = () => {
-                  setManifest((prev) => ({
-                    ...prev,
-                    assets: { ...prev.assets, [file.name]: reader.result },
-                  }));
-                };
-                reader.readAsDataURL(file);
-              });
-            }} />
-          </div>
+          <AssetManager
+            zones={manifest.zones || []}
+            assetItems={manifest.asset_items || []}
+            assetPlacement={manifest.asset_placement || {}}
+            onUpdate={(assetItems, assetPlacement, assets) => {
+              const next = {
+                ...manifest,
+                asset_items: assetItems,
+                asset_placement: assetPlacement,
+                assets: { ...manifest.assets, ...assets },
+              };
+              setManifest(next);
+              onManifestChange?.(next);
+            }}
+          />
         );
       case "review":
         return (
           <div className="space-y-4">
-            <button onClick={generatePreview} disabled={saving} className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin inline mr-1" /> : "Generate Preview"}
-            </button>
-            {previewHtml && (
-              <div className="mx-auto max-w-[210mm] rounded bg-white shadow-sm">
-                <iframe
-                  srcDoc={previewHtml}
-                  className="h-[297mm] w-full"
-                  sandbox="allow-scripts allow-same-origin"
-                />
-              </div>
-            )}
-            <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin inline mr-1" /> : "Save Template"}
-            </button>
+            <p className="text-sm text-gray-500">Your template is ready. Preview it live on the right, then save.</p>
+            <div className="rounded-lg border bg-gray-50 p-3">
+              <div className="mb-1 text-xs font-medium text-gray-500">Template Name</div>
+              <div className="text-sm font-semibold">{manifest.name || "Untitled"}</div>
+            </div>
+            <div className="rounded-lg border bg-gray-50 p-3">
+              <div className="mb-1 text-xs font-medium text-gray-500">Zones</div>
+              <div className="text-sm">{(manifest.zones || []).length} zone(s) in {(manifest.zones || []).reduce((s: number[], z: Zone) => { const r = z.row ?? 0; if (!s.includes(r)) s.push(r); return s; }, []).length} row(s)</div>
+            </div>
+            <div className="rounded-lg border bg-gray-50 p-3">
+              <div className="mb-1 text-xs font-medium text-gray-500">Assets</div>
+              <div className="text-sm">{(manifest.asset_items || []).length} asset(s)</div>
+            </div>
           </div>
         );
       default:

@@ -9,6 +9,7 @@ interface ZonesSectionProps {
   onChange: (config: LayoutConfig) => void;
   templateLayoutConfig?: LayoutConfig | null;
   title?: string;
+  assets?: Record<string, string>;
 }
 
 export default function ZonesSection({
@@ -16,6 +17,7 @@ export default function ZonesSection({
   onChange,
   templateLayoutConfig,
   title = "Zones & Layout",
+  assets,
 }: ZonesSectionProps) {
   const [open, setOpen] = useState(true);
 
@@ -43,7 +45,7 @@ export default function ZonesSection({
           >
             <div className="border-t p-3">
               {layoutConfig?.zones?.length ? (
-                <ZoneLayoutBar layoutConfig={layoutConfig} onChange={onChange} />
+                <ZoneLayoutBar layoutConfig={layoutConfig} onChange={onChange} assets={assets} />
               ) : (
                 <div className="py-2 text-center">
                   <p className="mb-2 text-xs text-gray-400">No zones configured</p>
