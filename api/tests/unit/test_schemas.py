@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.schemas.auth import RegisterRequest, LoginRequest, ChangePasswordRequest
-from app.schemas.cv import CVCreate
+from app.schemas.cv import CVCreate, DEFAULT_SECTIONS
 
 
 class TestAuthSchemas:
@@ -31,9 +31,9 @@ class TestAuthSchemas:
         assert data.password == "securepass123"
 
     def test_change_password_request_valid(self):
-        data = ChangePasswordRequest(old_password="oldpass", new_password="newpass")
-        assert data.old_password == "oldpass"
-        assert data.new_password == "newpass"
+        data = ChangePasswordRequest(old_password="oldpass12", new_password="newpass12")
+        assert data.old_password == "oldpass12"
+        assert data.new_password == "newpass12"
 
 
 class TestCVSchemas:
@@ -45,5 +45,5 @@ class TestCVSchemas:
     def test_cv_create_defaults(self):
         data = CVCreate(title="My CV")
         assert data.template_id == "generic-modern"
-        assert data.sections == {"order": [], "enabled": [], "data": {}}
+        assert data.sections == DEFAULT_SECTIONS
         assert data.customizations == {}

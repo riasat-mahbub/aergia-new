@@ -13,8 +13,8 @@ def get_backend(name: str):
     return BACKENDS[name]()
 
 
-from .html import HTMLBackend
-from .pdf import PDFBackend
+from .html import HTMLBackend  # noqa: E402
+from .pdf import PDFBackend  # noqa: E402
 
 register_backend("html", HTMLBackend)
 register_backend("pdf", PDFBackend)

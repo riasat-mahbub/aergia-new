@@ -1,6 +1,6 @@
 """Section renderer registry."""
 
-from .profile import SECTION_LABELS, render_profile
+from .profile import SECTION_LABELS as SECTION_LABELS, render_profile
 from .experience import render_experience
 from .education import render_education
 from .skills import render_skills

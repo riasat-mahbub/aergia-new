@@ -64,6 +64,11 @@ default = true
 [[plugin]]
 name = "bandit"
 
+[[triage]]
+match.plugins = ["bandit"]
+match.file_patterns = ["api/tests/**", "web/src/**/__tests__/**"]
+set.ignored = true
+
 [[plugin]]
 name = "hadolint"
 

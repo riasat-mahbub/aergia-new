@@ -72,7 +72,7 @@ async def test_login_invalid_credentials(client):
     resp = await client.post("/api/v1/auth/login", json={"email": "nonexistent@example.com", "password": "wrongpass"})
     assert resp.status_code == 401
 
-    resp2 = await client.post("/api/v1/auth/login", json={"email": "test@example.com", "password": ""})
+    resp2 = await client.post("/api/v1/auth/login", json={"email": "test@example.com", "password": "wrongpass"})
     assert resp2.status_code == 401
 
 
@@ -90,4 +90,4 @@ async def test_protected_route_no_token(client):
     # Try accessing a protected route without token - there's no dedicated protected
     # route yet in the API, but /auth/logout requires authentication
     resp2 = await client.post("/api/v1/auth/logout")
-    assert resp2.status_code == 403  # 403 from HTTPBearer when no credentials
+    assert resp2.status_code == 401  # 401 from HTTPBearer when no credentials

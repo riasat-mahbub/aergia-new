@@ -1,7 +1,6 @@
 """Shared type definitions for the renderer."""
 
 from dataclasses import dataclass, field
-from typing import Any
 
 
 @dataclass
@@ -27,6 +26,7 @@ class RowIR:
     """A row of zones (horizontal layout)."""
     index: int
     zones: list[ZoneIR]
+    flex_value: str = "0 0 auto"
 
 
 @dataclass

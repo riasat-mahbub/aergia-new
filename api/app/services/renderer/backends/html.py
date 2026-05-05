@@ -1,44 +1,53 @@
 """HTML backend — renders DocumentIR to HTML5."""
 
 from ..ir import AbstractRenderer
-from ..types import DocumentIR
+from ..types import DocumentIR, ZoneIR, RowIR
+
+
+def _format_zone_styles(zone: ZoneIR) -> str:
+    """Format zone style dict into inline CSS string."""
+    parts = [f"{k}:{v}" for k, v in zone.styles.items() if v]
+    return ";".join(parts)
+
+
+def _format_zone_panels(zone: ZoneIR) -> str:
+    """Render all panels within a zone as HTML."""
+    panels = []
+    for panel in zone.panels:
+        panels.append(
+            f'<div style="{panel.wrapper_style}">'
+            f'<h2 style="{panel.heading_style}">{panel.title}</h2>'
+            f'{panel.html}'
+            f'</div>'
+        )
+    return "".join(panels)
+
+
+def _format_single_zone(zone: ZoneIR) -> str:
+    """Render a single zone div with its panels."""
+    style_str = _format_zone_styles(zone)
+    content = _format_zone_panels(zone)
+    return f'<div style="{style_str}">{content}</div>'
+
+
+def _format_row(row: RowIR) -> str:
+    """Render a single row as a flex container."""
+    zones_html = "".join(_format_single_zone(z) for z in row.zones)
+    return f'<div style="display:flex;flex:{row.flex_value};">{zones_html}</div>'
+
+
+def _format_css_vars_block(css_vars: dict[str, str]) -> str:
+    """Render CSS custom properties block."""
+    lines = [f"  {k}: {v};" for k, v in css_vars.items() if v]
+    return "\n".join(lines)
 
 
 class HTMLBackend(AbstractRenderer):
     """Renders DocumentIR to a complete HTML5 document."""
 
     def _format(self, ir: DocumentIR) -> str:
-        zones_html_parts = []
-        for row in ir.rows:
-            zone_html_parts = []
-            for zone in row.zones:
-                style_attrs = []
-                for k, v in zone.styles.items():
-                    if v:
-                        style_attrs.append(f"{k}:{v}")
-                style_str = ";".join(style_attrs) if style_attrs else ""
-
-                panels_html = []
-                for panel in zone.panels:
-                    panels_html.append(
-                        f'<div style="{panel.wrapper_style}">'
-                        f'<h2 style="{panel.heading_style}">{panel.title}</h2>'
-                        f'{panel.html}'
-                        f'</div>'
-                    )
-                zone_content = "".join(panels_html)
-                zone_html_parts.append(f'<div style="{style_str}">{zone_content}</div>')
-
-            row_html = f'<div style="display:flex;flex:1 0 auto;">{"".join(zone_html_parts)}</div>'
-            zones_html_parts.append(row_html)
-
-        zones_html = "".join(zones_html_parts)
-
-        css_var_lines = []
-        for var, value in ir.css_vars.items():
-            if value:
-                css_var_lines.append(f"  {var}: {value};")
-        css_vars_block = "\n".join(css_var_lines) if css_var_lines else ""
+        zones_html = "".join(_format_row(row) for row in ir.rows)
+        css_vars_block = _format_css_vars_block(ir.css_vars)
 
         return f"""<!DOCTYPE html>
 <html lang="en">

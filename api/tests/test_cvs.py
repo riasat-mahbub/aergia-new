@@ -83,14 +83,14 @@ async def test_cv_data_isolation(client):
     """T8: CV data isolation by user_id - users cannot access each other's CVs"""
 
     # Register user A
-    await client.post("/api/v1/auth/register", json={"email": "user-a@example.com", "password": "pass123"})
-    login_a = await client.post("/api/v1/auth/login", json={"email": "user-a@example.com", "password": "pass123"})
+    await client.post("/api/v1/auth/register", json={"email": "user-a@example.com", "password": "testpass12"})
+    login_a = await client.post("/api/v1/auth/login", json={"email": "user-a@example.com", "password": "testpass12"})
     token_a = login_a.json()["access_token"]
     headers_a = {"Authorization": f"Bearer {token_a}"}
 
     # Register user B
-    await client.post("/api/v1/auth/register", json={"email": "user-b@example.com", "password": "pass123"})
-    login_b = await client.post("/api/v1/auth/login", json={"email": "user-b@example.com", "password": "pass123"})
+    await client.post("/api/v1/auth/register", json={"email": "user-b@example.com", "password": "testpass12"})
+    login_b = await client.post("/api/v1/auth/login", json={"email": "user-b@example.com", "password": "testpass12"})
     token_b = login_b.json()["access_token"]
     headers_b = {"Authorization": f"Bearer {token_b}"}
 

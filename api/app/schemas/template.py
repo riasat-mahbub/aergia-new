@@ -24,11 +24,7 @@ class TemplateDetail(BaseModel):
     name: str
     description: str | None
     preview_image_url: str | None
-    layout_config: dict | None
-    section_schema: dict | None
     default_customizations: dict | None
-    content: str | None = None
-    layout_template: str | None = None
     manifest: dict | None = None
     assets: dict | None = None
     generated_html_url: str | None = None
@@ -38,16 +34,11 @@ class TemplateDetail(BaseModel):
     def model_validate(cls, obj):
         data = super().model_validate(obj)
         data.is_user_template = not obj.is_system
-        if data.is_user_template:
-            data.content = obj.content
-            data.layout_template = obj.layout_template
         return data
 
 
 class UserTemplateCreate(BaseModel):
     name: str
-    layout_template: str
+    manifest: dict | None = None
     description: str | None = None
-    layout_config: dict[str, object] | None = None
-    section_schema: dict | None = None
     default_customizations: dict | None = None

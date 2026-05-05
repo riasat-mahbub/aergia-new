@@ -25,8 +25,7 @@ async def test_template_detail(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["id"] == "generic-modern"
-    assert "layout_config" in data
-    assert "section_schema" in data
+    assert "manifest" in data
     assert "default_customizations" in data
 
 
@@ -43,8 +42,7 @@ async def test_all_templates_have_render_config(client):
     for t in resp.json():
         detail = await client.get(f"/api/v1/templates/{t['id']}")
         data = detail.json()
-        assert "layout_config" in data
-        assert "section_schema" in data
+        assert "manifest" in data
         assert "default_customizations" in data
-        assert "zones" in data["layout_config"]
-        assert "placement" in data["layout_config"]
+        assert "layout_config" in data["manifest"]
+        assert "placement" in data["manifest"]

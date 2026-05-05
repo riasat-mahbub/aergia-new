@@ -10,7 +10,8 @@ from app.services.pdf import PDFService
 from app.services.renderer import render_preview
 from app.core.deps import get_current_user
 from app.models.user import User
-from app.models.template import Template
+
+NOT_FOUND = "CV not found"
 
 router = APIRouter()
 
@@ -45,7 +46,7 @@ async def get_cv(
     service = CVService(db)
     cv = await service.get_cv(cv_id, current_user.id)
     if not cv:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="CV not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
     return CVResponse.model_validate(cv)
 
 
@@ -59,7 +60,7 @@ async def update_cv(
     service = CVService(db)
     cv = await service.update_cv(cv_id, current_user.id, data)
     if not cv:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="CV not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
     return CVResponse.model_validate(cv)
 
 
@@ -72,7 +73,7 @@ async def delete_cv(
     service = CVService(db)
     deleted = await service.delete_cv(cv_id, current_user.id)
     if not deleted:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="CV not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
     return None
 
 
@@ -85,7 +86,7 @@ async def copy_cv(
     service = CVService(db)
     new_cv = await service.copy_cv(cv_id, current_user.id)
     if not new_cv:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="CV not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
     return CVResponse.model_validate(new_cv)
 
 
@@ -98,7 +99,7 @@ async def preview_cv(
     service = CVService(db)
     cv = await service.get_cv(cv_id, current_user.id)
     if not cv:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="CV not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
 
     instances = cv.sections or []
     if isinstance(instances, dict):
@@ -106,7 +107,8 @@ async def preview_cv(
 
     template_data = await service.get_template_data(cv.template_id)
 
-    layout_config = template_data.get("layout_config") if template_data else None
+    manifest = (template_data or {}).get("manifest", {})
+    layout_config = manifest.get("layout_config") if manifest else None
     cv_layout = (cv.customizations or {}).get("layout")
     if isinstance(cv_layout, dict) and cv_layout.get("zones"):
         layout_config = cv_layout
@@ -114,8 +116,6 @@ async def preview_cv(
     html = render_preview(
         instances=instances,
         customizations=cv.customizations or {},
-        template_id=cv.template_id,
-        layout_template=template_data.get("layout_template") if template_data else None,
         layout_config=layout_config,
         default_customizations=template_data.get("default_customizations") if template_data else None,
     )

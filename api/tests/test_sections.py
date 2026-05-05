@@ -5,8 +5,8 @@ import pytest
 
 @pytest.fixture
 async def auth_headers(client):
-    await client.post("/api/v1/auth/register", json={"email": "sectest@example.com", "password": "pass123"})
-    resp = await client.post("/api/v1/auth/login", json={"email": "sectest@example.com", "password": "pass123"})
+    await client.post("/api/v1/auth/register", json={"email": "sectest@example.com", "password": "testpass12"})
+    resp = await client.post("/api/v1/auth/login", json={"email": "sectest@example.com", "password": "testpass12"})
     data = resp.json()
     return {"Authorization": f"Bearer {data['access_token']}"}
 

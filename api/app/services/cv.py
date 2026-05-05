@@ -1,8 +1,7 @@
-import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+from sqlalchemy import select
 
 from app.models.cv import CV
 from app.models.template import Template
@@ -15,36 +14,35 @@ class CVService:
 
     async def list_cvs(self, user_id: str) -> list[CV]:
         result = await self.db.execute(
-            select(CV).where(CV.user_id == user_id, CV.is_active == True).order_by(CV.updated_at.desc())
+            select(CV).where(CV.user_id == user_id, CV.is_active).order_by(CV.updated_at.desc())
         )
         return list(result.scalars().all())
 
     async def get_cv(self, cv_id: str, user_id: str) -> CV | None:
         result = await self.db.execute(
-            select(CV).where(CV.id == cv_id, CV.user_id == user_id, CV.is_active == True)
+            select(CV).where(CV.id == cv_id, CV.user_id == user_id, CV.is_active)
         )
         return result.scalar_one_or_none()
 
     async def get_template_data(self, template_id: str) -> dict | None:
-        """Get full template data (layout_template, layout_config, default_customizations)."""
+        """Get template manifest and default customizations."""
         template = await self.db.get(Template, template_id)
         if not template:
             return None
         return {
-            "layout_template": template.layout_template,
-            "layout_config": template.layout_config,
             "default_customizations": template.default_customizations,
             "manifest": template.manifest,
         }
 
     async def create_cv(self, user_id: str, data: CVCreate) -> CV:
-        sections = data.sections if isinstance(data.sections, list) else []
+        raw_sections = data.sections if isinstance(data.sections, list) else []
+        sections = [s.model_dump() if hasattr(s, "model_dump") else s for s in raw_sections]
         customizations = data.customizations or {}
 
         # Inherit layout from template when CV doesn't have one yet
         if not customizations.get("layout") and data.template_id:
             template = await self.db.get(Template, data.template_id)
-            lc = template.layout_config if template else None
+            lc = template.manifest.get("layout_config") if template and template.manifest else None
             if lc:
                 placement = lc.get("placement", {}) or {}
                 if placement and not any(k.startswith("sec_") for k in placement):
@@ -70,29 +68,20 @@ class CVService:
         await self.db.flush()
         return cv
 
-    async def _load_template_content(self, template_id: str) -> str | None:
-        if not template_id.startswith("user_"):
-            return None
-        template = await self.db.get(Template, template_id)
-        return template.layout_template if template else None
-
     async def update_cv(self, cv_id: str, user_id: str, data: CVUpdate) -> CV | None:
         cv = await self.get_cv(cv_id, user_id)
         if not cv:
             return None
 
         update_data = data.model_dump(exclude_unset=True)
+        # Convert ValidatedSectionInstance objects to plain dicts for DB storage
+        if "sections" in update_data and isinstance(update_data["sections"], list):
+            update_data["sections"] = [
+                s.model_dump() if hasattr(s, "model_dump") else s
+                for s in update_data["sections"]
+            ]
         for key, value in update_data.items():
             setattr(cv, key, value)
-        if "template_id" in update_data and update_data["template_id"].startswith("user_"):
-            content = await self._load_template_content(update_data["template_id"])
-            cv.template_content = content
-        elif "template_id" in update_data and not update_data["template_id"].startswith("user_"):
-            cv.template_content = None
-        elif not cv.template_content and cv.template_id.startswith("user_") and "template_id" not in update_data:
-            content = await self._load_template_content(cv.template_id)
-            if content:
-                cv.template_content = content
         cv.updated_at = datetime.now(timezone.utc)
         await self.db.flush()
         return cv
@@ -119,7 +108,6 @@ class CVService:
             sections=original.sections,
             customizations=original.customizations,
             extra_metadata=original.extra_metadata,
-            template_content=original.template_content,
         )
         self.db.add(new_cv)
         await self.db.flush()
