@@ -15,26 +15,32 @@ interface Props {
 export default function UserTemplateRenderer({ instances, customizations, templateContent, layoutConfig, defaultCustomizations, manifest }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [html, setHtml] = useState<string>("");
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Use manifest if available, otherwise fall back to layoutConfig
-    const renderManifest = manifest || {
-      zones: layoutConfig?.zones || [],
-      placement: layoutConfig?.placement || {},
-      globalStyleSchema: [],
-      default_customizations: defaultCustomizations || {},
+    const renderManifest = {
+      ...manifest,
+      layout_config: {
+        zones: manifest?.zones || layoutConfig?.zones || [],
+        placement: manifest?.placement || layoutConfig?.placement || {},
+      },
     };
 
     async function renderTemplate() {
       try {
+        setError(null);
         const response = await client.post("/render/html", {
           manifest: renderManifest,
           cv_data: { instances },
           customizations: customizations || {},
         });
         setHtml(response.data.html);
-      } catch (error) {
-        console.error("Failed to render template:", error);
+      } catch (err) {
+        const message = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+          || (err as Error)?.message
+          || "Failed to render template";
+        setError(message);
+        setHtml("");
       }
     }
     renderTemplate();
@@ -51,6 +57,14 @@ export default function UserTemplateRenderer({ instances, customizations, templa
     iframeDoc.write(html);
     iframeDoc.close();
   }, [html]);
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center rounded border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+        {error}
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-[210mm] rounded bg-white shadow-sm">
