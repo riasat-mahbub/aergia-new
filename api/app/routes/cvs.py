@@ -118,6 +118,7 @@ async def preview_cv(
         customizations=cv.customizations or {},
         layout_config=layout_config,
         default_customizations=template_data.get("default_customizations") if template_data else None,
+        global_style_schema=manifest.get("globalStyleSchema") if manifest else None,
     )
     return {"html": html}
 

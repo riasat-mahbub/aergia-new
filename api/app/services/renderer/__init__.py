@@ -25,13 +25,14 @@ def render_preview(
     customizations: dict,
     layout_config: dict | None = None,
     default_customizations: dict | None = None,
+    global_style_schema: list | None = None,
 ) -> str:
     """Render preview HTML using the IR-based pipeline."""
     lc = layout_config or {"zones": [], "placement": {}}
     manifest = {
         "layout_config": lc,
         "zones": lc.get("zones", []),
-        "globalStyleSchema": [],
+        "globalStyleSchema": global_style_schema or [],
         "default_customizations": default_customizations or {},
     }
     return render_html(manifest, {"instances": instances}, customizations)
