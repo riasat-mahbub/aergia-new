@@ -69,6 +69,8 @@ def manifest_to_layout_config(manifest: Manifest) -> dict:
 def manifest_to_layout_template(manifest: Manifest) -> str:
     """Generate a full HTML document template from manifest."""
     zones = manifest.zones
+    if not zones:
+        raise ValueError("Manifest must have at least one zone")
     # Group zones by row
     rows: dict[int, list] = {}
     for zone in zones:

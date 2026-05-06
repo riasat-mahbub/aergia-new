@@ -37,10 +37,10 @@ def render_preview(
     """
     if layout_template is not None:
         # User template path - use the manifest-based renderer
-        # Build a minimal manifest from the provided data
+        lc = layout_config or {"zones": [], "placement": {}}
         manifest = {
-            "zones": layout_config.get("zones", []) if layout_config else [],
-            "placement": layout_config.get("placement", {}) if layout_config else {},
+            "layout_config": lc,
+            "zones": lc.get("zones", []),
             "globalStyleSchema": [],
             "default_customizations": default_customizations or {},
         }
