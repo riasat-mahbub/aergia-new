@@ -14,8 +14,15 @@ TAGS:
 - adr
 - architecture
 - database
-RELATIONS: null
-AFFECTS: null
+RELATIONS:
+  related:
+  - FEAT-01KYZ1HDBPMFG4G6HANFNCHJGA
+AFFECTS:
+  files:
+  - api/app/db/session.py
+  - docker-compose.yml
+  - dev.sh
+  - DEPLOY.md
 LINKS: null
 CREATED_BY: null
 UPDATED_BY: null

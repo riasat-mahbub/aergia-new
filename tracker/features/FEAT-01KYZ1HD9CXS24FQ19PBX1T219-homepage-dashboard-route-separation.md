@@ -14,7 +14,9 @@ TAGS:
 - routing
 - ui
 - phase-11
-RELATIONS: null
+RELATIONS:
+  related:
+  - BUG-01KYZ1D257KRJHAB9XDQ7RC79X
 AFFECTS: null
 LINKS: null
 CREATED_BY: null

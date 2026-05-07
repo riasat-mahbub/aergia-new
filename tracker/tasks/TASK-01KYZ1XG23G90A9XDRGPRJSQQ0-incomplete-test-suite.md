@@ -13,7 +13,9 @@ CONFIDENCE: Medium
 TAGS:
 - testing
 - gap
-RELATIONS: null
+RELATIONS:
+  related:
+  - ADR-01KYZ1XG9EWRX1VXY30CRCTMJH
 AFFECTS: null
 LINKS: null
 CREATED_BY: null

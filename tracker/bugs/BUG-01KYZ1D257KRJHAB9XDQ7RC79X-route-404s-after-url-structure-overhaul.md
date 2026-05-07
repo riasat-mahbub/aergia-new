@@ -15,7 +15,9 @@ TAGS:
 - '404'
 - navigation
 - phase-11
-RELATIONS: null
+RELATIONS:
+  related:
+  - FEAT-01KYZ1HD9CXS24FQ19PBX1T219
 AFFECTS: null
 LINKS: null
 CREATED_BY: null
