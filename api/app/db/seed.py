@@ -232,4 +232,6 @@ async def seed_templates(db: AsyncSession) -> None:
         existing = await db.get(Template, data["id"])
         if existing is None:
             db.add(Template(**data))
+        elif existing.manifest is None:
+            existing.manifest = data["manifest"]
     await db.commit()
