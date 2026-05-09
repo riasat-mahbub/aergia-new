@@ -1,26 +1,23 @@
-"""HTML backend for rendering DocumentIR to HTML5."""
+"""HTML backend — renders DocumentIR to HTML5."""
 
-from . import RendererBackend
+from ..ir import AbstractRenderer
 from ..types import DocumentIR
 
 
-class HTMLBackend(RendererBackend):
+class HTMLBackend(AbstractRenderer):
     """Renders DocumentIR to a complete HTML5 document."""
 
-    def render(self, ir: DocumentIR) -> str:
-        # Build zones HTML
+    def _format(self, ir: DocumentIR) -> str:
         zones_html_parts = []
         for row in ir.rows:
             zone_html_parts = []
             for zone in row.zones:
-                # Build zone wrapper with styles
                 style_attrs = []
                 for k, v in zone.styles.items():
                     if v:
                         style_attrs.append(f"{k}:{v}")
                 style_str = ";".join(style_attrs) if style_attrs else ""
 
-                # Build panels inside zone
                 panels_html = []
                 for panel in zone.panels:
                     panels_html.append(
@@ -32,13 +29,11 @@ class HTMLBackend(RendererBackend):
                 zone_content = "".join(panels_html)
                 zone_html_parts.append(f'<div style="{style_str}">{zone_content}</div>')
 
-            # Row flex - auto height since we removed rowHeights
             row_html = f'<div style="display:flex;flex:1 0 auto;">{"".join(zone_html_parts)}</div>'
             zones_html_parts.append(row_html)
 
         zones_html = "".join(zones_html_parts)
 
-        # Build CSS variable style block
         css_var_lines = []
         for var, value in ir.css_vars.items():
             if value:

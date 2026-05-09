@@ -1,22 +1,28 @@
-"""PDF backend using Playwright (async)."""
+"""PDF backend — renders DocumentIR to PDF via Playwright."""
 
-from . import RendererBackend
+import asyncio
+
+from ..ir import AbstractRenderer, build_ir
 from ..types import DocumentIR
 from .html import HTMLBackend
 
 
-class PDFBackend(RendererBackend):
-    """Renders DocumentIR to PDF via Playwright."""
+class PDFBackend(AbstractRenderer):
+    """Renders DocumentIR to PDF via Playwright.
+    
+    Extends AbstractRenderer for the Template Method pattern.
+    Overrides _format with async version for Playwright.
+    """
 
-    def __init__(self):
-        self._html_backend = HTMLBackend()
+    async def render_async(self, manifest: dict, cv_data: dict, customizations: dict) -> bytes:
+        """Full pipeline: build IR then render to PDF (async)."""
+        ir = build_ir(manifest, cv_data, customizations)
+        return await self._format(ir)
 
-    async def render_async(self, ir: DocumentIR) -> bytes:
+    async def _format(self, ir: DocumentIR) -> bytes:
         """Render IR to PDF bytes asynchronously."""
-        # First render to HTML
-        html = self._html_backend.render(ir)
+        html = HTMLBackend()._format(ir)
 
-        # Use Playwright to convert to PDF
         from playwright.async_api import async_playwright
 
         async with async_playwright() as p:
@@ -39,7 +45,6 @@ class PDFBackend(RendererBackend):
             await browser.close()
             return pdf_bytes
 
-    def render(self, ir: DocumentIR) -> bytes:
-        """Sync wrapper for backward compatibility."""
-        import asyncio
-        return asyncio.run(self.render_async(ir))
+    def render(self, manifest: dict, cv_data: dict, customizations: dict) -> bytes:
+        """Sync wrapper."""
+        return asyncio.run(self.render_async(manifest, cv_data, customizations))

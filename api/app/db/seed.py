@@ -107,6 +107,7 @@ def build_manifest(template: dict) -> dict:
         "id": template["id"],
         "name": template["name"],
         "description": template.get("description"),
+        "layout_config": layout_config,
         "zones": layout_config.get("zones", []),
         "placement": layout_config.get("placement", {}),
         "rowHeights": layout_config.get("rowHeights", {}),

@@ -142,17 +142,16 @@ Run a one-off script that converts the three existing seed templates into manife
 
 ```
 api/app/services/renderer/
-├── __init__.py              # exports: render_html, render_pdf, render_preview (legacy)
-├── ir.py                    # build_intermediate_representation(manifest, cv_data, customizations) → IR
-├── html.py                  # ir_to_html(ir) → complete HTML5 string
-├── pdf.py                   # ir_to_pdf(ir) → bytes (Playwright async)
-├── legacy_renderer.py       # backward-compat render_preview for system templates
+├── __init__.py              # exports: render_html, render_pdf, render_preview
+├── ir.py                    # build_ir() + AbstractRenderer (Template Method)
+├── html.py                  # render_html convenience
+├── pdf.py                   # render_pdf, render_pdf_sync convenience
 ├── backends/
-│   ├── __init__.py          # RendererBackend ABC + registry (html, pdf)
-│   ├── html.py              # HTMLBackend
-│   └── pdf.py               # PDFBackend (wraps Playwright)
+│   ├── __init__.py          # Backend registry (html, pdf)
+│   ├── html.py              # HTMLBackend(AbstractRenderer) → HTML5
+│   └── pdf.py               # PDFBackend(AbstractRenderer) → PDF via Playwright
 ├── section_renderers/
-│   ├── __init__.py          # SECTION_RENDERERS dict
+│   ├── __init__.py          # SECTION_RENDERERS dict + SECTION_LABELS
 │   ├── profile.py
 │   ├── experience.py
 │   ├── education.py
@@ -160,8 +159,6 @@ api/app/services/renderer/
 │   ├── projects.py
 │   ├── languages.py
 │   └── certifications.py
-├── css_vars.py              # substitute_css_vars, merge_customizations
-├── placeholders.py          # replace_unknown_zones (3 pure functions)
 └── types.py                 # IR dataclasses (DocumentIR, RowIR, ZoneIR, SectionPanelIR)
 ```
 
