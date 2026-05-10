@@ -2,14 +2,25 @@
 
 ## Tracker
 
-Bugs, features, and issues are tracked as individual markdown files in
-`tracker/`.  See `tracker/README.md` for the dashboard.
+Bugs, features, decisions, tasks, and docs are tracked as individual markdown
+files in `tracker/` (project-tracker SCHEMA 3, ULID IDs).  See
+`tracker/README.md` for the dashboard and migration history.
 
-| Folder | OPEN | CLOSED | Total |
-|--------|------|--------|-------|
-| [bugs/](tracker/bugs/index.md) | 0 | 9 | 9 |
-| [features/](tracker/features/index.md) | 9 | 19 | 28 |
-| [issues/](tracker/issues/index.md) | 3 | 4 | 7 |
+| Folder | DONE | OPEN | Total |
+|--------|------|------|-------|
+| [bugs/](tracker/bugs/) | 9 | 0 | 9 |
+| [features/](tracker/features/) | 19 | 10 | 29 |
+| [decisions/](tracker/decisions/) | 3 | 0 | 3 |
+| [tasks/](tracker/tasks/) | 4 | 13 | 17 |
+| [docs/](tracker/docs/) | 0 | 1 | 1 |
+
+**Last updated:** 2026-08-01 (from `tracker stats`)
+
+## Required skill: project-tracker
+
+This project uses a file-based project knowledge graph in tracker/.
+- Before editing: search for related entries (`tracker search <topic>`)
+- After editing: update entries and rebuild (`tracker update <id> --status ... --note "..."`, `tracker rebuild && tracker validate`)
 
 ## Quick start
 
@@ -73,15 +84,15 @@ npm run lint         # ESLint
   (hard-coded React renderers + HTML user templates) with a single manifest
   JSON schema. Every template is defined by 4 artefacts: manifest.json,
   template.html, styles.css, optional assets. The visual editor writes the
-  manifest; HTML/CSS are derived artefacts. See `tracker/issues/003-adr-manifest-templates.md`.
+  manifest; HTML/CSS are derived artefacts. See `tracker/decisions/ADR-01KYZ1XG6W0K8NQPMV2Z6WCVYM-adr-manifest-driven-templates.md`.
 - **2026-06-27: Manual save over auto-save** — Auto-save had 3 rounds of bug
   fixes for race conditions. Replaced with explicit manual save (Save button,
   Ctrl+S, save-on-navigate blocker, unsaved indicator). Simpler mental model.
-  See `tracker/issues/004-adr-manual-save.md`.
+  See `tracker/decisions/ADR-01KYZ1XG9EWRX1VXY30CRCTMJH-adr-manual-save-over-auto-save.md`.
 - **2026-07-26: PostgreSQL → SQLite migration** — Replaced PostgreSQL/asyncpg
   with SQLite/aiosqlite for zero-dependency local dev. Removed Docker requirement
   for development. Simpler backups (single file). Lost concurrent write capability
-  but acceptable for single-user CV builder. See `tracker/issues/007-adr-sqlite-migration.md`.
+  but acceptable for single-user CV builder. See `tracker/decisions/ADR-01KYZ1XGGHXX9F2DW5HDXBBWMG-adr-postgresql-sqlite-migration.md`.
 
 ## Conventions
 
