@@ -146,10 +146,33 @@ export interface AssetItem {
 
 export interface LayoutConfig {
   zones: Zone[];
+  /** Maps section instanceId → zoneId (per-instance placement). Falls back to type→zoneId for old CVs. */
   placement: Record<string, string>;
   rowHeights?: Record<number, string>; // row number → height% string, e.g. { 0: "60%", 1: "40%" }
 }
 
 export function getDefaultInstances(): SectionInstance[] {
   return [createDefaultInstance("profile")];
+}
+
+/** Detect if a placement map is in old format (type→zoneId) vs new (instanceId→zoneId). */
+function isTypeBasedPlacement(placement: Record<string, string>): boolean {
+  const keys = Object.keys(placement);
+  if (keys.length === 0) return false;
+  return keys.some((k) => !k.startsWith("sec_"));
+}
+
+/** Convert old type-based placement to instance-based placement. */
+export function migratePlacement(
+  layoutConfig: LayoutConfig,
+  instances: SectionInstance[],
+): LayoutConfig {
+  if (!isTypeBasedPlacement(layoutConfig.placement)) return layoutConfig;
+  const oldPlacement = layoutConfig.placement;
+  const newPlacement: Record<string, string> = {};
+  for (const inst of instances) {
+    const zoneId = oldPlacement[inst.type];
+    if (zoneId) newPlacement[inst.id] = zoneId;
+  }
+  return { ...layoutConfig, placement: newPlacement };
 }

@@ -19,7 +19,7 @@ import TemplateSwitcher from "../components/preview/TemplateSwitcher";
 import CustomizePanel from "../components/customization/CustomizePanel";
 
 import type { SectionInstance, SectionStyle, LayoutConfig } from "../lib/sections/types";
-import { createDefaultInstance } from "../lib/sections/types";
+import { createDefaultInstance, migratePlacement } from "../lib/sections/types";
 import { normalizeWidths, groupByRow } from "../lib/sections/zones";
 import { updateCV } from "../lib/api/cvs";
 import * as templatesApi from "../lib/api/templates";
@@ -57,8 +57,17 @@ export default function BuilderPage() {
       if (cancelled) return;
       const state = useCVStore.getState();
       if (state.currentCV?.sections) {
-        setLocalInstances(state.currentCV.sections as SectionInstance[]);
-        setLocalCustomizations(state.currentCV.customizations || {});
+        const instances = state.currentCV.sections as SectionInstance[];
+        const customizations = state.currentCV.customizations || {};
+
+        // Migrate old type-based placement to instance-based
+        const layout = customizations.layout as LayoutConfig | undefined;
+        if (layout && layout.placement) {
+          customizations.layout = migratePlacement(layout, instances);
+        }
+
+        setLocalInstances(instances);
+        setLocalCustomizations(customizations);
         setIsLoaded(true);
       }
     })();

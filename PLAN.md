@@ -321,3 +321,85 @@ Adding LaTeX/DOCX later = new subclass + `register_backend()`.
 ---
 
 *End of active plan. Completed work archived in COMPLETED.md.*
+
+---
+
+## Phase 6 – Merge Sections & Zones UI
+
+**Goal:** Replace the flat `SectionList` (Content tab) with a unified view that shows the CV broken into zones and rows, with sections rendered *inside* their assigned zones. The Customize tab becomes styling-only. Placement changes from type-based to instance-based.
+
+**Status:** 🔲 **IN PROGRESS**
+
+### Overview
+
+| Aspect | Before | After |
+|--------|--------|-------|
+| **Content tab** | Flat list of sections | CV broken into rows/zones with sections INSIDE each zone |
+| **Customize tab** | Zone layout editor + styling + globals | **Styling only**: global styles, section overrides, template selector |
+| **Placement** | `section_type → zone_id` | `instance_id → zone_id` (per-section placement) |
+| **Section movement** | Flat list reorder only | Cross-zone DnD via `DragOverlay` |
+| **Zone style editing** | In `ZoneStyleEditor` in Customize tab | Inline expandable panel per zone in Content tab |
+
+### Phase 6.1 – Instance-based Placement
+
+**Backend** (`api/app/services/renderer/ir.py`):
+- `_group_instances_by_zone()`: change `placement.get(section_type)` → `placement.get(instance["id"])`
+- Add fallback: if instance ID not found, try `placement.get(type)` for old CVs
+
+**Frontend** (`web/src/lib/sections/types.ts`):
+- Update `LayoutConfig.placement` doc: `Record<string, string>` now maps `instanceId → zoneId`
+
+**Migration** (`web/src/lib/api/cvs.ts` or `cvStore`):
+- On CV load, if placement has type-keys (match `SECTION_TYPES`), convert: `newPlacement[instance.id] = oldPlacement[instance.type]`
+
+### Phase 6.2 – New `SectionZoneView` Component
+
+**New file:** `web/src/components/layout/SectionZoneView.tsx`
+
+Structure (top to bottom):
+- Renders CV as rows → zones → sections
+- **Zone header:** name, width%, gear toggle (expands zone style panel), delete button
+- **Inline zone style panel** (reuses `ZoneStyleEditor` minus section toggles): width, padding, bg color, bg image, border, typography
+- **Sections per zone:** drag handle, title (inline rename), type label, toggle, delete, chevron → expand `SectionEditorPanel`
+- **Section DnD:** `SortableContext` per zone, single `DndContext`, `DragOverlay` for cross-zone moves
+- **Zone/row CRUD:** Add Zone (modal), Add Row, delete zone/row, row reorder, horizontal resize handles
+- **Add Section per zone:** opens `AddSectionModal`, new section auto-assigned to that zone
+
+### Phase 6.3 – CustomizePanel Stripped to Styling Only
+
+**`web/src/components/customization/CustomizePanel.tsx`:**
+- Remove `ZonesSection`/`ZoneLayoutBar` imports
+- Keep: template selector, global styles (`StyleEditor`), section overrides
+- Zone style controls are now inline in Content tab (Phase 6.2)
+
+### Phase 6.4 – BuilderPage Surgery
+
+**`web/src/pages/BuilderPage.tsx`:**
+- Replace `<SectionList>` in content tab with `<SectionZoneView>`
+- Pass all instance handlers + layoutConfig down
+- Customize tab renders stripped `CustomizePanel`
+
+### Phase 6.5 – Cleanup
+
+Remove:
+- `SectionList.tsx`
+- `ZoneLayoutBar.tsx`, `ZonesSection.tsx`, `SortableRow.tsx`
+
+### Phase 6.6 – Verify
+
+- `ruff check .` on backend
+- `pytest` on backend
+- `npm run lint` on frontend
+- `npm run typecheck` on frontend
+
+### Tasks
+
+| # | Task | Status |
+|---|------|--------|
+| 6.1 | Backend: instance-based placement in `ir.py` | 🔲 |
+| 6.2 | Frontend: instance-based types + load migration | 🔲 |
+| 6.3 | Create `SectionZoneView` component | 🔲 |
+| 6.4 | Strip `CustomizePanel` to styling only | 🔲 |
+| 6.5 | Update `BuilderPage` to wire `SectionZoneView` | 🔲 |
+| 6.6 | Remove old components (`SectionList`, `ZoneLayoutBar`, etc.) | 🔲 |
+| 6.7 | Verify lint + typecheck + tests | 🔲 |
