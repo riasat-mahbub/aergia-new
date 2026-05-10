@@ -397,8 +397,8 @@ Remove:
 | # | Task | Status |
 |---|------|--------|
 | 6.1 | Backend: instance-based placement in `ir.py` | 🔲 |
-| 6.2 | Frontend: instance-based types + load migration | 🔲 |
-| 6.3 | Create `SectionZoneView` component | 🔲 |
+| 6.2 | Frontend: instance-based types + load migration | ✅ |
+| 6.3 | Create `SectionZoneView` component | ✅ |
 | 6.4 | Strip `CustomizePanel` to styling only | 🔲 |
 | 6.5 | Update `BuilderPage` to wire `SectionZoneView` | 🔲 |
 | 6.6 | Remove old components (`SectionList`, `ZoneLayoutBar`, etc.) | 🔲 |

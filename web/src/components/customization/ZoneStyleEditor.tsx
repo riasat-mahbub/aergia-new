@@ -1,5 +1,4 @@
 import type { Zone } from "../../lib/sections/types";
-import { SECTION_LABELS } from "../../lib/sections/types";
 
 const FONT_OPTIONS = [
   "",
@@ -14,16 +13,12 @@ const FONT_OPTIONS = [
 interface Props {
   zone: Zone;
   onChange: (zone: Zone) => void;
-  allSectionTypes: string[];
-  assignedSections: string[];
-  onAssignSection: (sectionType: string) => void;
-  onUnassignSection: (sectionType: string) => void;
   availableRows?: number[];
   onMoveToRow?: (row: number) => void;
   assets?: Record<string, string>; // asset name -> data URL
 }
 
-export default function ZoneStyleEditor({ zone, onChange, allSectionTypes, assignedSections, onAssignSection, onUnassignSection, availableRows, onMoveToRow, assets = {} }: Props) {
+export default function ZoneStyleEditor({ zone, onChange, availableRows, onMoveToRow, assets = {} }: Props) {
   const styles = zone.styles || {};
 
   const getStyle = (key: string): string => styles[key] ?? "";
@@ -287,34 +282,7 @@ export default function ZoneStyleEditor({ zone, onChange, allSectionTypes, assig
           </div>
         </div>
 
-        <div className="border-t border-gray-200 pt-3">
-          <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Sections</div>
-          <div className="flex flex-wrap gap-1">
-            {allSectionTypes.map((sectionType) => {
-              const isAssigned = assignedSections.includes(sectionType);
-              return (
-                <button
-                  key={sectionType}
-                  type="button"
-                  onClick={() => {
-                    if (isAssigned) {
-                      onUnassignSection(sectionType);
-                    } else {
-                      onAssignSection(sectionType);
-                    }
-                  }}
-                  className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
-                    isAssigned
-                      ? "bg-blue-100 text-blue-700 hover:bg-blue-200"
-                      : "border border-gray-200 bg-gray-50 text-gray-400 hover:border-gray-300 hover:bg-gray-100"
-                  }`}
-                >
-                  {SECTION_LABELS[sectionType] || sectionType}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+
       </div>
     </div>
   );

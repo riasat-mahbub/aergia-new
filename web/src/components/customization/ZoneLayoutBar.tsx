@@ -24,7 +24,6 @@ import {
   groupByRow,
   normalizeAllZones,
 } from "../../lib/sections/zones";
-import { SECTION_TYPES } from "../../lib/sections/types";
 import ZoneStyleEditor from "./ZoneStyleEditor";
 import ZoneCreationModal from "./ZoneCreationModal";
 import SortableRow from "./SortableRow";
@@ -220,28 +219,6 @@ const handleDeleteRow = (rowNum: number) => {
     onChange({ ...layoutConfig, zones: normalized });
   };
 
-  const handleAssignSection = (zoneId: string, sectionType: string) => {
-    const newPlacement = { ...placement };
-    const oldZoneId = newPlacement[sectionType];
-    const updatedZones = zones.map((z) => {
-      if (z.id === oldZoneId) return { ...z, assignedSections: (z.assignedSections || []).filter((s) => s !== sectionType) };
-      if (z.id === zoneId) return { ...z, assignedSections: [...(z.assignedSections || []), sectionType] };
-      return z;
-    });
-    newPlacement[sectionType] = zoneId;
-    onChange({ ...layoutConfig, zones: updatedZones, placement: newPlacement });
-  };
-
-  const handleUnassignSection = (zoneId: string, sectionType: string) => {
-    const newPlacement = { ...placement };
-    delete newPlacement[sectionType];
-    const updatedZones = zones.map((z) => {
-      if (z.id === zoneId) return { ...z, assignedSections: (z.assignedSections || []).filter((s) => s !== sectionType) };
-      return z;
-    });
-    onChange({ ...layoutConfig, zones: updatedZones, placement: newPlacement });
-  };
-
   const handleMoveZoneToRow = (zoneId: string, newRow: number) => {
     const updatedZones = zones.map((z) => (z.id === zoneId ? { ...z, row: newRow } : z));
     const normalized = normalizeAllZones(updatedZones);
@@ -306,10 +283,6 @@ const handleDeleteRow = (rowNum: number) => {
               <ZoneStyleEditor
                 zone={selectedZone}
                 onChange={handleZoneUpdate}
-                allSectionTypes={[...SECTION_TYPES]}
-                assignedSections={selectedZone.assignedSections || []}
-                onAssignSection={(sectionType) => handleAssignSection(selectedZone.id, sectionType)}
-                onUnassignSection={(sectionType) => handleUnassignSection(selectedZone.id, sectionType)}
                 availableRows={rowNumbers}
                 onMoveToRow={(row) => handleMoveZoneToRow(selectedZone.id, row)}
                 assets={assets}

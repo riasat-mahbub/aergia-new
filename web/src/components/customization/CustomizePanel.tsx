@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Check, ChevronDown } from "lucide-react";
-import type { SectionInstance, SectionStyle, LayoutConfig } from "../../lib/sections/types";
+import type { SectionInstance, SectionStyle } from "../../lib/sections/types";
 import { SECTION_LABELS } from "../../lib/sections/types";
 import TemplateSelectorModal from "./TemplateSelectorModal";
 import StyleEditor from "./StyleEditor";
-import ZonesSection from "./ZonesSection";
 
 interface Props {
   customizations: Record<string, any>;
@@ -14,10 +13,6 @@ interface Props {
   onTemplateChange: (templateId: string) => void;
   instances: SectionInstance[];
   onUpdateStyle: (id: string, style: SectionStyle) => void;
-  layoutConfig: LayoutConfig | null;
-  onLayoutConfigChange: (config: LayoutConfig) => void;
-  templateLayoutConfig: LayoutConfig | null;
-  assets?: Record<string, string>;
 }
 
 const FONT_OPTIONS = [
@@ -36,7 +31,7 @@ const WEIGHT_OPTIONS = [
   { label: "Bold", value: "700" },
 ];
 
-export default function CustomizePanel({ customizations, onChange, templateId, onTemplateChange, instances, onUpdateStyle, layoutConfig, onLayoutConfigChange, templateLayoutConfig, assets }: Props) {
+export default function CustomizePanel({ customizations, onChange, templateId, onTemplateChange, instances, onUpdateStyle }: Props) {
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
 
@@ -63,13 +58,6 @@ export default function CustomizePanel({ customizations, onChange, templateId, o
           </button>
         </div>
       </div>
-
-      <ZonesSection
-        layoutConfig={layoutConfig}
-        onChange={onLayoutConfigChange}
-        templateLayoutConfig={templateLayoutConfig}
-        assets={assets}
-      />
 
       <StyleEditor customizations={customizations} onChange={onChange} title="Global" />
 
