@@ -1,11 +1,177 @@
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowLeft, ArrowRight, Check, Loader2, X } from "lucide-react";
-import ZoneLayoutBar from "../customization/ZoneLayoutBar";
+import { ArrowLeft, ArrowRight, Check, Loader2, Plus, Trash2, X } from "lucide-react";
 import StyleEditor from "../customization/StyleEditor";
 import client from "../../lib/api/client";
 import { useToastStore } from "../../lib/store/uiStore";
 import type { LayoutConfig, Zone, AssetItem } from "../../lib/sections/types";
+import { SECTION_TYPES, SECTION_LABELS } from "../../lib/sections/types";
+
+/* ── Template Layout Editor (inline replacement for ZoneLayoutBar) ── */
+
+function TemplateLayoutEditor({
+  layoutConfig,
+  onChange,
+}: {
+  layoutConfig: LayoutConfig;
+  onChange: (config: LayoutConfig) => void;
+}) {
+  const { zones, placement } = layoutConfig;
+
+  const rowNumbers = [...new Set(zones.map((z) => z.row ?? 0))].sort();
+
+  const addRow = () => {
+    const nextRow = rowNumbers.length > 0 ? Math.max(...rowNumbers) + 1 : 0;
+    const newZone: Zone = {
+      id: `zone_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      label: `Row ${nextRow + 1}`,
+      row: nextRow,
+      styles: { width: "100%", padding: "24px" },
+    };
+    onChange({ ...layoutConfig, zones: [...zones, newZone] });
+  };
+
+  const deleteRow = (rowNum: number) => {
+    const remaining = zones.filter((z) => (z.row ?? 0) !== rowNum);
+    if (remaining.length === 0) return;
+    onChange({ ...layoutConfig, zones: remaining });
+  };
+
+  const addZone = (rowNum: number) => {
+    const rowZones = zones.filter((z) => (z.row ?? 0) === rowNum);
+    const newId = `zone_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    const existingWidth = rowZones.reduce((s, z) => {
+      const w = parseInt((z.styles?.width || "100").replace("%", ""));
+      return s + w;
+    }, 0);
+    const newWidth = Math.min(50, 100 - existingWidth);
+    const newZone: Zone = {
+      id: newId,
+      label: `Zone ${zones.length + 1}`,
+      row: rowNum,
+      styles: { width: `${newWidth}%`, padding: "24px" },
+    };
+    const updated = zones.map((z) => {
+      if ((z.row ?? 0) === rowNum) {
+        const w = parseInt((z.styles?.width || "100").replace("%", ""));
+        const scale = (100 - newWidth) / existingWidth;
+        return { ...z, styles: { ...z.styles, width: `${Math.round(w * scale)}%` } };
+      }
+      return z;
+    });
+    onChange({ ...layoutConfig, zones: [...updated, newZone] });
+  };
+
+  const deleteZone = (zoneId: string) => {
+    if (zones.length <= 1) return;
+    const remaining = zones.filter((z) => z.id !== zoneId);
+    const newPlacement = { ...placement };
+    for (const [key, val] of Object.entries(placement)) {
+      if (val === zoneId) delete newPlacement[key];
+    }
+    onChange({ ...layoutConfig, zones: remaining, placement: newPlacement });
+  };
+
+  const toggleSectionType = (sectionType: string, zoneId: string) => {
+    const newPlacement = { ...placement };
+    if (newPlacement[sectionType] === zoneId) {
+      delete newPlacement[sectionType];
+    } else {
+      newPlacement[sectionType] = zoneId;
+    }
+    onChange({ ...layoutConfig, placement: newPlacement });
+  };
+
+  const updateZoneWidth = (zoneId: string, newWidth: number) => {
+    const updated = zones.map((z) => {
+      if (z.id === zoneId) {
+        return { ...z, styles: { ...z.styles, width: `${newWidth}%` } };
+      }
+      return z;
+    });
+    onChange({ ...layoutConfig, zones: updated });
+  };
+
+  return (
+    <div className="space-y-3">
+      {rowNumbers.map((rowNum) => {
+        const rowZones = zones.filter((z) => (z.row ?? 0) === rowNum);
+        return (
+          <div key={rowNum} className="rounded-lg border border-gray-200 bg-white">
+            <div className="flex items-center justify-between border-b bg-gray-50 px-3 py-1.5">
+              <span className="text-xs font-medium text-gray-500">Row {rowNum + 1}</span>
+              <button onClick={() => deleteRow(rowNum)} className="text-red-400 hover:text-red-600">
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </div>
+            <div className="flex gap-2 p-3">
+              {rowZones.map((zone) => (
+                <div
+                  key={zone.id}
+                  className="rounded border border-gray-100 bg-gray-50 p-2"
+                  style={{ width: zone.styles?.width || "100%" }}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-medium text-gray-600">
+                      {zone.label || zone.id}
+                    </span>
+                    <button onClick={() => deleteZone(zone.id)} className="text-red-400 hover:text-red-600">
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                  <div className="mb-2">
+                    <label className="text-[10px] text-gray-500">Width: {parseInt(zone.styles?.width || "100")}%</label>
+                    <input
+                      type="range"
+                      min={15}
+                      max={85}
+                      value={parseInt(zone.styles?.width || "100")}
+                      onChange={(e) => updateZoneWidth(zone.id, parseInt(e.target.value))}
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="border-t pt-2">
+                    <div className="mb-1 text-[10px] font-medium text-gray-500">Section Types</div>
+                    <div className="flex flex-wrap gap-1">
+                      {[...SECTION_TYPES].map((st) => {
+                        const assigned = placement[st] === zone.id;
+                        return (
+                          <button
+                            key={st}
+                            onClick={() => toggleSectionType(st, zone.id)}
+                            className={`rounded-full px-1.5 py-0.5 text-[9px] font-medium ${
+                              assigned
+                                ? "bg-blue-100 text-blue-700"
+                                : "border border-gray-200 text-gray-400"
+                            }`}
+                          >
+                            {SECTION_LABELS[st] || st}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <button
+                onClick={() => addZone(rowNum)}
+                className="flex items-center gap-1 rounded border border-dashed border-gray-300 px-2 py-1 text-[10px] text-gray-400 hover:border-blue-400 hover:text-blue-600"
+              >
+                <Plus className="h-3 w-3" /> Zone
+              </button>
+            </div>
+          </div>
+        );
+      })}
+      <button
+        onClick={addRow}
+        className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800"
+      >
+        <Plus className="h-3 w-3" /> Add Row
+      </button>
+    </div>
+  );
+}
 
 /* ── Asset Manager ─────────────────────────────────────────────── */
 
@@ -210,7 +376,10 @@ export default function TemplateWizard({ initialManifest = {}, onSave, onComplet
         );
       case "layout":
         return (
-          <ZoneLayoutBar layoutConfig={{ zones: manifest.zones, placement: manifest.placement }} onChange={handleLayoutChange} />
+          <TemplateLayoutEditor
+            layoutConfig={{ zones: manifest.zones || [], placement: manifest.placement || {} }}
+            onChange={handleLayoutChange}
+          />
         );
       case "styles":
         return (
