@@ -328,7 +328,7 @@ Adding LaTeX/DOCX later = new subclass + `register_backend()`.
 
 **Goal:** Replace the flat `SectionList` (Content tab) with a unified view that shows the CV broken into zones and rows, with sections rendered *inside* their assigned zones. The Customize tab becomes styling-only. Placement changes from type-based to instance-based.
 
-**Status:** 🔲 **IN PROGRESS**
+**Status:** ✅ **COMPLETED**
 
 ### Overview
 
@@ -401,5 +401,5 @@ Remove:
 | 6.3 | Create `SectionZoneView` component | ✅ |
 | 6.4 | Strip `CustomizePanel` to styling only | ✅ |
 | 6.5 | Update `BuilderPage` to wire `SectionZoneView` | ✅ |
-| 6.6 | Remove old components (`SectionList`, `ZoneLayoutBar`, etc.) | 🔲 |
-| 6.7 | Verify lint + typecheck + tests | 🔲 |
+| 6.6 | Remove old components (`SectionList`, `ZoneLayoutBar`, etc.) | ✅ |
+| 6.7 | Verify lint + typecheck + tests | ✅ |
