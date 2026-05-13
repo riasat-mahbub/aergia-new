@@ -6,15 +6,17 @@ import { useToastStore } from "../../lib/store/uiStore";
 interface ExportPDFButtonProps {
   cvId: string;
   cvTitle?: string;
+  onBeforeExport?: () => Promise<void>;
 }
 
-export default function ExportPDFButton({ cvId, cvTitle }: ExportPDFButtonProps) {
+export default function ExportPDFButton({ cvId, cvTitle, onBeforeExport }: ExportPDFButtonProps) {
   const [loading, setLoading] = useState(false);
   const addToast = useToastStore((s) => s.addToast);
 
   const handleExport = async () => {
     setLoading(true);
     try {
+      if (onBeforeExport) await onBeforeExport();
       const blob = await exportPDF(cvId);
       const filename = cvTitle
         ? `${cvTitle.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`

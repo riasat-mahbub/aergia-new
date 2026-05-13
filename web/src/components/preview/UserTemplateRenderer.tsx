@@ -18,8 +18,8 @@ export default function UserTemplateRenderer({ instances, customizations, templa
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const zones = manifest?.zones || layoutConfig?.zones || [];
-    const placement = manifest?.placement || layoutConfig?.placement || {};
+    const zones = layoutConfig?.zones?.length ? layoutConfig.zones : (manifest?.zones || []);
+    const placement = (layoutConfig?.placement && Object.keys(layoutConfig.placement).length > 0) ? layoutConfig.placement : (manifest?.placement || {});
     if (!zones.length || !Object.keys(placement).length) return;
 
     const renderManifest = {
