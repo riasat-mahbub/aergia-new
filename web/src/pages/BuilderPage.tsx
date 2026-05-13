@@ -266,13 +266,19 @@ export default function BuilderPage() {
       setLocalInstances((prev) => [...prev, newInstance]);
       if (zoneId) {
         setLocalCustomizations((prev) => {
-          const layout = (prev.layout as LayoutConfig) || { zones: [], placement: {} };
+          const existingLayout = prev.layout as LayoutConfig | undefined;
+          const hasValidLayout = existingLayout && existingLayout.zones?.length;
+          const layout = hasValidLayout
+            ? existingLayout
+            : templateLayoutConfig?.zones?.length
+              ? migratePlacement(templateLayoutConfig, instancesRef.current)
+              : { zones: [], placement: {} };
           const newPlacement = { ...layout.placement, [newInstance.id]: zoneId };
           return { ...prev, layout: { ...layout, placement: newPlacement } };
         });
       }
     },
-    []
+    [templateLayoutConfig]
   );
 
   const handleRemoveInstance = useCallback(

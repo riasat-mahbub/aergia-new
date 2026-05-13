@@ -38,13 +38,32 @@ class CVService:
         }
 
     async def create_cv(self, user_id: str, data: CVCreate) -> CV:
+        sections = data.sections if isinstance(data.sections, list) else []
+        customizations = data.customizations or {}
+
+        # Inherit layout from template when CV doesn't have one yet
+        if not customizations.get("layout") and data.template_id:
+            template = await self.db.get(Template, data.template_id)
+            lc = template.layout_config if template else None
+            if lc:
+                placement = lc.get("placement", {}) or {}
+                if placement and not any(k.startswith("sec_") for k in placement):
+                    customizations["layout"] = {
+                        **lc,
+                        "placement": {
+                            inst["id"]: placement[inst["type"]]
+                            for inst in sections
+                            if isinstance(inst, dict) and inst.get("type") in placement
+                        },
+                    }
+
         cv = CV(
             user_id=user_id,
             title=data.title,
             description=data.description,
             template_id=data.template_id,
-            sections=data.sections,
-            customizations=data.customizations,
+            sections=sections,
+            customizations=customizations,
             extra_metadata=data.extra_metadata,
         )
         self.db.add(cv)
