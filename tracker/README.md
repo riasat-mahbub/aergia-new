@@ -12,11 +12,11 @@ checks schema integrity.
 | [bugs/](bugs/) | bug | 9 |
 | [features/](features/) | feature | 29 |
 | [decisions/](decisions/) | adr | 3 |
-| [tasks/](tasks/) | task | 17 |
+| [tasks/](tasks/) | task | 22 |
 | [docs/](docs/) | doc | 1 |
 | [epics/](epics/) | epic | 0 |
 
-**Status** (from `tracker stats`, 2026-08-01): DONE 34 · PLANNED 14 · PROPOSED 11 · 59 entries total.
+**Status** (from `tracker stats`, 2026-08-01): DONE 39 · PLANNED 14 · PROPOSED 11 · 64 entries total.
 
 ## Usage
 
