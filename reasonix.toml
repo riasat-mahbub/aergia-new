@@ -1,2 +1,2 @@
 [permissions]
-allow = ["fleet", "task"]
+allow = ["fleet", "task", "explore"]
