@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - A VPS with Docker and Docker Compose installed
-- Minimum 2 vCPU, 4GB RAM, 50GB SSD
+- Minimum 1 vCPU, 1GB RAM, 20GB SSD
 - A domain name (optional, for HTTPS)
 
 ## Quick Start
@@ -20,19 +20,15 @@ cd /opt/aergia
 cp .env.example .env
 # Edit .env — generate a strong SECRET_KEY:
 #   python3 -c "import secrets; print(secrets.token_urlsafe(32))"
-# Set a strong DB_PASS as well
 
-# 4. Start the services
+# 4. Start the service
 docker compose up -d
 
-# 5. Run database migrations
-docker compose exec api alembic upgrade head
-
-# 6. Verify it's running
+# 5. Verify it's running
 curl http://localhost:8000/healthz
 # Expected: {"status":"ok","app":"Aergia CV Builder","version":"0.1.0"}
 
-# 7. Open in browser
+# 6. Open in browser
 # http://your-vps-ip:8000
 ```
 
@@ -41,22 +37,14 @@ curl http://localhost:8000/healthz
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `SECRET_KEY` | **Yes** | `change-me-in-production` | JWT signing key (generate with `secrets.token_urlsafe(32)`) |
-| `DATABASE_URL` | No | `postgresql+asyncpg://aergia_user:aergia_pass@postgres:5432/aergia` | Postgres connection string |
-| `DB_USER` | No | `aergia_user` | Postgres user |
-| `DB_PASS` | No | `aergia_pass` | Postgres password |
-| `DB_NAME` | No | `aergia` | Postgres database name |
+
+Database configuration is automatic — SQLite stores data in `/app/data/aergia.db` (Docker volume).
 
 ## Managing the App
 
 ```bash
 # View logs
 docker compose logs -f
-
-# View API logs only
-docker compose logs -f api
-
-# Restart the API
-docker compose restart api
 
 # Stop everything
 docker compose down
@@ -71,23 +59,21 @@ docker compose up -d --build
 ```bash
 git pull
 docker compose up -d --build
-docker compose exec api alembic upgrade head
 ```
 
 ## Database
 
+SQLite stores all data in a single file at `/app/data/aergia.db` (Docker volume `data`).
+
+### Backup
 ```bash
-# Backup
-docker compose exec postgres pg_dump -U aergia_user aergia > backup.sql
+docker compose cp api:/app/data/aergia.db ./backup-$(date +%Y%m%d).db
+```
 
-# Restore
-cat backup.sql | docker compose exec -T postgres psql -U aergia_user aergia
-
-# Run migrations
-docker compose exec api alembic upgrade head
-
-# Check migration status
-docker compose exec api alembic current
+### Restore
+```bash
+docker compose cp ./backup.db api:/app/data/aergia.db
+docker compose restart api
 ```
 
 ## Uploads
@@ -98,13 +84,15 @@ Uploaded photos are stored in a Docker volume (`uploads_data`). To back them up:
 docker run --rm -v aergia_uploads_data:/source -v $(pwd):/backup alpine tar czf /backup/uploads.tar.gz -C /source .
 ```
 
-## HTTPS
+## HTTPS & DDoS Protection
 
-### Option 1: Cloudflare Tunnel (easiest)
+### Option 1: Cloudflare Tunnel (recommended — includes DDoS protection)
 
 1. Point your domain to Cloudflare
 2. Install `cloudflared` on the VPS
 3. Run: `cloudflared tunnel --url http://localhost:8000`
+
+Cloudflare's free tier includes DDoS mitigation, rate limiting, WAF, and automatic HTTPS.
 
 ### Option 2: Caddy (automatic HTTPS)
 
@@ -120,10 +108,6 @@ Add to `docker-compose.yml` as a sidecar service:
       - ./Caddyfile:/etc/caddy/Caddyfile
     depends_on:
       - api
-
-networks:
-  aergia:
-    driver: bridge
 ```
 
 Create `Caddyfile`:
@@ -144,7 +128,3 @@ your-domain.com {
 
 **Port 8000 already in use**
 → Change the host port mapping in `docker-compose.yml`: `"8000:8000"` → `"8080:8000"`
-
-**Database connection refused**
-→ Ensure Postgres is healthy: `docker compose ps` (should show `healthy` under STATUS for postgres)
-→ Check the logs: `docker compose logs postgres`

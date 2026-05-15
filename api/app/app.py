@@ -3,7 +3,6 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
@@ -18,6 +17,7 @@ from app.routes.cvs import router as cvs_router
 from app.routes.assets import router as assets_router
 from app.routes.templates import router as templates_router
 from app.routes.render import router as render_router
+from app.services.renderer.backends.pdf import _close_browser
 
 settings = get_settings()
 
@@ -26,6 +26,7 @@ async def lifespan(app: FastAPI):
     async with async_session() as session:
         await seed_templates(session)
     yield
+    await _close_browser()
 
 
 app = FastAPI(
@@ -47,13 +48,14 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     return response
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[settings.frontend_url],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+if settings.environment != "production":
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[settings.frontend_url],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 app.include_router(auth_router, prefix="/api/v1/auth")
 app.include_router(cvs_router, prefix="/api/v1/cvs")
@@ -85,11 +87,13 @@ async def readyz(request: Request):
     return {"status": "ok", "database": db_status, "version": settings.app_version}
 
 
-STATIC_DIR = Path("/app/static")
+STATIC_DIR = Path("./static")
 
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-    app.mount("/uploads", StaticFiles(directory="/app/uploads"), name="uploads")
+    uploads_dir = Path(settings.uploads_path)
+    if uploads_dir.exists():
+        app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):

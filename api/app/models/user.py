@@ -20,6 +20,7 @@ class User(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
     )
 
-    cvs = relationship("CV", back_populates="user", cascade="all, delete-orphan")
-    templates = relationship("Template", back_populates="user", cascade="all, delete-orphan")
-    templates = relationship("Template", back_populates="user", cascade="all, delete-orphan")
+    CASCADE_ALL = "all, delete-orphan"
+
+    cvs = relationship("CV", back_populates="user", cascade=CASCADE_ALL)
+    templates = relationship("Template", back_populates="user", cascade=CASCADE_ALL)

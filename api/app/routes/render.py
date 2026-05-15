@@ -1,12 +1,9 @@
 """Template rendering endpoint for the new IR-based renderer."""
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 from typing import Any
 
-from app.db.session import get_db
-from app.models.template import Template
 from app.models.user import User
 from app.core.deps import get_current_user
 from app.services.renderer import render_html

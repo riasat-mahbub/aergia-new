@@ -35,7 +35,7 @@ class AuthService:
         await self.db.flush()
         return access_token, refresh_token, user
 
-    async def refresh(self, raw_refresh_token: str) -> str:
+    async def refresh(self, raw_refresh_token: str) -> tuple[str, str]:
         email = verify_token(raw_refresh_token)
         if not email:
             raise ValueError("Invalid or expired refresh token")

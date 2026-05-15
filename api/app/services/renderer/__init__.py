@@ -23,9 +23,6 @@ __all__ = [
 def render_preview(
     instances: list[dict],
     customizations: dict,
-    template_id: str,
-    template_content: str | None = None,
-    layout_template: str | None = None,
     layout_config: dict | None = None,
     default_customizations: dict | None = None,
 ) -> str:

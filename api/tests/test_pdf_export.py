@@ -117,11 +117,18 @@ async def test_pdf_content_matches_cv_data(client):
     export_resp = await client.post(f"/api/v1/cvs/{cv_id}/export/pdf", headers=headers)
     assert export_resp.status_code == 200
 
-    content = export_resp.content.decode("latin-1", errors="replace")
-    assert "Jane Doe" in content
-    assert "Software Engineer" in content
-    assert "Acme Corp" in content
-    assert "MIT" in content
+    # Extract text from compressed PDF using pypdf
+    from pypdf import PdfReader
+    import io
+    reader = PdfReader(io.BytesIO(export_resp.content))
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text() or ""
+
+    assert "Jane Doe" in text
+    assert "Software Engineer" in text
+    assert "Acme Corp" in text
+    assert "MIT" in text
 
 
 @pytest.mark.asyncio

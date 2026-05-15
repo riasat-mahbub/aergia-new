@@ -1,10 +1,8 @@
 import uuid as uuid_module
-import re
 import json
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, Form, File, UploadFile
-from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -15,102 +13,28 @@ from app.schemas.template import TemplateListItem, TemplateDetail, UserTemplateC
 from app.schemas.manifest import Manifest
 from app.core.deps import get_current_user, get_optional_current_user
 
+NOT_FOUND = "Template not found"
+
 router = APIRouter()
 
-# Known zone placeholder names (common CSS layout zones)
-ZONE_KNOWN = {"header", "main", "sidebar", "left", "right", "center",
-              "col", "panel", "zone", "area", "top", "bottom", "nav",
-              "footer", "aside", "primary", "secondary"}
 
-ALL_SECTIONS = ["profile", "experience", "education", "skills",
-                "projects", "languages", "certifications"]
-
-
-def generate_layout_config(layout_template: str) -> dict:
-    """Generate layout_config from template HTML zone placeholders.
-
-    Scans the template for {{zone_id}} patterns and creates a proper
-    layout_config with zones and placement.
-    """
-    matches = re.findall(r'\{\{([a-zA-Z0-9_-]+)\}\}', layout_template)
-    zone_placeholders = set(matches)
-
-    # Filter to known zone names (exclude data variables like {{name}})
-    zones = [z for z in zone_placeholders if z in ZONE_KNOWN or "-" in z]
-
-    if not zones:
-        zones = ["main"]
-
-    zone_objects = [{"id": z, "row": 0, "styles": {"width": "100%"}} for z in zones]
-    placement = {}
-    for section in ALL_SECTIONS:
-        placement[section] = zones[0]  # default to first zone
-
-    return {"zones": zone_objects, "placement": placement}
-
-
-def manifest_to_layout_config(manifest: Manifest) -> dict:
-    """Convert manifest zones and placement to layout_config."""
-    zones = []
-    for zone in manifest.zones:
-        zone_dict = {
-            "id": zone.id,
-            "row": zone.row,
-            "styles": zone.styles.model_dump(exclude_none=True, by_alias=True)
-        }
-        zones.append(zone_dict)
-    placement = manifest.placement
-    row_heights = {}
-    # rowHeights not used in new system, but keep if present
-    # Could be added later if needed
-    return {"zones": zones, "placement": placement, "rowHeights": row_heights}
-
-
-def manifest_to_layout_template(manifest: Manifest) -> str:
-    """Generate a full HTML document template from manifest."""
-    zones = manifest.zones
-    if not zones:
-        raise ValueError("Manifest must have at least one zone")
-    # Group zones by row
-    rows: dict[int, list] = {}
-    for zone in zones:
-        r = zone.row
-        if r not in rows:
-            rows[r] = []
-        rows[r].append(zone)
-    sorted_rows = sorted(rows.items())
-
-    body_content = ""
-    for row_num, row_zones in sorted_rows:
-        body_content += '  <div style="display:flex;flex:1 0 auto;">\n'
-        for zone in row_zones:
-            body_content += f'    {{{{{zone.id}}}}}\n'
-        body_content += '  </div>\n'
-
-    return f'''<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body {{
-      margin: 0;
-      padding: 0;
-      font-family: {{body_font}};
-      color: var(--text, #374151);
-    }}
-    h1, h2, h3, h4, h5, h6 {{
-      font-family: {{heading_font}};
-      color: var(--heading, #111827);
-    }}
-    {{print_styles}}
-  </style>
-</head>
-<body>
-<div style="min-height:297mm;display:flex;flex-direction:column;">
-{body_content}</div>
-</body>
-</html>'''
+def _build_default_customizations(
+    schema: list[dict] | list,
+) -> dict[str, dict[str, str]]:
+    """Build nested default_customizations dict from globalStyleSchema list."""
+    result: dict[str, dict[str, str]] = {}
+    for var in schema:
+        if isinstance(var, dict):
+            var_type = var.get("type", "")
+            key = var.get("key", "")
+            default = var.get("default", "")
+        else:
+            var_type = getattr(var, "type", "")
+            key = getattr(var, "key", "")
+            default = getattr(var, "default", "")
+        if key:
+            result.setdefault(var_type + "s", {})[key] = default
+    return result
 
 
 @router.get("", response_model=list[TemplateListItem])
@@ -140,7 +64,7 @@ async def list_user_templates(
 async def get_template(template_id: str, db: AsyncSession = Depends(get_db)):
     template = await db.get(Template, template_id)
     if not template:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
     return TemplateDetail.model_validate(template)
 
 
@@ -148,16 +72,8 @@ async def get_template(template_id: str, db: AsyncSession = Depends(get_db)):
 async def get_template_manifest(template_id: str, db: AsyncSession = Depends(get_db)):
     template = await db.get(Template, template_id)
     if not template:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
     return template.manifest or {}
-
-
-@router.get("/{template_id}/html", response_class=PlainTextResponse)
-async def get_template_html(template_id: str, db: AsyncSession = Depends(get_db)):
-    template = await db.get(Template, template_id)
-    if not template:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
-    return template.layout_template or ""
 
 
 @router.post("", response_model=TemplateDetail)
@@ -176,23 +92,17 @@ async def create_template_from_manifest(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid manifest: {e}")
 
-    # Generate layout_config and layout_template from manifest if not provided via files
-    layout_config = manifest_to_layout_config(manifest)
-    layout_template = manifest_to_layout_template(manifest)
-
     # If user uploaded custom HTML/CSS, use them (optional)
     if template_html:
         content = await template_html.read()
-        layout_template = content.decode("utf-8")
+        _ = content.decode("utf-8")  # validated for future use
     if styles_css:
-        # Could embed CSS into layout_template or store separately; for now ignore
         pass
 
     # Assets handling: store asset mapping
     asset_map = {}
     if assets:
         for asset in assets:
-            # For simplicity, store filename -> content (in real app, save to storage)
             asset_content = await asset.read()
             asset_map[asset.filename] = asset_content.decode("utf-8", errors="ignore")
 
@@ -210,13 +120,9 @@ async def create_template_from_manifest(
         name=manifest.name,
         description=manifest.description,
         preview_image_url=None,
-        layout_config=layout_config,
-        section_schema=manifest.section_schema,
-        default_customizations={var.key: var.default for var in manifest.global_style_schema},
+        default_customizations=_build_default_customizations(manifest.global_style_schema),
         is_system=False,
-        content=None,
-        layout_template=layout_template,
-        manifest=manifest.model_dump(),
+        manifest=manifest.model_dump(by_alias=True),
         assets=asset_map,
         user_id=current_user.id,
     )
@@ -246,12 +152,8 @@ async def create_user_template(
         name=data.name,
         description=data.description or f"User template: {data.name}",
         preview_image_url=None,
-        layout_config=data.layout_config or generate_layout_config(data.layout_template) or {},
-        section_schema=data.section_schema or {},
         default_customizations=data.default_customizations,
         is_system=False,
-        content=None,
-        layout_template=data.layout_template,
         user_id=current_user.id,
     )
     db.add(template)
@@ -268,7 +170,7 @@ async def delete_user_template(
 ):
     template = await db.get(Template, template_id)
     if not template:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
     if template.is_system or template.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot delete this template")
     await db.delete(template)

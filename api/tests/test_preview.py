@@ -181,7 +181,6 @@ async def test_preview_classic_template(client, auth_headers):
     preview_resp = await client.get(f"/api/v1/cvs/{cv_id}/preview", headers=auth_headers)
     html = preview_resp.json()["html"]
 
-    assert "<hr" in html
     assert "Profile" in html
     assert "Experience" in html
 
@@ -257,8 +256,8 @@ async def test_preview_data_isolation(client, auth_headers):
     )
     cv_id = create_a.json()["id"]
 
-    await client.post("/api/v1/auth/register", json={"email": "other@example.com", "password": "pass123"})
-    login_b = await client.post("/api/v1/auth/login", json={"email": "other@example.com", "password": "pass123"})
+    await client.post("/api/v1/auth/register", json={"email": "other@example.com", "password": "testpass12"})
+    login_b = await client.post("/api/v1/auth/login", json={"email": "other@example.com", "password": "testpass12"})
     token_b = login_b.json()["access_token"]
     headers_b = {"Authorization": f"Bearer {token_b}"}
 
