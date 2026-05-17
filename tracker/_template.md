@@ -1,11 +1,43 @@
 ---
-ID:
-TYPE:
-NAME:
-SUMMARY:
-STATUS:         OPEN
+SCHEMA: 3
+FORMAT: project-tracker
+ID: BUG-01J5Q3M7X8K3BXYZ1234ABCD
+TYPE: bug
+STATUS: PROPOSED
+PRIORITY: Medium
+SEVERITY: Medium
+EFFORT: M
+OWNER:
+CONFIDENCE: Medium
 TAGS:
+RELATIONS:
+AFFECTS:
 LINKS:
+CREATED_BY:
+UPDATED_BY:
+CREATED_AT:
+UPDATED_AT:
 ---
+# Title
 
-## Description
+## Background
+
+
+
+## Investigation
+
+
+
+## Decision
+
+
+
+## Implementation
+
+
+
+## Verification
+
+
+
+## Follow-up
