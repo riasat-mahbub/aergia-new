@@ -15,7 +15,10 @@ TAGS:
 - cv-creation
 - layout
 - template-inheritance
-RELATIONS: null
+RELATIONS:
+  related:
+  - FEAT-01KYZ1HD2DD5H9CQ3DH2737WZB
+  - FEAT-01KYZ1HDDXK2PHFQPFDW0XCC83
 AFFECTS: null
 LINKS: null
 CREATED_BY: null

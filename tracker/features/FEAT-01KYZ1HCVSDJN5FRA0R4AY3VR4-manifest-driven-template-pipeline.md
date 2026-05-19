@@ -14,7 +14,9 @@ TAGS:
 - manifest
 - templates
 - phase-2
-RELATIONS: null
+RELATIONS:
+  implements:
+  - ADR-01KYZ1XG6W0K8NQPMV2Z6WCVYM
 AFFECTS: null
 LINKS: null
 CREATED_BY: null

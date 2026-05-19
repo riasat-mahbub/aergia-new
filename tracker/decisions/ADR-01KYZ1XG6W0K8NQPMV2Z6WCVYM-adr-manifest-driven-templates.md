@@ -13,7 +13,9 @@ CONFIDENCE: Medium
 TAGS:
 - adr
 - architecture
-RELATIONS: null
+RELATIONS:
+  related:
+  - FEAT-01KYZ1HCS9ZKCJ9NDHXZP1SA9K
 AFFECTS: null
 LINKS: null
 CREATED_BY: null

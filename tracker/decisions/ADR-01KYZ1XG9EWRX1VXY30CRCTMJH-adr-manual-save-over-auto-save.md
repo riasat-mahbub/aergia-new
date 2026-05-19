@@ -13,7 +13,9 @@ CONFIDENCE: Medium
 TAGS:
 - adr
 - architecture
-RELATIONS: null
+RELATIONS:
+  related:
+  - BUG-01KYZ1D1S29KD6NWB2R9J01GWF
 AFFECTS: null
 LINKS: null
 CREATED_BY: null

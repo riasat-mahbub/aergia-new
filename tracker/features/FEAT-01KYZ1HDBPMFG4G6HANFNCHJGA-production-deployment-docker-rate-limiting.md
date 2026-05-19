@@ -13,7 +13,9 @@ CONFIDENCE: Medium
 TAGS:
 - devops
 - phase-8
-RELATIONS: null
+RELATIONS:
+  related:
+  - ADR-01KYZ1XGGHXX9F2DW5HDXBBWMG
 AFFECTS: null
 LINKS: null
 CREATED_BY: null
