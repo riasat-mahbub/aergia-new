@@ -38,3 +38,11 @@ features/025-multilanguage-cv.md (FEAT-21) -> FEAT-01KYZ1HDVH8B6KRFHAAG9K43D7  [
 features/026-cv-import.md (FEAT-22) -> FEAT-01KYZ1HDXP92GQS3Z8CA47R3HW  [CV import from PDF/DOCX]
 features/027-security-audit.md (FEAT-23) -> FEAT-01KYZ1HDZVZB1DAZZP53GM2ASH  [Comprehensive security audit]
 features/028-structured-logging.md (FEAT-028) -> FEAT-01KYZ1HE23VRV2ZH5MB4HGBW75  [Structured logging]
+
+issues/001-incomplete-test-suite.md (issue 1) -> TASK-01KYZ1XG23G90A9XDRGPRJSQQ0  [Incomplete test suite]
+issues/002-change-me-in-production.md (issue 2) -> TASK-01KYZ1XG4C56PXE6T313P1W5TP  [Default SECRET_KEY passes in dev but blocks prod]
+issues/003-adr-manifest-templates.md (issue 3) -> ADR-01KYZ1XG6W0K8NQPMV2Z6WCVYM  [ADR: Manifest-driven templates]
+issues/004-adr-manual-save.md (issue 4) -> ADR-01KYZ1XG9EWRX1VXY30CRCTMJH  [ADR: Manual save over auto-save]
+issues/005-npm-vulnerabilities.md (issue 5) -> TASK-01KYZ1XGBV9JW9CK98079H4B6J  [NPM vulnerabilities in vite/vitest/esbuild]
+issues/006-template-guide-rewrite.md (issue 6) -> DOC-01KYZ1XGE9FSXGDWY3T3SZHKDT  [TEMPLATE_GUIDE.md needs rewrite for manifest format]
+issues/007-adr-sqlite-migration.md (issue 7) -> ADR-01KYZ1XGGHXX9F2DW5HDXBBWMG  [ADR: PostgreSQL → SQLite migration]
