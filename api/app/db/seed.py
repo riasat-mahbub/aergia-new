@@ -33,7 +33,8 @@ def build_manifest(template: dict) -> dict:
             "label": key.replace("_", " ").title(),
             "default": default
         })
-
+    # Schema buckets must mirror the keys used in default_customizations (`spacing`).
+    # Re-key `length` entries into `spacing` so `_build_css_vars` picks them up.
     manifest = {
         "version": 1,
         "id": template["id"],
@@ -82,7 +83,7 @@ SEED_TEMPLATES = [
         "default_customizations": {
             "colors": {"accent": "#2563eb", "bg_sidebar": "#f8fafc"},
             "fonts": {"body": "Inter, system-ui, sans-serif", "heading": "Inter, system-ui, sans-serif"},
-            "spacing": {"section_gap": "24px"},
+            "spacing": {"section_gap": "24px", "profile_name_size": "1.75rem"},
         },
     },
     {
@@ -115,7 +116,7 @@ SEED_TEMPLATES = [
         "default_customizations": {
             "colors": {"header": "#000000", "divider": "#d1d5db"},
             "fonts": {"body": "Georgia, Crimson, serif", "heading": "Georgia, Crimson, serif"},
-            "spacing": {"section_gap": "20px"},
+            "spacing": {"section_gap": "20px", "profile_name_size": "1.5rem"},
         },
     },
     {
@@ -148,7 +149,7 @@ SEED_TEMPLATES = [
         "default_customizations": {
             "colors": {"text": "#374151", "heading": "#111827"},
             "fonts": {"body": "system-ui, sans-serif", "heading": "system-ui, sans-serif"},
-            "spacing": {"section_gap": "16px"},
+            "spacing": {"section_gap": "16px", "profile_name_size": "1.25rem"},
         },
     },
 ]
@@ -156,7 +157,6 @@ SEED_TEMPLATES = [
 # Pre-compute manifests for each seed template
 for t in SEED_TEMPLATES:
     t["manifest"] = build_manifest(t)
-
 
 async def seed_templates(db: AsyncSession) -> None:
     for data in SEED_TEMPLATES:
