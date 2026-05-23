@@ -11,7 +11,7 @@ files in `tracker/` (project-tracker SCHEMA 3, ULID IDs).  See
 | [bugs/](tracker/bugs/) | 9 | 0 | 9 |
 | [features/](tracker/features/) | 19 | 10 | 29 |
 | [decisions/](tracker/decisions/) | 3 | 0 | 3 |
-| [tasks/](tracker/tasks/) | 4 | 13 | 17 |
+| [tasks/](tracker/tasks/) | 8 | 14 | 22 |
 | [docs/](tracker/docs/) | 0 | 1 | 1 |
 
 **Last updated:** 2026-08-01 (from `tracker stats`)
