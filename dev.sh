@@ -89,12 +89,12 @@ fi
 # ── 4. Start API server ───────────────────────────────────────────
 echo "=== Starting API on :8000 ==="
 cd "$API_DIR"
-UVICORN_OPTS="--host 0.0.0.0 --port 8000"
+UVICORN_OPTS=(--host 0.0.0.0 --port 8000)
 if [ "$PROD" = false ]; then
-    UVICORN_OPTS="$UVICORN_OPTS --reload"
+    UVICORN_OPTS+=(--reload)
 fi
 export ENVIRONMENT="${ENVIRONMENT:-development}"
-uvicorn app.main:app "$UVICORN_OPTS" &
+uvicorn app.main:app "${UVICORN_OPTS[@]}" &
 API_PID=$!
 
 # ── 5. Start frontend dev server (unless --build or --prod) ───────
