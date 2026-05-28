@@ -87,7 +87,6 @@ export default function CustomizePanel({
         </div>
       </div>
 
-      <StyleEditor customizations={customizations} onChange={onChange} title="Global" />
 
       <h4 className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-gray-500">Layout</h4>
       <SectionZoneView
@@ -167,6 +166,9 @@ export default function CustomizePanel({
           </div>
         </div>
       )}
+
+      <StyleEditor customizations={customizations} onChange={onChange} title="Global" />
+
 
       <TemplateSelectorModal
         open={showTemplateModal}
