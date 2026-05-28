@@ -102,7 +102,7 @@ export default function TemplateWizard({ initialManifest = {}, onSave, onComplet
     version: 1,
     name: initialManifest.name || "",
     description: initialManifest.description || "",
-    zones: initialManifest.zones || [{ id: "main", row: 0, styles: { width: "100%", padding: "24px" } }],
+    zones: initialManifest.zones || [{ id: "main", styles: { width: "100%", padding: "24px" } }],
     placement: initialManifest.placement || { profile: "main" },
     globalStyleSchema: initialManifest.globalStyleSchema || [],
     assets: initialManifest.assets || {},
@@ -252,7 +252,7 @@ export default function TemplateWizard({ initialManifest = {}, onSave, onComplet
             </div>
             <div className="rounded-lg border bg-gray-50 p-3">
               <div className="mb-1 text-xs font-medium text-gray-500">Zones</div>
-              <div className="text-sm">{(manifest.zones || []).length} zone(s) in {(manifest.zones || []).reduce((s: number[], z: Zone) => { const r = z.row ?? 0; if (!s.includes(r)) s.push(r); return s; }, []).length} row(s)</div>
+              <div className="text-sm">{(manifest.zones || []).length} zone(s)</div>
             </div>
             <div className="rounded-lg border bg-gray-50 p-3">
               <div className="mb-1 text-xs font-medium text-gray-500">Assets</div>

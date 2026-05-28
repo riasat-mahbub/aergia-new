@@ -137,3 +137,36 @@ async def test_pdf_export_nonexistent_cv(client):
     headers = await register_and_login(client, "pdf-t52@example.com")
     export_resp = await client.post("/api/v1/cvs/nonexistent-id/export/pdf", headers=headers)
     assert export_resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_pdf_export_respects_custom_zone_layout(client):
+    """PDF export honours the CV's customizations.layout (zone widths, styles)."""
+    headers = await register_and_login(client, "pdf-custom-layout@example.com")
+    custom_layout = {
+        "zones": [
+            {"id": "left", "row": 0, "styles": {"width": "40%", "background-color": "#f0f0f0", "padding": "16px"}},
+            {"id": "right", "row": 0, "styles": {"width": "60%", "padding": "16px"}},
+        ],
+        "placement": {"sec_profile": "left", "sec_experience": "right"},
+    }
+    create_resp = await client.post(
+        "/api/v1/cvs",
+        json={
+            "title": "Custom PDF Layout",
+            "template_id": "generic-modern",
+            "sections": SAMPLE_INSTANCES,
+            "customizations": {"layout": custom_layout},
+        },
+        headers=headers,
+    )
+    cv_id = create_resp.json()["id"]
+    export_resp = await client.post(f"/api/v1/cvs/{cv_id}/export/pdf", headers=headers)
+    assert export_resp.status_code == 200
+    assert export_resp.content[:5] == b"%PDF-"
+    from pypdf import PdfReader
+    import io
+    reader = PdfReader(io.BytesIO(export_resp.content))
+    text = "".join(page.extract_text() or "" for page in reader.pages)
+    assert "Jane Doe" in text
+    assert "Acme" in text

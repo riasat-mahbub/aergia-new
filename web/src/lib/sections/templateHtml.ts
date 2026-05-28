@@ -1,39 +1,15 @@
-import type { LayoutConfig, Zone } from "./types";
+import type { LayoutConfig } from "./types";
 
 export function layoutConfigToHTML(config: LayoutConfig): string {
-  const rows = new Map<number, Zone[]>();
-  for (const zone of config.zones) {
-    const r = zone.row ?? 0;
-    if (!rows.has(r)) rows.set(r, []);
-    rows.get(r)!.push(zone);
+  // Zone-only layout: a single implicit row holding every zone in a flex container.
+  const zones = config.zones;
+
+  let rowContent = "";
+  for (const zone of zones) {
+    rowContent += `    {{${zone.id}}}\n`;
   }
 
-  const sortedRows = [...rows.entries()].sort(([a], [b]) => a - b);
-  const rowHeights = config.rowHeights;
-
-  let bodyContent = "";
-
-  for (const [rowNum, rowZones] of sortedRows) {
-    const rowHeight = rowHeights?.[rowNum];
-    let flexVal: string;
-    if (rowHeight) {
-      const pct = parseInt(rowHeight.replace("%", ""));
-      if (!isNaN(pct) && pct > 0) {
-        flexVal = `${pct} 0 0%`;
-      } else {
-        flexVal = "1 0 auto";
-      }
-    } else {
-      flexVal = "1 0 auto";
-    }
-    bodyContent += `  <div style="display:flex;flex:${flexVal};">\n`;
-
-    for (const zone of rowZones) {
-      bodyContent += `    {{${zone.id}}}\n`;
-    }
-
-    bodyContent += `  </div>\n`;
-  }
+  const bodyContent = `  <div style="display:flex;flex:0 0 auto;">\n${rowContent}  </div>\n`;
 
   return `<!DOCTYPE html>
 <html lang="en">

@@ -19,16 +19,25 @@ class PDFService:
             instances = []
 
         template_data = await self.cv_service.get_template_data(cv.template_id)
-
-        # Get manifest should have manifest from template
         manifest = template_data.get("manifest") if template_data else None
         if not manifest:
             raise ValueError("Template has no manifest")
 
+        # Merge CV-level customizations.layout into the manifest so the rendered
+        # PDF mirrors the live preview (new zones, per-zone styles, etc.).
+        customizations = cv.customizations or {}
+        cv_layout = (customizations.get("layout") if isinstance(customizations, dict) else None)
+        if isinstance(cv_layout, dict) and cv_layout.get("zones"):
+            manifest = {
+                **manifest,
+                "layout_config": cv_layout,
+                "zones": cv_layout.get("zones", manifest.get("zones", [])),
+            }
+
         pdf_bytes = await render_pdf(
             manifest=manifest,
             cv_data={"instances": instances},
-            customizations=cv.customizations or {},
+            customizations=customizations,
         )
 
         return pdf_bytes
