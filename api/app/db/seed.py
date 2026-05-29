@@ -43,7 +43,6 @@ def build_manifest(template: dict) -> dict:
         "layout_config": layout_config,
         "zones": layout_config.get("zones", []),
         "placement": layout_config.get("placement", {}),
-        "rowHeights": layout_config.get("rowHeights", {}),
         "globalStyleSchema": global_style_schema,
         "assets": {},
         "sectionSchema": template.get("section_schema", {}),
@@ -58,8 +57,8 @@ SEED_TEMPLATES = [
         "description": "Two-column layout with accent color header and light sidebar",
         "layout_config": {
             "zones": [
-                {"id": "sidebar", "row": 0, "styles": {"width": "30%", "background-color": "#f8fafc", "padding": "24px"}},
-                {"id": "main", "row": 0, "styles": {"width": "70%", "padding": "24px"}}
+                {"id": "sidebar", "styles": {"width": "30%", "background-color": "#f8fafc", "padding": "24px"}},
+                {"id": "main", "styles": {"width": "70%", "padding": "24px"}}
             ],
             "placement": {
                 "profile": "sidebar",
@@ -92,7 +91,7 @@ SEED_TEMPLATES = [
         "description": "Single-column layout with serif fonts and traditional styling",
         "layout_config": {
             "zones": [
-                {"id": "main", "row": 0, "styles": {"width": "100%", "padding": "32px"}}
+                {"id": "main", "styles": {"width": "100%", "padding": "32px"}}
             ],
             "placement": {
                 "profile": "main",
@@ -125,7 +124,7 @@ SEED_TEMPLATES = [
         "description": "Clean single-column layout with grayscale styling and no decoration",
         "layout_config": {
             "zones": [
-                {"id": "main", "row": 0, "styles": {"width": "100%", "padding": "32px"}}
+                {"id": "main", "styles": {"width": "100%", "padding": "32px"}}
             ],
             "placement": {
                 "profile": "main",

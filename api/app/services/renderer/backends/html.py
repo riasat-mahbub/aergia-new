@@ -1,7 +1,7 @@
 """HTML backend — renders DocumentIR to HTML5."""
 
 from ..ir import AbstractRenderer
-from ..types import DocumentIR, ZoneIR, RowIR
+from ..types import DocumentIR, ZoneIR
 
 
 def _format_zone_styles(zone: ZoneIR) -> str:
@@ -27,13 +27,7 @@ def _format_single_zone(zone: ZoneIR) -> str:
     """Render a single zone div with its panels."""
     style_str = _format_zone_styles(zone)
     content = _format_zone_panels(zone)
-    return f'<div style="{style_str}">{content}</div>'
-
-
-def _format_row(row: RowIR) -> str:
-    """Render a single row as a flex container."""
-    zones_html = "".join(_format_single_zone(z) for z in row.zones)
-    return f'<div style="display:flex;flex:{row.flex_value};">{zones_html}</div>'
+    return f'<div class="zone" style="{style_str}">{content}</div>'
 
 
 def _format_css_vars_block(css_vars: dict[str, str]) -> str:
@@ -46,7 +40,7 @@ class HTMLBackend(AbstractRenderer):
     """Renders DocumentIR to a complete HTML5 document."""
 
     def _format(self, ir: DocumentIR) -> str:
-        zones_html = "".join(_format_row(row) for row in ir.rows)
+        zones_html = "".join(_format_single_zone(zone) for zone in ir.zones)
         css_vars_block = _format_css_vars_block(ir.css_vars)
 
         return f"""<!DOCTYPE html>

@@ -27,8 +27,7 @@ def _get_fallback_zone_id(zones: list[dict]) -> str | None:
     """Get the first zone's ID to use as fallback."""
     if not zones:
         return None
-    sorted_zones = sorted(zones, key=lambda z: (z.get("row", 0), z.get("id", "")))
-    return sorted_zones[0].get("id") or None
+    return zones[0].get("id") or None
 
 
 def _resolve_zone_id(placement: dict, instance: dict, fallback_zone_id: str | None) -> str:
@@ -67,16 +66,8 @@ def _group_instances_by_zone(
     return groups
 
 
-def _compute_row_flex_value(row_num: int, row_heights: dict) -> str:
-    """Compute flex shorthand for a row based on rowHeights config."""
-    height = row_heights.get(str(row_num)) or row_heights.get(row_num)
-    if height:
-        try:
-            pct = int(str(height).replace("%", ""))
-            if pct > 0:
-                return f"{pct} 0 0%"
-        except (ValueError, AttributeError):
-            pass
+def _compute_row_flex_value() -> str:
+    """Rows no longer exist; every zone collapses to content height."""
     return "0 0 auto"
 
 
@@ -92,11 +83,14 @@ def _render_instance_panel(instance: dict, context: dict | None = None) -> str:
 
 def _build_section_panel(instance: dict, context: dict | None = None) -> SectionPanelIR:
     """Build a SectionPanelIR from an instance, applying per-instance style overrides."""
-    panel_html = _render_instance_panel(instance, context)
+    per_style = instance.get("style") or {}
+    # Expose the instance's own style to renderers so per-type defaults (e.g.
+    # profile's centered text) yield to an explicit text_align override.
+    panel_context = {**(context or {}), "instance_style": per_style} if per_style else context
+    panel_html = _render_instance_panel(instance, panel_context)
     if not panel_html:
         return None
 
-    per_style = instance.get("style") or {}
     wrapper_extra = ""
     heading_extra = ""
     if per_style.get("font"):
@@ -106,6 +100,9 @@ def _build_section_panel(instance: dict, context: dict | None = None) -> Section
         heading_extra += f"color:{per_style['color']};"
     if per_style.get("weight"):
         heading_extra += f"font-weight:{per_style['weight']};"
+    if per_style.get("text_align"):
+        # Cascades into heading and body via the wrapper.
+        wrapper_extra += f"text-align: {per_style['text_align']};"
 
     wrapper_style = "margin-bottom:24px"
     if wrapper_extra:
@@ -189,39 +186,31 @@ def _build_rows(
     manifest: dict,
     zones: list[dict],
     groups: dict[str, list[dict]],
-    row_heights: dict,
     context: dict | None = None,
 ) -> list[RowIR]:
-    """Build RowIR list from zone definitions and grouped instances."""
-    rows_dict: dict[int, list[dict]] = {}
+    """Build ZoneIR list from zone definitions and grouped instances.
+
+    Returns a single implicit row wrapping every zone; rows no longer exist
+    in the zone-only data model.
+    """
+    zone_irs: list[ZoneIR] = []
+
     for zone in zones:
-        r = zone.get("row", 0)
-        rows_dict.setdefault(r, []).append(zone)
+        zone_id = zone.get("id", "")
+        zone_instances = groups.get(zone_id, [])
+        zone_styles = _build_zone_styles(zone)
 
-    rows: list[RowIR] = []
-    for row_num in sorted(rows_dict.keys()):
-        row_zones = rows_dict[row_num]
-        flex_value = _compute_row_flex_value(row_num, row_heights)
-        zone_irs: list[ZoneIR] = []
+        panels: list[SectionPanelIR] = []
+        for instance in zone_instances:
+            panel = _build_section_panel(instance, context)
+            if panel:
+                panels.append(panel)
 
-        for zone in row_zones:
-            zone_id = zone.get("id", "")
-            zone_instances = groups.get(zone_id, [])
-            zone_styles = _build_zone_styles(zone)
+        panels.extend(_build_asset_panels(manifest, zone_id))
 
-            panels: list[SectionPanelIR] = []
-            for instance in zone_instances:
-                panel = _build_section_panel(instance, context)
-                if panel:
-                    panels.append(panel)
+        zone_irs.append(ZoneIR(id=zone_id, styles=zone_styles, panels=panels))
 
-            panels.extend(_build_asset_panels(manifest, zone_id))
-
-            zone_irs.append(ZoneIR(id=zone_id, styles=zone_styles, panels=panels))
-
-        rows.append(RowIR(index=row_num, zones=zone_irs, flex_value=flex_value))
-
-    return rows
+    return [RowIR(index=0, zones=zone_irs, flex_value=_compute_row_flex_value())]
 def _merge_customizations(defaults: dict, overrides: dict) -> dict:
     merged = {}
     for key in defaults:
@@ -258,11 +247,10 @@ def build_ir(
     }
 
     zones = layout_config.get("zones") or manifest.get("zones", [])
-    row_heights = layout_config.get("rowHeights", {})
     groups = _group_instances_by_zone(instances, layout_config, zones)
-    rows = _build_rows(manifest, zones, groups, row_heights, context)
+    rows = _build_rows(manifest, zones, groups, context)
     return DocumentIR(
-        rows=rows,
+        zones=rows[0].zones,
         css_vars=css_vars,
         print_styles=PRINT_STYLES,
         body_font=fonts,

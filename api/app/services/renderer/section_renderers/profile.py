@@ -65,4 +65,10 @@ def render_profile(data: dict, context: dict | None = None) -> str:
             f'color:var(--text, #374151);{body_font_style}">'
             f'{esc(data["summary"])}</p>'
         )
-    return "".join(parts)
+    # Profile text is centered by default; an explicit per-section text_align
+    # override (carried on the panel wrapper via context.instance_style) wins.
+    text_align = "center"
+    if (ctx.get("instance_style") or {}).get("text_align"):
+        text_align = ""
+    wrapper_attr = f' style="text-align:{text_align}"' if text_align else ""
+    return f'<div class="profile-section"{wrapper_attr}>{"".join(parts)}</div>'

@@ -26,6 +26,7 @@ class TemplateDetail(BaseModel):
     preview_image_url: str | None
     default_customizations: dict | None
     manifest: dict | None = None
+    layout_config: dict | None = None
     assets: dict | None = None
     generated_html_url: str | None = None
     is_user_template: bool = False

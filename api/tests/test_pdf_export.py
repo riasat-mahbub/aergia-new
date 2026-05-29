@@ -145,8 +145,8 @@ async def test_pdf_export_respects_custom_zone_layout(client):
     headers = await register_and_login(client, "pdf-custom-layout@example.com")
     custom_layout = {
         "zones": [
-            {"id": "left", "row": 0, "styles": {"width": "40%", "background-color": "#f0f0f0", "padding": "16px"}},
-            {"id": "right", "row": 0, "styles": {"width": "60%", "padding": "16px"}},
+            {"id": "left", "styles": {"width": "40%", "background-color": "#f0f0f0", "padding": "16px"}},
+            {"id": "right", "styles": {"width": "60%", "padding": "16px"}},
         ],
         "placement": {"sec_profile": "left", "sec_experience": "right"},
     }

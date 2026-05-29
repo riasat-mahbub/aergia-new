@@ -19,7 +19,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Plus, Trash2, ChevronDown, Eye, EyeOff, Pencil } from "lucide-react";
+import { GripVertical, Plus, Trash2, ChevronDown, Pencil } from "lucide-react";
 import type { SectionInstance, Zone, LayoutConfig } from "../../lib/sections/types";
 import { SECTION_LABELS, getFirstZoneId } from "../../lib/sections/types";
 import { normalizeWidths, getWidthPercent } from "../../lib/sections/zones";
@@ -33,7 +33,6 @@ interface Props {
   instances: SectionInstance[];
   layoutConfig: LayoutConfig;
   assets?: Record<string, string>;
-  onToggle: (id: string) => void;
   onUpdateData: (id: string, data: any) => void;
   onAddSection: (type: string, zoneId?: string) => void;
   onRemoveInstance: (id: string) => void;
@@ -52,7 +51,6 @@ function SortableSection({
   instance,
   isExpanded,
   editingTitle,
-  onToggle,
   onRenameInstance,
   setEditingTitle,
   setDeleteConfirmId,
@@ -64,7 +62,6 @@ function SortableSection({
   instance: SectionInstance;
   isExpanded: boolean;
   editingTitle: string | null;
-  onToggle: () => void;
   onRenameInstance: (id: string, title: string) => void;
   setEditingTitle: (id: string | null) => void;
   setDeleteConfirmId: (id: string | null) => void;
@@ -87,6 +84,8 @@ function SortableSection({
     <div
       ref={setNodeRef}
       style={style}
+      {...attributes}
+      {...listeners}
       onClick={() => onSelect?.(instance.id)}
       data-testid={`zone-section-${instance.id}`}
       className={`flex cursor-pointer items-center gap-2 rounded border px-2 py-1.5 text-sm transition-colors ${
@@ -95,30 +94,6 @@ function SortableSection({
           : "border-gray-200 bg-white hover:border-gray-300"
       }`}
     >
-      {!readOnly && (
-        <button
-          {...attributes}
-          {...listeners}
-          className="cursor-grab text-gray-400 hover:text-gray-600"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <GripVertical className="h-3.5 w-3.5" />
-        </button>
-      )}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggle();
-        }}
-        className="text-gray-400 hover:text-gray-600"
-        title={instance.enabled === false ? "Enable" : "Disable"}
-      >
-        {instance.enabled === false ? (
-          <EyeOff className="h-3.5 w-3.5" />
-        ) : (
-          <Eye className="h-3.5 w-3.5" />
-        )}
-      </button>
       {editingTitle === instance.id ? (
         <input
           autoFocus
@@ -225,7 +200,6 @@ export default function SectionZoneView({
   instances,
   layoutConfig,
   assets,
-  onToggle,
   onUpdateData,
   onAddSection,
   onRemoveInstance,
@@ -474,7 +448,6 @@ export default function SectionZoneView({
                 editingTitle={editingTitle}
                 expandedZoneStyles={expandedZoneStyles}
                 assets={assets}
-                onToggle={onToggle}
                 onUpdateData={onUpdateData}
                 onRenameInstance={onRenameInstance}
                 setDeleteConfirmId={setDeleteConfirmId}
@@ -520,7 +493,6 @@ export default function SectionZoneView({
                       instance={inst}
                       isExpanded={expandedSections.has(inst.id)}
                       editingTitle={editingTitle}
-                      onToggle={() => onToggle(inst.id)}
                       onRenameInstance={onRenameInstance}
                       setEditingTitle={setEditingTitle}
                       setDeleteConfirmId={setDeleteConfirmId}
@@ -621,7 +593,6 @@ function ZoneBlock({
   editingTitle,
   expandedZoneStyles,
   assets,
-  onToggle,
   onUpdateData,
   onRenameInstance,
   setDeleteConfirmId,
@@ -642,7 +613,6 @@ function ZoneBlock({
   editingTitle: string | null;
   expandedZoneStyles: Set<string>;
   assets?: Record<string, string>;
-  onToggle: (id: string) => void;
   onUpdateData: (id: string, data: any) => void;
   onRenameInstance: (id: string, title: string) => void;
   setDeleteConfirmId: (id: string | null) => void;
@@ -755,7 +725,6 @@ function ZoneBlock({
                 instance={instance}
                 isExpanded={expandedSections.has(instance.id)}
                 editingTitle={editingTitle}
-                onToggle={() => onToggle(instance.id)}
                 onRenameInstance={onRenameInstance}
                 setEditingTitle={setEditingTitle}
                 setDeleteConfirmId={setDeleteConfirmId}

@@ -17,64 +17,23 @@ function renderThumbnail(manifest: any) {
   }
 
   const zones = manifest.zones;
-  const rows: Record<number, typeof zones> = {};
-  
-  for (const zone of zones) {
-    const row = zone.row || 0;
-    if (!rows[row]) rows[row] = [];
-    rows[row].push(zone);
-  }
+  const defaultWidth = `${100 / zones.length}%`;
 
-  const sortedRows = Object.keys(rows).sort((a, b) => Number(a) - Number(b));
-
-  if (sortedRows.length === 1) {
-    // Single row - horizontal layout
-    const rowZones = rows[Number(sortedRows[0])];
-    return (
-      <div className="flex h-full w-2/3 gap-0.5">
-        {rowZones.map((zone: any) => (
-          <div
-            key={zone.id}
-            className="h-full rounded"
-            style={{ 
-              width: zone.styles?.width || "100%",
-              backgroundColor: zone.styles?.["background-color"] || "transparent",
-              border: zone.styles?.["background-color"] ? "none" : "1px dashed #d1d5db",
-            }}
-          />
-        ))}
-      </div>
-    );
-  } else {
-    // Multiple rows - vertical stack
-    return (
-      <div className="flex h-full w-2/3 flex-col gap-1">
-        {sortedRows.map((rowKey) => {
-          const rowZones = rows[Number(rowKey)];
-          return (
-            <div key={rowKey} className="flex h-1/3 gap-0.5">
-              {rowZones.map((zone: any) => (
-                <div
-                  key={zone.id}
-                  className="h-full rounded"
-                  style={{ 
-                    width: zone.styles?.width || "100%",
-                    backgroundColor: zone.styles?.["background-color"] || "transparent",
-                    border: zone.styles?.["background-color"] ? "none" : "1px dashed #d1d5db",
-                  }}
-                />
-              ))}
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-}
-
-interface Props {
-  template: UserTemplate;
-  onSelect: (templateId: string) => void;
+  return (
+    <div className="flex h-full w-2/3 gap-0.5">
+      {zones.map((zone: any) => (
+        <div
+          key={zone.id}
+          className="h-full rounded"
+          style={{
+            width: zone.styles?.width || defaultWidth,
+            backgroundColor: zone.styles?.["background-color"] || "transparent",
+            border: zone.styles?.["background-color"] ? "none" : "1px dashed #d1d5db",
+          }}
+        />
+      ))}
+    </div>
+  );
 }
 
 export default function BaseTemplateCard({ template, onSelect }: Props) {

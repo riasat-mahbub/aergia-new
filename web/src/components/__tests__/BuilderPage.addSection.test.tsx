@@ -1,9 +1,10 @@
 /** @vitest-environment jsdom */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, act, fireEvent } from "@testing-library/react";
 import { useState } from "react";
 import type { SectionInstance, LayoutConfig } from "../../lib/sections/types";
 import { getFirstZoneId } from "../../lib/sections/types";
+import { fetchTemplate } from "../../lib/api/templates";
 
 vi.mock("react-router-dom", () => ({
   useParams: () => ({ id: "test-id" }),
@@ -147,5 +148,128 @@ describe("BuilderPage.handleAddSection first-zone assignment", () => {
     const placement = state.customizations.layout.placement;
     const entry = Object.values(placement)[0] as string;
     expect(entry).toBe("explicit");
+  });
+});
+
+
+/** A test harness that mirrors BuilderPage.handleTemplateChange. We re-implement
+ *  the relevant portion here so we can probe its observable effect on
+ *  `localCustomizations.layout` without rendering the full builder.
+ */
+function TestTemplateChangeHarness({
+  initialInstances,
+  initialCustomizations,
+}: {
+  initialInstances: SectionInstance[];
+  initialCustomizations: Record<string, unknown>;
+}) {
+  const [instances, setInstances] = useState<SectionInstance[]>(initialInstances);
+  const [customizations, setCustomizations] = useState<any>(initialCustomizations);
+
+  const handleTemplateChange = async (newTemplateId: string) => {
+    // Defensive: drop every per-instance style so the new template's styles take effect.
+    const cleanInstances = instances.map((i) => ({ ...i, style: undefined }));
+    setInstances(cleanInstances);
+
+    let customizationsWithLayout: Record<string, unknown>;
+    try {
+      const template = await fetchTemplate(newTemplateId);
+      const zones = template.manifest?.zones;
+      const placement = template.manifest?.placement;
+      if (Array.isArray(zones) && zones.length > 0 && placement) {
+        // Install the new template's zones verbatim and reassign every section
+        // to the first zone so the editor is never left with zero zones.
+        const newLayout: LayoutConfig = { zones, placement: {} };
+        const firstZoneId = getFirstZoneId(newLayout);
+        for (const instance of cleanInstances) {
+          if (firstZoneId) newLayout.placement[instance.id] = firstZoneId;
+        }
+        customizationsWithLayout = { ...customizations, layout: newLayout };
+      } else {
+        customizationsWithLayout = {};
+      }
+    } catch {
+      // Template fetch failed — fall back to the wipe-and-reload behavior.
+      customizationsWithLayout = {};
+    }
+    setCustomizations(customizationsWithLayout);
+  };
+
+  return (
+    <div>
+      <button onClick={() => handleTemplateChange("generic-classic")}>Switch template</button>
+      <pre data-testid="state">{JSON.stringify({ customizations, instances })}</pre>
+    </div>
+  );
+}
+
+describe("BuilderPage.handleTemplateChange zone install", () => {
+  beforeEach(() => {
+    vi.mocked(fetchTemplate).mockReset();
+  });
+
+  it("installs the new template's zones and reassigns every section to the first zone", async () => {
+    vi.mocked(fetchTemplate).mockResolvedValueOnce({
+      manifest: {
+        zones: [
+          { id: "left", styles: { width: "40%" } },
+          { id: "right", styles: { width: "60%" } },
+        ],
+        placement: {},
+      },
+    } as any);
+    const { getByText, getByTestId } = render(
+      <TestTemplateChangeHarness
+        initialInstances={[
+          { id: "sec_1", type: "profile", title: "Profile", enabled: true, data: {}, style: { color: "#fff" } },
+          { id: "sec_2", type: "experience", title: "Experience", enabled: true, data: {} },
+        ]}
+        initialCustomizations={{ colors: { accent: "#123456" } }}
+      />,
+    );
+    await act(async () => {
+      fireEvent.click(getByText("Switch template"));
+    });
+    const state = JSON.parse(getByTestId("state").textContent!);
+    const layout = state.customizations.layout;
+    expect(layout.zones).toHaveLength(2);
+    expect(state.customizations.colors.accent).toBe("#123456"); // other customization keys preserved
+    for (const instance of state.instances) {
+      expect(layout.placement[instance.id]).toBe("left");
+      expect(instance.style).toBeUndefined();
+    }
+    expect(JSON.stringify(layout)).not.toMatch(/rowHeights/);
+    expect(JSON.stringify(layout.zones)).not.toMatch(/"row"/);
+  });
+
+  it("falls back to no layout when the fetched template has no zones", async () => {
+    vi.mocked(fetchTemplate).mockResolvedValueOnce({} as any);
+    const { getByText, getByTestId } = render(
+      <TestTemplateChangeHarness
+        initialInstances={[{ id: "sec_1", type: "profile", title: "Profile", enabled: true, data: {} }]}
+        initialCustomizations={{ colors: { accent: "#123456" } }}
+      />,
+    );
+    await act(async () => {
+      fireEvent.click(getByText("Switch template"));
+    });
+    const state = JSON.parse(getByTestId("state").textContent!);
+    expect(state.customizations.layout).toBeUndefined();
+    expect(state.instances).toHaveLength(1);
+  });
+
+  it("falls back to no layout when the template fetch throws", async () => {
+    vi.mocked(fetchTemplate).mockRejectedValueOnce(new Error("network"));
+    const { getByText, getByTestId } = render(
+      <TestTemplateChangeHarness
+        initialInstances={[{ id: "sec_1", type: "profile", title: "Profile", enabled: true, data: {} }]}
+        initialCustomizations={{}}
+      />,
+    );
+    await act(async () => {
+      fireEvent.click(getByText("Switch template"));
+    });
+    const state = JSON.parse(getByTestId("state").textContent!);
+    expect(state.customizations.layout).toBeUndefined();
   });
 });
