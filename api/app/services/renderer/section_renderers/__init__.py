@@ -19,8 +19,19 @@ SECTION_RENDERERS = {
 }
 
 
-def render_section_preview(section_type: str, data: any) -> str:
+def render_section_preview(
+    section_type: str,
+    data: any,
+    context: dict | None = None,
+) -> str:
+    """Render a single section's body HTML using the given template context.
+
+    `context` is a dict with the keys:
+        body_font: str      — body font family
+        heading_font: str   — heading font family
+        css_vars: dict[str, str] — resolved CSS variables for the template
+    """
     renderer = SECTION_RENDERERS.get(section_type)
     if not renderer:
         raise ValueError(f"Unknown section type: '{section_type}'")
-    return renderer(data)
+    return renderer(data, context or {})

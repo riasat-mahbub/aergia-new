@@ -2,11 +2,10 @@ import { useEffect, useCallback, useState, useRef, useMemo } from "react";
 import { useLocation, useNavigate, useBlocker } from "react-router-dom";
 import { motion } from "motion/react";
 
-import type { DragEndEvent } from "@dnd-kit/core";
-import { arrayMove } from "@dnd-kit/sortable";
+
 import ExportPDFButton from "../components/builder/ExportPDFButton";
+import ContentSectionList from "../components/builder/ContentSectionList";
 import { useCVStore } from "../lib/store/cvStore";
-import SectionZoneView from "../components/layout/SectionZoneView";
 import TemplateSwitcher from "../components/preview/TemplateSwitcher";
 import CustomizePanel from "../components/customization/CustomizePanel";
 
@@ -87,6 +86,7 @@ export default function BuilderPage() {
     }
     return { ...effectiveLayoutConfig, zones: normalizedZones };
   }, [effectiveLayoutConfig]);
+
 
   const handleLayoutConfigChange = useCallback(
     (config: LayoutConfig) => {
@@ -219,35 +219,6 @@ export default function BuilderPage() {
     []
   );
 
-  const handleEntryDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event;
-      if (!over || active.id === over.id) return;
-
-      const currentInstances = instancesRef.current;
-      let updatedInstances: SectionInstance[] | null = null;
-
-      for (const instance of currentInstances) {
-        const entries = instance.data as any[];
-        if (Array.isArray(entries)) {
-          const entryIdx = entries.findIndex((e: any) => e.id === active.id);
-          if (entryIdx !== -1) {
-            const oldIndex = entries.findIndex((e: any) => e.id === active.id);
-            const newIndex = entries.findIndex((e: any) => e.id === over.id);
-            const reordered = arrayMove(entries, oldIndex, newIndex);
-            updatedInstances = currentInstances.map((i) =>
-              i.id === instance.id ? { ...i, data: reordered } : i
-            );
-            setLocalInstances(updatedInstances);
-            hasChangesRef.current = true;
-            setHasUnsavedChanges(true);
-            break;
-          }
-        }
-      }
-    },
-  []
-  );
 
   const handleReorderInstances = useCallback(
     (newInstances: SectionInstance[]) => {
@@ -313,7 +284,7 @@ export default function BuilderPage() {
       if (!id) return;
       if (
         !window.confirm(
-          "Switching templates will reset your zone layout and section styles to the new template's defaults. Continue?"
+          "Switching templates will update the layout structure (zones/rows) and global styles to the new template's defaults. Per-section content (text, entries, order, per-section styles) is preserved. Continue?"
         )
       ) {
         return;
@@ -346,6 +317,7 @@ export default function BuilderPage() {
     },
     []
   );
+
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -427,18 +399,14 @@ export default function BuilderPage() {
             </div>
             <div className="flex-1 overflow-y-auto p-4">
               {activeTab === "content" && (
-                <SectionZoneView
+                <ContentSectionList
                   instances={instances}
-                  layoutConfig={normalizedLayoutConfig || { zones: [], placement: {} }}
-                  assets={templateManifest?.assets}
                   onToggle={handleToggle}
                   onUpdateData={handleUpdateData}
                   onAddSection={handleAddSection}
                   onRemoveInstance={handleRemoveInstance}
                   onRenameInstance={handleRenameInstance}
-                  onLayoutConfigChange={handleLayoutConfigChange}
                   onReorderInstances={handleReorderInstances}
-                  onEntryDragEnd={handleEntryDragEnd}
                 />
               )}
               {activeTab === "customize" && (
@@ -449,6 +417,9 @@ export default function BuilderPage() {
                   onTemplateChange={handleTemplateChange}
                   instances={instances}
                   onUpdateStyle={handleUpdateStyle}
+                  layoutConfig={normalizedLayoutConfig || { zones: [], placement: {} }}
+                  onLayoutConfigChange={handleLayoutConfigChange}
+                  assets={templateManifest?.assets}
                 />
               )}
             </div>

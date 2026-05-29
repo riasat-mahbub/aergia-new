@@ -46,6 +46,12 @@ interface Props {
   onLayoutConfigChange: (config: LayoutConfig) => void;
   onReorderInstances: (instances: SectionInstance[]) => void;
   onEntryDragEnd: (event: DragEndEvent) => void;
+  /** When true, the section blocks lose editing affordances and act as structural tokens. */
+  readOnly?: boolean;
+  /** Called when a section block is clicked while readOnly. */
+  onSelect?: (sectionId: string) => void;
+  /** Currently selected section id (for highlight treatment in readOnly mode). */
+  selectedSectionId?: string | null;
 }
 
 /* ── Sortable Section ─────────────────────────────────────────────── */
@@ -59,6 +65,9 @@ function SortableSection({
   setEditingTitle,
   setDeleteConfirmId,
   onClick,
+  readOnly = false,
+  selected = false,
+  onSelect,
 }: {
   instance: SectionInstance;
   isExpanded: boolean;
@@ -68,6 +77,9 @@ function SortableSection({
   setEditingTitle: (id: string | null) => void;
   setDeleteConfirmId: (id: string | null) => void;
   onClick: () => void;
+  readOnly?: boolean;
+  selected?: boolean;
+  onSelect?: (id: string) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -87,13 +99,30 @@ function SortableSection({
     setEditingTitle(null);
   };
 
+  const handleRowClick = () => {
+    if (readOnly) onSelect?.(instance.id);
+    else onClick();
+  };
+
+  const rowClasses = readOnly
+    ? `flex items-center gap-2 rounded border px-3 py-2 cursor-pointer ${
+        selected
+          ? "border-blue-400 ring-2 ring-blue-200 bg-blue-50"
+          : instance.enabled
+            ? "bg-white"
+            : "bg-gray-50"
+      }`
+    : `flex items-center gap-2 rounded border px-3 py-2 ${
+        instance.enabled ? "bg-white" : "bg-gray-50"
+      }`;
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-2 rounded border px-3 py-2 ${
-        instance.enabled ? "bg-white" : "bg-gray-50"
-      }`}
+      className={rowClasses}
+      onClick={readOnly ? handleRowClick : undefined}
+      data-section-id={instance.id}
     >
       <button
         {...attributes}
@@ -131,7 +160,14 @@ function SortableSection({
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <button onClick={onClick} className="text-left">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (readOnly) onSelect?.(instance.id);
+                else onClick();
+              }}
+              className="text-left"
+            >
               <span
                 className={`text-sm font-medium ${
                   instance.enabled ? "text-gray-800" : "text-gray-400"
@@ -143,7 +179,7 @@ function SortableSection({
             <span className="text-[10px] text-gray-400">
               {SECTION_LABELS[instance.type] || instance.type}
             </span>
-            {isExpanded && (
+            {!readOnly && isExpanded && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -158,44 +194,54 @@ function SortableSection({
         )}
       </div>
 
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggle();
-        }}
-        className={`rounded p-1 ${
-          instance.enabled
-            ? "text-blue-600 hover:text-blue-800"
-            : "text-gray-400 hover:text-gray-600"
-        }`}
-        title={instance.enabled ? "Disable" : "Enable"}
-      >
-        {instance.enabled ? (
-          <Eye className="h-3.5 w-3.5" />
-        ) : (
-          <EyeOff className="h-3.5 w-3.5" />
-        )}
-      </button>
+      {!readOnly && (
+        <>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle();
+            }}
+            className={`rounded p-1 ${
+              instance.enabled
+                ? "text-blue-600 hover:text-blue-800"
+                : "text-gray-400 hover:text-gray-600"
+            }`}
+            title={instance.enabled ? "Disable" : "Enable"}
+          >
+            {instance.enabled ? (
+              <Eye className="h-3.5 w-3.5" />
+            ) : (
+              <EyeOff className="h-3.5 w-3.5" />
+            )}
+          </button>
 
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          setDeleteConfirmId(instance.id);
-        }}
-        className="rounded p-1 text-red-400 hover:text-red-600"
-        title="Delete"
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-      </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setDeleteConfirmId(instance.id);
+            }}
+            className="rounded p-1 text-red-400 hover:text-red-600"
+            title="Delete"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
 
-      <button onClick={onClick} className="rounded p-1 text-gray-400 hover:text-gray-600">
-        <motion.div
-          animate={{ rotate: isExpanded ? 180 : 0 }}
-          transition={{ duration: 0.2 }}
-        >
-          <ChevronDown className="h-3.5 w-3.5" />
-        </motion.div>
-      </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onClick();
+            }}
+            className="rounded p-1 text-gray-400 hover:text-gray-600"
+          >
+            <motion.div
+              animate={{ rotate: isExpanded ? 180 : 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+            </motion.div>
+          </button>
+        </>
+      )}
     </div>
   );
 }
@@ -236,6 +282,9 @@ export default function SectionZoneView({
   onLayoutConfigChange,
   onReorderInstances,
   onEntryDragEnd,
+  readOnly = false,
+  selectedSectionId = null,
+  onSelect,
 }: Props) {
   const { zones, placement } = layoutConfig;
 
@@ -622,6 +671,9 @@ export default function SectionZoneView({
                 handleDeleteRow={handleDeleteRow}
                 handleZoneUpdate={handleZoneUpdate}
                 handleHorizontalMouseDown={handleHorizontalMouseDown}
+                readOnly={readOnly}
+                selectedSectionId={selectedSectionId}
+                onSelect={onSelect}
               />
             );
           })}
@@ -660,21 +712,26 @@ export default function SectionZoneView({
                       setEditingTitle={setEditingTitle}
                       setDeleteConfirmId={setDeleteConfirmId}
                       onClick={() => toggleSectionExpand(inst.id)}
+                      readOnly={readOnly}
+                      selected={inst.id === selectedSectionId}
+                      onSelect={onSelect}
                     />
-                    <AnimatePresence>
-                      {expandedSections.has(inst.id) && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          className="overflow-hidden"
-                        >
-                          <div className="rounded-b-lg border-x border-b bg-gray-50 p-3">
-                            <SectionEditorPanel instance={inst} onChange={onUpdateData} />
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                    {!readOnly && (
+                      <AnimatePresence>
+                        {expandedSections.has(inst.id) && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="rounded-b-lg border-x border-b bg-gray-50 p-3">
+                              <SectionEditorPanel instance={inst} onChange={onUpdateData} />
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    )}
                   </div>
                 ))}
               </div>
@@ -777,6 +834,9 @@ function RowContainer({
   handleDeleteRow,
   handleZoneUpdate,
   handleHorizontalMouseDown,
+  readOnly = false,
+  selectedSectionId = null,
+  onSelect,
 }: {
   rowNum: number;
   zones: Zone[];
@@ -798,6 +858,9 @@ function RowContainer({
   handleDeleteRow: (rowNum: number) => void;
   handleZoneUpdate: (zone: Zone) => void;
   handleHorizontalMouseDown: (rowNum: number, localIndex: number, e: React.MouseEvent) => void;
+  readOnly?: boolean;
+  selectedSectionId?: string | null;
+  onSelect?: (id: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `row-${rowNum}`,
@@ -860,6 +923,9 @@ function RowContainer({
               handleAddSectionClick={handleAddSectionClick}
               handleDeleteZone={handleDeleteZone}
               handleZoneUpdate={handleZoneUpdate}
+              readOnly={readOnly}
+              selectedSectionId={selectedSectionId}
+              onSelect={onSelect}
             />
           </div>
         ))}
@@ -888,6 +954,9 @@ function ZoneBlock({
   handleAddSectionClick,
   handleDeleteZone,
   handleZoneUpdate,
+  readOnly = false,
+  selectedSectionId = null,
+  onSelect,
 }: {
   zone: Zone;
   instances: SectionInstance[];
@@ -906,6 +975,9 @@ function ZoneBlock({
   handleAddSectionClick: (zoneId: string) => void;
   handleDeleteZone: (zoneId: string) => void;
   handleZoneUpdate: (zone: Zone) => void;
+  readOnly?: boolean;
+  selectedSectionId?: string | null;
+  onSelect?: (id: string) => void;
 }) {
   const zoneStyle = zone.styles || {};
   const widthPct = zoneStyle.width || "100%";
@@ -1002,34 +1074,41 @@ function ZoneBlock({
                 setEditingTitle={setEditingTitle}
                 setDeleteConfirmId={setDeleteConfirmId}
                 onClick={() => toggleSectionExpand(instance.id)}
+                readOnly={readOnly}
+                selected={instance.id === selectedSectionId}
+                onSelect={onSelect}
               />
-              <AnimatePresence>
-                {expandedSections.has(instance.id) && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="rounded-b-lg border-x border-b bg-gray-50 p-3">
-                      <SectionEditorPanel instance={instance} onChange={onUpdateData} />
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              {!readOnly && (
+                <AnimatePresence>
+                  {expandedSections.has(instance.id) && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="rounded-b-lg border-x border-b bg-gray-50 p-3">
+                        <SectionEditorPanel instance={instance} onChange={onUpdateData} />
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              )}
             </div>
           ))}
         </SortableContext>
 
         <ZoneDroppable zoneId={zone.id} />
 
-        <button
-          onClick={() => handleAddSectionClick(zone.id)}
-          className="flex w-full items-center justify-center gap-1 rounded border border-dashed border-gray-300 py-1.5 text-[11px] text-gray-400 hover:border-blue-400 hover:text-blue-600"
-        >
-          <Plus className="h-3 w-3" />
-          Add Section
-        </button>
+        {!readOnly && (
+          <button
+            onClick={() => handleAddSectionClick(zone.id)}
+            className="flex w-full items-center justify-center gap-1 rounded border border-dashed border-gray-300 py-1.5 text-[11px] text-gray-400 hover:border-blue-400 hover:text-blue-600"
+          >
+            <Plus className="h-3 w-3" />
+            Add Section
+          </button>
+        )}
       </div>
     </div>
   );

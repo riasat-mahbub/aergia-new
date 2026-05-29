@@ -80,7 +80,7 @@ def _compute_row_flex_value(row_num: int, row_heights: dict) -> str:
     return "0 0 auto"
 
 
-def _render_instance_panel(instance: dict) -> str:
+def _render_instance_panel(instance: dict, context: dict | None = None) -> str:
     """Render a single section instance's content HTML (no heading/wrapper)."""
     if not instance.get("enabled", True):
         return ""
@@ -88,12 +88,11 @@ def _render_instance_panel(instance: dict) -> str:
     if not section_type:
         raise ValueError("Section instance is missing 'type'")
     section_data = instance.get("data")
-    return render_section_preview(section_type, section_data)
+    return render_section_preview(section_type, section_data, context)
 
-
-def _build_section_panel(instance: dict) -> SectionPanelIR:
+def _build_section_panel(instance: dict, context: dict | None = None) -> SectionPanelIR:
     """Build a SectionPanelIR from an instance, applying per-instance style overrides."""
-    panel_html = _render_instance_panel(instance)
+    panel_html = _render_instance_panel(instance, context)
     if not panel_html:
         return None
 
@@ -112,7 +111,13 @@ def _build_section_panel(instance: dict) -> SectionPanelIR:
     if wrapper_extra:
         wrapper_style = f"{wrapper_style};{wrapper_extra}"
 
-    heading_style = "margin-bottom:8px;font-size:1rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#1f2937"
+    # The section heading sits in the wrapper; use template --heading so it follows
+    # the template palette by default, then layer the per-instance override on top.
+    heading_style = (
+        "margin-bottom:8px;font-size:1rem;font-weight:700;"
+        "text-transform:uppercase;letter-spacing:0.05em;"
+        "color:var(--heading, #1f2937)"
+    )
     if heading_extra:
         heading_style = f"{heading_style};{heading_extra}"
 
@@ -160,7 +165,10 @@ def _build_css_vars(manifest: dict, customizations: dict) -> dict[str, str]:
 
     colors = merged.get("colors", {})
     fonts = merged.get("fonts", {})
-    spacing = merged.get("spacing", {})
+    # Lengths may arrive under either `spacing` (the user-facing default_customizations
+    # convention) or `lengths` (the schema-derived default bucket). Merge both so the
+    # same default_customizations shape survives an in-place seed without diverging.
+    spacing = {**(merged.get("spacing") or {}), **(merged.get("lengths") or {})}
 
     all_vars = {
         "--accent": colors.get("accent"),
@@ -172,6 +180,7 @@ def _build_css_vars(manifest: dict, customizations: dict) -> dict[str, str]:
         "--body-font": fonts.get("body"),
         "--heading-font": fonts.get("heading"),
         "--section-gap": spacing.get("section_gap"),
+        "--profile-name-size": spacing.get("profile_name_size"),
     }
     return {k: v for k, v in all_vars.items() if v is not None}
 
@@ -181,6 +190,7 @@ def _build_rows(
     zones: list[dict],
     groups: dict[str, list[dict]],
     row_heights: dict,
+    context: dict | None = None,
 ) -> list[RowIR]:
     """Build RowIR list from zone definitions and grouped instances."""
     rows_dict: dict[int, list[dict]] = {}
@@ -201,7 +211,7 @@ def _build_rows(
 
             panels: list[SectionPanelIR] = []
             for instance in zone_instances:
-                panel = _build_section_panel(instance)
+                panel = _build_section_panel(instance, context)
                 if panel:
                     panels.append(panel)
 
@@ -212,8 +222,6 @@ def _build_rows(
         rows.append(RowIR(index=row_num, zones=zone_irs, flex_value=flex_value))
 
     return rows
-
-
 def _merge_customizations(defaults: dict, overrides: dict) -> dict:
     merged = {}
     for key in defaults:
@@ -242,11 +250,17 @@ def build_ir(
     css_vars = _build_css_vars(manifest, customizations)
     fonts = css_vars.get("--body-font", "system-ui, sans-serif")
 
+    # Build the render context that section renderers consult for template-aware styling.
+    context = {
+        "body_font": fonts,
+        "heading_font": css_vars.get("--heading-font", fonts),
+        "css_vars": css_vars,
+    }
+
     zones = manifest.get("zones", [])
     row_heights = layout_config.get("rowHeights", {})
     groups = _group_instances_by_zone(instances, layout_config, zones)
-    rows = _build_rows(manifest, zones, groups, row_heights)
-
+    rows = _build_rows(manifest, zones, groups, row_heights, context)
     return DocumentIR(
         rows=rows,
         css_vars=css_vars,

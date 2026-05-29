@@ -49,6 +49,18 @@ vi.mock("../sections/AddSectionModal", () => ({ default: ({ open }: any) => open
 vi.mock("../customization/ZoneStyleEditor", () => ({ default: () => <div /> }));
 vi.mock("../customization/ZoneCreationModal", () => ({ default: () => <div /> }));
 vi.mock("../common/Modal", () => ({ default: ({ open, children }: any) => open ? <div>{children}</div> : null }));
+vi.mock("../layout/SectionZoneView", () => ({
+  default: ({ onSelect, selectedSectionId, instances }: any) => (
+    <div data-testid="zone-view">
+      {(instances || []).map((inst: any) => (
+        <button key={inst.id} data-testid={`zone-section-${inst.id}`} onClick={() => onSelect?.(inst.id)}>
+          {inst.title}
+        </button>
+      ))}
+      <div data-testid="zone-view-selected">{selectedSectionId ?? ""}</div>
+    </div>
+  ),
+}));
 
 vi.mock("@dnd-kit/core", () => ({
   DndContext: ({ children }: any) => <div>{children}</div>,
@@ -90,6 +102,8 @@ const renderCustomizePanel = (props?: Partial<Parameters<typeof CustomizePanel>[
       onTemplateChange={vi.fn()}
       instances={[]}
       onUpdateStyle={vi.fn()}
+      layoutConfig={{ zones: [], placement: {} }}
+      onLayoutConfigChange={vi.fn()}
       {...props}
     />
   );
@@ -121,7 +135,7 @@ describe("CustomizePanel", () => {
     }
   });
 
-  it("renders per-section style cards", () => {
+  it("renders the layout view (mocked SectionZoneView)", () => {
     renderCustomizePanel({
       instances: [
         { id: "s1", type: "profile", title: "John", enabled: true, data: {} },
@@ -129,10 +143,72 @@ describe("CustomizePanel", () => {
       ],
     });
 
+    expect(screen.getByTestId("zone-view")).toBeDefined();
+    // Section names surface in the mocked zone view, not the per-section override list.
     expect(screen.getByText("John")).toBeDefined();
     expect(screen.getByText("Work")).toBeDefined();
-    expect(screen.getByText("Profile")).toBeDefined();
-    expect(screen.getByText("Experience")).toBeDefined();
+    // No "Section Overrides" heading anymore.
+    expect(screen.queryByText(/Section Overrides/i)).toBeNull();
+  });
+
+  it("clicking a section in the layout view reveals per-section style controls", () => {
+    const onUpdateStyle = vi.fn();
+    renderCustomizePanel({
+      onUpdateStyle,
+      instances: [
+        { id: "s1", type: "profile", title: "John", enabled: true, data: {} },
+      ],
+    });
+
+    // Per-section panel is hidden before any selection.
+    expect(screen.queryByText(/Style: John/)).toBeNull();
+
+    fireEvent.click(screen.getByTestId("zone-section-s1"));
+
+    // After selection, the per-section style panel appears.
+    expect(screen.getByText(/Style: John/)).toBeDefined();
+  });
+
+  it("changing the color in the per-section style panel calls onUpdateStyle with the new style", () => {
+    const onUpdateStyle = vi.fn();
+    renderCustomizePanel({
+      onUpdateStyle,
+      instances: [
+        { id: "s1", type: "profile", title: "John", enabled: true, data: {} },
+      ],
+    });
+
+    fireEvent.click(screen.getByTestId("zone-section-s1"));
+
+    // The hex color input is a text input; find by placeholder.
+    const hexInput = screen.getByPlaceholderText("Default") as HTMLInputElement;
+    fireEvent.change(hexInput, { target: { value: "#ff0000" } });
+
+    expect(onUpdateStyle).toHaveBeenCalledWith("s1", expect.objectContaining({ color: "#ff0000" }));
+  });
+
+  it("clearing all style values calls onUpdateStyle with an empty object", () => {
+    const onUpdateStyle = vi.fn();
+    renderCustomizePanel({
+      onUpdateStyle,
+      instances: [
+        {
+          id: "s1",
+          type: "profile",
+          title: "John",
+          enabled: true,
+          data: {},
+          style: { color: "#ff0000" },
+        },
+      ],
+    });
+
+    fireEvent.click(screen.getByTestId("zone-section-s1"));
+
+    const hexInput = screen.getByPlaceholderText("Default") as HTMLInputElement;
+    fireEvent.change(hexInput, { target: { value: "" } });
+
+    expect(onUpdateStyle).toHaveBeenCalledWith("s1", {});
   });
 });
 
