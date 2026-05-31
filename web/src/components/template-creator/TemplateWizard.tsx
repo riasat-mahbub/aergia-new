@@ -90,7 +90,7 @@ type StepId = "basics" | "layout" | "styles" | "assets" | "review";
 
 const steps: { id: StepId; label: string; description: string }[] = [
   { id: "basics", label: "Basics", description: "Name and describe your template" },
-  { id: "layout", label: "Layout", description: "Arrange zones and rows" },
+  { id: "layout", label: "Layout", description: "Arrange zones" },
   { id: "styles", label: "Styles", description: "Colors, fonts, spacing" },
   { id: "assets", label: "Assets", description: "Upload images and place them in zones" },
   { id: "review", label: "Review", description: "Preview and save" },

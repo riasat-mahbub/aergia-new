@@ -3,6 +3,8 @@
 Maps to the TypeScript interfaces in web/src/lib/sections/types.ts.
 """
 
+from typing import Literal
+
 from pydantic import BaseModel
 
 
@@ -71,6 +73,7 @@ class SectionStyle(BaseModel):
     font: str | None = None
     color: str | None = None
     weight: str | None = None
+    text_align: Literal["left", "right", "center", "justify"] | None = None
 
 
 # Map section type → data model

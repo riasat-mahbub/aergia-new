@@ -63,6 +63,7 @@ export interface SectionStyle {
   font?: string;
   color?: string;
   weight?: string;
+  text_align?: "left" | "right" | "center" | "justify";
 }
 
 export interface SectionInstance {

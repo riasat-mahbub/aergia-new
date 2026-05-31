@@ -275,7 +275,7 @@ export default function BuilderPage() {
     (sectionId: string, style: SectionStyle) => {
       hasChangesRef.current = true;
       setHasUnsavedChanges(true);
-      setLocalInstances((prev) => prev.map((i) => (i.id === sectionId ? { ...i, style: style.font || style.color || style.weight ? style : undefined } : i)));
+      setLocalInstances((prev) => prev.map((i) => (i.id === sectionId ? { ...i, style: style.font || style.color || style.weight || style.text_align ? style : undefined } : i)));
     },
     []
   );
@@ -285,31 +285,52 @@ export default function BuilderPage() {
       if (!id) return;
       if (
         !window.confirm(
-          "Switching templates unassigns every section from any zone and resets the layout to the new template's defaults. Per-section content (text, entries, order) is preserved. Continue?"
+          "Switching templates installs the new template's zones and reassigns every section to the first zone. Per-section content (text, entries, order) is preserved. Continue?"
         )
       ) {
         return;
       }
       try {
         setIsSaving(true);
-        // Defensive: drop every per-instance style so the new template's styles take effect,
-        // and reset customizations entirely so neither layout nor placement survive the switch.
+        // Defensive: drop every per-instance style so the new template's styles take effect.
         const cleanInstances = localInstances.map((i) => ({ ...i, style: undefined }));
         setLocalInstances(cleanInstances);
-        const emptyCustomizations: Record<string, unknown> = {};
-        setLocalCustomizations(emptyCustomizations);
+
+        let customizationsWithLayout: Record<string, unknown>;
+        try {
+          const template = await templatesApi.fetchTemplate(newTemplateId);
+          const zones = template.manifest?.zones;
+          const placement = template.manifest?.placement;
+          if (Array.isArray(zones) && zones.length > 0 && placement) {
+            // Install the new template's zones verbatim and reassign every section
+            // to the first zone so the editor is never left with zero zones.
+            const newLayout: LayoutConfig = { zones, placement: {} };
+            const firstZoneId = getFirstZoneId(newLayout);
+            for (const instance of cleanInstances) {
+              if (firstZoneId) newLayout.placement[instance.id] = firstZoneId;
+            }
+            customizationsWithLayout = { ...localCustomizations, layout: newLayout };
+          } else {
+            customizationsWithLayout = {};
+          }
+        } catch {
+          // Template fetch failed — fall back to the wipe-and-reload behavior
+          // so the user is never stranded with a stale layout.
+          customizationsWithLayout = {};
+        }
+        setLocalCustomizations(customizationsWithLayout);
 
         await updateCV(id, {
           template_id: newTemplateId,
           sections: cleanInstances,
-          customizations: emptyCustomizations,
+          customizations: customizationsWithLayout,
         });
         await loadCV(id);
       } finally {
         setIsSaving(false);
       }
     },
-    [id, localInstances, loadCV, setIsSaving]
+    [id, localInstances, localCustomizations, loadCV, setIsSaving]
   );
 
   const handleCustomizationsChange = useCallback(

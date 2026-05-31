@@ -19,7 +19,6 @@ class ZoneStyle(BaseModel):
 class ZoneManifest(BaseModel):
     id: str
     label: Optional[str] = None
-    row: int = 0
     styles: ZoneStyle = Field(default_factory=ZoneStyle)
 
 

@@ -65,7 +65,9 @@ async def get_template(template_id: str, db: AsyncSession = Depends(get_db)):
     template = await db.get(Template, template_id)
     if not template:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
-    return TemplateDetail.model_validate(template)
+    detail = TemplateDetail.model_validate(template)
+    detail.layout_config = template.manifest.get("layout_config") if template.manifest else None
+    return detail
 
 
 @router.get("/{template_id}/manifest", response_model=dict)

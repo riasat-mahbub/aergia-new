@@ -73,7 +73,6 @@ function renderView(layout: any, propsOverride: any = {}) {
     <SectionZoneView
       instances={SAMPLE_INSTANCES}
       layoutConfig={layout}
-      onToggle={vi.fn()}
       onUpdateData={vi.fn()}
       onAddSection={vi.fn()}
       onRemoveInstance={vi.fn()}
@@ -144,5 +143,24 @@ describe("SectionZoneView zone-only", () => {
     renderView(layout);
     const content = screen.getByTestId("zone-content-left");
     expect((content as HTMLElement).style.backgroundColor).toBe("rgb(171, 205, 239)");
+  });
+
+  it("row itself is the drag target; no grip handle or eye icon", () => {
+    const layout = {
+      zones: [{ id: "main", label: "Main", styles: { width: "100%" } }],
+      placement: { sec_a: "main" },
+    };
+    const { container } = renderView(layout);
+    // The section row carries the drag listeners (useSortable attributes/listeners
+    // are mocked as empty objects, but the spread is what matters — there is no
+    // separate grip-handle button anymore).
+    const row = screen.getByTestId("zone-section-sec_a");
+    expect(row).toBeDefined();
+    // Grip handle button removed.
+    expect(container.querySelector(".cursor-grab")).toBeNull();
+    // No lucide Eye/EyeOff icon svgs rendered (no <svg> with those paths —
+    // simplest: no element with a title of Enable/Disable).
+    expect(screen.queryByTitle("Enable")).toBeNull();
+    expect(screen.queryByTitle("Disable")).toBeNull();
   });
 });

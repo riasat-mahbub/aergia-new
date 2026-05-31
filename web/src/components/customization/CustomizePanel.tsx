@@ -61,7 +61,7 @@ export default function CustomizePanel({
   const updateSelectedStyle = (partial: Partial<SectionStyle>) => {
     if (!selectedSectionId) return;
     const merged = { ...selectedStyle, ...partial };
-    const hasValues = merged.font || merged.color || merged.weight;
+    const hasValues = merged.font || merged.color || merged.weight || merged.text_align;
     onUpdateStyle(selectedSectionId, hasValues ? merged : {});
   };
 
@@ -93,10 +93,9 @@ export default function CustomizePanel({
         instances={instances}
         layoutConfig={layoutConfig}
         assets={assets}
-        readOnly
+        readOnly={false}
         selectedSectionId={selectedSectionId}
         onSelect={setSelectedSectionId}
-        onToggle={() => {}}
         onUpdateData={() => {}}
         onAddSection={() => {}}
         onRemoveInstance={() => {}}
@@ -161,6 +160,22 @@ export default function CustomizePanel({
                     {w.label}
                   </option>
                 ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600">Text Align</label>
+              <select
+                value={selectedStyle.text_align ?? ""}
+                onChange={(e) =>
+                  updateSelectedStyle({ text_align: (e.target.value || undefined) as SectionStyle["text_align"] })
+                }
+                className="mt-1 w-full rounded border px-2 py-1 text-sm"
+              >
+                <option value="">Default</option>
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+                <option value="center">Center</option>
+                <option value="justify">Justify</option>
               </select>
             </div>
           </div>

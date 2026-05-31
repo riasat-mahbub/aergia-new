@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import CustomizePanel from "../customization/CustomizePanel";
+import SectionZoneView from "../layout/SectionZoneView";
 import BuilderPage from "../../pages/BuilderPage";
 
 vi.mock("react-router-dom", () => ({
@@ -50,7 +51,7 @@ vi.mock("../customization/ZoneStyleEditor", () => ({ default: () => <div /> }));
 vi.mock("../customization/ZoneCreationModal", () => ({ default: () => <div /> }));
 vi.mock("../common/Modal", () => ({ default: ({ open, children }: any) => open ? <div>{children}</div> : null }));
 vi.mock("../layout/SectionZoneView", () => ({
-  default: ({ onSelect, selectedSectionId, instances }: any) => (
+  default: vi.fn(({ onSelect, selectedSectionId, instances }: any) => (
     <div data-testid="zone-view">
       {(instances || []).map((inst: any) => (
         <button key={inst.id} data-testid={`zone-section-${inst.id}`} onClick={() => onSelect?.(inst.id)}>
@@ -59,7 +60,7 @@ vi.mock("../layout/SectionZoneView", () => ({
       ))}
       <div data-testid="zone-view-selected">{selectedSectionId ?? ""}</div>
     </div>
-  ),
+  )),
 }));
 
 vi.mock("@dnd-kit/core", () => ({
@@ -209,6 +210,37 @@ describe("CustomizePanel", () => {
     fireEvent.change(hexInput, { target: { value: "" } });
 
     expect(onUpdateStyle).toHaveBeenCalledWith("s1", {});
+  });
+
+  it("passes readOnly={false} so section rows are draggable in the customize tab", () => {
+    renderCustomizePanel({
+      instances: [{ id: "s1", type: "profile", title: "John", enabled: true, data: {} }],
+    });
+    const calls = vi.mocked(SectionZoneView).mock.calls;
+    const lastCall = calls[calls.length - 1];
+    expect(lastCall?.[0].readOnly).toBe(false);
+  });
+
+  it("exposes a Text Align control that updates the section style", () => {
+    const onUpdateStyle = vi.fn();
+    renderCustomizePanel({
+      onUpdateStyle,
+      instances: [{ id: "s1", type: "profile", title: "John", enabled: true, data: {} }],
+    });
+
+    fireEvent.click(screen.getByTestId("zone-section-s1"));
+
+    // Find the Text Align select among the panel's comboboxes by its options.
+    const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
+    const alignSelect = selects.find((s) =>
+      Array.from(s.options).some((o) => o.value === "justify"),
+    );
+    expect(alignSelect).toBeDefined();
+    const optionLabels = Array.from(alignSelect!.options).map((o) => o.textContent);
+    expect(optionLabels).toEqual(expect.arrayContaining(["Default", "Left", "Right", "Center", "Justify"]));
+
+    fireEvent.change(alignSelect!, { target: { value: "center" } });
+    expect(onUpdateStyle).toHaveBeenCalledWith("s1", expect.objectContaining({ text_align: "center" }));
   });
 });
 

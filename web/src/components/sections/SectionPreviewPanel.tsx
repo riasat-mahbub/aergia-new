@@ -17,6 +17,7 @@ export default function SectionPreviewPanel({ instance }: Props) {
     headingStyle.color = instance.style.color;
   }
   if (instance.style?.weight) headingStyle.fontWeight = instance.style.weight;
+  if (instance.style?.text_align) wrapperStyle.textAlign = instance.style.text_align;
 
   return (
     <div className={`mb-6 section-${instance.type}`} style={wrapperStyle}>

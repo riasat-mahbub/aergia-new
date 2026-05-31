@@ -23,16 +23,20 @@ class ZoneIR:
 
 @dataclass
 class RowIR:
-    """A row of zones (horizontal layout)."""
-    index: int
-    zones: list[ZoneIR]
+    """Deprecated: rows no longer exist in the zone-only model.
+
+    Kept as an alias for out-of-tree consumers; nothing in this tree reads it.
+    """
+
+    index: int = 0
+    zones: list[ZoneIR] = field(default_factory=list)
     flex_value: str = "0 0 auto"
 
 
 @dataclass
 class DocumentIR:
     """Complete intermediate representation for rendering."""
-    rows: list[RowIR]
+    zones: list[ZoneIR]
     css_vars: dict[str, str]
     print_styles: str
     body_font: str

@@ -117,3 +117,41 @@ async def test_cv_data_isolation(client):
     # User B cannot copy it
     copy_b = await client.post(f"/api/v1/cvs/{cv_a_id}/copy", headers=headers_b)
     assert copy_b.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_create_cv_seeds_layout_from_template(client, auth_headers):
+    """A new CV with a template_id but no explicit layout inherits the template's zones."""
+    resp = await client.post(
+        "/api/v1/cvs",
+        json={"title": "Seeded Layout", "template_id": "generic-modern"},
+        headers=auth_headers,
+    )
+    cv = resp.json()
+    assert cv["customizations"].get("layout", {}).get("zones")
+    assert "rowHeights" not in cv["customizations"].get("layout", {})
+
+
+def test_section_style_accepts_text_align():
+    """SectionStyle round-trips text_align; the Literal gate rejects bogus values."""
+    import pytest
+    from pydantic import ValidationError
+    from app.schemas.cv import ValidatedSectionInstance
+
+    inst = ValidatedSectionInstance(
+        id="s1",
+        type="profile",
+        title="Profile",
+        data={"name": "Jane"},
+        style={"text_align": "center"},
+    )
+    assert inst.style.text_align == "center"
+
+    with pytest.raises(ValidationError):
+        ValidatedSectionInstance(
+            id="s2",
+            type="profile",
+            title="Profile",
+            data={"name": "Jane"},
+            style={"text_align": "bogus"},
+        )
