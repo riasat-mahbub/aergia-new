@@ -133,8 +133,8 @@ export interface Zone {
   id: string;
   label?: string;
   styles?: Record<string, string>;
+  /** Legacy field kept on disk for backward-compat with stored JSON. Not read by the layout. */
   assignedSections?: string[];
-  row?: number; // zones with same row share 100% width horizontally; different rows stack vertically
 }
 
 export interface AssetItem {
@@ -148,7 +148,10 @@ export interface LayoutConfig {
   zones: Zone[];
   /** Maps section instanceId → zoneId (per-instance placement). Falls back to type→zoneId for old CVs. */
   placement: Record<string, string>;
-  rowHeights?: Record<number, string>; // row number → height% string, e.g. { 0: "60%", 1: "40%" }
+}
+
+export function getFirstZoneId(layout: LayoutConfig | null | undefined): string | undefined {
+  return layout?.zones?.[0]?.id;
 }
 
 export function getDefaultInstances(): SectionInstance[] {

@@ -62,7 +62,23 @@ def test_build_ir_uses_layout_config_zones_for_new_zone():
     assert "new_zone" in zone_ids
     assert "extra_row" in zone_ids
     assert "main" in zone_ids
-
     # The new zone should carry its styles so it renders as a styled box.
     new_zone = next(z for row in ir.rows for z in row.zones if z.id == "new_zone")
     assert new_zone.styles.get("background-color") == "#f00"
+
+def test_build_ir_zone_styles_from_layout_config():
+    """Zone styles from layout_config override the manifest defaults verbatim."""
+    manifest = {
+        "zones": [{"id": "main", "row": 0, "styles": {"width": "100%"}}],
+        "layout_config": {
+            "zones": [
+                {"id": "main", "row": 0, "styles": {"width": "60%", "background-color": "#eee", "padding": "32px"}},
+            ],
+            "placement": {"sec_profile": "main"},
+        },
+    }
+    ir: DocumentIR = build_ir(manifest, {"instances": _sample_instances()}, {})
+    main_zone = next(z for row in ir.rows for z in row.zones if z.id == "main")
+    assert main_zone.styles["width"] == "60%"
+    assert main_zone.styles["background-color"] == "#eee"
+    assert main_zone.styles["padding"] == "32px"

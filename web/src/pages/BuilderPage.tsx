@@ -10,8 +10,8 @@ import TemplateSwitcher from "../components/preview/TemplateSwitcher";
 import CustomizePanel from "../components/customization/CustomizePanel";
 
 import type { SectionInstance, SectionStyle, LayoutConfig } from "../lib/sections/types";
-import { createDefaultInstance, migratePlacement } from "../lib/sections/types";
-import { normalizeWidths, groupByRow } from "../lib/sections/zones";
+import { createDefaultInstance, getFirstZoneId, migratePlacement } from "../lib/sections/types";
+import { normalizeWidths } from "../lib/sections/zones";
 import { updateCV } from "../lib/api/cvs";
 import * as templatesApi from "../lib/api/templates";
 
@@ -77,14 +77,10 @@ export default function BuilderPage() {
   }, [localCustomizations.layout, templateLayoutConfig]);
 
   // Normalize zone widths at the data level so preview templates always get valid widths
+  // Zone-only layout: a single flat list, so normalize across the whole array.
   const normalizedLayoutConfig = useMemo(() => {
     if (!effectiveLayoutConfig?.zones?.length) return effectiveLayoutConfig;
-    const grouped = groupByRow(effectiveLayoutConfig.zones);
-    const normalizedZones: typeof effectiveLayoutConfig.zones = [];
-    for (const [, rowZones] of grouped) {
-      normalizedZones.push(...normalizeWidths(rowZones));
-    }
-    return { ...effectiveLayoutConfig, zones: normalizedZones };
+    return { ...effectiveLayoutConfig, zones: normalizeWidths(effectiveLayoutConfig.zones) };
   }, [effectiveLayoutConfig]);
 
 
@@ -235,23 +231,28 @@ export default function BuilderPage() {
       setHasUnsavedChanges(true);
       const newInstance = createDefaultInstance(type);
       setLocalInstances((prev) => [...prev, newInstance]);
-      if (zoneId) {
-        setLocalCustomizations((prev) => {
-          const existingLayout = prev.layout as LayoutConfig | undefined;
-          const hasValidLayout = existingLayout && existingLayout.zones?.length;
-          const layout = hasValidLayout
-            ? existingLayout
-            : templateLayoutConfig?.zones?.length
-              ? migratePlacement(templateLayoutConfig, instancesRef.current)
-              : { zones: [], placement: {} };
-          const newPlacement = { ...layout.placement, [newInstance.id]: zoneId };
-          return { ...prev, layout: { ...layout, placement: newPlacement } };
-        });
-      }
+
+      // Decide which zone receives the new section: caller-provided zone, or
+      // the first zone of the effective layout. If no zones exist, leave the
+      // section unassigned (no placement entry written).
+      setLocalCustomizations((prev) => {
+        const existingLayout = prev.layout as LayoutConfig | undefined;
+        const hasValidLayout = existingLayout && existingLayout.zones?.length;
+        const baseLayout = hasValidLayout
+          ? existingLayout
+          : templateLayoutConfig?.zones?.length
+            ? migratePlacement(templateLayoutConfig, instancesRef.current)
+            : { zones: [], placement: {} };
+        const targetZoneId = zoneId ?? getFirstZoneId(baseLayout);
+        if (!targetZoneId) return prev;
+        return {
+          ...prev,
+          layout: { ...baseLayout, placement: { ...baseLayout.placement, [newInstance.id]: targetZoneId } },
+        };
+      });
     },
     [templateLayoutConfig]
   );
-
   const handleRemoveInstance = useCallback(
     (sectionId: string) => {
       hasChangesRef.current = true;
@@ -284,29 +285,31 @@ export default function BuilderPage() {
       if (!id) return;
       if (
         !window.confirm(
-          "Switching templates will update the layout structure (zones/rows) and global styles to the new template's defaults. Per-section content (text, entries, order, per-section styles) is preserved. Continue?"
+          "Switching templates unassigns every section from any zone and resets the layout to the new template's defaults. Per-section content (text, entries, order) is preserved. Continue?"
         )
       ) {
         return;
       }
       try {
         setIsSaving(true);
+        // Defensive: drop every per-instance style so the new template's styles take effect,
+        // and reset customizations entirely so neither layout nor placement survive the switch.
         const cleanInstances = localInstances.map((i) => ({ ...i, style: undefined }));
         setLocalInstances(cleanInstances);
-        const { layout: _, ...customizationsWithoutLayout } = localCustomizations;
-        setLocalCustomizations(customizationsWithoutLayout);
+        const emptyCustomizations: Record<string, unknown> = {};
+        setLocalCustomizations(emptyCustomizations);
 
         await updateCV(id, {
           template_id: newTemplateId,
           sections: cleanInstances,
-          customizations: customizationsWithoutLayout,
+          customizations: emptyCustomizations,
         });
         await loadCV(id);
       } finally {
         setIsSaving(false);
       }
     },
-    [id, localInstances, localCustomizations, loadCV, setIsSaving]
+    [id, localInstances, loadCV, setIsSaving]
   );
 
   const handleCustomizationsChange = useCallback(

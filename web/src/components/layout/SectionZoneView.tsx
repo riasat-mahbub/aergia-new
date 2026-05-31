@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   DndContext,
@@ -14,20 +14,15 @@ import {
 import {
   SortableContext,
   useSortable,
-  verticalListSortingStrategy,
   arrayMove,
+  horizontalListSortingStrategy,
+  verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Plus, Trash2, ChevronDown, Eye, EyeOff, Pencil, Check } from "lucide-react";
+import { GripVertical, Plus, Trash2, ChevronDown, Eye, EyeOff, Pencil } from "lucide-react";
 import type { SectionInstance, Zone, LayoutConfig } from "../../lib/sections/types";
-import { SECTION_LABELS } from "../../lib/sections/types";
-import {
-  normalizeWidths,
-  normalizeAllZones,
-  getRowNumbers,
-  groupByRow,
-  getWidthPercent,
-} from "../../lib/sections/zones";
+import { SECTION_LABELS, getFirstZoneId } from "../../lib/sections/types";
+import { normalizeWidths, getWidthPercent } from "../../lib/sections/zones";
 import SectionEditorPanel from "../sections/SectionEditorPanel";
 import AddSectionModal from "../sections/AddSectionModal";
 import ZoneStyleEditor from "../customization/ZoneStyleEditor";
@@ -38,20 +33,17 @@ interface Props {
   instances: SectionInstance[];
   layoutConfig: LayoutConfig;
   assets?: Record<string, string>;
-  onToggle: (sectionId: string) => void;
-  onUpdateData: (sectionId: string, data: any) => void;
+  onToggle: (id: string) => void;
+  onUpdateData: (id: string, data: any) => void;
   onAddSection: (type: string, zoneId?: string) => void;
-  onRemoveInstance: (sectionId: string) => void;
-  onRenameInstance: (sectionId: string, title: string) => void;
+  onRemoveInstance: (id: string) => void;
+  onRenameInstance: (id: string, title: string) => void;
   onLayoutConfigChange: (config: LayoutConfig) => void;
   onReorderInstances: (instances: SectionInstance[]) => void;
   onEntryDragEnd: (event: DragEndEvent) => void;
-  /** When true, the section blocks lose editing affordances and act as structural tokens. */
   readOnly?: boolean;
-  /** Called when a section block is clicked while readOnly. */
-  onSelect?: (sectionId: string) => void;
-  /** Currently selected section id (for highlight treatment in readOnly mode). */
   selectedSectionId?: string | null;
+  onSelect?: (id: string) => void;
 }
 
 /* ── Sortable Section ─────────────────────────────────────────────── */
@@ -81,7 +73,6 @@ function SortableSection({
   selected?: boolean;
   onSelect?: (id: string) => void;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: instance.id,
   });
@@ -89,156 +80,111 @@ function SortableSection({
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.4 : 1,
   };
-
-  const commitRename = () => {
-    if (inputRef.current && inputRef.current.value.trim()) {
-      onRenameInstance(instance.id, inputRef.current.value);
-    }
-    setEditingTitle(null);
-  };
-
-  const handleRowClick = () => {
-    if (readOnly) onSelect?.(instance.id);
-    else onClick();
-  };
-
-  const rowClasses = readOnly
-    ? `flex items-center gap-2 rounded border px-3 py-2 cursor-pointer ${
-        selected
-          ? "border-blue-400 ring-2 ring-blue-200 bg-blue-50"
-          : instance.enabled
-            ? "bg-white"
-            : "bg-gray-50"
-      }`
-    : `flex items-center gap-2 rounded border px-3 py-2 ${
-        instance.enabled ? "bg-white" : "bg-gray-50"
-      }`;
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={rowClasses}
-      onClick={readOnly ? handleRowClick : undefined}
-      data-section-id={instance.id}
+      onClick={() => onSelect?.(instance.id)}
+      data-testid={`zone-section-${instance.id}`}
+      className={`flex cursor-pointer items-center gap-2 rounded border px-2 py-1.5 text-sm transition-colors ${
+        selected
+          ? "border-blue-400 bg-blue-50"
+          : "border-gray-200 bg-white hover:border-gray-300"
+      }`}
     >
+      {!readOnly && (
+        <button
+          {...attributes}
+          {...listeners}
+          className="cursor-grab text-gray-400 hover:text-gray-600"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="h-3.5 w-3.5" />
+        </button>
+      )}
       <button
-        {...attributes}
-        {...listeners}
-        className="cursor-grab text-gray-400 hover:text-gray-600"
-        title="Drag to reorder"
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggle();
+        }}
+        className="text-gray-400 hover:text-gray-600"
+        title={instance.enabled === false ? "Enable" : "Disable"}
       >
-        <GripVertical className="h-3.5 w-3.5" />
-      </button>
-
-      <div className="min-w-0 flex-1">
-        {editingTitle === instance.id ? (
-          <div className="flex items-center gap-1">
-            <input
-              ref={inputRef}
-              type="text"
-              defaultValue={instance.title}
-              autoFocus
-              className="w-full rounded border border-blue-300 px-1.5 py-0.5 text-sm font-medium text-gray-800"
-              onBlur={commitRename}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") commitRename();
-              }}
-              onClick={(e) => e.stopPropagation()}
-            />
-            <button
-              className="rounded bg-emerald-600 px-2 py-0.5 text-xs text-white"
-              onClick={(e) => {
-                e.stopPropagation();
-                commitRename();
-              }}
-            >
-              <Check className="h-3 w-3" />
-            </button>
-          </div>
+        {instance.enabled === false ? (
+          <EyeOff className="h-3.5 w-3.5" />
         ) : (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (readOnly) onSelect?.(instance.id);
-                else onClick();
-              }}
-              className="text-left"
-            >
-              <span
-                className={`text-sm font-medium ${
-                  instance.enabled ? "text-gray-800" : "text-gray-400"
-                }`}
-              >
-                {instance.title}
-              </span>
-            </button>
-            <span className="text-[10px] text-gray-400">
-              {SECTION_LABELS[instance.type] || instance.type}
-            </span>
-            {!readOnly && isExpanded && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setEditingTitle(instance.id);
-                }}
-                className="flex items-center gap-0.5 rounded bg-gray-200 px-1.5 py-0.5 text-[10px] text-gray-600"
-              >
-                <Pencil className="h-2.5 w-2.5" /> Rename
-              </button>
-            )}
-          </div>
+          <Eye className="h-3.5 w-3.5" />
         )}
-      </div>
-
+      </button>
+      {editingTitle === instance.id ? (
+        <input
+          autoFocus
+          defaultValue={instance.title}
+          onBlur={(e) => {
+            onRenameInstance(instance.id, e.target.value || instance.title);
+            setEditingTitle(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              onRenameInstance(instance.id, (e.target as HTMLInputElement).value || instance.title);
+              setEditingTitle(null);
+            } else if (e.key === "Escape") {
+              setEditingTitle(null);
+            }
+          }}
+          className="flex-1 rounded border border-blue-300 px-1 py-0.5 text-sm"
+          onClick={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <span
+          className="flex-1 truncate"
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            if (!readOnly) setEditingTitle(instance.id);
+          }}
+        >
+          {instance.title}
+        </span>
+      )}
+      <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500">
+        {SECTION_LABELS[instance.type] || instance.type}
+      </span>
       {!readOnly && (
         <>
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onToggle();
+              setEditingTitle(instance.id);
             }}
-            className={`rounded p-1 ${
-              instance.enabled
-                ? "text-blue-600 hover:text-blue-800"
-                : "text-gray-400 hover:text-gray-600"
-            }`}
-            title={instance.enabled ? "Disable" : "Enable"}
+            className="text-gray-400 hover:text-gray-600"
+            title="Rename"
           >
-            {instance.enabled ? (
-              <Eye className="h-3.5 w-3.5" />
-            ) : (
-              <EyeOff className="h-3.5 w-3.5" />
-            )}
+            <Pencil className="h-3 w-3" />
           </button>
-
           <button
             onClick={(e) => {
               e.stopPropagation();
               setDeleteConfirmId(instance.id);
             }}
-            className="rounded p-1 text-red-400 hover:text-red-600"
+            className="text-red-400 hover:text-red-600"
             title="Delete"
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 className="h-3 w-3" />
           </button>
-
           <button
             onClick={(e) => {
               e.stopPropagation();
               onClick();
             }}
-            className="rounded p-1 text-gray-400 hover:text-gray-600"
+            className="text-gray-400 hover:text-gray-600"
+            title="Expand"
           >
-            <motion.div
-              animate={{ rotate: isExpanded ? 180 : 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              <ChevronDown className="h-3.5 w-3.5" />
-            </motion.div>
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+            />
           </button>
         </>
       )}
@@ -253,7 +199,8 @@ function ZoneDroppable({ zoneId }: { zoneId: string }) {
   return (
     <div
       ref={setNodeRef}
-      className={`h-1 rounded transition-colors ${isOver ? "h-2 bg-blue-300" : ""}`}
+      className={`h-2 rounded ${isOver ? "bg-blue-300" : ""}`}
+      data-testid={`zone-end-${zoneId}`}
     />
   );
 }
@@ -263,8 +210,12 @@ function UnassignedDroppable() {
   return (
     <div
       ref={setNodeRef}
-      className={`h-1 rounded transition-colors ${isOver ? "h-2 bg-amber-300" : ""}`}
-    />
+      className={`mt-1 rounded border-2 border-dashed p-2 text-center text-[10px] ${
+        isOver ? "border-blue-400 bg-blue-50" : "border-transparent"
+      }`}
+    >
+      Drop section here to unassign
+    </div>
   );
 }
 
@@ -295,20 +246,9 @@ export default function SectionZoneView({
   const [showAddModal, setShowAddModal] = useState(false);
   const [addTargetZoneId, setAddTargetZoneId] = useState<string | null>(null);
   const [showZoneCreationModal, setShowZoneCreationModal] = useState(false);
-  const [selectedRowForZone, setSelectedRowForZone] = useState(0);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-
-  const containerRef = useRef<HTMLDivElement>(null);
-  const horizontalDragRef = useRef<{
-    rowZones: Zone[];
-    globalIndices: number[];
-    localIndex: number;
-    startX: number;
-    widths: number[];
-    barWidth: number;
-  } | null>(null);
 
   /* ── Derived data ───────────────────────────────────────────────── */
 
@@ -335,9 +275,6 @@ export default function SectionZoneView({
     () => instances.filter((i) => !sectionZoneMap[i.id]),
     [instances, sectionZoneMap],
   );
-
-  const rowNumbers = useMemo(() => getRowNumbers(zones), [zones]);
-  const rowGroups = useMemo(() => groupByRow(zones), [zones]);
 
   /* ── UI toggles ─────────────────────────────────────────────────── */
 
@@ -367,7 +304,7 @@ export default function SectionZoneView({
   };
 
   const handleAddSectionWithZone = (type: string) => {
-    const targetId = addTargetZoneId || (zones.length > 0 ? zones[0].id : undefined);
+    const targetId = addTargetZoneId ?? getFirstZoneId(layoutConfig);
     if (!targetId) return;
 
     onAddSection(type, targetId);
@@ -392,27 +329,19 @@ export default function SectionZoneView({
     const activeId = String(active.id);
     const overId = String(over.id);
 
-    // Row reorder
-    if (activeId.startsWith("row-")) {
-      const oldIndex = rowNumbers.indexOf(Number(activeId.replace("row-", "")));
-      const newIndex = rowNumbers.indexOf(Number(overId.replace("row-", "")));
-      if (oldIndex === -1 || newIndex === -1) return;
-
-      const reorderedRowNums = arrayMove(rowNumbers, oldIndex, newIndex);
-      const newMapping = new Map<number, number>();
-      reorderedRowNums.forEach((oldRow, i) => newMapping.set(oldRow, i));
-
-      const newZones = zones.map((z) => ({
-        ...z,
-        row: newMapping.get(z.row ?? 0) ?? 0,
-      }));
-      onLayoutConfigChange({ ...layoutConfig, zones: normalizeWidths(newZones) });
-      return;
-    }
-
     // Entry-level DnD — delegate to parent
     if (!activeId.startsWith("sec_")) {
       onEntryDragEnd(event);
+      return;
+    }
+
+    // Zone reorder (left↔right) when a zone is the active draggable.
+    if (zones.some((z) => z.id === activeId) && zones.some((z) => z.id === overId)) {
+      const oldIndex = zones.findIndex((z) => z.id === activeId);
+      const newIndex = zones.findIndex((z) => z.id === overId);
+      if (oldIndex === -1 || newIndex === -1) return;
+      const reordered = arrayMove(zones, oldIndex, newIndex);
+      onLayoutConfigChange({ ...layoutConfig, zones: normalizeWidths(reordered) });
       return;
     }
 
@@ -431,10 +360,6 @@ export default function SectionZoneView({
     let targetZoneId: string | null = null;
     if (overId.startsWith("zone-end-")) {
       targetZoneId = overId.replace("zone-end-", "");
-    } else if (overId.startsWith("row-")) {
-      const rowNum = Number(overId.replace("row-", ""));
-      const rowZones = zones.filter((z) => (z.row ?? 0) === rowNum);
-      if (rowZones.length > 0) targetZoneId = rowZones[0].id;
     } else if (overId.startsWith("sec_")) {
       targetZoneId = findSectionZone(overId) || sourceZoneId || null;
     }
@@ -473,7 +398,7 @@ export default function SectionZoneView({
     }
   };
 
-  /* ── Zone/Row CRUD ──────────────────────────────────────────────── */
+  /* ── Zone CRUD ──────────────────────────────────────────────────── */
 
   const handleDeleteZone = (zoneId: string) => {
     if (zones.length <= 1) return;
@@ -487,145 +412,37 @@ export default function SectionZoneView({
         }
       }
     }
-    const normalized = normalizeAllZones(remaining);
-    onLayoutConfigChange({ ...layoutConfig, zones: normalized, placement: newPlacement });
+    onLayoutConfigChange({
+      ...layoutConfig,
+      zones: normalizeWidths(remaining),
+      placement: newPlacement,
+    });
   };
 
   const handleCreateZone = (zone: Zone) => {
-    const targetRow = selectedRowForZone;
     const requestedWidth = Math.max(15, parseInt(zone.styles?.width?.replace("%", "") || "50"));
-    const zoneWithRow = { ...zone, row: targetRow };
-    const rowZones = zones.filter((z) => (z.row ?? 0) === targetRow);
     let newZones: Zone[];
-    if (rowZones.length === 0) {
-      newZones = [...zones, { ...zoneWithRow, styles: { ...zoneWithRow.styles, width: "100%" } }];
+    if (zones.length === 0) {
+      newZones = [{ ...zone, styles: { ...zone.styles, width: "100%" } }];
     } else {
       const available = 100 - requestedWidth;
-      const totalExisting = rowZones.reduce((sum, z) => sum + getWidthPercent(z), 0);
-      const updatedExisting = rowZones.map((z) => {
+      const totalExisting = zones.reduce((sum, z) => sum + getWidthPercent(z), 0);
+      const updatedExisting = zones.map((z) => {
         const w = getWidthPercent(z);
         const scale = totalExisting > 0 ? available / totalExisting : 1;
         return { ...z, styles: { ...z.styles, width: `${Math.round(w * scale)}%` } };
       });
-      const otherZones = zones.filter((z) => (z.row ?? 0) !== targetRow);
       newZones = [
-        ...otherZones,
         ...updatedExisting,
-        { ...zoneWithRow, styles: { ...zoneWithRow.styles, width: `${requestedWidth}%` } },
+        { ...zone, styles: { ...zone.styles, width: `${requestedWidth}%` } },
       ];
     }
-    const normalized = normalizeAllZones(newZones);
-    onLayoutConfigChange({ ...layoutConfig, zones: normalized });
-  };
-
-  const handleAddRow = () => {
-    const nextRow = rowNumbers.length > 0 ? Math.max(...rowNumbers) + 1 : 0;
-    const newZone: Zone = {
-      id: `zone_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
-      label: `Row ${nextRow + 1}`,
-      row: nextRow,
-      styles: { width: "100%", padding: "24px" },
-    };
-    onLayoutConfigChange({ ...layoutConfig, zones: [...zones, newZone] });
-  };
-
-  const handleDeleteRow = (rowNum: number) => {
-    const rowZones = zones.filter((z) => (z.row ?? 0) === rowNum);
-    const remainingZones = zones.filter((z) => (z.row ?? 0) !== rowNum);
-    if (remainingZones.length === 0) return;
-
-    const newPlacement = { ...placement };
-    const targetZone = remainingZones[0];
-    if (targetZone) {
-      for (const inst of instances) {
-        const currentZone = sectionZoneMap[inst.id];
-        if (currentZone && rowZones.some((z) => z.id === currentZone)) {
-          newPlacement[inst.id] = targetZone.id;
-        }
-      }
-    }
-    const normalized = normalizeAllZones(remainingZones);
-    onLayoutConfigChange({ ...layoutConfig, zones: normalized, placement: newPlacement });
+    onLayoutConfigChange({ ...layoutConfig, zones: normalizeWidths(newZones) });
   };
 
   const handleZoneUpdate = (zone: Zone) => {
     const updatedZones = zones.map((z) => (z.id === zone.id ? zone : z));
-    const normalized = normalizeAllZones(updatedZones);
-    onLayoutConfigChange({ ...layoutConfig, zones: normalized });
-  };
-
-  /* ── Horizontal resize ──────────────────────────────────────────── */
-
-  const handleHorizontalMouseDown = (rowNum: number, localIndex: number, e: React.MouseEvent) => {
-    e.preventDefault();
-    const rowZones = zones.filter((z) => (z.row ?? 0) === rowNum);
-    const barEl = containerRef.current;
-    const barWidth = barEl?.getBoundingClientRect().width || 300;
-    const widths = rowZones.map((z) => getWidthPercent(z));
-    const globalIndices: number[] = [];
-    for (const z of zones) {
-      if ((z.row ?? 0) === rowNum) globalIndices.push(zones.indexOf(z));
-    }
-
-    horizontalDragRef.current = {
-      rowZones,
-      globalIndices,
-      localIndex,
-      startX: e.clientX,
-      widths,
-      barWidth,
-    };
-
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      if (!horizontalDragRef.current) return;
-      const {
-        barWidth: bw,
-        startX,
-        widths: ws,
-        globalIndices: gi,
-        localIndex: li,
-      } = horizontalDragRef.current;
-      const delta = moveEvent.clientX - startX;
-      const deltaPercent = (delta / bw) * 100;
-      const newWidths = [...ws];
-      let newLeft = newWidths[li] + deltaPercent;
-      let newRight = newWidths[li + 1] - deltaPercent;
-      if (newLeft < 15) {
-        newLeft = 15;
-        newRight = newWidths[li] + newWidths[li + 1] - 15;
-      }
-      if (newRight < 15) {
-        newRight = 15;
-        newLeft = newWidths[li] + newWidths[li + 1] - 15;
-      }
-      newWidths[li] = Math.round(newLeft);
-      newWidths[li + 1] = Math.round(newRight);
-
-      const updatedZones = [...zones];
-      for (let i = 0; i < gi.length; i++) {
-        updatedZones[gi[i]] = {
-          ...updatedZones[gi[i]],
-          styles: { ...updatedZones[gi[i]].styles, width: `${newWidths[i]}%` },
-        };
-      }
-      const rowGrouped = groupByRow(updatedZones);
-      const normalized: Zone[] = [];
-      for (const [, rZones] of rowGrouped) normalized.push(...normalizeWidths(rZones));
-      onLayoutConfigChange({ ...layoutConfig, zones: normalized });
-    };
-
-    const handleMouseUp = () => {
-      horizontalDragRef.current = null;
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
+    onLayoutConfigChange({ ...layoutConfig, zones: normalizeWidths(updatedZones) });
   };
 
   const draggedInstance = activeDragId
@@ -635,7 +452,7 @@ export default function SectionZoneView({
   /* ── Render ─────────────────────────────────────────────────────── */
 
   return (
-    <div ref={containerRef}>
+    <div data-testid="section-zone-view">
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -643,16 +460,14 @@ export default function SectionZoneView({
         onDragEnd={handleDragEnd}
       >
         <SortableContext
-          items={rowNumbers.map((r) => `row-${r}`)}
-          strategy={verticalListSortingStrategy}
+          items={zones.map((z) => z.id)}
+          strategy={horizontalListSortingStrategy}
         >
-          {rowNumbers.map((rowNum) => {
-            const rowZones = rowGroups.get(rowNum) || [];
-            return (
-              <RowContainer
-                key={rowNum}
-                rowNum={rowNum}
-                zones={rowZones}
+          <div className="flex flex-row gap-2" data-testid="zone-row">
+            {zones.map((zone) => (
+              <ZoneBlock
+                key={zone.id}
+                zone={zone}
                 instances={instances}
                 zoneSectionIds={zoneSectionIds}
                 expandedSections={expandedSections}
@@ -668,15 +483,13 @@ export default function SectionZoneView({
                 toggleZoneStyle={toggleZoneStyle}
                 handleAddSectionClick={handleAddSectionClick}
                 handleDeleteZone={handleDeleteZone}
-                handleDeleteRow={handleDeleteRow}
                 handleZoneUpdate={handleZoneUpdate}
-                handleHorizontalMouseDown={handleHorizontalMouseDown}
                 readOnly={readOnly}
                 selectedSectionId={selectedSectionId}
                 onSelect={onSelect}
               />
-            );
-          })}
+            ))}
+          </div>
         </SortableContext>
 
         <DragOverlay>
@@ -743,22 +556,11 @@ export default function SectionZoneView({
       <div className="mt-3 flex gap-2">
         <button
           type="button"
-          onClick={() => {
-            setSelectedRowForZone(rowNumbers[rowNumbers.length - 1] ?? 0);
-            setShowZoneCreationModal(true);
-          }}
+          onClick={() => setShowZoneCreationModal(true)}
           className="flex items-center gap-1 rounded-md border border-dashed border-gray-300 px-2 py-1.5 text-xs text-gray-500 hover:border-blue-400 hover:text-blue-600"
         >
           <Plus className="h-3 w-3" />
           Add Zone
-        </button>
-        <button
-          type="button"
-          onClick={handleAddRow}
-          className="flex items-center gap-1 rounded-md border border-dashed border-gray-300 px-2 py-1.5 text-xs text-gray-500 hover:border-emerald-400 hover:text-emerald-600"
-        >
-          <Plus className="h-3 w-3" />
-          Add Row
         </button>
       </div>
 
@@ -776,8 +578,6 @@ export default function SectionZoneView({
         onClose={() => setShowZoneCreationModal(false)}
         onCreate={handleCreateZone}
         existingZoneCount={zones.length}
-        targetRow={selectedRowForZone}
-        availableRows={rowNumbers}
       />
 
       <Modal open={!!deleteConfirmId} onClose={() => setDeleteConfirmId(null)}>
@@ -807,129 +607,6 @@ export default function SectionZoneView({
           </button>
         </div>
       </Modal>
-    </div>
-  );
-}
-
-/* ── Row Container ──────────────────────────────────────────────────── */
-
-function RowContainer({
-  rowNum,
-  zones: rowZones,
-  instances,
-  zoneSectionIds,
-  expandedSections,
-  editingTitle,
-  expandedZoneStyles,
-  assets,
-  onToggle,
-  onUpdateData,
-  onRenameInstance,
-  setDeleteConfirmId,
-  setEditingTitle,
-  toggleSectionExpand,
-  toggleZoneStyle,
-  handleAddSectionClick,
-  handleDeleteZone,
-  handleDeleteRow,
-  handleZoneUpdate,
-  handleHorizontalMouseDown,
-  readOnly = false,
-  selectedSectionId = null,
-  onSelect,
-}: {
-  rowNum: number;
-  zones: Zone[];
-  instances: SectionInstance[];
-  zoneSectionIds: Record<string, string[]>;
-  expandedSections: Set<string>;
-  editingTitle: string | null;
-  expandedZoneStyles: Set<string>;
-  assets?: Record<string, string>;
-  onToggle: (id: string) => void;
-  onUpdateData: (id: string, data: any) => void;
-  onRenameInstance: (id: string, title: string) => void;
-  setDeleteConfirmId: (id: string | null) => void;
-  setEditingTitle: (id: string | null) => void;
-  toggleSectionExpand: (id: string) => void;
-  toggleZoneStyle: (id: string) => void;
-  handleAddSectionClick: (zoneId: string) => void;
-  handleDeleteZone: (zoneId: string) => void;
-  handleDeleteRow: (rowNum: number) => void;
-  handleZoneUpdate: (zone: Zone) => void;
-  handleHorizontalMouseDown: (rowNum: number, localIndex: number, e: React.MouseEvent) => void;
-  readOnly?: boolean;
-  selectedSectionId?: string | null;
-  onSelect?: (id: string) => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: `row-${rowNum}`,
-  });
-
-  const rowStyle = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
-  return (
-    <div ref={setNodeRef} style={rowStyle} className="relative mb-4 rounded-lg border border-gray-200 bg-white">
-      <div className="flex items-center justify-between border-b bg-gray-50 px-3 py-1.5">
-        <div className="flex items-center gap-2">
-          <button
-            {...attributes}
-            {...listeners}
-            className="cursor-grab text-gray-400 hover:text-gray-600"
-            title="Drag row"
-          >
-            <GripVertical className="h-3.5 w-3.5" />
-          </button>
-          <span className="text-xs font-medium text-gray-500">Row {rowNum + 1}</span>
-        </div>
-        <button
-          onClick={() => handleDeleteRow(rowNum)}
-          className="rounded p-1 text-red-400 hover:text-red-600"
-          title="Delete row"
-        >
-          <Trash2 className="h-3 w-3" />
-        </button>
-      </div>
-
-      <div className="flex p-3">
-        {rowZones.map((zone, idx) => (
-          <div key={zone.id} className="relative flex-1" style={{ width: zone.styles?.width }}>
-            {!idx && idx > 0 && (
-              <div
-                onMouseDown={(e) => handleHorizontalMouseDown(rowNum, idx - 1, e)}
-                className="absolute inset-y-0 left-0 w-1 cursor-col-resize hover:bg-blue-400 active:bg-blue-500"
-                style={{ zIndex: 10 }}
-              />
-            )}
-            <ZoneBlock
-              zone={zone}
-              instances={instances}
-              zoneSectionIds={zoneSectionIds}
-              expandedSections={expandedSections}
-              editingTitle={editingTitle}
-              expandedZoneStyles={expandedZoneStyles}
-              assets={assets}
-              onToggle={onToggle}
-              onUpdateData={onUpdateData}
-              onRenameInstance={onRenameInstance}
-              setDeleteConfirmId={setDeleteConfirmId}
-              setEditingTitle={setEditingTitle}
-              toggleSectionExpand={toggleSectionExpand}
-              toggleZoneStyle={toggleZoneStyle}
-              handleAddSectionClick={handleAddSectionClick}
-              handleDeleteZone={handleDeleteZone}
-              handleZoneUpdate={handleZoneUpdate}
-              readOnly={readOnly}
-              selectedSectionId={selectedSectionId}
-              onSelect={onSelect}
-            />
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
@@ -979,9 +656,14 @@ function ZoneBlock({
   selectedSectionId?: string | null;
   onSelect?: (id: string) => void;
 }) {
-  const zoneStyle = zone.styles || {};
-  const widthPct = zoneStyle.width || "100%";
-  const bgColor = zoneStyle["background-color"] || "";
+  // Zone styles drive the inner content area (background/padding/width) so the
+  // chrome (border/header) stays visually stable. The styles are already in
+  // kebab-case from the editor and pass through unchanged.
+  const zoneStyles = zone.styles || {};
+  const widthPct = zoneStyles.width || "100%";
+  const wrapperStyle: React.CSSProperties = { width: widthPct };
+  if (zoneStyles["background-color"]) wrapperStyle.backgroundColor = zoneStyles["background-color"];
+  if (zoneStyles.padding) wrapperStyle.padding = zoneStyles.padding;
 
   const sectionIds = zoneSectionIds[zone.id] || [];
   const zoneInstances = sectionIds
@@ -992,11 +674,11 @@ function ZoneBlock({
 
   return (
     <div
-      className="flex flex-col rounded border border-gray-100"
-      style={bgColor ? { backgroundColor: bgColor } : undefined}
+      className="flex shrink-0 flex-col rounded border border-gray-100"
+      style={{ width: widthPct }}
     >
-      {/* Zone header */}
-      <div className="flex items-center justify-between border-b border-gray-100 px-2 py-1">
+      {/* Zone chrome header — kept outside the styled content area so backgrounds tint content, not chrome. */}
+      <div className="flex items-center justify-between rounded-t border-b border-gray-100 bg-gray-50 px-2 py-1">
         <div className="flex items-center gap-1.5">
           <span className="text-[11px] font-medium text-gray-600">
             {zone.label || zone.id}
@@ -1044,7 +726,7 @@ function ZoneBlock({
         </div>
       </div>
 
-      {/* Inline zone style editor */}
+      {/* Inline zone style editor (chrome) */}
       <AnimatePresence>
         {isStyleExpanded && (
           <motion.div
@@ -1060,8 +742,12 @@ function ZoneBlock({
         )}
       </AnimatePresence>
 
-      {/* Sections within zone */}
-      <div className="space-y-1.5 p-2">
+      {/* Sections within zone — this is the content area that receives zone styles. */}
+      <div
+        data-testid={`zone-content-${zone.id}`}
+        style={wrapperStyle}
+        className="space-y-1.5 p-2"
+      >
         <SortableContext items={sectionIds} strategy={verticalListSortingStrategy}>
           {zoneInstances.map((instance) => (
             <div key={instance.id}>

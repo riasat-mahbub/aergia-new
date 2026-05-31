@@ -257,7 +257,7 @@ def build_ir(
         "css_vars": css_vars,
     }
 
-    zones = manifest.get("zones", [])
+    zones = layout_config.get("zones") or manifest.get("zones", [])
     row_heights = layout_config.get("rowHeights", {})
     groups = _group_instances_by_zone(instances, layout_config, zones)
     rows = _build_rows(manifest, zones, groups, row_heights, context)
