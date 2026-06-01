@@ -41,12 +41,12 @@ export const projectEntrySchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1, "Name is required"),
   url: z.string(),
+  link_text: z.string(),
   start_date: z.string().min(1, "Start date is required"),
   end_date: z.string().nullable(),
   description: z.string().min(1, "Description is required"),
   tech_stack: z.array(z.string()),
 });
-
 export const languageEntrySchema = z.object({
   id: z.string().min(1),
   language: z.string().min(1, "Language is required"),

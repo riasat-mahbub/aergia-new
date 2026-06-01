@@ -49,11 +49,11 @@ class ProjectEntry(BaseModel):
     id: str
     name: str = ""
     url: str = ""
+    link_text: str = ""
     start_date: str = ""
     end_date: str | None = None
     description: str = ""
     tech_stack: list[str] = []
-
 
 class LanguageEntry(BaseModel):
     id: str
