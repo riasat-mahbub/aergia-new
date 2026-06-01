@@ -8,6 +8,7 @@ SAMPLE_INSTANCES = [
         "type": "profile",
         "title": "Profile",
         "enabled": True,
+        "style": {"show_title": True},  # tests use the explicit form so the title renders
         "data": {
             "name": "Jane Doe",
             "title": "Software Engineer",
@@ -263,3 +264,67 @@ async def test_preview_data_isolation(client, auth_headers):
 
     preview_resp = await client.get(f"/api/v1/cvs/{cv_id}/preview", headers=headers_b)
     assert preview_resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_preview_profile_hides_title_by_default(client, auth_headers):
+    """Profile section title is hidden by default; the user's name still renders."""
+    instances = [
+        {
+            "id": "sec_profile",
+            "type": "profile",
+            "title": "Profile",
+            "enabled": True,
+            "data": {
+                "name": "Jane Doe",
+                "title": "Engineer",
+                "email": "",
+                "phone": "",
+                "location": "",
+                "summary": "",
+                "photo_url": "",
+            },
+        }
+    ]
+    create_resp = await client.post(
+        "/api/v1/cvs",
+        json={"title": "Hide Title", "template_id": "generic-minimal", "sections": instances},
+        headers=auth_headers,
+    )
+    cv_id = create_resp.json()["id"]
+    html = (await client.get(f"/api/v1/cvs/{cv_id}/preview", headers=auth_headers)).json()["html"]
+    assert "Jane Doe" in html
+    # The section title "PROFILE" is hidden by default; no <h2>Profile</h2> wrapper.
+    assert ">Profile<" not in html
+
+
+@pytest.mark.asyncio
+async def test_preview_profile_title_visible_when_show_title_true(client, auth_headers):
+    """An explicit show_title:true on the profile instance surfaces the title."""
+    instances = [
+        {
+            "id": "sec_profile",
+            "type": "profile",
+            "title": "Profile",
+            "enabled": True,
+            "style": {"show_title": True},
+            "data": {
+                "name": "Jane Doe",
+                "title": "Engineer",
+                "email": "",
+                "phone": "",
+                "location": "",
+                "summary": "",
+                "photo_url": "",
+            },
+        }
+    ]
+    create_resp = await client.post(
+        "/api/v1/cvs",
+        json={"title": "Show Title", "template_id": "generic-minimal", "sections": instances},
+        headers=auth_headers,
+    )
+    cv_id = create_resp.json()["id"]
+    html = (await client.get(f"/api/v1/cvs/{cv_id}/preview", headers=auth_headers)).json()["html"]
+    assert "Jane Doe" in html
+    assert ">Profile<" in html

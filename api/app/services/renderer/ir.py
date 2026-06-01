@@ -82,7 +82,13 @@ def _render_instance_panel(instance: dict, context: dict | None = None) -> str:
     return render_section_preview(section_type, section_data, context)
 
 def _build_section_panel(instance: dict, context: dict | None = None) -> SectionPanelIR:
-    """Build a SectionPanelIR from an instance, applying per-instance style overrides."""
+    """Build a SectionPanelIR from an instance, applying per-instance style overrides.
+
+    Per-instance color and font cascade to every child via inheritance, so a
+    section-level override (or template default) reaches both the heading and
+    the body. The h2 heading keeps `var(--heading)` as a default so the
+    template's heading color applies when no section override is set.
+    """
     per_style = instance.get("style") or {}
     # Expose the instance's own style to renderers so per-type defaults (e.g.
     # profile's centered text) yield to an explicit text_align override.
@@ -91,13 +97,27 @@ def _build_section_panel(instance: dict, context: dict | None = None) -> Section
     if not panel_html:
         return None
 
+    section_type = instance.get("type", "")
+    title = instance.get("title", SECTION_LABELS.get(section_type, section_type))
+
+    # Profile hides its title by default (avoids a redundant "PROFILE" header);
+    # other sections show it unless the user explicitly toggles it off.
+    if "show_title" in per_style:
+        show_title = bool(per_style["show_title"])
+    else:
+        show_title = section_type != "profile"
+
     wrapper_extra = ""
     heading_extra = ""
     if per_style.get("font"):
+        # Apply to both wrapper and heading so the global h1...h6 rule (heading
+        # font) cannot override an explicit per-section font choice.
         wrapper_extra += f"font-family:{per_style['font']};"
+        heading_extra += f"font-family:{per_style['font']};"
     if per_style.get("color"):
+        # The wrapper's color cascades to every descendant; the heading has no
+        # explicit color, so it inherits from the wrapper too.
         wrapper_extra += f"color:{per_style['color']};"
-        heading_extra += f"color:{per_style['color']};"
     if per_style.get("weight"):
         heading_extra += f"font-weight:{per_style['weight']};"
     if per_style.get("text_align"):
@@ -108,8 +128,8 @@ def _build_section_panel(instance: dict, context: dict | None = None) -> Section
     if wrapper_extra:
         wrapper_style = f"{wrapper_style};{wrapper_extra}"
 
-    # The section heading sits in the wrapper; use template --heading so it follows
-    # the template palette by default, then layer the per-instance override on top.
+    # The section heading keeps `var(--heading)` so the template palette wins
+    # when no per-section color is set; otherwise it inherits from the wrapper.
     heading_style = (
         "margin-bottom:8px;font-size:1rem;font-weight:700;"
         "text-transform:uppercase;letter-spacing:0.05em;"
@@ -118,11 +138,9 @@ def _build_section_panel(instance: dict, context: dict | None = None) -> Section
     if heading_extra:
         heading_style = f"{heading_style};{heading_extra}"
 
-    section_type = instance.get("type", "")
-    title = instance.get("title", SECTION_LABELS.get(section_type, section_type))
     return SectionPanelIR(
         type=section_type,
-        title=title,
+        title=title if show_title else "",
         html=panel_html,
         wrapper_style=wrapper_style,
         heading_style=heading_style,

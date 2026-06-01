@@ -275,7 +275,20 @@ export default function BuilderPage() {
     (sectionId: string, style: SectionStyle) => {
       hasChangesRef.current = true;
       setHasUnsavedChanges(true);
-      setLocalInstances((prev) => prev.map((i) => (i.id === sectionId ? { ...i, style: style.font || style.color || style.weight || style.text_align ? style : undefined } : i)));
+      // Persist the style object when any field (including an explicit
+      // show_title) is set. The customize panel strips the object entirely
+      // when nothing is set; this matches that intent.
+      const hasValues =
+        style.font ||
+        style.color ||
+        style.weight ||
+        style.text_align ||
+        typeof style.show_title === "boolean";
+      setLocalInstances((prev) =>
+        prev.map((i) =>
+          i.id === sectionId ? { ...i, style: hasValues ? style : undefined } : i
+        )
+      );
     },
     []
   );

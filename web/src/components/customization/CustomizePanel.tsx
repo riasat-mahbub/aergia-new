@@ -61,9 +61,24 @@ export default function CustomizePanel({
   const updateSelectedStyle = (partial: Partial<SectionStyle>) => {
     if (!selectedSectionId) return;
     const merged = { ...selectedStyle, ...partial };
-    const hasValues = merged.font || merged.color || merged.weight || merged.text_align;
+    // `show_title` only matters when explicitly set, so include it in the
+    // hasValues check (it can be `false` to suppress the heading).
+    const hasValues =
+      merged.font ||
+      merged.color ||
+      merged.weight ||
+      merged.text_align ||
+      typeof merged.show_title === "boolean";
     onUpdateStyle(selectedSectionId, hasValues ? merged : {});
   };
+
+  // Default for the "Show Title" toggle: profile hides its heading out of
+  // the box; every other section shows it. An explicit user choice wins.
+  const defaultShowTitle = selectedInstance?.type !== "profile";
+  const currentShowTitle =
+    typeof selectedStyle.show_title === "boolean"
+      ? selectedStyle.show_title
+      : defaultShowTitle;
 
   return (
     <div>
@@ -177,6 +192,31 @@ export default function CustomizePanel({
                 <option value="center">Center</option>
                 <option value="justify">Justify</option>
               </select>
+            </div>
+            <div className="flex items-center justify-between pt-1">
+              <div>
+                <label className="block text-xs text-gray-600">Show Title</label>
+                <p className="mt-0.5 text-[10px] text-gray-400">
+                  {selectedInstance?.type === "profile"
+                    ? "Hidden by default for profile."
+                    : "Section heading in the live preview and PDF."}
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={currentShowTitle}
+                onClick={() => updateSelectedStyle({ show_title: !currentShowTitle })}
+                className={`relative h-5 w-9 rounded-full transition-colors ${
+                  currentShowTitle ? "bg-blue-600" : "bg-gray-300"
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                    currentShowTitle ? "translate-x-4" : "translate-x-0.5"
+                  }`}
+                />
+              </button>
             </div>
           </div>
         </div>

@@ -1,4 +1,9 @@
-"""Profile renderer: template-aware HTML with CSS-var fallbacks."""
+"""Profile renderer: template-aware HTML with CSS-var fallbacks.
+
+The wrapper carries the per-section color and font, so the renderer no longer
+bakes inline colors or fonts on its children. Hyperlink and contact affordance
+still use --accent / --divider CSS vars.
+"""
 
 from app.services.renderer.section_renderers.profile import render_profile
 
@@ -29,16 +34,36 @@ def test_profile_without_summary_omits_summary_paragraph():
     assert html.count("<p") == 1
 
 
-def test_profile_uses_heading_font_from_context():
-    html = render_profile({"name": "Alice"}, _ctx(heading_font="Georgia, serif"))
-    assert "font-family:Georgia, serif" in html
+def test_profile_does_not_inline_color_or_font_on_body():
+    """The renderer must not hardcode color or font; the wrapper carries them."""
+    html = render_profile(
+        {"name": "Alice", "title": "Engineer", "summary": "Hello."},
+        _ctx(heading_font="Georgia, serif", body_font="Helvetica, sans-serif"),
+    )
+    # Inline font-family and var(--xxx) colors must be gone from body children.
+    assert "font-family:" not in html
+    assert "color:var(--text" not in html
+    assert "color:var(--heading" not in html
+    # No more accent on the professional title — that was the haphazard part.
+    assert "color:var(--accent" not in html
 
 
-def test_profile_uses_css_var_for_accent_color():
-    html = render_profile({"title": "Engineer"}, _ctx(css_vars={"--accent": "#ff00aa"}))
-    assert "var(--accent, #2563eb)" in html
-    # The hex fallback is in the inline style, so the resolved color follows the CSS var at runtime.
-    assert "#ff00aa" not in html  # the actual color comes from the var; only the fallback hex lives in the style
+def test_profile_keeps_divider_on_separator():
+    """The contact separator is a visual divider, not text; it keeps --divider."""
+    html = render_profile(
+        {"name": "Alice", "email": "a@b.com", "phone": "555"},
+        _ctx(),
+    )
+    assert "var(--divider" in html
+
+
+def test_profile_keeps_accent_on_photo_border():
+    """The photo outline uses --accent so it tints with the template palette."""
+    html = render_profile(
+        {"name": "Alice", "photo_url": "https://example.com/a.jpg"},
+        _ctx(),
+    )
+    assert "var(--accent" in html
 
 
 def test_profile_name_size_uses_css_var_when_provided():

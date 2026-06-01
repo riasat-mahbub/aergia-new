@@ -74,6 +74,10 @@ class SectionStyle(BaseModel):
     color: str | None = None
     weight: str | None = None
     text_align: Literal["left", "right", "center", "justify"] | None = None
+    # show_title controls the section heading (e.g. "PROFILE" / "EXPERIENCE")
+    # in the live preview and PDF. None means use the per-section default
+    # (profile hides the heading, everything else shows it).
+    show_title: bool | None = None
 
 
 # Map section type → data model
