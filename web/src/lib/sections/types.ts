@@ -39,12 +39,12 @@ export interface ProjectEntry {
   id: string;
   name: string;
   url: string;
+  link_text: string;
   start_date: string;
   end_date: string | null;
   description: string;
   tech_stack: string[];
 }
-
 export interface LanguageEntry {
   id: string;
   language: string;

@@ -92,8 +92,8 @@ export const sampleInstances = [
     data: [
       {
         id: generateInstanceId(),
-        name: "Aergia CV Builder",
         url: "https://aergia.dev",
+        link_text: "",
         start_date: "2024-01",
         end_date: null,
         description: "Open-source CV builder with drag-and-drop templates, PDF export, and real-time preview.",

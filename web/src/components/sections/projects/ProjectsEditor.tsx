@@ -12,12 +12,12 @@ export default function ProjectsEditor({ data = [], onChange }: Props) {
     id: `proj_${Date.now()}`,
     name: "",
     url: "",
+    link_text: "",
     start_date: "",
     end_date: null,
     description: "",
     tech_stack: [],
   }));
-
   const addTech = (index: number, tech: string) => {
     const entry = entries[index];
     update(index, "tech_stack", [...(entry?.tech_stack || []), tech]);
