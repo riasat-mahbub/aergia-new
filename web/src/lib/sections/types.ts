@@ -64,6 +64,12 @@ export interface SectionStyle {
   color?: string;
   weight?: string;
   text_align?: "left" | "right" | "center" | "justify";
+  /**
+   * Whether the section's heading (e.g. "PROFILE", "EXPERIENCE") renders in
+   * the live preview and PDF. `undefined` falls back to the per-section
+   * default (profile hides its heading; everything else shows it).
+   */
+  show_title?: boolean;
 }
 
 export interface SectionInstance {
