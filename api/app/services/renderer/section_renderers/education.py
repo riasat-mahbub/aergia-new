@@ -4,7 +4,7 @@ The wrapper carries the per-section color and font, so every child element
 inherits both.
 """
 
-from ._utils import esc
+from ._utils import esc, format_date_range
 
 
 def render_education(data: list[dict] | None, context: dict | None = None) -> str:
@@ -12,13 +12,17 @@ def render_education(data: list[dict] | None, context: dict | None = None) -> st
         return '<p style="font-size:0.875rem;font-style:italic;opacity:0.7;">No data</p>'
     items = []
     for entry in data:
-        end = "Present" if entry.get("current") else (esc(entry.get("end_date")) or "")
-        gpa = f' | GPA: {esc(entry["gpa"])}' if entry.get("gpa") else ""
+        gpa = (
+            f'<p style="font-size:0.75rem;margin:0;">GPA: {esc(entry["gpa"])}</p>'
+            if entry.get("gpa")
+            else ""
+        )
         items.append(
             f'''<div>
   <h3 style="font-weight:600;margin:0;">{esc(entry.get("degree", ""))}</h3>
   <p style="font-size:0.875rem;margin:0;">{esc(entry.get("institution", ""))}</p>
-  <p style="font-size:0.75rem;margin:0;">{esc(entry.get("start_date", ""))} &ndash; {end}{gpa}</p>
+  <p style="font-size:0.75rem;margin:0;">{esc(format_date_range(entry.get("start_date", ""), entry.get("end_date"), bool(entry.get("current"))))}</p>
+  {gpa}
 </div>'''
         )
     return '<div style="display:flex;flex-direction:column;gap:12px;">' + "".join(items) + "</div>"
