@@ -1,4 +1,5 @@
 import type { ProjectEntry } from "../../../lib/sections/types";
+import { formatDateRange } from "../../../lib/sections/DateField";
 
 interface Props {
   data: ProjectEntry[] | undefined;
@@ -12,9 +13,15 @@ export default function ProjectsRenderer({ data = [] }: Props) {
           <div className="flex items-start justify-between">
             <div>
               <h3 className="font-semibold">{entry.name}</h3>
-              {entry.url && <a href={entry.url} className="text-xs text-blue-600 hover:underline">{entry.url}</a>}
+              {entry.url && (
+                <a href={entry.url} className="text-xs text-blue-600 hover:underline">
+                  {entry.link_text || entry.url}
+                </a>
+              )}
             </div>
-            <p className="text-xs text-gray-500">{entry.start_date} – {entry.end_date || "Present"}</p>
+            <p className="text-xs text-gray-500">
+              {formatDateRange(entry.start_date, entry.end_date, false)}
+            </p>
           </div>
           {entry.description && <p className="mt-1 text-sm text-gray-700">{entry.description}</p>}
           {entry.tech_stack.length > 0 && (
