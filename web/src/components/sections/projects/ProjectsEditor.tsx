@@ -1,6 +1,7 @@
 import type { ProjectEntry } from "../../../lib/sections/types";
 import { useFieldArray } from "../../../lib/sections/useFieldArray";
 import SortableAccordionList from "../../../lib/sections/SortableAccordionList";
+import DateField from "../../../lib/sections/DateField";
 
 interface Props {
   data: ProjectEntry[] | undefined;
@@ -18,6 +19,7 @@ export default function ProjectsEditor({ data = [], onChange }: Props) {
     description: "",
     tech_stack: [],
   }));
+
   const addTech = (index: number, tech: string) => {
     const entry = entries[index];
     update(index, "tech_stack", [...(entry?.tech_stack || []), tech]);
@@ -43,17 +45,23 @@ export default function ProjectsEditor({ data = [], onChange }: Props) {
                 <input type="text" value={entry.name} onChange={(e: any) => update(i, "name", e.target.value)} className="mt-0.5 w-full rounded border px-2 py-1 text-sm" />
               </div>
               <div>
+                <label className="block text-xs text-gray-500">Link Text</label>
+                <input type="text" value={entry.link_text} placeholder="e.g. GitHub" onChange={(e: any) => update(i, "link_text", e.target.value)} className="mt-0.5 w-full rounded border px-2 py-1 text-sm" />
+              </div>
+              <div className="col-span-2">
                 <label className="block text-xs text-gray-500">URL</label>
                 <input type="text" value={entry.url} onChange={(e: any) => update(i, "url", e.target.value)} className="mt-0.5 w-full rounded border px-2 py-1 text-sm" />
               </div>
-              <div>
-                <label className="block text-xs text-gray-500">Start Date</label>
-                <input type="text" value={entry.start_date} onChange={(e: any) => update(i, "start_date", e.target.value)} className="mt-0.5 w-full rounded border px-2 py-1 text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500">End Date</label>
-                <input type="text" value={entry.end_date || ""} onChange={(e: any) => update(i, "end_date", e.target.value)} className="mt-0.5 w-full rounded border px-2 py-1 text-sm" />
-              </div>
+              <DateField
+                value={entry.start_date}
+                onChange={(v) => update(i, "start_date", v ?? "")}
+                label="Start Date"
+              />
+              <DateField
+                value={entry.end_date}
+                onChange={(v) => update(i, "end_date", v)}
+                label="End Date"
+              />
             </div>
             <textarea value={entry.description} onChange={(e: any) => update(i, "description", e.target.value)} placeholder="Description" rows={2} className="mt-2 w-full rounded border px-2 py-1 text-sm" />
             <div className="mt-2">
