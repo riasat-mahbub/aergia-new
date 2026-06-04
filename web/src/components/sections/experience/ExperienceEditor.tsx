@@ -1,6 +1,7 @@
 import type { ExperienceEntry } from "../../../lib/sections/types";
 import { useFieldArray } from "../../../lib/sections/useFieldArray";
 import SortableAccordionList from "../../../lib/sections/SortableAccordionList";
+import DateField from "../../../lib/sections/DateField";
 
 interface Props {
   data: ExperienceEntry[] | undefined;
@@ -32,8 +33,17 @@ export default function ExperienceEditor({ data = [], onChange }: Props) {
               <Input entry={entry} field="company" label="Company" onChange={(v: any) => update(i, "company", v)} />
               <Input entry={entry} field="position" label="Position" onChange={(v: any) => update(i, "position", v)} />
               <Input entry={entry} field="location" label="Location" onChange={(v: any) => update(i, "location", v)} />
-              <Input entry={entry} field="start_date" label="Start Date" onChange={(v: any) => update(i, "start_date", v)} />
-              <Input entry={entry} field="end_date" label="End Date" onChange={(v: any) => update(i, "end_date", v)} disabled={entry.current} />
+              <DateField
+                value={entry.start_date}
+                onChange={(v) => update(i, "start_date", v ?? "")}
+                label="Start Date"
+              />
+              <DateField
+                value={entry.end_date}
+                onChange={(v) => update(i, "end_date", v)}
+                label="End Date"
+                disabled={entry.current}
+              />
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={entry.current} onChange={(e: any) => update(i, "current", e.target.checked)} />
                 Current

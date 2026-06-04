@@ -1,6 +1,7 @@
 import type { CertificationEntry } from "../../../lib/sections/types";
 import { useFieldArray } from "../../../lib/sections/useFieldArray";
 import SortableAccordionList from "../../../lib/sections/SortableAccordionList";
+import DateField from "../../../lib/sections/DateField";
 
 interface Props {
   data: CertificationEntry[] | undefined;
@@ -33,10 +34,11 @@ export default function CertificationsEditor({ data = [], onChange }: Props) {
               <label className="block text-xs text-gray-500">Issuer</label>
               <input type="text" value={entry.issuer} onChange={(e: any) => update(i, "issuer", e.target.value)} className="mt-0.5 w-full rounded border px-2 py-1 text-sm" />
             </div>
-            <div>
-              <label className="block text-xs text-gray-500">Date</label>
-              <input type="text" value={entry.date} onChange={(e: any) => update(i, "date", e.target.value)} className="mt-0.5 w-full rounded border px-2 py-1 text-sm" />
-            </div>
+            <DateField
+              value={entry.date}
+              onChange={(v) => update(i, "date", v ?? "")}
+              label="Date"
+            />
             <div>
               <label className="block text-xs text-gray-500">Credential URL</label>
               <input type="text" value={entry.credential_url} onChange={(e: any) => update(i, "credential_url", e.target.value)} className="mt-0.5 w-full rounded border px-2 py-1 text-sm" />

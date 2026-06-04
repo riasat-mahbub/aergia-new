@@ -1,6 +1,7 @@
 import type { EducationEntry } from "../../../lib/sections/types";
 import { useFieldArray } from "../../../lib/sections/useFieldArray";
 import SortableAccordionList from "../../../lib/sections/SortableAccordionList";
+import DateField from "../../../lib/sections/DateField";
 
 interface Props {
   data: EducationEntry[] | undefined;
@@ -35,22 +36,27 @@ export default function EducationEditor({ data = [], onChange }: Props) {
               <label className="block text-xs text-gray-500">Degree</label>
               <input type="text" value={entry.degree} onChange={(e: any) => update(i, "degree", e.target.value)} className="mt-0.5 w-full rounded border px-2 py-1 text-sm" />
             </div>
-            <div>
-              <label className="block text-xs text-gray-500">Start Date</label>
-              <input type="text" value={entry.start_date} onChange={(e: any) => update(i, "start_date", e.target.value)} className="mt-0.5 w-full rounded border px-2 py-1 text-sm" />
+            <DateField
+              value={entry.start_date}
+              onChange={(v) => update(i, "start_date", v ?? "")}
+              label="Start Date"
+            />
+            <DateField
+              value={entry.end_date}
+              onChange={(v) => update(i, "end_date", v)}
+              label="End Date"
+              disabled={entry.current}
+            />
+            <div className="col-span-2 flex items-center justify-between gap-2">
+              <div className="flex-1">
+                <label className="block text-xs text-gray-500">GPA</label>
+                <input type="text" value={entry.gpa} onChange={(e: any) => update(i, "gpa", e.target.value)} className="mt-0.5 w-full rounded border px-2 py-1 text-sm" />
+              </div>
+              <label className="flex items-center gap-2 pt-4 text-sm">
+                <input type="checkbox" checked={entry.current} onChange={(e: any) => update(i, "current", e.target.checked)} />
+                Currently enrolled
+              </label>
             </div>
-            <div>
-              <label className="block text-xs text-gray-500">End Date</label>
-              <input type="text" value={entry.end_date || ""} onChange={(e: any) => update(i, "end_date", e.target.value)} className="mt-0.5 w-full rounded border px-2 py-1 text-sm" disabled={entry.current} />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500">GPA</label>
-              <input type="text" value={entry.gpa} onChange={(e: any) => update(i, "gpa", e.target.value)} className="mt-0.5 w-full rounded border px-2 py-1 text-sm" />
-            </div>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={entry.current} onChange={(e: any) => update(i, "current", e.target.checked)} />
-              Currently enrolled
-            </label>
           </div>
         )}
       </SortableAccordionList>
