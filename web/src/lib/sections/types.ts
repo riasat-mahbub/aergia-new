@@ -106,22 +106,21 @@ export function createDefaultSectionData(type: string): any {
     case "profile":
       return { name: "", title: "", email: "", phone: "", location: "", summary: "", photo_url: "" };
     case "experience":
-      return [];
+      return [{ id: generateInstanceId(), company: "", position: "", start_date: "", end_date: null, current: false, location: "", description: "" }];
     case "education":
-      return [];
+      return [{ id: generateInstanceId(), institution: "", degree: "", start_date: "", end_date: null, current: false, gpa: "" }];
     case "skills":
-      return [];
+      return [{ id: generateInstanceId(), category: "", items: [] }];
     case "projects":
-      return [];
+      return [{ id: generateInstanceId(), name: "", url: "", link_text: "", start_date: "", end_date: null, description: "", tech_stack: [] }];
     case "languages":
-      return [];
+      return [{ id: generateInstanceId(), language: "", proficiency: "Intermediate" }];
     case "certifications":
-      return [];
+      return [{ id: generateInstanceId(), name: "", issuer: "", date: "", credential_url: "" }];
     default:
       return {};
   }
 }
-
 export function generateInstanceId(): string {
   return `sec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
