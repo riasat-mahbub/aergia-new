@@ -87,10 +87,16 @@ function SortableRow({
       className={`rounded border bg-white ${instance.enabled ? "border-gray-200" : "border-dashed border-gray-300 bg-gray-50"}`}
       data-section-id={instance.id}
     >
-      <div className="flex items-center gap-2 px-3 py-2">
+      <div
+        className="flex cursor-pointer items-center gap-2 px-3 py-2"
+        role="button"
+        aria-expanded={isExpanded}
+        onClick={() => onToggleExpand(instance.id)}
+      >
         <button
           {...attributes}
           {...listeners}
+          onClick={(e) => e.stopPropagation()}
           className="cursor-grab text-gray-400 hover:text-gray-600"
           title="Drag to reorder"
         >
