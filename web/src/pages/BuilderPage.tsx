@@ -404,7 +404,23 @@ export default function BuilderPage() {
             </button>
             <h1 className="text-lg font-semibold text-gray-900">{currentCV.title}</h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {hasUnsavedChanges && (
+              <>
+                <span className="h-2 w-2 rounded-full bg-orange-500" aria-label="Unsaved changes" />
+                <span className="text-sm text-orange-600">Unsaved</span>
+              </>
+            )}
+            {lastSaved && !isSaving && !showSavedFeedback && (
+              <span className="text-xs text-gray-400">Saved {formatLastSaved(lastSaved)}</span>
+            )}
+            <button
+              onClick={handleSave}
+              disabled={(!hasUnsavedChanges && !showSavedFeedback) || isSaving}
+              className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSaving ? "Saving..." : showSavedFeedback ? "Saved!" : "Save"}
+            </button>
             {id && <ExportPDFButton cvId={id} cvTitle={currentCV.title} onBeforeExport={handleSave} />}
           </div>
         </header>
@@ -486,28 +502,6 @@ export default function BuilderPage() {
           </motion.div>
         </div>
 
-        <div className="flex items-center justify-between border-t bg-white px-4 py-2">
-          <div className="flex items-center gap-2">
-            {hasUnsavedChanges && (
-              <>
-                <span className="h-2 w-2 rounded-full bg-orange-500" />
-                <span className="text-sm text-orange-600">Unsaved changes</span>
-              </>
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            {lastSaved && !isSaving && !showSavedFeedback && (
-              <span className="text-xs text-gray-400">{formatLastSaved(lastSaved)}</span>
-            )}
-            <button
-              onClick={handleSave}
-              disabled={(!hasUnsavedChanges && !showSavedFeedback) || isSaving}
-              className="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isSaving ? "Saving..." : showSavedFeedback ? "Saved!" : "Save"}
-            </button>
-          </div>
-        </div>
       </div>
     ) : (
       <motion.div
