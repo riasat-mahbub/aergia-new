@@ -13,7 +13,7 @@ import TemplateCreatorPage from "./pages/TemplateCreatorPage";
 import HomePage from "./pages/HomePage";
 import NotFoundPage from "./pages/NotFoundPage";
 import "./index.css";
-
+import "react-day-picker/style.css";
 const router = createBrowserRouter(
   createRoutesFromElements(
     <Route element={<App />}>

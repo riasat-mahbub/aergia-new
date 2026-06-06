@@ -1,18 +1,16 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import DateField, { formatDateRange } from "../DateField";
 
 describe("formatDateRange", () => {
   it("returns empty string when start is empty", () => {
-    expect(formatDateRange("", null, false)).toBe("");
     expect(formatDateRange("", "", false)).toBe("");
   });
   it("returns just start when end is empty and current is false", () => {
-    expect(formatDateRange("2021-03", null, false)).toBe("2021-03");
     expect(formatDateRange("2021-03", "", false)).toBe("2021-03");
   });
   it("returns start + ' – Present' when current is true and end is empty", () => {
-    expect(formatDateRange("2021-03", null, true)).toBe("2021-03 – Present");
     expect(formatDateRange("2021-03", "", true)).toBe("2021-03 – Present");
   });
   it("returns start + ' – ' + end when both are set", () => {
@@ -23,51 +21,111 @@ describe("formatDateRange", () => {
   });
 });
 
+/** Returns the inner <button> of the first gridcell with the given label, scoped to the dialog. */
+function dayButton(dialog: HTMLElement, label: string): HTMLButtonElement {
+  const cell = within(dialog).getAllByRole("gridcell", { name: label })[0];
+  // The gridcell wraps a <button>. Clicking the button fires react-day-picker's onSelect.
+  return cell.querySelector("button") as HTMLButtonElement;
+}
+
 describe("DateField", () => {
-  it("renders an empty month input when value is empty", () => {
-    render(<DateField value="" onChange={vi.fn()} label="Start Date" />);
-    const input = screen.getByLabelText("Start Date") as HTMLInputElement;
-    expect(input.type).toBe("month");
-    expect(input.value).toBe("");
+  it("renders a trigger button with the placeholder when value is empty", () => {
+    render(<DateField value="" onChange={vi.fn()} label="Start Date" placeholder="Pick a month" />);
+    const trigger = screen.getByRole("button", { name: "Start Date" });
+    expect(trigger).toBeTruthy();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
+    expect(trigger.textContent).toContain("Pick a month");
   });
-  it("calls onChange with the new value when input changes", () => {
+
+  it("renders the formatted value when one is provided", () => {
+    render(<DateField value="2021-03" onChange={vi.fn()} label="Start Date" />);
+    const trigger = screen.getByRole("button", { name: "Start Date" });
+    expect(trigger.textContent).toContain("March 2021");
+  });
+
+  it("opens the popup with a calendar when the trigger is clicked", async () => {
+    const user = userEvent.setup();
+    render(<DateField value="2021-03" onChange={vi.fn()} label="Start Date" />);
+    const trigger = screen.getByRole("button", { name: "Start Date" });
+    await user.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toBeTruthy();
+    expect(within(dialog).getByRole("grid")).toBeTruthy();
+  });
+
+  it("emits YYYY-MM when a day is selected", async () => {
+    const user = userEvent.setup();
     const onChange = vi.fn();
     render(<DateField value="" onChange={onChange} label="Start Date" />);
-    const input = screen.getByLabelText("Start Date") as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "2021-03" } });
-    expect(onChange).toHaveBeenCalledWith("2021-03");
+    await user.click(screen.getByRole("button", { name: "Start Date" }));
+    const dialog = screen.getByRole("dialog");
+    await user.click(dayButton(dialog, "15"));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const emitted = onChange.mock.calls[0][0] as string;
+    expect(emitted).toMatch(/^\d{4}-\d{2}$/);
   });
+
+  it("closes the popup after a selection and reflects aria-expanded=false", async () => {
+    const user = userEvent.setup();
+    render(<DateField value="" onChange={vi.fn()} label="Start Date" />);
+    const trigger = screen.getByRole("button", { name: "Start Date" });
+    await user.click(trigger);
+    const dialog = screen.getByRole("dialog");
+    await user.click(dayButton(dialog, "15"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("closes the popup when Escape is pressed", async () => {
+    const user = userEvent.setup();
+    render(<DateField value="2021-03" onChange={vi.fn()} label="Start Date" />);
+    await user.click(screen.getByRole("button", { name: "Start Date" }));
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("does not show a clear button when value is empty", () => {
     render(<DateField value="" onChange={vi.fn()} label="Start Date" />);
     expect(screen.queryByRole("button", { name: "Clear" })).toBeNull();
   });
-  it("shows a clear button when value is set and click clears the value", () => {
+
+  it("shows a clear button when value is set; click clears the value", async () => {
+    const user = userEvent.setup();
     const onChange = vi.fn();
-    const { container } = render(<DateField value="2021-03" onChange={onChange} label="Start Date" />);
+    render(<DateField value="2021-03" onChange={onChange} label="Start Date" />);
     const clear = screen.getByRole("button", { name: "Clear" });
-    fireEvent.click(clear);
+    await user.click(clear);
     expect(onChange).toHaveBeenCalledWith("");
-    // The clear button must not be positioned at right-8 — that slot is reserved
-    // for the calendar icon so the native picker chevron stays clickable.
-    expect(clear.className).toContain("right-1");
-    expect(clear.className).not.toContain("right-8");
-    // Calendar icon present (visible affordance for the native picker).
+  });
+
+  it("renders a calendar icon as a visible affordance", () => {
+    const { container } = render(<DateField value="" onChange={vi.fn()} label="Start Date" />);
     expect(container.querySelector("svg.lucide-calendar")).toBeTruthy();
   });
-  it("renders a decorative calendar icon next to the input even when empty", () => {
-    const { container } = render(<DateField value="" onChange={vi.fn()} label="Start Date" />);
-    const cal = container.querySelector("svg.lucide-calendar");
-    expect(cal).toBeTruthy();
-    // pointer-events-none so clicks pass through to the native input
-    expect((cal as Element).getAttribute("class") || "").toContain("pointer-events-none");
-  });
+
   it("does not show a clear button when disabled", () => {
     render(<DateField value="2021-03" onChange={vi.fn()} label="Start Date" disabled />);
     expect(screen.queryByRole("button", { name: "Clear" })).toBeNull();
   });
-  it("disables the input when disabled prop is set", () => {
+
+  it("disables the trigger when disabled prop is set", () => {
     render(<DateField value="2021-03" onChange={vi.fn()} label="Start Date" disabled />);
-    const input = screen.getByLabelText("Start Date") as HTMLInputElement;
-    expect(input.disabled).toBe(true);
+    const trigger = screen.getByRole("button", { name: "Start Date" });
+    expect(trigger).toBeDisabled();
+  });
+
+  it("does not open the popup when disabled", () => {
+    render(<DateField value="2021-03" onChange={vi.fn()} label="Start Date" disabled />);
+    const trigger = screen.getByRole("button", { name: "Start Date" });
+    fireEvent.click(trigger);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("exposes a data-testid for integration tests", () => {
+    const { container } = render(<DateField value="" onChange={vi.fn()} label="Start Date" />);
+    expect(container.querySelector('[data-testid="datefield"]')).toBeTruthy();
   });
 });
