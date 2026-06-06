@@ -128,4 +128,30 @@ describe("DateField", () => {
     const { container } = render(<DateField value="" onChange={vi.fn()} label="Start Date" />);
     expect(container.querySelector('[data-testid="datefield"]')).toBeTruthy();
   });
+
+  it("renders the popup in a portal so ancestor overflow cannot clip it", async () => {
+    const user = userEvent.setup();
+    // Wrap the field in a container with overflow:hidden to mimic the
+    // accordion body. The popup must still mount in document.body.
+    const { container } = render(
+      <div style={{ overflow: "hidden", maxHeight: 80 }}>
+        <DateField value="" onChange={vi.fn()} label="Start Date" />
+      </div>
+    );
+    await user.click(screen.getByRole("button", { name: "Start Date" }));
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toBeTruthy();
+    expect(container.contains(dialog)).toBe(false);
+    expect(document.body.contains(dialog)).toBe(true);
+  });
+
+  it("positions the popover using fixed coordinates anchored to the trigger", async () => {
+    const user = userEvent.setup();
+    render(<DateField value="2021-03" onChange={vi.fn()} label="Start Date" />);
+    await user.click(screen.getByRole("button", { name: "Start Date" }));
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.style.position).toBe("fixed");
+    expect(dialog.style.top).not.toBe("");
+    expect(dialog.style.left).not.toBe("");
+  });
 });

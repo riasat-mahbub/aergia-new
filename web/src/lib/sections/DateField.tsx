@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { DayPicker } from "react-day-picker";
 import { Calendar, X } from "lucide-react";
 
@@ -55,6 +56,9 @@ function formatDisplay(value: string | null | undefined): string {
   return `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+const POPOVER_WIDTH = 280; // approximate; read from the rendered element if available
+const POPOVER_GAP = 4;
+
 export default function DateField({
   value,
   onChange,
@@ -63,8 +67,9 @@ export default function DateField({
   placeholder,
 }: DateFieldProps) {
   const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const popoverId = useId();
 
   const selected = parseValueToDate(value);
@@ -77,13 +82,43 @@ export default function DateField({
   const startMonth = new Date(1950, 0, 1);
   const endMonth = new Date(currentYear + 10, 11, 31);
 
-  // Close on outside click and on Escape.
+  // Position the popover relative to the trigger using fixed-position math,
+  // so it escapes any ancestor with overflow:hidden (e.g. the accordion body).
+  const updatePosition = () => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const popover = popoverRef.current;
+    const width = popover?.offsetWidth || POPOVER_WIDTH;
+    const height = popover?.offsetHeight || 320;
+    const margin = 8;
+    // Prefer below the trigger, flip above if it would overflow the viewport.
+    let top = rect.bottom + POPOVER_GAP;
+    if (top + height + margin > window.innerHeight) {
+      top = Math.max(margin, rect.top - height - POPOVER_GAP);
+    }
+    // Center horizontally on the trigger, then clamp to the viewport.
+    let left = rect.left + rect.width / 2 - width / 2;
+    left = Math.max(margin, Math.min(left, window.innerWidth - width - margin));
+    setPos({ top, left });
+  };
+
+  // Position before paint so the popover doesn't flash at 0,0.
+  useLayoutEffect(() => {
+    if (!open) return;
+    updatePosition();
+  }, [open]);
+
+  // Outside click, Escape, and scroll/resize all close the popover.
+  // (Re-positioning on scroll is jarring inside a scrollable section; closing
+  // is the more predictable behavior and matches native date inputs.)
   useEffect(() => {
     if (!open) return;
     const onPointer = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      if (triggerRef.current?.contains(target)) return;
+      if (popoverRef.current?.contains(target)) return;
+      setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -91,11 +126,17 @@ export default function DateField({
         triggerRef.current?.focus();
       }
     };
+    const onResize = () => setOpen(false);
     document.addEventListener("mousedown", onPointer);
     document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", onResize);
+    // Capture phase catches scroll events on any ancestor, not just window.
+    document.addEventListener("scroll", onResize, true);
     return () => {
       document.removeEventListener("mousedown", onPointer);
       document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", onResize);
+      document.removeEventListener("scroll", onResize, true);
     };
   }, [open]);
 
@@ -116,6 +157,28 @@ export default function DateField({
     triggerRef.current?.focus();
   };
 
+  const popover = open && !disabled && pos ? (
+    <div
+      ref={popoverRef}
+      role="dialog"
+      aria-label={label ? `Pick ${label.toLowerCase()}` : "Pick date"}
+      style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 1000 }}
+      className="rounded-md border border-gray-200 bg-white p-2 shadow-lg"
+    >
+      <DayPicker
+        mode="single"
+        selected={selected}
+        onSelect={handleSelect}
+        captionLayout="dropdown"
+        startMonth={startMonth}
+        endMonth={endMonth}
+        hideNavigation
+        showOutsideDays
+        defaultMonth={selected ?? new Date()}
+      />
+    </div>
+  ) : null;
+
   return (
     <div>
       {label && (
@@ -123,7 +186,7 @@ export default function DateField({
           {label}
         </label>
       )}
-      <div ref={wrapRef} className="relative mt-0.5">
+      <div className="mt-0.5">
         <div
           data-testid="datefield"
           className="flex w-full items-center gap-1 rounded border bg-white text-sm"
@@ -155,26 +218,8 @@ export default function DateField({
             </button>
           )}
         </div>
-        {open && !disabled && (
-          <div
-            role="dialog"
-            aria-label={label ? `Pick ${label.toLowerCase()}` : "Pick date"}
-            className="absolute left-0 top-full z-50 mt-1 rounded-md border border-gray-200 bg-white p-2 shadow-lg"
-          >
-            <DayPicker
-              mode="single"
-              selected={selected}
-              onSelect={handleSelect}
-              captionLayout="dropdown"
-              startMonth={startMonth}
-              endMonth={endMonth}
-              hideNavigation
-              showOutsideDays
-              defaultMonth={selected ?? new Date()}
-            />
-          </div>
-        )}
       </div>
+      {typeof document !== "undefined" && createPortal(popover, document.body)}
     </div>
   );
 }
