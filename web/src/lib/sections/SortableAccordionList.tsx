@@ -1,6 +1,14 @@
 import { type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
+  closestCenter,
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
@@ -12,6 +20,7 @@ import AccordionPanel from "../../components/common/AccordionPanel";
 interface SortableAccordionListProps {
   entries: { id: string }[];
   onRemove: (index: number) => void;
+  onMove: (from: number, to: number) => void;
   getTitle: (entry: any) => string;
   children: (entry: any, index: number) => ReactNode;
 }
@@ -64,29 +73,43 @@ function SortableItem({
 export default function SortableAccordionList({
   entries,
   onRemove,
+  onMove,
   getTitle,
   children,
 }: SortableAccordionListProps) {
   const itemIds = entries.map((e) => e.id);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const activeId = String(event.active.id);
+    const overId = event.over ? String(event.over.id) : null;
+    if (!overId || activeId === overId) return;
+    const from = entries.findIndex((entry) => entry.id === activeId);
+    const to = entries.findIndex((entry) => entry.id === overId);
+    if (from === -1 || to === -1) return;
+    onMove(from, to);
+  };
 
   return (
-    <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
-      <div className="space-y-4">
-        <AnimatePresence>
-          {entries.map((entry, i) => (
-            <motion.div
-              key={entry.id}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-            >
-              <SortableItem entry={entry} index={i} onRemove={onRemove} getTitle={getTitle}>
-                {children(entry, i)}
-              </SortableItem>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
-    </SortableContext>
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
+        <div className="space-y-4">
+          <AnimatePresence>
+            {entries.map((entry, i) => (
+              <motion.div
+                key={entry.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+              >
+                <SortableItem entry={entry} index={i} onRemove={onRemove} getTitle={getTitle}>
+                  {children(entry, i)}
+                </SortableItem>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+      </SortableContext>
+    </DndContext>
   );
 }

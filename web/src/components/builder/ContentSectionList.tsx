@@ -242,8 +242,12 @@ export default function ContentSectionList({
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const oldIndex = instances.findIndex((i) => i.id === active.id);
-    const newIndex = instances.findIndex((i) => i.id === over.id);
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    // Nested per-section DndContext handles entry-level drags; only section IDs belong here.
+    if (!instances.some((i) => i.id === activeId) || !instances.some((i) => i.id === overId)) return;
+    const oldIndex = instances.findIndex((i) => i.id === activeId);
+    const newIndex = instances.findIndex((i) => i.id === overId);
     if (oldIndex === -1 || newIndex === -1) return;
     onReorderInstances(arrayMove(instances, oldIndex, newIndex));
   };

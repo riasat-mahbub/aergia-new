@@ -9,7 +9,7 @@ interface Props {
 }
 
 export default function ExperienceEditor({ data = [], onChange }: Props) {
-  const { entries, add, remove, update } = useFieldArray(data, onChange, () => ({
+  const { entries, add, remove, update, move } = useFieldArray(data, onChange, () => ({
     id: `exp_${Date.now()}`,
     company: "",
     position: "",
@@ -25,6 +25,7 @@ export default function ExperienceEditor({ data = [], onChange }: Props) {
       <SortableAccordionList
         entries={entries}
         onRemove={remove}
+        onMove={move}
         getTitle={(e: any) => e.company || e.position || "New Experience"}
       >
         {(entry: any, i: number) => (

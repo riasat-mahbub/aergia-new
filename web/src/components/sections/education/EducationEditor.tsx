@@ -9,7 +9,7 @@ interface Props {
 }
 
 export default function EducationEditor({ data = [], onChange }: Props) {
-  const { entries, add, remove, update } = useFieldArray(data, onChange, () => ({
+  const { entries, add, remove, update, move } = useFieldArray(data, onChange, () => ({
     id: `edu_${Date.now()}`,
     institution: "",
     degree: "",
@@ -24,6 +24,7 @@ export default function EducationEditor({ data = [], onChange }: Props) {
       <SortableAccordionList
         entries={entries}
         onRemove={remove}
+        onMove={move}
         getTitle={(e: any) => e.degree || e.institution || "New Education"}
       >
         {(entry: any, i: number) => (
