@@ -4,7 +4,7 @@ import { ChevronDown } from "lucide-react";
 
 interface StyleVarSchema {
   key: string;
-  type: "color" | "font" | "length" | "enum";
+  type: "color" | "font" | "length" | "enum" | "boolean";
   label: string;
   default: string;
   options?: string[];
@@ -36,7 +36,8 @@ const DEFAULT_SCHEMA: StyleVarSchema[] = [
   { key: "body_font", type: "font", label: "Body Font", default: "Inter, system-ui, sans-serif" },
   { key: "heading_font", type: "font", label: "Heading Font", default: "Inter, system-ui, sans-serif" },
   { key: "section_gap", type: "length", label: "Section Gap", default: "24px" },
-];
+  { key: "underline_section_titles", type: "boolean", label: "Underline Section Titles", default: "false" },
+]
 
 export default function StyleEditor({
   customizations,
@@ -51,6 +52,7 @@ export default function StyleEditor({
   const colors = customizations?.colors || {};
   const fonts = customizations?.fonts || {};
   const spacing = customizations?.spacing || {};
+  const flags = customizations?.flags || {};
 
   const updateColors = (key: string, value: string) => {
     onChange({ ...customizations, colors: { ...colors, [key]: value } });
@@ -61,16 +63,23 @@ export default function StyleEditor({
   const updateSpacing = (key: string, value: string) => {
     onChange({ ...customizations, spacing: { ...spacing, [key]: value } });
   };
+  const updateFlags = (key: string, value: boolean) => {
+    onChange({ ...customizations, flags: { ...flags, [key]: value } });
+  };
 
-  const updateVar = (key: string, value: string, type: string) => {
-    if (type === "color") updateColors(key, value);
-    else if (type === "font") updateFonts(key, value);
-    else if (type === "length") updateSpacing(key, value);
-    else if (type === "enum") {
+  const updateVar = (key: string, value: string | boolean, type: string) => {
+    if (type === "color") updateColors(key, String(value));
+    else if (type === "font") updateFonts(key, String(value));
+    else if (type === "length") updateSpacing(key, String(value));
+    else if (type === "boolean") {
+      const next = typeof value === "boolean" ? value : value === "true";
+      updateFlags(key, next);
+    } else if (type === "enum") {
       // determine bucket based on key presence
-      if (colors.hasOwnProperty(key)) updateColors(key, value);
-      else if (fonts.hasOwnProperty(key)) updateFonts(key, value);
-      else updateSpacing(key, value);
+      if (colors.hasOwnProperty(key)) updateColors(key, String(value));
+      else if (fonts.hasOwnProperty(key)) updateFonts(key, String(value));
+      else if (flags.hasOwnProperty(key)) updateFlags(key, String(value) === "true");
+      else updateSpacing(key, String(value));
     }
   };
 
@@ -78,6 +87,7 @@ export default function StyleEditor({
     if (colors.hasOwnProperty(key)) return colors[key] || def;
     if (fonts.hasOwnProperty(key)) return fonts[key] || def;
     if (spacing.hasOwnProperty(key)) return spacing[key] || def;
+    if (flags.hasOwnProperty(key)) return String(flags[key]);
     return def;
   };
 
@@ -158,6 +168,27 @@ export default function StyleEditor({
                         />
                       </div>
                     );
+                  case "boolean":
+                    return (
+                      <div key={item.key} className="flex items-center justify-between gap-2">
+                        <label className="text-xs text-gray-600">{item.label}</label>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={value === "true"}
+                          onClick={() => updateVar(item.key, value !== "true", "boolean")}
+                          className={`relative h-5 w-9 rounded-full transition-colors ${
+                            value === "true" ? "bg-blue-600" : "bg-gray-300"
+                          }`}
+                        >
+                          <span
+                            className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                              value === "true" ? "translate-x-4" : "translate-x-0.5"
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    );
                   case "enum":
                     return (
                       <div key={item.key} className="flex flex-col">
@@ -177,7 +208,7 @@ export default function StyleEditor({
                     );
                   default:
                     return null;
-                }
+                 }
               })}
             </div>
           </motion.div>

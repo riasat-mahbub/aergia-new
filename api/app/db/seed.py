@@ -33,6 +33,13 @@ def build_manifest(template: dict) -> dict:
             "label": key.replace("_", " ").title(),
             "default": default
         })
+    for key, default in (customizations.get("flags") or {}).items():
+        global_style_schema.append({
+            "key": key,
+            "type": "boolean",
+            "label": key.replace("_", " ").title(),
+            "default": str(default).lower(),
+        })
     # Schema buckets must mirror the keys used in default_customizations (`spacing`).
     # Re-key `length` entries into `spacing` so `_build_css_vars` picks them up.
     manifest = {
@@ -83,6 +90,7 @@ SEED_TEMPLATES = [
             "colors": {"accent": "#2563eb", "bg_sidebar": "#f8fafc"},
             "fonts": {"body": "Inter, system-ui, sans-serif", "heading": "Inter, system-ui, sans-serif"},
             "spacing": {"section_gap": "24px", "profile_name_size": "1.75rem"},
+            "flags": {"underline_section_titles": False},
         },
     },
     {
@@ -116,6 +124,7 @@ SEED_TEMPLATES = [
             "colors": {"header": "#000000", "divider": "#d1d5db"},
             "fonts": {"body": "Georgia, Crimson, serif", "heading": "Georgia, Crimson, serif"},
             "spacing": {"section_gap": "20px", "profile_name_size": "1.5rem"},
+            "flags": {"underline_section_titles": False},
         },
     },
     {
@@ -149,6 +158,7 @@ SEED_TEMPLATES = [
             "colors": {"text": "#374151", "heading": "#111827"},
             "fonts": {"body": "system-ui, sans-serif", "heading": "system-ui, sans-serif"},
             "spacing": {"section_gap": "16px", "profile_name_size": "1.25rem"},
+            "flags": {"underline_section_titles": False},
         },
     },
 ]
@@ -171,4 +181,11 @@ async def seed_templates(db: AsyncSession) -> None:
             ))
         elif existing.manifest is None:
             existing.manifest = data["manifest"]
+        else:
+            # Refresh manifest/defaults so newly added customization buckets
+            # (e.g. `flags`) propagate to existing seed rows. User-created
+            # templates are unaffected because their `is_system` is False
+            # and they were not loaded from this seed path.
+            existing.manifest = data["manifest"]
+            existing.default_customizations = data.get("default_customizations")
     await db.commit()

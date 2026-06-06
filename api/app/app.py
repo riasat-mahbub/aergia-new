@@ -25,6 +25,7 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     async with async_session() as session:
         await seed_templates(session)
+        await session.commit()
     yield
     await _close_browser()
 
