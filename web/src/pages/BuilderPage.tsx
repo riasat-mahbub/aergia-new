@@ -210,12 +210,15 @@ export default function BuilderPage() {
     (sectionId: string, data: any) => {
       hasChangesRef.current = true;
       setHasUnsavedChanges(true);
+      // Empty list after last entry is removed → drop the section entirely.
+      if (Array.isArray(data) && data.length === 0) {
+        setLocalInstances((prev) => prev.filter((i) => i.id !== sectionId));
+        return;
+      }
       setLocalInstances((prev) => prev.map((i) => (i.id === sectionId ? { ...i, data } : i)));
     },
     []
   );
-
-
   const handleReorderInstances = useCallback(
     (newInstances: SectionInstance[]) => {
       hasChangesRef.current = true;
