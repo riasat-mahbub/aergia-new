@@ -86,7 +86,7 @@ function SortableSection({
       style={style}
       {...attributes}
       {...listeners}
-      onClick={() => onSelect?.(instance.id)}
+      onClick={() => { onSelect?.(instance.id); onClick(); }}
       data-testid={`zone-section-${instance.id}`}
       className={`flex cursor-pointer items-center gap-2 rounded border px-2 py-1.5 text-sm transition-colors ${
         selected
