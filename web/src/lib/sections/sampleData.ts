@@ -58,6 +58,7 @@ export const sampleInstances = [
         end_date: "2018-05",
         current: false,
         gpa: "3.8",
+        summary: "",
       },
     ],
   } as const,

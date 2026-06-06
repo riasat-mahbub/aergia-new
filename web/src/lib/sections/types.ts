@@ -27,6 +27,7 @@ export interface EducationEntry {
   end_date: string | null;
   current: boolean;
   gpa: string;
+  summary: string;
 }
 
 export interface SkillGroup {
@@ -108,7 +109,7 @@ export function createDefaultSectionData(type: string): any {
     case "experience":
       return [{ id: generateInstanceId(), company: "", position: "", start_date: "", end_date: null, current: false, location: "", description: "" }];
     case "education":
-      return [{ id: generateInstanceId(), institution: "", degree: "", start_date: "", end_date: null, current: false, gpa: "" }];
+      return [{ id: generateInstanceId(), institution: "", degree: "", start_date: "", end_date: null, current: false, gpa: "", summary: "" }];
     case "skills":
       return [{ id: generateInstanceId(), category: "", items: [] }];
     case "projects":

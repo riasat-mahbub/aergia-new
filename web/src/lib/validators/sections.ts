@@ -29,6 +29,7 @@ export const educationEntrySchema = z.object({
   end_date: z.string().nullable(),
   current: z.boolean(),
   gpa: z.string(),
+  summary: z.string().default(""),
 });
 
 export const skillGroupSchema = z.object({

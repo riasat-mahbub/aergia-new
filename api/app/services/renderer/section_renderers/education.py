@@ -17,6 +17,11 @@ def render_education(data: list[dict] | None, context: dict | None = None) -> st
             if entry.get("gpa")
             else ""
         )
+        summary = (
+            f'<p style="margin-top:4px;font-size:0.875rem;margin-bottom:0;">{esc(entry["summary"])}</p>'
+            if entry.get("summary")
+            else ""
+        )
         items.append(
             f'''<div>
   <div style="display:flex;justify-content:space-between;align-items:flex-start;">
@@ -27,6 +32,7 @@ def render_education(data: list[dict] | None, context: dict | None = None) -> st
     <p style="font-size:0.75rem;margin:0;">{esc(format_date_range(entry.get("start_date", ""), entry.get("end_date"), bool(entry.get("current"))))}</p>
   </div>
   {gpa}
+  {summary}
 </div>'''
         )
     return '<div style="display:flex;flex-direction:column;gap:12px;">' + "".join(items) + "</div>"

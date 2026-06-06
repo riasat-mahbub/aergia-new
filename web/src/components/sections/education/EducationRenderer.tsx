@@ -20,6 +20,7 @@ export default function EducationRenderer({ data = [] }: Props) {
             </p>
           </div>
           {entry.gpa && <p className="text-xs text-gray-500">GPA: {entry.gpa}</p>}
+          {entry.summary && <p className="mt-1 text-sm text-gray-700">{entry.summary}</p>}
         </div>
       ))}
     </div>
