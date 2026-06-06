@@ -62,10 +62,32 @@ def test_education_no_end_no_current_shows_only_start():
           "start_date": "2018", "end_date": None, "current": False}],
         _ctx(),
     )
-    assert "2018" in html
-    # No stray dash sequence
-    assert " –  " not in html
-    assert " –  &n" not in html
+
+
+def test_education_layout_dates_on_same_row_as_institution():
+    """Education preview: degree/institution on the left, date range on the right
+    in a single flex row — matching ExperienceRenderer."""
+    html = render_section_preview(
+        "education",
+        [{"id": "ed1", "institution": "MIT", "degree": "BS",
+          "start_date": "2018-09", "end_date": "2022-06", "current": False,
+          "gpa": "3.9"}],
+        _ctx(),
+    )
+    # The flex wrapper must be present.
+    assert 'style="display:flex;justify-content:space-between;align-items:flex-start;"' in html
+    # institution and date are both inside the same flex row.
+    inst_idx = html.index("MIT")
+    date_idx = html.index("2018-09 – 2022-06")
+    assert inst_idx < date_idx, f"institution should appear before date, got {html!r}"
+    # And both must be after the flex wrapper opens.
+    flex_start = html.index("display:flex;justify-content:space-between")
+    assert flex_start < inst_idx
+    assert flex_start < date_idx
+    # GPA stays outside the flex row (after the flex wrapper closes).
+    assert "GPA: 3.9" in html
+    gpa_idx = html.index("GPA: 3.9")
+    assert gpa_idx > date_idx
 
 
 def test_projects_link_text_overrides_url():

@@ -43,10 +43,23 @@ describe("DateField", () => {
   });
   it("shows a clear button when value is set and click clears the value", () => {
     const onChange = vi.fn();
-    render(<DateField value="2021-03" onChange={onChange} label="Start Date" />);
+    const { container } = render(<DateField value="2021-03" onChange={onChange} label="Start Date" />);
     const clear = screen.getByRole("button", { name: "Clear" });
     fireEvent.click(clear);
     expect(onChange).toHaveBeenCalledWith("");
+    // The clear button must not be positioned at right-8 — that slot is reserved
+    // for the calendar icon so the native picker chevron stays clickable.
+    expect(clear.className).toContain("right-1");
+    expect(clear.className).not.toContain("right-8");
+    // Calendar icon present (visible affordance for the native picker).
+    expect(container.querySelector("svg.lucide-calendar")).toBeTruthy();
+  });
+  it("renders a decorative calendar icon next to the input even when empty", () => {
+    const { container } = render(<DateField value="" onChange={vi.fn()} label="Start Date" />);
+    const cal = container.querySelector("svg.lucide-calendar");
+    expect(cal).toBeTruthy();
+    // pointer-events-none so clicks pass through to the native input
+    expect((cal as Element).getAttribute("class") || "").toContain("pointer-events-none");
   });
   it("does not show a clear button when disabled", () => {
     render(<DateField value="2021-03" onChange={vi.fn()} label="Start Date" disabled />);

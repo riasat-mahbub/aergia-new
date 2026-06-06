@@ -19,11 +19,10 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Plus, Trash2, ChevronDown, Pencil } from "lucide-react";
+import { GripVertical, Plus, Trash2, Pencil } from "lucide-react";
 import type { SectionInstance, Zone, LayoutConfig } from "../../lib/sections/types";
 import { SECTION_LABELS, getFirstZoneId } from "../../lib/sections/types";
 import { normalizeWidths, getWidthPercent } from "../../lib/sections/zones";
-import SectionEditorPanel from "../sections/SectionEditorPanel";
 import AddSectionModal from "../sections/AddSectionModal";
 import ZoneStyleEditor from "../customization/ZoneStyleEditor";
 import ZoneCreationModal from "../customization/ZoneCreationModal";
@@ -49,23 +48,19 @@ interface Props {
 
 function SortableSection({
   instance,
-  isExpanded,
   editingTitle,
   onRenameInstance,
   setEditingTitle,
   setDeleteConfirmId,
-  onClick,
   readOnly = false,
   selected = false,
   onSelect,
 }: {
   instance: SectionInstance;
-  isExpanded: boolean;
   editingTitle: string | null;
   onRenameInstance: (id: string, title: string) => void;
   setEditingTitle: (id: string | null) => void;
   setDeleteConfirmId: (id: string | null) => void;
-  onClick: () => void;
   readOnly?: boolean;
   selected?: boolean;
   onSelect?: (id: string) => void;
@@ -86,7 +81,7 @@ function SortableSection({
       style={style}
       {...attributes}
       {...listeners}
-      onClick={() => { onSelect?.(instance.id); onClick(); }}
+      onClick={() => onSelect?.(instance.id)}
       data-testid={`zone-section-${instance.id}`}
       className={`flex cursor-pointer items-center gap-2 rounded border px-2 py-1.5 text-sm transition-colors ${
         selected
@@ -149,18 +144,6 @@ function SortableSection({
           >
             <Trash2 className="h-3 w-3" />
           </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onClick();
-            }}
-            className="text-gray-400 hover:text-gray-600"
-            title="Expand"
-          >
-            <ChevronDown
-              className={`h-3.5 w-3.5 transition-transform ${isExpanded ? "rotate-180" : ""}`}
-            />
-          </button>
         </>
       )}
     </div>
@@ -200,7 +183,7 @@ export default function SectionZoneView({
   instances,
   layoutConfig,
   assets,
-  onUpdateData,
+  onUpdateData: _onUpdateData,
   onAddSection,
   onRemoveInstance,
   onRenameInstance,
@@ -213,7 +196,6 @@ export default function SectionZoneView({
 }: Props) {
   const { zones, placement } = layoutConfig;
 
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [expandedZoneStyles, setExpandedZoneStyles] = useState<Set<string>>(new Set());
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -251,15 +233,6 @@ export default function SectionZoneView({
   );
 
   /* ── UI toggles ─────────────────────────────────────────────────── */
-
-  const toggleSectionExpand = (id: string) => {
-    setExpandedSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
 
   const toggleZoneStyle = (zoneId: string) => {
     setExpandedZoneStyles((prev) => {
@@ -444,15 +417,12 @@ export default function SectionZoneView({
                 zone={zone}
                 instances={instances}
                 zoneSectionIds={zoneSectionIds}
-                expandedSections={expandedSections}
                 editingTitle={editingTitle}
                 expandedZoneStyles={expandedZoneStyles}
                 assets={assets}
-                onUpdateData={onUpdateData}
                 onRenameInstance={onRenameInstance}
                 setDeleteConfirmId={setDeleteConfirmId}
                 setEditingTitle={setEditingTitle}
-                toggleSectionExpand={toggleSectionExpand}
                 toggleZoneStyle={toggleZoneStyle}
                 handleAddSectionClick={handleAddSectionClick}
                 handleDeleteZone={handleDeleteZone}
@@ -491,32 +461,14 @@ export default function SectionZoneView({
                   <div key={inst.id}>
                     <SortableSection
                       instance={inst}
-                      isExpanded={expandedSections.has(inst.id)}
                       editingTitle={editingTitle}
                       onRenameInstance={onRenameInstance}
                       setEditingTitle={setEditingTitle}
                       setDeleteConfirmId={setDeleteConfirmId}
-                      onClick={() => toggleSectionExpand(inst.id)}
                       readOnly={readOnly}
                       selected={inst.id === selectedSectionId}
                       onSelect={onSelect}
                     />
-                    {!readOnly && (
-                      <AnimatePresence>
-                        {expandedSections.has(inst.id) && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: "auto", opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            className="overflow-hidden"
-                          >
-                            <div className="rounded-b-lg border-x border-b bg-gray-50 p-3">
-                              <SectionEditorPanel instance={inst} onChange={onUpdateData} />
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    )}
                   </div>
                 ))}
               </div>
@@ -589,15 +541,12 @@ function ZoneBlock({
   zone,
   instances,
   zoneSectionIds,
-  expandedSections,
   editingTitle,
   expandedZoneStyles,
   assets,
-  onUpdateData,
   onRenameInstance,
   setDeleteConfirmId,
   setEditingTitle,
-  toggleSectionExpand,
   toggleZoneStyle,
   handleAddSectionClick,
   handleDeleteZone,
@@ -609,15 +558,12 @@ function ZoneBlock({
   zone: Zone;
   instances: SectionInstance[];
   zoneSectionIds: Record<string, string[]>;
-  expandedSections: Set<string>;
   editingTitle: string | null;
   expandedZoneStyles: Set<string>;
   assets?: Record<string, string>;
-  onUpdateData: (id: string, data: any) => void;
   onRenameInstance: (id: string, title: string) => void;
   setDeleteConfirmId: (id: string | null) => void;
   setEditingTitle: (id: string | null) => void;
-  toggleSectionExpand: (id: string) => void;
   toggleZoneStyle: (id: string) => void;
   handleAddSectionClick: (zoneId: string) => void;
   handleDeleteZone: (zoneId: string) => void;
@@ -723,32 +669,14 @@ function ZoneBlock({
             <div key={instance.id}>
               <SortableSection
                 instance={instance}
-                isExpanded={expandedSections.has(instance.id)}
                 editingTitle={editingTitle}
                 onRenameInstance={onRenameInstance}
                 setEditingTitle={setEditingTitle}
                 setDeleteConfirmId={setDeleteConfirmId}
-                onClick={() => toggleSectionExpand(instance.id)}
                 readOnly={readOnly}
                 selected={instance.id === selectedSectionId}
                 onSelect={onSelect}
               />
-              {!readOnly && (
-                <AnimatePresence>
-                  {expandedSections.has(instance.id) && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="rounded-b-lg border-x border-b bg-gray-50 p-3">
-                        <SectionEditorPanel instance={instance} onChange={onUpdateData} />
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              )}
             </div>
           ))}
         </SortableContext>
