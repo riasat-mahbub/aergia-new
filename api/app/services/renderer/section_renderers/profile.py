@@ -5,7 +5,7 @@ inherits both. The h2 name keeps no inline color (template --heading applies
 via inheritance) and the contact separator stays a subtle divider color.
 """
 
-from ._utils import esc, esc_attr
+from ._utils import esc, esc_attr, normalize_url_scheme
 
 SECTION_LABELS = {
     "profile": "Profile",
@@ -53,8 +53,11 @@ def render_profile(data: dict, context: dict | None = None) -> str:
         contact_items.append(f'<span>{esc(data["location"])}</span>')
     if data.get("site_url"):
         site_text = data.get("site_text") or data["site_url"]
+        # Normalize so Chromium emits a /Link annotation in PDF export —
+        # a bare "rmahbub.com" would render visible text but no click target.
+        site_href = esc_attr(normalize_url_scheme(data["site_url"]))
         contact_items.append(
-            f'<a href="{esc_attr(data["site_url"])}" '
+            f'<a href="{site_href}" '
             f'style="font-size:0.75rem;" '
             f'target="_blank" rel="noopener noreferrer">'
             f'{esc(site_text)}</a>'

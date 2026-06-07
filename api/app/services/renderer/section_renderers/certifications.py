@@ -5,7 +5,7 @@ inherits both. The credential link keeps the template accent color for
 affordance.
 """
 
-from ._utils import esc
+from ._utils import esc, esc_attr, normalize_url_scheme
 
 
 def render_certifications(data: list[dict] | None, context: dict | None = None) -> str:
@@ -19,7 +19,8 @@ def render_certifications(data: list[dict] | None, context: dict | None = None) 
         if entry.get("date"):
             issuer_date += f' · {esc(entry["date"])}'
         cred_link = (
-            f'<a href="{entry["credential_url"]}" style="font-size:0.75rem;">Credential</a>'
+            f'<a href="{esc_attr(normalize_url_scheme(entry["credential_url"]))}" '
+            f'style="font-size:0.75rem;">Credential</a>'
             if entry.get("credential_url")
             else ""
         )

@@ -17,23 +17,16 @@ export default function ProfileRenderer({ data }: Props) {
       <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
         {data.email &&
           (data.email_link !== false ? (
-            <a href={`mailto:${data.email}`} className={linkCls}>
-              {data.email}
-            </a>
+            <span className={linkCls}>{data.email}</span>
           ) : (
             <span>{data.email}</span>
           ))}
         {data.phone && <span>{data.phone}</span>}
         {data.location && <span>{data.location}</span>}
         {data.site_url && (
-          <a
-            href={data.site_url}
-            className={linkCls}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+          <span className={linkCls}>
             {data.site_text || data.site_url}
-          </a>
+          </span>
         )}
       </div>
       {data.summary && <p className="mt-3 text-sm text-gray-700">{data.summary}</p>}

@@ -10,9 +10,8 @@ export default function CertificationsRenderer({ data = [] }: Props) {
       {data.map((entry) => (
         <div key={entry.id}>
           <h3 className="text-sm font-semibold">{entry.name}</h3>
-          <p className="text-xs text-gray-600">{entry.issuer}{entry.date ? ` · ${entry.date}` : ""}</p>
           {entry.credential_url && (
-            <a href={entry.credential_url} className="text-xs text-blue-600 hover:underline">Credential</a>
+            <span className="text-xs text-blue-600 underline">Credential</span>
           )}
         </div>
       ))}

@@ -324,7 +324,54 @@ async def test_preview_profile_title_visible_when_show_title_true(client, auth_h
         json={"title": "Show Title", "template_id": "generic-minimal", "sections": instances},
         headers=auth_headers,
     )
+
+
+@pytest.mark.asyncio
+async def test_preview_cv_strips_anchor_hrefs_for_iframe_safety(client, auth_headers):
+    """The preview iframe is sandboxed but would otherwise replace its own
+    contents when a project / site / credential link is clicked (the
+    "new browser in the iframe" symptom). The preview endpoint must
+    neutralize hrefs while keeping the visible link text + styling
+    intact so clickable behavior is suppressed in the preview only."""
+    sections = [{
+        "id": "sec_projects",
+        "type": "projects",
+        "title": "Projects",
+        "enabled": True,
+        "data": [{
+            "id": "proj_1",
+            "name": "CV Builder",
+            "url": "https://example.com",
+            "link_text": "example.com",
+            "start_date": "2025-01",
+            "end_date": None,
+            "description": "x",
+            "tech_stack": [],
+        }],
+    }]
+    create_resp = await client.post(
+        "/api/v1/cvs",
+        json={"title": "Strip Hrefs CV", "template_id": "generic-modern", "sections": sections},
+        headers=auth_headers,
+    )
     cv_id = create_resp.json()["id"]
-    html = (await client.get(f"/api/v1/cvs/{cv_id}/preview", headers=auth_headers)).json()["html"]
-    assert "Jane Doe" in html
-    assert ">Profile<" in html
+
+    resp = await client.get(f"/api/v1/cvs/{cv_id}/preview", headers=auth_headers)
+    html = resp.json()["html"]
+    # The link's text is preserved so the user sees the URL.
+    assert "example.com" in html
+    # But the destination no longer survives — clicking it can't navigate
+    # the iframe anywhere.
+    assert 'href="https://example.com"' not in html
+    assert 'href="#"' in html
+
+
+def test_render_endpoint_preview_flag_strips_hrefs():
+    """Unit test for the render endpoint helper used by the iframe renderer."""
+    from app.routes.render import strip_anchor_hrefs
+    html_in = '<a href="https://example.com" class="x">Hi</a>'
+    assert 'href="https://example.com"' in html_in
+    out = strip_anchor_hrefs(html_in)
+    # Anchors without hrefs are untouched.
+    assert strip_anchor_hrefs("<a>plain</a>") == "<a>plain</a>"
+    assert 'class="x"' in out

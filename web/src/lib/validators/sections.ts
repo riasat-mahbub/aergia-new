@@ -1,5 +1,27 @@
 import { z } from "zod";
 
+/** Validates URL fields on section entries.
+ *
+ * Empty strings pass (these fields are all optional in profile / projects /
+ * certifications). When populated, the value MUST start with a URL scheme
+ * such as https://, http://, mailto:, or tel:. Bare domains like
+ * 'rmahbub.com' are rejected here for two reasons:
+ *   1. Chromium's print pipeline treats them as relative URLs and emits no
+ *      /Link annotation in the exported PDF.
+ *   2. The TypeScript preview renderers emit <a href={value}> verbatim;
+ *      without a scheme the browser also resolves it relative to the
+ *      current page.
+ * The backend renderer normalizes bare domains defensively, but validating
+ * at the form layer gives the user immediate feedback at the source.
+ */
+const URL_SCHEME_RE = /^[a-zA-Z][a-zA-Z0-9+.\-]*:/;
+export const urlSchema = z
+  .string()
+  .refine(
+    (v) => v === "" || URL_SCHEME_RE.test(v),
+    { message: "URL must start with a scheme (https://, mailto:, tel:, etc.)" },
+  );
+
 export const profileSchema = z.object({
   name: z.string().min(1, "Name is required"),
   title: z.string().min(1, "Title is required"),
@@ -8,7 +30,7 @@ export const profileSchema = z.object({
   phone: z.string().min(1, "Phone is required"),
   location: z.string().min(1, "Location is required"),
   site_text: z.string(),
-  site_url: z.string(),
+  site_url: urlSchema,
   summary: z.string().min(1, "Summary is required"),
   photo_url: z.string(),
 });
@@ -44,7 +66,7 @@ export const skillGroupSchema = z.object({
 export const projectEntrySchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1, "Name is required"),
-  url: z.string(),
+  url: urlSchema,
   link_text: z.string(),
   start_date: z.string().min(1, "Start date is required"),
   end_date: z.string().nullable(),
@@ -62,7 +84,7 @@ export const certificationEntrySchema = z.object({
   name: z.string().min(1, "Name is required"),
   issuer: z.string().min(1, "Issuer is required"),
   date: z.string(),
-  credential_url: z.string(),
+  credential_url: urlSchema,
 });
 
 export const sectionInstanceSchema = z.object({

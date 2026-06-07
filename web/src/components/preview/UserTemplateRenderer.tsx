@@ -39,6 +39,7 @@ export default function UserTemplateRenderer({ instances, customizations, templa
           manifest: renderManifest,
           cv_data: { instances },
           customizations: customizations || {},
+          preview: true,
         });
         setHtml(response.data.html);
       } catch (err) {

@@ -127,6 +127,54 @@ def test_anchors_have_no_inline_accent_color_by_default():
     assert "var(--accent" not in profile_html
 
 
+def test_profile_bare_domain_site_url_is_normalized():
+    """Chromium's print pipeline drops <a href> annotations when the href has
+    no scheme — a bare domain like 'rmahbub.com' is treated as a relative
+    URL against about:blank and never becomes a clickable /Link in the PDF.
+    The renderer must prepend https:// so the link survives PDF export."""
+    html = render_section_preview(
+        "profile",
+        {"name": "R", "email": "r@x.com", "site_url": "rmahbub.com", "site_text": ""},
+        _ctx(),
+    )
+    assert 'href="https://rmahbub.com"' in html
+
+
+def test_profile_already_https_site_url_is_unchanged():
+    """User-entered URLs that already carry a scheme must pass through verbatim."""
+    html = render_section_preview(
+        "profile",
+        {"name": "R", "email": "r@x.com", "site_url": "https://aergia.dev", "site_text": ""},
+        _ctx(),
+    )
+    assert 'href="https://aergia.dev"' in html
+    assert 'href="https://https://' not in html
+
+
+def test_projects_bare_domain_url_is_normalized():
+    """Same Chromium behavior for the projects renderer: a bare-domain
+    project URL must gain an https:// prefix so the project link survives PDF export."""
+    html = render_section_preview(
+        "projects",
+        [{"id": "p1", "name": "CV Builder", "url": "example.com",
+          "link_text": "example.com", "start_date": "2025", "end_date": None}],
+        _ctx(),
+    )
+    assert 'href="https://example.com"' in html
+
+
+def test_certifications_bare_domain_credential_url_is_normalized():
+    """Certifications renderer must prepend a scheme to bare-domain credential URLs,
+    matching the same fix applied to profile and projects."""
+    html = render_section_preview(
+        "certifications",
+        [{"id": "c1", "name": "AWS", "issuer": "Amazon", "date": "2024",
+          "credential_url": "example.com/cred"}],
+        _ctx(),
+    )
+    assert 'href="https://example.com/cred"' in html
+
+
 def test_all_section_types_registered():
     for t in ["profile", "experience", "education", "skills", "projects", "languages", "certifications"]:
         assert t in SECTION_RENDERERS
