@@ -22,6 +22,11 @@ def _ctx(**overrides):
     return base
 
 
+def _zone_with(panels):
+    """Tiny duck-typed zone object satisfying _format_zone_panels."""
+    return type("Zone", (), {"panels": panels})()
+
+
 def test_dispatcher_forwards_context_to_renderer():
     """The dispatcher must always pass context (even if the renderer ignores it)."""
     # Renderers no longer inline the font — they rely on the wrapper (set by
@@ -178,3 +183,42 @@ def test_certifications_bare_domain_credential_url_is_normalized():
 def test_all_section_types_registered():
     for t in ["profile", "experience", "education", "skills", "projects", "languages", "certifications"]:
         assert t in SECTION_RENDERERS
+
+
+def test_field_styles_render_as_css_rules():
+    from app.services.renderer.ir import _build_section_panel
+    from app.services.renderer.backends.html import _format_zone_panels
+    panel = _build_section_panel(
+        {"id": "profile", "type": "profile", "title": "Profile", "enabled": True,
+         "data": {"name": "Alice"}, "style": {"field_styles": {"name": {"size": "24px"}}}},
+        _ctx(),
+    )
+    html = _format_zone_panels(_zone_with([panel]))
+    assert "#s-profile .f-name" in html
+    assert "font-size:24px" in html
+
+
+def test_field_styles_skip_unset_properties():
+    from app.services.renderer.ir import _build_section_panel
+    from app.services.renderer.backends.html import _format_zone_panels
+    panel = _build_section_panel(
+        {"id": "profile", "type": "profile", "title": "Profile", "enabled": True,
+         "data": {"name": "Alice"}, "style": {"field_styles": {"name": {"weight": "700"}}}},
+        _ctx(),
+    )
+    html = _format_zone_panels(_zone_with([panel]))
+    rule = html.split("#s-profile .f-name", 1)[1].split("}", 1)[0]
+    assert "font-weight:700" in rule
+    assert "font-size" not in rule
+
+
+def test_field_styles_omitted_when_empty():
+    from app.services.renderer.ir import _build_section_panel
+    from app.services.renderer.backends.html import _format_zone_panels
+    panel = _build_section_panel(
+        {"id": "profile", "type": "profile", "title": "Profile", "enabled": True,
+         "data": {"name": "Alice"}},
+        _ctx(),
+    )
+    html = _format_zone_panels(_zone_with([panel]))
+    assert "<style>" not in html

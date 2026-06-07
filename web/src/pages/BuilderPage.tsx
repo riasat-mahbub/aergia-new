@@ -279,14 +279,9 @@ export default function BuilderPage() {
       hasChangesRef.current = true;
       setHasUnsavedChanges(true);
       // Persist the style object when any field (including an explicit
-      // show_title) is set. The customize panel strips the object entirely
-      // when nothing is set; this matches that intent.
-      const hasValues =
-        style.font ||
-        style.color ||
-        style.weight ||
-        style.text_align ||
-        typeof style.show_title === "boolean";
+      // show_title or a per-field style) is set. The customize panel strips
+      // the object entirely when nothing is set; this matches that intent.
+      const hasValues = sectionStyleHasValues(style);
       setLocalInstances((prev) =>
         prev.map((i) =>
           i.id === sectionId ? { ...i, style: hasValues ? style : undefined } : i
@@ -516,3 +511,36 @@ export default function BuilderPage() {
     </>
   );
 }
+
+/**
+ * Predicate that mirrors the CustomizePanel's own collapsing rule: a section
+ * style object carries a meaningful user pick iff at least one of its fields
+ * (including per-field typography) is set. A `field_styles` object that is
+ * null or empty is treated as "no values" so the parent collapses to
+ * `undefined`, matching the child.
+ *
+ * Exported so the regression test in
+ * `web/src/pages/__tests__/BuilderPage.handleUpdateStyle.test.tsx` can drive
+ * the exact predicate that `handleUpdateStyle` uses without rendering the
+ * full BuilderPage.
+ */
+export function sectionStyleHasValues(style: SectionStyle): boolean {
+  let fieldStylesHasMeaningfulPick = false;
+  if (style.field_styles != null) {
+    for (const entry of Object.values(style.field_styles)) {
+      if (entry && (entry.font || entry.size || entry.weight)) {
+        fieldStylesHasMeaningfulPick = true;
+        break;
+      }
+    }
+  }
+  return Boolean(
+    style.font ||
+      style.color ||
+      style.weight ||
+      style.text_align ||
+      typeof style.show_title === "boolean" ||
+      fieldStylesHasMeaningfulPick
+  );
+}
+

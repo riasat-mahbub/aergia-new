@@ -72,15 +72,19 @@ class CertificationEntry(BaseModel):
     credential_url: str = ""
 
 
+class FieldStyle(BaseModel):
+    font: str | None = None
+    size: str | None = None
+    weight: str | None = None
+
+
 class SectionStyle(BaseModel):
     font: str | None = None
     color: str | None = None
     weight: str | None = None
     text_align: Literal["left", "right", "center", "justify"] | None = None
-    # show_title controls the section heading (e.g. "PROFILE" / "EXPERIENCE")
-    # in the live preview and PDF. None means use the per-section default
-    # (profile hides the heading, everything else shows it).
     show_title: bool | None = None
+    field_styles: dict[str, FieldStyle] | None = None
 
 
 # Map section type → data model

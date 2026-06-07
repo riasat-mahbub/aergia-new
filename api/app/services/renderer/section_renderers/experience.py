@@ -25,12 +25,12 @@ def render_experience(data: list[dict] | None, context: dict | None = None) -> s
             f'''<div>
   <div style="display:flex;justify-content:space-between;align-items:flex-start;">
     <div>
-      <h3 style="font-weight:600;margin:0;">{esc(entry.get("position", ""))}</h3>
-      <p style="font-size:0.875rem;margin:0;">{esc(entry.get("company", ""))}{loc}</p>
+      <h3 class="f-position" style="margin:0;">{esc(entry.get("position", ""))}</h3>
+      <p class="f-company" style="margin:0;">{esc(entry.get("company", ""))}{loc}</p>
     </div>
-    <p style="font-size:0.75rem;margin:0;">{esc(end)}</p>
+    <p class="f-date" style="margin:0;">{esc(end)}</p>
   </div>
-  {f'<p style="margin-top:4px;font-size:0.875rem;margin-bottom:0;">{esc(entry["description"])}</p>' if entry.get("description") else ""}
+  {f'<p class="f-description" style="margin-top:4px;margin-bottom:0;">{esc(entry["description"])}</p>' if entry.get("description") else ""}
 </div>'''
         )
     return f'<div style="display:flex;flex-direction:column;gap:{subsection_gap};">' + "".join(items) + "</div>"

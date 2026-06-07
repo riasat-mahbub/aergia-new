@@ -1,0 +1,91 @@
+import { describe, it, expect } from "vitest";
+import { sectionStyleHasValues } from "../BuilderPage";
+import type { SectionStyle } from "../../lib/sections/types";
+
+describe("sectionStyleHasValues", () => {
+  it("returns true when only field_styles is set with a non-empty pick (regression: per-field typography)", () => {
+    // This is the case that fails before the fix and passes after.
+    expect(
+      sectionStyleHasValues({
+        field_styles: { name: { font: "Inter, system-ui, sans-serif" } },
+      })
+    ).toBe(true);
+  });
+
+  it("returns true when only field_styles is set with a size pick", () => {
+    expect(
+      sectionStyleHasValues({ field_styles: { title: { size: "16pt" } } })
+    ).toBe(true);
+  });
+
+  it("returns true when only field_styles is set with a weight pick", () => {
+    expect(
+      sectionStyleHasValues({ field_styles: { summary: { weight: "600" } } })
+    ).toBe(true);
+  });
+
+  it("returns true when field_styles carries multiple fields", () => {
+    expect(
+      sectionStyleHasValues({
+        field_styles: {
+          name: { font: "Inter" },
+          title: { size: "14pt", weight: "700" },
+        },
+      })
+    ).toBe(true);
+  });
+
+  it("returns false when field_styles is an empty object", () => {
+    expect(sectionStyleHasValues({ field_styles: {} })).toBe(false);
+  });
+
+  it("returns false when field_styles only contains empty nested objects", () => {
+    expect(
+      sectionStyleHasValues({ field_styles: { name: {}, title: {} } })
+    ).toBe(false);
+  });
+
+  it("returns false when field_styles is null", () => {
+    // Defensive: a malformed null must not bypass the check.
+    expect(
+      sectionStyleHasValues({ field_styles: null as unknown as SectionStyle["field_styles"] })
+    ).toBe(false);
+  });
+
+  it("returns true when section-level font is set (existing behavior preserved)", () => {
+    expect(sectionStyleHasValues({ font: "Inter" })).toBe(true);
+  });
+
+  it("returns true when section-level color is set (existing behavior preserved)", () => {
+    expect(sectionStyleHasValues({ color: "#ff0000" })).toBe(true);
+  });
+
+  it("returns true when section-level weight is set (existing behavior preserved)", () => {
+    expect(sectionStyleHasValues({ weight: "700" })).toBe(true);
+  });
+
+  it("returns true when section-level text_align is set (existing behavior preserved)", () => {
+    expect(sectionStyleHasValues({ text_align: "center" })).toBe(true);
+  });
+
+  it("returns true when show_title is explicitly false (load-bearing: false is a meaningful user choice)", () => {
+    expect(sectionStyleHasValues({ show_title: false })).toBe(true);
+  });
+
+  it("returns true when show_title is explicitly true", () => {
+    expect(sectionStyleHasValues({ show_title: true })).toBe(true);
+  });
+
+  it("returns false for an empty style object", () => {
+    expect(sectionStyleHasValues({})).toBe(false);
+  });
+
+  it("returns true when section-level and per-field styles are mixed", () => {
+    expect(
+      sectionStyleHasValues({
+        color: "#111111",
+        field_styles: { name: { font: "Inter" } },
+      })
+    ).toBe(true);
+  });
+});

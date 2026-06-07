@@ -17,8 +17,7 @@ def render_projects(data: list[dict] | None, context: dict | None = None) -> str
         tech_items = ""
         if entry.get("tech_stack"):
             tech_items = '<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;">' + "".join(
-                f'<span style="display:inline-block;background:#eff6ff;padding:2px 6px;border-radius:4px;'
-                f'font-size:0.75rem;color:#1d4ed8;">{esc(t)}</span>'
+                f'<span class="f-tech" style="display:inline-block;background:#eff6ff;padding:2px 6px;border-radius:4px;color:#1d4ed8;">{esc(t)}</span>'
                 for t in entry["tech_stack"]
             ) + "</div>"
         url = entry.get("url") or ""
@@ -28,7 +27,7 @@ def render_projects(data: list[dict] | None, context: dict | None = None) -> str
         # printed PDF would carry no clickable /Link annotation.
         url_href = esc_attr(normalize_url_scheme(url))
         url_link = (
-            f'<a href="{url_href}" style="font-size:0.75rem;">'
+            f'<a href="{url_href}" class="f-url">'
             f'{esc(link_text)}</a>' if url else ""
         )
         date_range = format_date_range(
@@ -40,12 +39,12 @@ def render_projects(data: list[dict] | None, context: dict | None = None) -> str
             f'''<div>
   <div style="display:flex;justify-content:space-between;align-items:flex-start;">
     <div>
-      <h3 style="font-weight:600;margin:0;">{esc(entry.get("name", ""))}</h3>
+      <h3 class="f-name" style="margin:0;">{esc(entry.get("name", ""))}</h3>
       {url_link}
     </div>
-    <p style="font-size:0.75rem;margin:0;">{esc(date_range)}</p>
+    <p class="f-date" style="margin:0;">{esc(date_range)}</p>
   </div>
-  {f'<p style="margin-top:4px;font-size:0.875rem;margin-bottom:0;">{esc(entry["description"])}</p>' if entry.get("description") else ""}
+  {f'<p class="f-description" style="margin-top:4px;margin-bottom:0;">{esc(entry["description"])}</p>' if entry.get("description") else ""}
   {tech_items}
 </div>'''
         )

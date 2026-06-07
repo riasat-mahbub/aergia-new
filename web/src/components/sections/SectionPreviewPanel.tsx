@@ -5,9 +5,13 @@ interface Props {
   instance: SectionInstance;
 }
 
+// The React inline preview intentionally does NOT honor instance.style.field_styles.
+// Field-level typography is rendered exclusively by the backend pipeline (iframe
+// preview at /render/html + PDF export), which injects per-panel CSS via
+// `f-{key}` hooks. Touching the React renderers to add field styles would
+// duplicate the styling surface in two places; the iframe preview is the
+// source of truth, so users refine field typography there.
 export default function SectionPreviewPanel({ instance }: Props) {
-  if (!instance.enabled) return null;
-
   const wrapperStyle: React.CSSProperties = {};
   const headingStyle: React.CSSProperties = {};
 

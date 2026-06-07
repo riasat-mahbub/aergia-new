@@ -15,12 +15,12 @@ def render_education(data: list[dict] | None, context: dict | None = None) -> st
     items = []
     for entry in data:
         gpa = (
-            f'<p style="font-size:0.75rem;margin:0;">GPA: {esc(entry["gpa"])}</p>'
+            f'<p class="f-gpa" style="margin:0;">GPA: {esc(entry["gpa"])}</p>'
             if entry.get("gpa")
             else ""
         )
         summary = (
-            f'<p style="margin-top:4px;font-size:0.875rem;margin-bottom:0;">{esc(entry["summary"])}</p>'
+            f'<p class="f-summary" style="margin-top:4px;margin-bottom:0;">{esc(entry["summary"])}</p>'
             if entry.get("summary")
             else ""
         )
@@ -28,10 +28,10 @@ def render_education(data: list[dict] | None, context: dict | None = None) -> st
             f'''<div>
   <div style="display:flex;justify-content:space-between;align-items:flex-start;">
     <div>
-      <h3 style="font-weight:600;margin:0;">{esc(entry.get("degree", ""))}</h3>
-      <p style="font-size:0.875rem;margin:0;">{esc(entry.get("institution", ""))}</p>
+      <h3 class="f-degree" style="margin:0;">{esc(entry.get("degree", ""))}</h3>
+      <p class="f-institution" style="margin:0;">{esc(entry.get("institution", ""))}</p>
     </div>
-    <p style="font-size:0.75rem;margin:0;">{esc(format_date_range(entry.get("start_date", ""), entry.get("end_date"), bool(entry.get("current"))))}</p>
+    <p class="f-date" style="margin:0;">{esc(format_date_range(entry.get("start_date", ""), entry.get("end_date"), bool(entry.get("current"))))}</p>
   </div>
   {gpa}
   {summary}

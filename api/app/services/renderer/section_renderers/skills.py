@@ -16,13 +16,13 @@ def render_skills(data: list[dict] | None, context: dict | None = None) -> str:
     items = []
     for group in data:
         skill_items = "".join(
-            f'<span style="display:inline-block;background:#f3f4f6;padding:2px 8px;border-radius:4px;'
-            f'font-size:0.75rem;">{esc(item)}</span>'
+            f'<span class="f-tag" style="display:inline-block;background:#f3f4f6;padding:2px 8px;border-radius:4px;'
+            f'">{esc(item)}</span>'
             for item in group.get("items", [])
         )
         items.append(
             f'''<div>
-  <h3 style="font-size:0.875rem;font-weight:600;margin:0;">{esc(group.get("category", ""))}</h3>
+  <h3 class="f-category" style="margin:0;">{esc(group.get("category", ""))}</h3>
   <div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;">{skill_items}</div>
 </div>'''
         )

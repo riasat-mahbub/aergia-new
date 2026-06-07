@@ -155,3 +155,11 @@ def test_section_style_accepts_text_align():
             data={"name": "Jane"},
             style={"text_align": "bogus"},
         )
+
+
+def test_section_style_accepts_field_styles():
+    from app.schemas.cv import ValidatedSectionInstance
+    inst = ValidatedSectionInstance(id="s1", type="profile", title="Profile", enabled=True,
+                                    data={"name": "Alice"}, style={"field_styles": {"name": {"size": "24px", "weight": "700"}}})
+    assert inst.style.field_styles["name"].size == "24px"
+    assert inst.model_dump()["style"]["field_styles"]["name"]["weight"] == "700"

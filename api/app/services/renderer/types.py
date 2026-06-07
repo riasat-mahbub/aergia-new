@@ -11,7 +11,8 @@ class SectionPanelIR:
     html: str
     wrapper_style: str
     heading_style: str
-
+    panel_id: str = "" 
+    field_style_css: str = ""
 
 @dataclass
 class ZoneIR:
