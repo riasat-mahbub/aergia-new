@@ -19,9 +19,13 @@ def render_education(data: list[dict] | None, context: dict | None = None) -> st
         )
         items.append(
             f'''<div>
-  <h3 style="font-weight:600;margin:0;">{esc(entry.get("degree", ""))}</h3>
-  <p style="font-size:0.875rem;margin:0;">{esc(entry.get("institution", ""))}</p>
-  <p style="font-size:0.75rem;margin:0;">{esc(format_date_range(entry.get("start_date", ""), entry.get("end_date"), bool(entry.get("current"))))}</p>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+    <div>
+      <h3 style="font-weight:600;margin:0;">{esc(entry.get("degree", ""))}</h3>
+      <p style="font-size:0.875rem;margin:0;">{esc(entry.get("institution", ""))}</p>
+    </div>
+    <p style="font-size:0.75rem;margin:0;">{esc(format_date_range(entry.get("start_date", ""), entry.get("end_date"), bool(entry.get("current"))))}</p>
+  </div>
   {gpa}
 </div>'''
         )

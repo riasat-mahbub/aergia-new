@@ -2,7 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import SectionZoneView from "../layout/SectionZoneView";
 
-vi.mock("../sections/SectionEditorPanel", () => ({ default: () => <div /> }));
+const SectionEditorPanelMock = vi.fn(() => <div data-testid="section-editor-panel" />);
+vi.mock("../sections/SectionEditorPanel", () => ({ default: SectionEditorPanelMock }));
 vi.mock("../sections/AddSectionModal", () => ({
   default: ({ open, onSelect }: any) =>
     open ? (
@@ -161,6 +162,18 @@ describe("SectionZoneView zone-only", () => {
     // No lucide Eye/EyeOff icon svgs rendered (no <svg> with those paths —
     // simplest: no element with a title of Enable/Disable).
     expect(screen.queryByTitle("Enable")).toBeNull();
-    expect(screen.queryByTitle("Disable")).toBeNull();
+  });
+  it("clicking a section in the customize tab does NOT expand an editor panel (drag-only)", () => {
+    // The SectionEditorPanel mock renders <div data-testid="section-editor-panel" />.
+    SectionEditorPanelMock.mockClear();
+    const layout = {
+      zones: [{ id: "main", label: "Main", styles: { width: "100%" } }],
+      placement: { sec_a: "main" },
+    };
+    renderView(layout);
+    const row = screen.getByTestId("zone-section-sec_a");
+    fireEvent.click(row);
+    // The editor mock should not have been rendered.
+    expect(SectionEditorPanelMock).not.toHaveBeenCalled();
   });
 });

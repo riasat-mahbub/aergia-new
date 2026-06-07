@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { Calendar, X } from "lucide-react";
 
 interface DateFieldProps {
   value: string | null;
@@ -44,12 +44,20 @@ export default function DateField({
           disabled={disabled}
           placeholder={placeholder}
           aria-label={label}
-          className="w-full rounded border px-2 py-1 text-sm disabled:opacity-50"
+          className="w-full rounded border pl-2 pr-16 py-1 text-sm disabled:opacity-50"
+        />
+        <Calendar
+          aria-hidden="true"
+          className="pointer-events-none absolute right-8 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400"
         />
         {showClear && (
           <button
             type="button"
-            onClick={() => onChange("")}
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onChange("");
+            }}
             aria-label="Clear"
             className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1 text-gray-400 hover:text-gray-600"
           >
