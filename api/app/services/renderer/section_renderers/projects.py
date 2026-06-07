@@ -10,6 +10,8 @@ from ._utils import esc, format_date_range
 def render_projects(data: list[dict] | None, context: dict | None = None) -> str:
     if not data:
         return '<p style="font-size:0.875rem;font-style:italic;opacity:0.7;">No data</p>'
+    css_vars = (context or {}).get("css_vars") or {}
+    subsection_gap = css_vars.get("--subsection-gap", "16px")
     items = []
     for entry in data:
         tech_items = ""
@@ -43,4 +45,4 @@ def render_projects(data: list[dict] | None, context: dict | None = None) -> str
   {tech_items}
 </div>'''
         )
-    return '<div style="display:flex;flex-direction:column;gap:16px;">' + "".join(items) + "</div>"
+    return f'<div style="display:flex;flex-direction:column;gap:{subsection_gap};">' + "".join(items) + "</div>"

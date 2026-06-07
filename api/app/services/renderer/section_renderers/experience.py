@@ -11,6 +11,8 @@ from ._utils import esc, format_date_range
 def render_experience(data: list[dict] | None, context: dict | None = None) -> str:
     if not data:
         return '<p style="font-size:0.875rem;font-style:italic;opacity:0.7;">No data</p>'
+    css_vars = (context or {}).get("css_vars") or {}
+    subsection_gap = css_vars.get("--subsection-gap", "16px")
     items = []
     for entry in data:
         end = format_date_range(
@@ -20,7 +22,7 @@ def render_experience(data: list[dict] | None, context: dict | None = None) -> s
         )
         loc = f', {esc(entry["location"])}' if entry.get("location") else ""
         items.append(
-            f'''<div style="margin-bottom:16px;">
+            f'''<div>
   <div style="display:flex;justify-content:space-between;align-items:flex-start;">
     <div>
       <h3 style="font-weight:600;margin:0;">{esc(entry.get("position", ""))}</h3>
@@ -31,4 +33,4 @@ def render_experience(data: list[dict] | None, context: dict | None = None) -> s
   {f'<p style="margin-top:4px;font-size:0.875rem;margin-bottom:0;">{esc(entry["description"])}</p>' if entry.get("description") else ""}
 </div>'''
         )
-    return '<div style="display:flex;flex-direction:column;gap:16px;">' + "".join(items) + "</div>"
+    return f'<div style="display:flex;flex-direction:column;gap:{subsection_gap};">' + "".join(items) + "</div>"

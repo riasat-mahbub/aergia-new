@@ -10,6 +10,8 @@ from ._utils import esc, format_date_range
 def render_education(data: list[dict] | None, context: dict | None = None) -> str:
     if not data:
         return '<p style="font-size:0.875rem;font-style:italic;opacity:0.7;">No data</p>'
+    css_vars = (context or {}).get("css_vars") or {}
+    subsection_gap = css_vars.get("--subsection-gap", "12px")
     items = []
     for entry in data:
         gpa = (
@@ -35,4 +37,4 @@ def render_education(data: list[dict] | None, context: dict | None = None) -> st
   {summary}
 </div>'''
         )
-    return '<div style="display:flex;flex-direction:column;gap:12px;">' + "".join(items) + "</div>"
+    return f'<div style="display:flex;flex-direction:column;gap:{subsection_gap};">' + "".join(items) + "</div>"

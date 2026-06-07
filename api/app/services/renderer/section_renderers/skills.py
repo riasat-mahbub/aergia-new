@@ -11,6 +11,8 @@ from ._utils import esc
 def render_skills(data: list[dict] | None, context: dict | None = None) -> str:
     if not data:
         return '<p style="font-size:0.875rem;font-style:italic;opacity:0.7;">No data</p>'
+    css_vars = (context or {}).get("css_vars") or {}
+    subsection_gap = css_vars.get("--subsection-gap", "12px")
     items = []
     for group in data:
         skill_items = "".join(
@@ -24,4 +26,4 @@ def render_skills(data: list[dict] | None, context: dict | None = None) -> str:
   <div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;">{skill_items}</div>
 </div>'''
         )
-    return '<div style="display:flex;flex-direction:column;gap:12px;">' + "".join(items) + "</div>"
+    return f'<div style="display:flex;flex-direction:column;gap:{subsection_gap};">' + "".join(items) + "</div>"
