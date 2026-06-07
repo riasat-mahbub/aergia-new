@@ -19,7 +19,7 @@ def render_certifications(data: list[dict] | None, context: dict | None = None) 
         if entry.get("date"):
             issuer_date += f' · {esc(entry["date"])}'
         cred_link = (
-            f'<a href="{entry["credential_url"]}" style="font-size:0.75rem;color:var(--accent, #2563eb);">Credential</a>'
+            f'<a href="{entry["credential_url"]}" style="font-size:0.75rem;">Credential</a>'
             if entry.get("credential_url")
             else ""
         )

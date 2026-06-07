@@ -3,7 +3,7 @@ import { Check } from "lucide-react";
 import type { SectionInstance, SectionStyle, LayoutConfig } from "../../lib/sections/types";
 import { SECTION_LABELS } from "../../lib/sections/types";
 import TemplateSelectorModal from "./TemplateSelectorModal";
-import StyleEditor from "./StyleEditor";
+import StyleEditor, { type StyleVarSchema } from "./StyleEditor";
 import SectionZoneView from "../layout/SectionZoneView";
 
 interface Props {
@@ -16,6 +16,8 @@ interface Props {
   layoutConfig: LayoutConfig;
   onLayoutConfigChange: (config: LayoutConfig) => void;
   assets?: Record<string, string>;
+
+  globalStyleSchema?: StyleVarSchema[];
 }
 
 const FONT_OPTIONS = [
@@ -44,6 +46,7 @@ export default function CustomizePanel({
   layoutConfig,
   onLayoutConfigChange,
   assets,
+  globalStyleSchema,
 }: Props) {
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
@@ -222,7 +225,7 @@ export default function CustomizePanel({
         </div>
       )}
 
-      <StyleEditor customizations={customizations} onChange={onChange} title="Global" />
+      <StyleEditor customizations={customizations} onChange={onChange} title="Global" globalStyleSchema={globalStyleSchema} />
 
 
       <TemplateSelectorModal

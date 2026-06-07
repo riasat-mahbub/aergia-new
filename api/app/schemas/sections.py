@@ -12,11 +12,13 @@ class ProfileData(BaseModel):
     name: str = ""
     title: str = ""
     email: str = ""
+    email_link: bool = True
     phone: str = ""
     location: str = ""
+    site_text: str = ""
+    site_url: str = ""
     summary: str = ""
     photo_url: str = ""
-
 
 class ExperienceEntry(BaseModel):
     id: str

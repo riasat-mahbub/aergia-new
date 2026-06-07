@@ -79,6 +79,8 @@ def test_profile_all_fields_render_in_order():
             "email": "alice@example.com",
             "phone": "555-1234",
             "location": "Berlin",
+            "site_text": "My Site",
+            "site_url": "https://example.com",
             "summary": "Loves building things.",
             "photo_url": "https://example.com/a.jpg",
         },
@@ -88,5 +90,45 @@ def test_profile_all_fields_render_in_order():
     name_pos = html.find("Alice")
     title_pos = html.find("Engineer")
     contact_pos = html.find("alice@example.com")
+    location_pos = html.find("Berlin")
+    site_pos = html.find("My Site")
     summary_pos = html.find("Loves building things.")
-    assert 0 <= img_pos < name_pos < title_pos < contact_pos < summary_pos
+    assert 0 <= img_pos < name_pos < title_pos < contact_pos < location_pos < site_pos < summary_pos
+
+
+def test_profile_email_renders_as_mailto_link_by_default():
+    html = render_profile({"email": "a@b.com"}, _ctx())
+    assert 'href="mailto:a@b.com"' in html
+    assert ">a@b.com</a>" in html
+    assert "<span>a@b.com</span>" not in html
+
+
+def test_profile_email_renders_plain_when_toggle_off():
+    html = render_profile({"email": "a@b.com", "email_link": False}, _ctx())
+    assert "<span>a@b.com</span>" in html
+    assert "mailto:" not in html
+
+
+def test_profile_email_link_inactive_when_email_blank():
+    html = render_profile({"email": ""}, _ctx())
+    assert "mailto:" not in html
+    assert "<a" not in html
+
+
+def test_profile_site_url_only_renders_url_as_text():
+    html = render_profile({"site_url": "https://x.dev"}, _ctx())
+    assert 'href="https://x.dev"' in html
+    assert ">https://x.dev</a>" in html
+
+
+def test_profile_site_text_takes_precedence_when_set():
+    html = render_profile(
+        {"site_url": "https://x.dev", "site_text": "My Site"}, _ctx()
+    )
+    assert ">My Site</a>" in html
+    assert ">https://x.dev</a>" not in html
+
+
+def test_profile_email_unchanged_when_old_data_has_no_toggle():
+    html = render_profile({"email": "a@b.com"}, _ctx())
+    assert 'href="mailto:a@b.com"' in html

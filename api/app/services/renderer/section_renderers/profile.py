@@ -5,7 +5,7 @@ inherits both. The h2 name keeps no inline color (template --heading applies
 via inheritance) and the contact separator stays a subtle divider color.
 """
 
-from ._utils import esc
+from ._utils import esc, esc_attr
 
 SECTION_LABELS = {
     "profile": "Profile",
@@ -39,11 +39,26 @@ def render_profile(data: dict, context: dict | None = None) -> str:
     )
     contact_items = []
     if data.get("email"):
-        contact_items.append(f'<span>{esc(data["email"])}</span>')
+        if data.get("email_link", True) is not False:
+            contact_items.append(
+                f'<a href="mailto:{esc_attr(data["email"])}" '
+                f'style="font-size:0.75rem;">'
+                f'{esc(data["email"])}</a>'
+            )
+        else:
+            contact_items.append(f'<span>{esc(data["email"])}</span>')
     if data.get("phone"):
         contact_items.append(f'<span>{esc(data["phone"])}</span>')
     if data.get("location"):
         contact_items.append(f'<span>{esc(data["location"])}</span>')
+    if data.get("site_url"):
+        site_text = data.get("site_text") or data["site_url"]
+        contact_items.append(
+            f'<a href="{esc_attr(data["site_url"])}" '
+            f'style="font-size:0.75rem;" '
+            f'target="_blank" rel="noopener noreferrer">'
+            f'{esc(site_text)}</a>'
+        )
     if contact_items:
         sep = '<span style="margin:0 6px;color:var(--divider, #d1d5db)">·</span>'
         inner = sep.join(contact_items)
