@@ -110,3 +110,57 @@ def test_projects_falls_back_to_url_when_link_text_empty():
         _ctx(),
     )
     assert "https://example.com" in html
+
+
+def test_education_summary_renders_when_present():
+    html = render_section_preview(
+        "education",
+        [{"id": "ed1", "institution": "MIT", "degree": "BS",
+          "start_date": "2018-09", "end_date": "2022-06", "current": False,
+          "gpa": "3.9", "summary": "Thesis on distributed systems."}],
+        _ctx(),
+    )
+    assert "Thesis on distributed systems." in html
+    # Summary appears after the GPA line — same flex-row-then-meta ordering as
+    # test_education_layout_dates_on_same_row_as_institution.
+    gpa_idx = html.index("GPA: 3.9")
+    summary_idx = html.index("Thesis on distributed systems.")
+    assert summary_idx > gpa_idx, (
+        f"summary should appear after GPA, got {html!r}"
+    )
+
+
+def test_education_summary_omitted_when_empty_or_missing():
+    empty_html = render_section_preview(
+        "education",
+        [{"id": "ed1", "institution": "MIT", "degree": "BS",
+          "start_date": "2018-09", "end_date": "2022-06", "current": False,
+          "gpa": "3.9", "summary": ""}],
+        _ctx(),
+    )
+    missing_html = render_section_preview(
+        "education",
+        [{"id": "ed1", "institution": "MIT", "degree": "BS",
+          "start_date": "2018-09", "end_date": "2022-06", "current": False,
+          "gpa": "3.9"}],
+        _ctx(),
+    )
+    for html in (empty_html, missing_html):
+        # No stray <p> block with an empty summary; the conditional guard must
+        # suppress the line entirely when summary is falsy.
+        assert "<p style=\"margin-top:4px;font-size:0.875rem;margin-bottom:0;\"></p>" not in html
+        assert 'margin-top:4px' not in html
+
+
+def test_education_summary_html_escaped():
+    html = render_section_preview(
+        "education",
+        [{"id": "ed1", "institution": "MIT", "degree": "BS",
+          "start_date": "2018-09", "end_date": "2022-06", "current": False,
+          "gpa": "3.9", "summary": "<script>alert(1)</script>"}],
+        _ctx(),
+    )
+    # Raw <script> tag must not survive into the HTML.
+    assert "<script>alert(1)</script>" not in html
+    # The literal characters must be HTML-escaped.
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html

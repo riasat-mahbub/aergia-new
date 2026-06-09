@@ -73,7 +73,7 @@ SEED_TEMPLATES = [
         "section_schema": {
             "profile": {"fields": ["name", "title", "email", "phone", "location", "summary", "photo_url"]},
             "experience": {"fields": ["company", "position", "start_date", "end_date", "current", "location", "description"]},
-            "education": {"fields": ["institution", "degree", "start_date", "end_date", "gpa"]},
+            "education": {"fields": ["institution", "degree", "start_date", "end_date", "gpa", "summary"]},
             "skills": {"fields": ["category", "items"]},
             "projects": {"fields": ["name", "url", "link_text", "start_date", "end_date", "description", "tech_stack"]},
             "languages": {"fields": ["language", "proficiency"]},
@@ -106,7 +106,7 @@ SEED_TEMPLATES = [
         "section_schema": {
             "profile": {"fields": ["name", "title", "email", "phone", "location", "summary"]},
             "experience": {"fields": ["company", "position", "start_date", "end_date", "current", "location", "description"]},
-            "education": {"fields": ["institution", "degree", "start_date", "end_date", "gpa"]},
+            "education": {"fields": ["institution", "degree", "start_date", "end_date", "gpa", "summary"]},
             "skills": {"fields": ["category", "items"]},
             "projects": {"fields": ["name", "url", "link_text", "start_date", "end_date", "description", "tech_stack"]},
             "languages": {"fields": ["language", "proficiency"]},
@@ -139,7 +139,7 @@ SEED_TEMPLATES = [
         "section_schema": {
             "profile": {"fields": ["name", "title", "email", "phone", "location"]},
             "experience": {"fields": ["company", "position", "start_date", "end_date", "current", "description"]},
-            "education": {"fields": ["institution", "degree", "start_date", "end_date"]},
+            "education": {"fields": ["institution", "degree", "start_date", "end_date", "summary"]},
             "skills": {"fields": ["category", "items"]},
             "projects": {"fields": ["name", "url", "link_text", "start_date", "end_date", "description", "tech_stack"]},
             "languages": {"fields": ["language", "proficiency"]},

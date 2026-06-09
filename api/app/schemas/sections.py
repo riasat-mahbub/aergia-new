@@ -37,6 +37,7 @@ class EducationEntry(BaseModel):
     end_date: str | None = None
     current: bool = False
     gpa: str = ""
+    summary: str = ""
 
 
 class SkillGroup(BaseModel):
