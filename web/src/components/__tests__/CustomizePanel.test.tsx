@@ -236,6 +236,28 @@ describe("CustomizePanel", () => {
     const optionLabels = Array.from(alignSelect!.options).map((o) => o.textContent);
     expect(optionLabels).toEqual(expect.arrayContaining(["Default", "Left", "Right", "Center", "Justify"]));
   });
+  it("renders a Layout select for the skills section that switches between block and inline", () => {
+    const onUpdateStyle = vi.fn();
+    renderCustomizePanel({
+      onUpdateStyle,
+      instances: [
+        {
+          id: "s1",
+          type: "skills",
+          title: "Skills",
+          enabled: true,
+          data: [{ id: "g1", category: "Languages", items: ["Python", "Go"] }],
+        },
+      ],
+    });
+
+    fireEvent.click(screen.getByTestId("zone-section-s1"));
+
+    const layoutSelect = screen.getByRole("combobox", { name: /layout/i }) as HTMLSelectElement;
+    fireEvent.change(layoutSelect, { target: { value: "inline" } });
+    expect(onUpdateStyle).toHaveBeenCalledWith("s1", expect.objectContaining({ layout: "inline" }));
+  });
+
 
   it("Per-field typography panel lists profile fields", () => {
     const onUpdateStyle = vi.fn();

@@ -48,6 +48,25 @@ def test_dispatcher_accepts_missing_context():
     assert "No data" in html or "<div" in html
 
 
+def test_skills_inline_layout_renders_plain_text_fields():
+    html = render_section_preview(
+        "skills",
+        [{"id": "s1", "category": "Languages", "items": ["Python", "Go"]}],
+        _ctx(instance_style={"layout": "inline"}),
+    )
+    assert 'class="f-category"' in html
+    assert 'class="f-tag"' in html
+    assert "background:#f3f4f6" not in html
+
+
+def test_skills_block_layout_preserves_chip_rendering():
+    html = render_section_preview(
+        "skills",
+        [{"id": "s1", "category": "Languages", "items": ["Python"]}],
+        _ctx(instance_style={"layout": "block"}),
+    )
+    assert "background:#f3f4f6" in html
+
 def test_renderers_emit_no_inline_color_or_font_in_body():
     """Section renderers must not hardcode inline color or font on body children.
 

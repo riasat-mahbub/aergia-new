@@ -539,6 +539,7 @@ export function sectionStyleHasValues(style: SectionStyle): boolean {
       style.color ||
       style.weight ||
       style.text_align ||
+      style.layout ||
       typeof style.show_title === "boolean" ||
       fieldStylesHasMeaningfulPick
   );

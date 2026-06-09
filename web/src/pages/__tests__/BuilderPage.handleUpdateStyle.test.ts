@@ -76,6 +76,14 @@ describe("sectionStyleHasValues", () => {
     expect(sectionStyleHasValues({ show_title: true })).toBe(true);
   });
 
+  it("returns true when layout is explicitly inline", () => {
+    expect(sectionStyleHasValues({ layout: "inline" })).toBe(true);
+  });
+
+  it("returns true when layout is explicitly block", () => {
+    expect(sectionStyleHasValues({ layout: "block" })).toBe(true);
+  });
+
   it("returns false for an empty style object", () => {
     expect(sectionStyleHasValues({})).toBe(false);
   });

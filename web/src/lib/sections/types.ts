@@ -77,6 +77,12 @@ export interface SectionStyle {
   field_styles?: Record<string, FieldStyle>;
   /** Whether the section heading renders; undefined uses the section default. */
   show_title?: boolean;
+  /**
+   * Per-section layout variant. Currently only meaningful for the `skills`
+   * section type, where `block` is the default and `inline` renders the
+   * category and its items on one line as plain text.
+   */
+  layout?: "block" | "inline";
 }
 
 export interface SectionInstance {

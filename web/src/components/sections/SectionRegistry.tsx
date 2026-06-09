@@ -12,8 +12,9 @@ import LanguagesEditor from "./languages/LanguagesEditor";
 import LanguagesRenderer from "./languages/LanguagesRenderer";
 import CertificationsEditor from "./certifications/CertificationsEditor";
 import CertificationsRenderer from "./certifications/CertificationsRenderer";
+import type { SectionStyle } from "../../lib/sections/types";
 type EditorProps<T> = { data: T | undefined; onChange: (data: T) => void };
-type RendererProps<T> = { data: T | undefined };
+type RendererProps<T> = { data: T | undefined; style?: SectionStyle };
 
 interface SectionComponent<T = unknown> {
   Editor: (props: EditorProps<T>) => React.JSX.Element;
@@ -40,10 +41,10 @@ export function renderSectionEditor(type: string, data: any, onChange: (data: an
   return <comp.Editor data={data} onChange={onChange} />;
 }
 
-export function renderSectionPreview(type: string, data: any) {
+export function renderSectionPreview(type: string, data: any, style?: SectionStyle) {
   const comp = sectionMap[type];
   if (!comp) return null;
-  return <comp.Renderer data={data} />;
+  return <comp.Renderer data={data} style={style} />;
 }
 
 export { sectionMap };
