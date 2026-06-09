@@ -22,5 +22,13 @@ export function useFieldArray<T extends { id: string }>(
     onChange(updated);
   };
 
-  return { entries: data, add, remove, update };
+  const move = (from: number, to: number) => {
+    if (from === to || from < 0 || from >= data.length || to < 0 || to > data.length) return;
+    const updated = [...data];
+    const [entry] = updated.splice(from, 1);
+    updated.splice(to, 0, entry);
+    onChange(updated);
+  };
+
+  return { entries: data, add, remove, update, move };
 }

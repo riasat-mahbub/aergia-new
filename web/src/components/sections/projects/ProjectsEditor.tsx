@@ -9,7 +9,7 @@ interface Props {
 }
 
 export default function ProjectsEditor({ data = [], onChange }: Props) {
-  const { entries, add, remove, update } = useFieldArray(data, onChange, () => ({
+  const { entries, add, remove, update, move } = useFieldArray(data, onChange, () => ({
     id: `proj_${Date.now()}`,
     name: "",
     url: "",
@@ -35,6 +35,7 @@ export default function ProjectsEditor({ data = [], onChange }: Props) {
       <SortableAccordionList
         entries={entries}
         onRemove={remove}
+        onMove={move}
         getTitle={(e: any) => e.name || "New Project"}
       >
         {(entry: any, i: number) => (

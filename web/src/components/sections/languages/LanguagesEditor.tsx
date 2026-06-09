@@ -10,7 +10,7 @@ interface Props {
 const PROFICIENCIES = ["Native", "Fluent", "Advanced", "Intermediate", "Basic"];
 
 export default function LanguagesEditor({ data = [], onChange }: Props) {
-  const { entries, add, remove, update } = useFieldArray(data, onChange, () => ({
+  const { entries, add, remove, update, move } = useFieldArray(data, onChange, () => ({
     id: `lang_${Date.now()}`,
     language: "",
     proficiency: "Intermediate",
@@ -21,6 +21,7 @@ export default function LanguagesEditor({ data = [], onChange }: Props) {
       <SortableAccordionList
         entries={entries}
         onRemove={remove}
+        onMove={move}
         getTitle={(e: any) => e.language || "New Language"}
       >
         {(entry: any, i: number) => (

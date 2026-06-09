@@ -8,7 +8,7 @@ interface Props {
 }
 
 export default function SkillsEditor({ data = [], onChange }: Props) {
-  const { entries, add, remove, update } = useFieldArray(data, onChange, () => ({
+  const { entries, add, remove, update, move } = useFieldArray(data, onChange, () => ({
     id: `sk_${Date.now()}`,
     category: "",
     items: [],
@@ -29,6 +29,7 @@ export default function SkillsEditor({ data = [], onChange }: Props) {
       <SortableAccordionList
         entries={entries}
         onRemove={remove}
+        onMove={move}
         getTitle={(e: any) => e.category || "New Skill Group"}
       >
         {(group: any, i: number) => (

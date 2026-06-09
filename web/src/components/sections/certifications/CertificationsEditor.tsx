@@ -9,7 +9,7 @@ interface Props {
 }
 
 export default function CertificationsEditor({ data = [], onChange }: Props) {
-  const { entries, add, remove, update } = useFieldArray(data, onChange, () => ({
+  const { entries, add, remove, update, move } = useFieldArray(data, onChange, () => ({
     id: `cert_${Date.now()}`,
     name: "",
     issuer: "",
@@ -22,6 +22,7 @@ export default function CertificationsEditor({ data = [], onChange }: Props) {
       <SortableAccordionList
         entries={entries}
         onRemove={remove}
+        onMove={move}
         getTitle={(e: any) => e.name || "New Certification"}
       >
         {(entry: any, i: number) => (
