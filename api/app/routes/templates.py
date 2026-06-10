@@ -32,8 +32,8 @@ def _build_default_customizations(
             var_type = getattr(var, "type", "")
             key = getattr(var, "key", "")
             default = getattr(var, "default", "")
-        if key:
-            result.setdefault(var_type + "s", {})[key] = default
+        bucket = "flags" if var_type == "boolean" else var_type + "s"
+        result.setdefault(bucket, {})[key] = default
     return result
 
 

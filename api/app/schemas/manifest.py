@@ -26,7 +26,7 @@ class StyleVarSchema(BaseModel):
     """Declaration of a customizable global style variable."""
 
     key: str
-    type: Literal["color", "font", "length", "enum"]
+    type: Literal["color", "font", "length", "enum", "boolean"]
     label: str
     default: str
     options: Optional[list[str]] = None  # for enum

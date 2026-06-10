@@ -14,6 +14,13 @@ PRINT_STYLES = """
 """
 
 
+def _resolve_flags(manifest: dict, customizations: dict) -> dict[str, bool]:
+    """Merge seed `default_customizations.flags` with the user override flags."""
+    defaults = ((manifest.get("default_customizations") or {}).get("flags") or {})
+    overrides = (customizations.get("flags") if isinstance(customizations, dict) else None) or {}
+    return {**defaults, **overrides}
+
+
 def _build_zone_styles(zone: dict) -> dict[str, str]:
     styles = zone.get("styles", {})
     normalized = {}
@@ -135,6 +142,8 @@ def _build_section_panel(instance: dict, context: dict | None = None) -> Section
         "text-transform:uppercase;letter-spacing:0.05em;"
         "color:var(--heading, #1f2937)"
     )
+    if context and context.get("flags", {}).get("underline_section_titles"):
+        heading_extra = f"border-bottom:1px solid var(--heading, #1f2937);padding-bottom:4px;{heading_extra}"
     if heading_extra:
         heading_style = f"{heading_style};{heading_extra}"
 
@@ -257,11 +266,11 @@ def build_ir(
     css_vars = _build_css_vars(manifest, customizations)
     fonts = css_vars.get("--body-font", "system-ui, sans-serif")
 
-    # Build the render context that section renderers consult for template-aware styling.
     context = {
         "body_font": fonts,
         "heading_font": css_vars.get("--heading-font", fonts),
         "css_vars": css_vars,
+        "flags": _resolve_flags(manifest, customizations),
     }
 
     zones = layout_config.get("zones") or manifest.get("zones", [])

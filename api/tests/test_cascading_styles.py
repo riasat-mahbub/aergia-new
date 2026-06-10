@@ -204,3 +204,67 @@ def test_empty_title_skips_heading_html():
     assert '>Profile</h2>' not in html
     # The profile name (an internal h2) is still emitted.
     assert ">Jane Doe<" in html
+def test_section_heading_underline_when_flag_true():
+    """With the `underline_section_titles` flag on, the heading style gets a border-bottom."""
+    ir = build_ir(
+        _manifest([{"id": "main", "styles": {"width": "100%"}}]),
+        # Use a profile instance with the title explicitly shown so the h2 emits.
+        {"instances": [{**SAMPLE[0], "style": {"show_title": True}}, SAMPLE[1]]},
+        {
+            "colors": {"text": "#222", "heading": "#111"},
+            "fonts": {"body": "Inter", "heading": "Inter"},
+            "flags": {"underline_section_titles": True},
+        },
+    )
+    html = HTMLBackend()._format(ir)
+    assert "border-bottom:1px solid var(--heading" in html
+    # The rule lands inside the section heading <h2>, not elsewhere.
+
+    h2_blocks = [seg for seg in html.split("<h2") if "border-bottom:1px solid var(--heading" in seg]
+    assert h2_blocks, "expected border-bottom rule inside at least one <h2> heading element"
+
+
+def test_section_heading_no_underline_when_flag_false_or_missing():
+    """The default (no flag or flag=false) leaves the heading style untouched."""
+    base = _manifest([{"id": "main", "styles": {"width": "100%"}}])
+    instances = {"instances": [SAMPLE[0], SAMPLE[1]]}  # experience shows its title
+
+    ir_missing = build_ir(
+        base,
+        instances,
+        {"colors": {"text": "#222", "heading": "#111"},
+         "fonts": {"body": "Inter", "heading": "Inter"}},
+    )
+    html_missing = HTMLBackend()._format(ir_missing)
+    h2_blocks = [seg for seg in html_missing.split("<h2") if "border-bottom" in seg]
+    assert h2_blocks == [], "no heading should carry border-bottom when the flag is unset"
+
+    ir_false = build_ir(
+        base,
+        instances,
+        {"colors": {"text": "#222", "heading": "#111"},
+         "fonts": {"body": "Inter", "heading": "Inter"},
+         "flags": {"underline_section_titles": False}},
+    )
+    html_false = HTMLBackend()._format(ir_false)
+    h2_blocks = [seg for seg in html_false.split("<h2") if "border-bottom" in seg]
+    assert h2_blocks == [], "no heading should carry border-bottom when the flag is false"
+
+
+def test_underline_flag_uses_heading_color():
+    """The border-bottom references var(--heading) so the heading color drives the underline."""
+    ir = build_ir(
+        _manifest([{"id": "main", "styles": {"width": "100%"}}]),
+        {"instances": [{**SAMPLE[0], "style": {"show_title": True}}, SAMPLE[1]]},
+        {
+            "colors": {"text": "#222", "heading": "#ff0000"},
+            "fonts": {"body": "Inter", "heading": "Inter"},
+            "flags": {"underline_section_titles": True},
+        },
+    )
+    html = HTMLBackend()._format(ir)
+    h2_blocks = [seg for seg in html.split("<h2") if "border-bottom:1px solid var(--heading" in seg]
+    assert h2_blocks, "expected the underline rule on a heading <h2>"
+    # The visual cascade contract: the rule stays on the CSS var (the browser
+    # resolves it at render time, so we only assert the reference).
+    assert h2_blocks[0].count("var(--heading") >= 1
