@@ -11,6 +11,8 @@ from ._utils import esc
 def render_certifications(data: list[dict] | None, context: dict | None = None) -> str:
     if not data:
         return '<p style="font-size:0.875rem;font-style:italic;opacity:0.7;">No data</p>'
+    css_vars = (context or {}).get("css_vars") or {}
+    subsection_gap = css_vars.get("--subsection-gap", "8px")
     items = []
     for entry in data:
         issuer_date = esc(entry.get("issuer", ""))
@@ -28,4 +30,4 @@ def render_certifications(data: list[dict] | None, context: dict | None = None) 
   {cred_link}
 </div>'''
         )
-    return '<div style="display:flex;flex-direction:column;gap:8px;">' + "".join(items) + "</div>"
+    return f'<div style="display:flex;flex-direction:column;gap:{subsection_gap};">' + "".join(items) + "</div>"

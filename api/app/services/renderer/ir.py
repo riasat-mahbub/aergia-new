@@ -131,7 +131,7 @@ def _build_section_panel(instance: dict, context: dict | None = None) -> Section
         # Cascades into heading and body via the wrapper.
         wrapper_extra += f"text-align: {per_style['text_align']};"
 
-    wrapper_style = "margin-bottom:24px"
+    wrapper_style = "margin-bottom:var(--section-gap, 24px)"
     if wrapper_extra:
         wrapper_style = f"{wrapper_style};{wrapper_extra}"
 
@@ -192,7 +192,8 @@ def _build_css_vars(manifest: dict, customizations: dict) -> dict[str, str]:
     # Lengths may arrive under either `spacing` (the user-facing default_customizations
     # convention) or `lengths` (the schema-derived default bucket). Merge both so the
     # same default_customizations shape survives an in-place seed without diverging.
-    spacing = {**(merged.get("spacing") or {}), **(merged.get("lengths") or {})}
+
+    spacing = {**(merged.get("lengths") or {}), **(merged.get("spacing") or {})}
 
     all_vars = {
         "--accent": colors.get("accent"),
@@ -204,6 +205,7 @@ def _build_css_vars(manifest: dict, customizations: dict) -> dict[str, str]:
         "--body-font": fonts.get("body"),
         "--heading-font": fonts.get("heading"),
         "--section-gap": spacing.get("section_gap"),
+        "--subsection-gap": spacing.get("subsection_gap"),
         "--profile-name-size": spacing.get("profile_name_size"),
     }
     return {k: v for k, v in all_vars.items() if v is not None}

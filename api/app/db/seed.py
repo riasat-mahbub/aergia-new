@@ -89,7 +89,7 @@ SEED_TEMPLATES = [
         "default_customizations": {
             "colors": {"accent": "#2563eb", "bg_sidebar": "#f8fafc"},
             "fonts": {"body": "Inter, system-ui, sans-serif", "heading": "Inter, system-ui, sans-serif"},
-            "spacing": {"section_gap": "24px", "profile_name_size": "1.75rem"},
+            "spacing": {"section_gap": "24px", "subsection_gap": "16px", "profile_name_size": "1.75rem"},
             "flags": {"underline_section_titles": False},
         },
     },
@@ -123,7 +123,7 @@ SEED_TEMPLATES = [
         "default_customizations": {
             "colors": {"header": "#000000", "divider": "#d1d5db"},
             "fonts": {"body": "Georgia, Crimson, serif", "heading": "Georgia, Crimson, serif"},
-            "spacing": {"section_gap": "20px", "profile_name_size": "1.5rem"},
+            "spacing": {"section_gap": "20px", "subsection_gap": "12px", "profile_name_size": "1.5rem"},
             "flags": {"underline_section_titles": False},
         },
     },
@@ -157,7 +157,7 @@ SEED_TEMPLATES = [
         "default_customizations": {
             "colors": {"text": "#374151", "heading": "#111827"},
             "fonts": {"body": "system-ui, sans-serif", "heading": "system-ui, sans-serif"},
-            "spacing": {"section_gap": "16px", "profile_name_size": "1.25rem"},
+            "spacing": {"section_gap": "16px", "subsection_gap": "8px", "profile_name_size": "1.25rem"},
             "flags": {"underline_section_titles": False},
         },
     },

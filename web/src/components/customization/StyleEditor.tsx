@@ -8,6 +8,8 @@ interface StyleVarSchema {
   label: string;
   default: string;
   options?: string[];
+  min?: number;
+  max?: number;
 }
 
 interface StyleEditorProps {
@@ -33,9 +35,8 @@ const DEFAULT_SCHEMA: StyleVarSchema[] = [
   { key: "divider", type: "color", label: "Divider", default: "#d1d5db" },
   { key: "text", type: "color", label: "Text", default: "#374151" },
   { key: "heading", type: "color", label: "Heading", default: "#111827" },
-  { key: "body_font", type: "font", label: "Body Font", default: "Inter, system-ui, sans-serif" },
-  { key: "heading_font", type: "font", label: "Heading Font", default: "Inter, system-ui, sans-serif" },
   { key: "section_gap", type: "length", label: "Section Gap", default: "24px" },
+  { key: "subsection_gap", type: "length", label: "Subsection Gap", default: "12px", min: 2, max: 24 },
   { key: "underline_section_titles", type: "boolean", label: "Underline Section Titles", default: "false" },
 ]
 
@@ -152,7 +153,9 @@ export default function StyleEditor({
                         </select>
                       </div>
                     );
-                  case "length":
+                  case "length": {
+                    const min = item.min ?? 8;
+                    const max = item.max ?? 48;
                     return (
                       <div key={item.key} className="flex flex-col">
                         <label className="block text-xs text-gray-600">
@@ -160,14 +163,15 @@ export default function StyleEditor({
                         </label>
                         <input
                           type="range"
-                          min="8"
-                          max="48"
-                          value={parseInt(value.replace("px", "")) || 8}
+                          min={min}
+                          max={max}
+                          value={Math.min(Math.max(parseInt(value.replace("px", "")) || min, min), max)}
                           onChange={(e) => updateVar(item.key, `${e.target.value}px`, "length")}
                           className="mt-1 w-full"
                         />
                       </div>
                     );
+                  }
                   case "boolean":
                     return (
                       <div key={item.key} className="flex items-center justify-between gap-2">
