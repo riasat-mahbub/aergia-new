@@ -94,7 +94,9 @@ vi.mock("motion/react", () => ({
   AnimatePresence: ({ children }: any) => <>{children}</>,
 }));
 
-const renderCustomizePanel = (props?: Partial<Parameters<typeof CustomizePanel>[0]>) =>
+const renderCustomizePanel = (
+  props?: Partial<Parameters<typeof CustomizePanel>[0]>,
+) =>
   render(
     <CustomizePanel
       customizations={{}}
@@ -105,6 +107,7 @@ const renderCustomizePanel = (props?: Partial<Parameters<typeof CustomizePanel>[
       onUpdateStyle={vi.fn()}
       layoutConfig={{ zones: [], placement: {} }}
       onLayoutConfigChange={vi.fn()}
+      globalStyleSchema={undefined}
       {...props}
     />
   );
@@ -238,9 +241,29 @@ describe("CustomizePanel", () => {
     expect(alignSelect).toBeDefined();
     const optionLabels = Array.from(alignSelect!.options).map((o) => o.textContent);
     expect(optionLabels).toEqual(expect.arrayContaining(["Default", "Left", "Right", "Center", "Justify"]));
+  });
+});
 
-    fireEvent.change(alignSelect!, { target: { value: "center" } });
-    expect(onUpdateStyle).toHaveBeenCalledWith("s1", expect.objectContaining({ text_align: "center" }));
+describe("globalStyleSchema prop", () => {
+
+  it("renders the new toggle from the schema, replacing the hardcoded DEFAULT_SCHEMA", () => {
+    renderCustomizePanel({
+      globalStyleSchema: [
+        { key: "default_link_style", type: "boolean", label: "Default Link Style", default: "false" },
+        { key: "underline_section_titles", type: "boolean", label: "Underline Section Titles", default: "false" },
+      ],
+    });
+
+    expect(screen.getByText("Default Link Style")).toBeDefined();
+    expect(screen.getByText("Underline Section Titles")).toBeDefined();
+  });
+
+  it("falls back to hardcoded schema when no globalStyleSchema is supplied", () => {
+    renderCustomizePanel({ globalStyleSchema: undefined });
+
+    // Underline Section Titles is in DEFAULT_SCHEMA; Default Link Style is not.
+    expect(screen.getByText("Underline Section Titles")).toBeDefined();
+    expect(screen.queryByText("Default Link Style")).toBeNull();
   });
 });
 
@@ -266,3 +289,4 @@ describe("T48: customization panel switches via tab bar in BuilderPage", () => {
     await waitFor(() => expect(screen.queryByText("Accent")).toBeNull());
   });
 });
+

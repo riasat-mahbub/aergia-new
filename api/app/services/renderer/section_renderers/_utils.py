@@ -9,6 +9,14 @@ def esc(text: object) -> str:
     return html.escape(str(text))
 
 
+def esc_attr(text: object) -> str:
+    """Escape text for safe insertion into a double-quoted HTML attribute value."""
+    if text is None:
+        return ""
+    return html.escape(str(text), quote=True)
+
+
+
 def format_date_range(start: str, end: str | None, current: bool) -> str:
     """Format a date range for display.
 

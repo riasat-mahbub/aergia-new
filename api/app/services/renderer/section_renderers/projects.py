@@ -24,7 +24,7 @@ def render_projects(data: list[dict] | None, context: dict | None = None) -> str
         url = entry.get("url") or ""
         link_text = entry.get("link_text") or url
         url_link = (
-            f'<a href="{esc(url)}" style="font-size:0.75rem;color:var(--accent, #2563eb);">'
+            f'<a href="{esc(url)}" style="font-size:0.75rem;">'
             f'{esc(link_text)}</a>' if url else ""
         )
         date_range = format_date_range(

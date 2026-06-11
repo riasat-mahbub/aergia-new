@@ -41,3 +41,4 @@ class DocumentIR:
     print_styles: str
     body_font: str
     heading_font: str
+    link_styles: str = ""

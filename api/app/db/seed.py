@@ -78,7 +78,7 @@ SEED_TEMPLATES = [
             }
         },
         "section_schema": {
-            "profile": {"fields": ["name", "title", "email", "phone", "location", "summary", "photo_url"]},
+            "profile": {"fields": ["name", "title", "email", "email_link", "phone", "location", "site_text", "site_url", "summary", "photo_url"]},
             "experience": {"fields": ["company", "position", "start_date", "end_date", "current", "location", "description"]},
             "education": {"fields": ["institution", "degree", "start_date", "end_date", "gpa", "summary"]},
             "skills": {"fields": ["category", "items"]},
@@ -90,7 +90,7 @@ SEED_TEMPLATES = [
             "colors": {"accent": "#2563eb", "bg_sidebar": "#f8fafc"},
             "fonts": {"body": "Inter, system-ui, sans-serif", "heading": "Inter, system-ui, sans-serif"},
             "spacing": {"section_gap": "24px", "subsection_gap": "16px", "profile_name_size": "1.75rem"},
-            "flags": {"underline_section_titles": False},
+            "flags": {"underline_section_titles": False, "default_link_style": False},
         },
     },
     {
@@ -112,7 +112,7 @@ SEED_TEMPLATES = [
             }
         },
         "section_schema": {
-            "profile": {"fields": ["name", "title", "email", "phone", "location", "summary"]},
+            "profile": {"fields": ["name", "title", "email", "email_link", "phone", "location", "site_text", "site_url", "summary"]},
             "experience": {"fields": ["company", "position", "start_date", "end_date", "current", "location", "description"]},
             "education": {"fields": ["institution", "degree", "start_date", "end_date", "gpa", "summary"]},
             "skills": {"fields": ["category", "items"]},
@@ -124,7 +124,7 @@ SEED_TEMPLATES = [
             "colors": {"header": "#000000", "divider": "#d1d5db"},
             "fonts": {"body": "Georgia, Crimson, serif", "heading": "Georgia, Crimson, serif"},
             "spacing": {"section_gap": "20px", "subsection_gap": "12px", "profile_name_size": "1.5rem"},
-            "flags": {"underline_section_titles": False},
+            "flags": {"underline_section_titles": False, "default_link_style": False},
         },
     },
     {
@@ -146,7 +146,7 @@ SEED_TEMPLATES = [
             }
         },
         "section_schema": {
-            "profile": {"fields": ["name", "title", "email", "phone", "location"]},
+            "profile": {"fields": ["name", "title", "email", "email_link", "phone", "location", "site_text", "site_url"]},
             "experience": {"fields": ["company", "position", "start_date", "end_date", "current", "description"]},
             "education": {"fields": ["institution", "degree", "start_date", "end_date", "summary"]},
             "skills": {"fields": ["category", "items"]},
@@ -158,7 +158,7 @@ SEED_TEMPLATES = [
             "colors": {"text": "#374151", "heading": "#111827"},
             "fonts": {"body": "system-ui, sans-serif", "heading": "system-ui, sans-serif"},
             "spacing": {"section_gap": "16px", "subsection_gap": "8px", "profile_name_size": "1.25rem"},
-            "flags": {"underline_section_titles": False},
+            "flags": {"underline_section_titles": False, "default_link_style": False},
         },
     },
 ]

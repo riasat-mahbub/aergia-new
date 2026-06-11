@@ -7,13 +7,50 @@ import SkillsEditor from "../sections/skills/SkillsEditor";
 import LanguagesEditor from "../sections/languages/LanguagesEditor";
 
 describe("ProfileEditor", () => {
+  const baseData = {
+    name: "",
+    title: "",
+    email: "",
+    email_link: true,
+    phone: "",
+    location: "",
+    site_text: "",
+    site_url: "",
+    summary: "",
+    photo_url: "",
+  } as const;
+
   it("renders all fields and updates on input", () => {
     const onChange = vi.fn();
-    render(<ProfileEditor data={{ name: "", title: "", email: "", phone: "", location: "", summary: "", photo_url: "" }} onChange={onChange} />);
+    render(<ProfileEditor data={baseData} onChange={onChange} />);
 
     const nameInput = screen.getAllByRole("textbox")[0];
     fireEvent.change(nameInput, { target: { value: "John" } });
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ name: "John" }));
+  });
+
+  it("checks the email_link toggle by default", () => {
+    render(<ProfileEditor data={{ ...baseData, email_link: true }} onChange={vi.fn()} />);
+    const checkbox = screen.getByRole("checkbox", { name: /make email clickable/i });
+    expect(checkbox).toBeChecked();
+  });
+
+  it("toggles email_link off and reports the change", () => {
+    const onChange = vi.fn();
+    render(<ProfileEditor data={baseData} onChange={onChange} />);
+
+    const checkbox = screen.getByRole("checkbox", { name: /make email clickable/i });
+    fireEvent.click(checkbox);
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ email_link: false }));
+  });
+
+  it("updates site_url on input", () => {
+    const onChange = vi.fn();
+    render(<ProfileEditor data={baseData} onChange={onChange} />);
+
+    const siteUrlInput = screen.getByPlaceholderText("https://example.com");
+    fireEvent.change(siteUrlInput, { target: { value: "https://x.dev" } });
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ site_url: "https://x.dev" }));
   });
 });
 

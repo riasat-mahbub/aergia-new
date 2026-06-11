@@ -14,6 +14,10 @@ PRINT_STYLES = """
 """
 
 
+LINK_STYLES = "  a { color: var(--accent, #2563eb); text-decoration: underline; }\n"
+PLAIN_LINK_STYLES = "  a { color: inherit; text-decoration: none; }\n"
+
+
 def _resolve_flags(manifest: dict, customizations: dict) -> dict[str, bool]:
     """Merge seed `default_customizations.flags` with the user override flags."""
     defaults = ((manifest.get("default_customizations") or {}).get("flags") or {})
@@ -268,22 +272,24 @@ def build_ir(
     css_vars = _build_css_vars(manifest, customizations)
     fonts = css_vars.get("--body-font", "system-ui, sans-serif")
 
+    resolved_flags = _resolve_flags(manifest, customizations)
     context = {
         "body_font": fonts,
         "heading_font": css_vars.get("--heading-font", fonts),
         "css_vars": css_vars,
-        "flags": _resolve_flags(manifest, customizations),
+        "flags": resolved_flags,
     }
-
     zones = layout_config.get("zones") or manifest.get("zones", [])
     groups = _group_instances_by_zone(instances, layout_config, zones)
     rows = _build_rows(manifest, zones, groups, context)
+    link_styles = LINK_STYLES if resolved_flags.get("default_link_style") else PLAIN_LINK_STYLES
     return DocumentIR(
         zones=rows[0].zones,
         css_vars=css_vars,
         print_styles=PRINT_STYLES,
         body_font=fonts,
         heading_font=css_vars.get("--heading-font", fonts),
+        link_styles=link_styles,
     )
 
 

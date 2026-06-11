@@ -96,8 +96,14 @@ def test_per_section_color_cascades_to_all_children():
     # var(--heading) is the template default for the section heading (which
     # then inherits the per-section color via the wrapper).
     assert "color:var(--heading" in html
-    # No child inline `color:` override at all on body text (the bug).
-    assert html.count("color:var(--accent") == 0  # experience has no links/photo
+    # The experience instance has no links/photo, so no var(--accent) escapes.
+    # The profile is the first instance in the output; the experience block
+    # starts at "Did things." and runs to the end.
+    experience_block = html[html.find("Did things."):]
+    assert "color:var(--accent" not in experience_block
+    # The profile email renders as a clickable mailto link with the accent
+    # color — this is an intentional design point, not a cascade bug.
+    assert 'href="mailto:jane@x.com"' in html
 
 
 def test_per_section_font_reaches_heading_and_body():
@@ -268,3 +274,81 @@ def test_underline_flag_uses_heading_color():
     # The visual cascade contract: the rule stays on the CSS var (the browser
     # resolves it at render time, so we only assert the reference).
     assert h2_blocks[0].count("var(--heading") >= 1
+def test_default_link_style_off_renders_plain_anchors():
+    """With the flag off (default), the HTML backend emits no anchor styling rule.
+
+    Anchors blend in with surrounding text; they get no accent color and no
+    underline from the global stylesheet. The existing per-renderer test in
+    test_section_renderers.py covers the inline-style side; this covers the
+    CSS-rule side.
+    """
+    ir = build_ir(
+        _manifest([{"id": "main", "styles": {"width": "100%"}}]),
+        {"instances": [SAMPLE[0]]},
+        {
+            "colors": {"text": "#222", "heading": "#111"},
+            "fonts": {"body": "Inter", "heading": "Inter"},
+        },
+    )
+    html = HTMLBackend()._format(ir)
+    assert "a { color: var(--accent" not in html
+    assert "text-decoration: underline" not in html
+    # The off-state still emits a global rule to suppress the UA default underline
+    # and force link color to inherit from the wrapper.
+    assert "a { color: inherit" in html
+    assert "text-decoration: none" in html
+
+
+def test_default_link_style_on_emits_anchor_rule():
+    """With the flag on, the backend emits the global anchor rule exactly once."""
+    ir = build_ir(
+        _manifest([{"id": "main", "styles": {"width": "100%"}}]),
+        {"instances": [SAMPLE[0]]},
+        {
+            "colors": {"text": "#222", "heading": "#111"},
+            "fonts": {"body": "Inter", "heading": "Inter"},
+            "flags": {"default_link_style": True},
+        },
+    )
+    html = HTMLBackend()._format(ir)
+    expected = "a { color: var(--accent, #2563eb); text-decoration: underline; }"
+    assert html.count(expected) == 1
+    # Rule sits inside the <style> block.
+    style_block = html.split("<style>")[1].split("</style>")[0]
+    assert expected in style_block
+
+
+def test_default_link_style_default_is_off():
+    """A template seeded with default_link_style=False emits no anchor rule
+    when the user has no override."""
+    manifest = _manifest([{"id": "main", "styles": {"width": "100%"}}])
+    manifest["default_customizations"] = {
+        "flags": {"default_link_style": False}
+    }
+    ir = build_ir(
+        manifest,
+        {"instances": [SAMPLE[0]]},
+        {"colors": {"text": "#222"}, "fonts": {"body": "Inter", "heading": "Inter"}},
+    )
+    html = HTMLBackend()._format(ir)
+    assert "a { color: var(--accent" not in html
+
+
+def test_default_link_style_seed_off_overridden_by_user_true():
+    """User override wins over seed default: a True user override emits the rule
+    even when the template seeds default_link_style=False."""
+    manifest = _manifest([{"id": "main", "styles": {"width": "100%"}}])
+    manifest["default_customizations"] = {
+        "flags": {"default_link_style": False}
+    }
+    ir = build_ir(
+        manifest,
+        {"instances": [SAMPLE[0]]},
+        {
+            "colors": {"text": "#222"},
+            "fonts": {"body": "Inter", "heading": "Inter"},
+            "flags": {"default_link_style": True},
+        },
+    )
+    html = HTMLBackend()._format(ir)
+    assert "a { color: var(--accent, #2563eb); text-decoration: underline; }" in html

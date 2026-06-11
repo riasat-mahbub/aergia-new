@@ -99,15 +99,17 @@ def test_renderers_emit_no_inline_color_or_font_in_body():
         )
 
 
-def test_projects_and_certifications_links_keep_accent():
-    """Hyperlinks are visually distinct; keep the accent color on anchors only."""
+def test_anchors_have_no_inline_accent_color_by_default():
+    """Anchors must not hardcode the accent color inline; the per-section wrapper
+    carries the text color and links blend in unless the user opts in via the
+    `default_link_style` flag (which adds a CSS rule in the HTML backend)."""
     projects_html = render_section_preview(
         "projects",
         [{"id": "p1", "name": "CV Builder", "url": "https://example.com",
           "start_date": "2025", "end_date": None}],
         _ctx(),
     )
-    assert "var(--accent" in projects_html
+    assert "var(--accent" not in projects_html
 
     certs_html = render_section_preview(
         "certifications",
@@ -115,7 +117,14 @@ def test_projects_and_certifications_links_keep_accent():
           "credential_url": "https://example.com/cred"}],
         _ctx(),
     )
-    assert "var(--accent" in certs_html
+    assert "var(--accent" not in certs_html
+
+    profile_html = render_section_preview(
+        "profile",
+        {"name": "Jane", "email": "jane@x.com", "site_url": "https://jane.dev"},
+        _ctx(),
+    )
+    assert "var(--accent" not in profile_html
 
 
 def test_all_section_types_registered():

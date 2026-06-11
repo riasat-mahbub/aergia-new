@@ -2,8 +2,11 @@ export interface ProfileData {
   name: string;
   title: string;
   email: string;
+  email_link: boolean;
   phone: string;
   location: string;
+  site_text: string;
+  site_url: string;
   summary: string;
   photo_url: string;
 }
@@ -105,7 +108,7 @@ export const SECTION_TYPES = [
 export function createDefaultSectionData(type: string): any {
   switch (type) {
     case "profile":
-      return { name: "", title: "", email: "", phone: "", location: "", summary: "", photo_url: "" };
+      return { name: "", title: "", email: "", email_link: true, phone: "", location: "", site_text: "", site_url: "", summary: "", photo_url: "" };
     case "experience":
       return [{ id: generateInstanceId(), company: "", position: "", start_date: "", end_date: null, current: false, location: "", description: "" }];
     case "education":

@@ -476,6 +476,7 @@ export default function BuilderPage() {
                   layoutConfig={normalizedLayoutConfig || { zones: [], placement: {} }}
                   onLayoutConfigChange={handleLayoutConfigChange}
                   assets={templateManifest?.assets}
+                  globalStyleSchema={templateManifest?.globalStyleSchema}
                 />
               )}
             </div>

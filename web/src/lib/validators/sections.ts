@@ -4,8 +4,11 @@ export const profileSchema = z.object({
   name: z.string().min(1, "Name is required"),
   title: z.string().min(1, "Title is required"),
   email: z.string().email("Invalid email address"),
+  email_link: z.boolean().default(true),
   phone: z.string().min(1, "Phone is required"),
   location: z.string().min(1, "Location is required"),
+  site_text: z.string(),
+  site_url: z.string(),
   summary: z.string().min(1, "Summary is required"),
   photo_url: z.string(),
 });
