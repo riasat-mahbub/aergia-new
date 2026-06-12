@@ -74,7 +74,8 @@ SEED_TEMPLATES = [
                 "skills": "main",
                 "projects": "main",
                 "languages": "main",
-                "certifications": "main"
+                "certifications": "main",
+                "research": "main"
             }
         },
         "section_schema": {
@@ -85,6 +86,7 @@ SEED_TEMPLATES = [
             "projects": {"fields": ["name", "url", "link_text", "start_date", "end_date", "description", "tech_stack"]},
             "languages": {"fields": ["language", "proficiency"]},
             "certifications": {"fields": ["name", "issuer", "date", "credential_url"]},
+            "research": {"fields": ["title", "paper_url", "paper_link_text", "description", "publication_date"]},
         },
         "default_customizations": {
             "colors": {"accent": "#2563eb", "bg_sidebar": "#f8fafc"},
@@ -108,7 +110,8 @@ SEED_TEMPLATES = [
                 "skills": "main",
                 "projects": "main",
                 "languages": "main",
-                "certifications": "main"
+                "certifications": "main",
+                "research": "main"
             }
         },
         "section_schema": {
@@ -119,6 +122,7 @@ SEED_TEMPLATES = [
             "projects": {"fields": ["name", "url", "link_text", "start_date", "end_date", "description", "tech_stack"]},
             "languages": {"fields": ["language", "proficiency"]},
             "certifications": {"fields": ["name", "issuer", "date", "credential_url"]},
+            "research": {"fields": ["title", "paper_url", "paper_link_text", "description", "publication_date"]},
         },
         "default_customizations": {
             "colors": {"header": "#000000", "divider": "#d1d5db"},
@@ -130,7 +134,6 @@ SEED_TEMPLATES = [
     {
         "id": "generic-minimal",
         "name": "Minimal",
-        "description": "Clean single-column layout with grayscale styling and no decoration",
         "layout_config": {
             "zones": [
                 {"id": "main", "styles": {"width": "100%", "padding": "32px"}}
@@ -142,7 +145,8 @@ SEED_TEMPLATES = [
                 "skills": "main",
                 "projects": "main",
                 "languages": "main",
-                "certifications": "main"
+                "certifications": "main",
+                "research": "main"
             }
         },
         "section_schema": {
@@ -153,6 +157,7 @@ SEED_TEMPLATES = [
             "projects": {"fields": ["name", "url", "link_text", "start_date", "end_date", "description", "tech_stack"]},
             "languages": {"fields": ["language", "proficiency"]},
             "certifications": {"fields": ["name", "issuer", "date"]},
+            "research": {"fields": ["title", "paper_url", "paper_link_text", "description", "publication_date"]},
         },
         "default_customizations": {
             "colors": {"text": "#374151", "heading": "#111827"},

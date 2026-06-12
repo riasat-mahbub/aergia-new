@@ -19,6 +19,7 @@ describe("AddSectionModal", () => {
     expect(screen.getByText(SECTION_LABELS.projects)).toBeDefined();
     expect(screen.getByText(SECTION_LABELS.languages)).toBeDefined();
     expect(screen.getByText(SECTION_LABELS.certifications)).toBeDefined();
+    expect(screen.getByText(SECTION_LABELS.research)).toBeDefined();
   });
 
   it("does not render content when closed", () => {

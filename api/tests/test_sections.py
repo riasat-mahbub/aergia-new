@@ -107,3 +107,42 @@ async def test_validation_rejects_invalid_section_data(client, auth_headers):
     stored = resp.json()["sections"]
     assert stored[0]["data"]["name"] == "Test"
     assert stored[0]["data"]["email"] == "bad-email"  # stored as-is, frontend validates
+
+
+@pytest.mark.asyncio
+async def test_research_section_round_trips_all_fields(client, auth_headers):
+    """A Research entry must round-trip every field through the CV JSON column
+    (create → read). title and description are required by the frontend
+    schema; the backend stores any JSON, so this assertion is the persistence
+    contract only."""
+    research_instance = {
+        "id": "sec_research",
+        "type": "research",
+        "title": "Research",
+        "enabled": True,
+        "data": [
+            {
+                "id": "r1",
+                "title": "Verified Paper",
+                "paper_url": "https://doi.org/10.0000/aergia.2026",
+                "paper_link_text": "DOI",
+                "description": "Findings",
+                "publication_date": "2026-06",
+            }
+        ],
+    }
+    resp = await client.post(
+        "/api/v1/cvs",
+        json={"title": "Research Test", "sections": [research_instance]},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201
+    stored = resp.json()["sections"]
+    assert stored[0]["type"] == "research"
+    entry = stored[0]["data"][0]
+    assert entry["id"] == "r1"
+    assert entry["title"] == "Verified Paper"
+    assert entry["paper_url"] == "https://doi.org/10.0000/aergia.2026"
+    assert entry["paper_link_text"] == "DOI"
+    assert entry["description"] == "Findings"
+    assert entry["publication_date"] == "2026-06"

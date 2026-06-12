@@ -71,6 +71,13 @@ class CertificationEntry(BaseModel):
     date: str = ""
     credential_url: str = ""
 
+class ResearchEntry(BaseModel):
+    id: str
+    title: str = ""
+    paper_url: str = ""
+    paper_link_text: str = ""
+    description: str = ""
+    publication_date: str = ""
 
 class FieldStyle(BaseModel):
     font: str | None = None
@@ -97,4 +104,5 @@ SECTION_DATA_MODELS: dict[str, type[BaseModel] | list[type[BaseModel]]] = {
     "projects": [ProjectEntry],
     "languages": [LanguageEntry],
     "certifications": [CertificationEntry],
+    "research": [ResearchEntry],
 }

@@ -63,6 +63,15 @@ export interface CertificationEntry {
   credential_url: string;
 }
 
+export interface ResearchEntry {
+  id: string;
+  title: string;
+  paper_url: string;
+  paper_link_text: string;
+  description: string;
+  publication_date: string;
+}
+
 export interface FieldStyle {
   font?: string;
   size?: string;
@@ -102,6 +111,7 @@ export const SECTION_LABELS: Record<string, string> = {
   projects: "Projects",
   languages: "Languages",
   certifications: "Certifications",
+  research: "Research",
 };
 
 export const SECTION_TYPES = [
@@ -112,6 +122,7 @@ export const SECTION_TYPES = [
   "projects",
   "languages",
   "certifications",
+  "research",
 ] as const;
 
 export function createDefaultSectionData(type: string): any {
@@ -130,6 +141,15 @@ export function createDefaultSectionData(type: string): any {
       return [{ id: generateInstanceId(), language: "", proficiency: "Intermediate" }];
     case "certifications":
       return [{ id: generateInstanceId(), name: "", issuer: "", date: "", credential_url: "" }];
+    case "research":
+      return [{
+        id: generateInstanceId(),
+        title: "",
+        paper_url: "",
+        paper_link_text: "",
+        description: "",
+        publication_date: "",
+      }];
     default:
       return {};
   }

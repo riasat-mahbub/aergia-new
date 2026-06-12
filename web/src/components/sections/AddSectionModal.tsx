@@ -1,4 +1,4 @@
-import { User, Briefcase, GraduationCap, Wrench, FolderKanban, Globe, Award } from "lucide-react";
+import { User, Briefcase, GraduationCap, Wrench, FolderKanban, Globe, Award, BookOpen } from "lucide-react";
 import { SECTION_LABELS, SECTION_TYPES } from "../../lib/sections/types";
 import Modal from "../common/Modal";
 
@@ -16,6 +16,7 @@ const SECTION_ICONS: Record<string, React.ReactNode> = {
   projects: <FolderKanban className="h-6 w-6" />,
   languages: <Globe className="h-6 w-6" />,
   certifications: <Award className="h-6 w-6" />,
+  research: <BookOpen className="h-6 w-6" />,
 };
 
 export default function AddSectionModal({ open, onClose, onSelect }: Props) {
