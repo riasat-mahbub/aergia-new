@@ -20,14 +20,14 @@ def render_certifications(data: list[dict] | None, context: dict | None = None) 
             issuer_date += f' · {esc(entry["date"])}'
         cred_link = (
             f'<a href="{esc_attr(normalize_url_scheme(entry["credential_url"]))}" '
-            f'style="font-size:0.75rem;">Credential</a>'
+            f'class="f-url">Credential</a>'
             if entry.get("credential_url")
             else ""
         )
         items.append(
             f'''<div>
-  <h3 style="font-size:0.875rem;font-weight:600;margin:0;">{esc(entry.get("name", ""))}</h3>
-  <p style="font-size:0.75rem;margin:0;">{issuer_date}</p>
+  <h3 class="f-name" style="margin:0;">{esc(entry.get("name", ""))}</h3>
+  <p class="f-meta" style="margin:0;">{issuer_date}</p>
   {cred_link}
 </div>'''
         )

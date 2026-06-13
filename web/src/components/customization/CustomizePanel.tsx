@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
-import type { SectionInstance, SectionStyle, LayoutConfig } from "../../lib/sections/types";
+import type { SectionInstance, SectionStyle, LayoutConfig, FieldStyle } from "../../lib/sections/types";
 import { SECTION_LABELS } from "../../lib/sections/types";
+import { getFieldDefs } from "../../lib/sections/fieldStyles";
 import TemplateSelectorModal from "./TemplateSelectorModal";
 import StyleEditor, { type StyleVarSchema } from "./StyleEditor";
 import SectionZoneView from "../layout/SectionZoneView";
-
 interface Props {
   customizations: Record<string, any>;
   onChange: (customizations: Record<string, any>) => void;
@@ -36,6 +36,40 @@ const WEIGHT_OPTIONS = [
   { label: "Bold", value: "700" },
 ];
 
+const SIZE_OPTIONS = [
+  "0.625rem", "0.75rem", "0.875rem", "1rem", "1.125rem", "1.25rem",
+  "1.5rem", "1.75rem", "2rem", "2.25rem", "2.5rem", "3rem",
+];
+
+function FieldStyleRow({ label, value, onChange }: { label: string; value: FieldStyle; onChange: (next: FieldStyle) => void }) {
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-xs font-medium text-gray-700">{label}</span>
+        {(value.font || value.size || value.weight) && (
+          <button type="button" onClick={() => onChange({})} className="text-[10px] text-blue-600 hover:underline">
+            Reset
+          </button>
+        )}
+      </div>
+      <div className="grid grid-cols-3 gap-1">
+        <select value={value.font || ""} onChange={(e) => onChange({ ...value, font: e.target.value || undefined })} className="rounded border px-1 py-1 text-xs">
+          <option value="">Font</option>
+          {FONT_OPTIONS.map((f) => <option key={f} value={f}>{f.split(",")[0]}</option>)}
+        </select>
+        <select value={value.size || ""} onChange={(e) => onChange({ ...value, size: e.target.value || undefined })} className="rounded border px-1 py-1 text-xs">
+          <option value="">Size</option>
+          {SIZE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select value={value.weight || ""} onChange={(e) => onChange({ ...value, weight: e.target.value || undefined })} className="rounded border px-1 py-1 text-xs">
+          <option value="">Weight</option>
+          {WEIGHT_OPTIONS.map((w) => <option key={w.value} value={w.value}>{w.label}</option>)}
+        </select>
+      </div>
+    </div>
+  );
+}
+
 export default function CustomizePanel({
   customizations,
   onChange,
@@ -64,19 +98,29 @@ export default function CustomizePanel({
   const updateSelectedStyle = (partial: Partial<SectionStyle>) => {
     if (!selectedSectionId) return;
     const merged = { ...selectedStyle, ...partial };
-    // `show_title` only matters when explicitly set, so include it in the
-    // hasValues check (it can be `false` to suppress the heading).
     const hasValues =
       merged.font ||
       merged.color ||
       merged.weight ||
       merged.text_align ||
-      typeof merged.show_title === "boolean";
+      typeof merged.show_title === "boolean" ||
+      (merged.field_styles && Object.keys(merged.field_styles).length > 0);
     onUpdateStyle(selectedSectionId, hasValues ? merged : {});
   };
 
-  // Default for the "Show Title" toggle: profile hides its heading out of
-  // the box; every other section shows it. An explicit user choice wins.
+  const updateSelectedFieldStyle = (field: string, partial: FieldStyle) => {
+    if (!selectedSectionId) return;
+    const current = selectedStyle.field_styles?.[field] || {};
+    const nextField = { ...current, ...partial };
+    const nextFieldStyles = { ...(selectedStyle.field_styles || {}) };
+    if (nextField.font || nextField.size || nextField.weight) {
+      nextFieldStyles[field] = nextField;
+    } else {
+      delete nextFieldStyles[field];
+    }
+    updateSelectedStyle({ field_styles: nextFieldStyles });
+  };
+
   const defaultShowTitle = selectedInstance?.type !== "profile";
   const currentShowTitle =
     typeof selectedStyle.show_title === "boolean"
@@ -86,7 +130,6 @@ export default function CustomizePanel({
   return (
     <div>
       <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Customize</h3>
-
       <div className="mb-4">
         <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Template</h4>
         <div className="space-y-1.5">
@@ -221,6 +264,23 @@ export default function CustomizePanel({
                 />
               </button>
             </div>
+            {getFieldDefs(selectedInstance.type).length > 0 && (
+              <div className="border-t pt-2 mt-2">
+                <h5 className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                  Per-field typography
+                </h5>
+                <div className="space-y-3">
+                  {getFieldDefs(selectedInstance.type).map((f) => (
+                    <FieldStyleRow
+                      key={f.key}
+                      label={f.label}
+                      value={selectedStyle.field_styles?.[f.key] || {}}
+                      onChange={(next) => updateSelectedFieldStyle(f.key, next)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

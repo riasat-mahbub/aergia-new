@@ -63,16 +63,19 @@ export interface CertificationEntry {
   credential_url: string;
 }
 
+export interface FieldStyle {
+  font?: string;
+  size?: string;
+  weight?: string;
+}
+
 export interface SectionStyle {
   font?: string;
   color?: string;
   weight?: string;
   text_align?: "left" | "right" | "center" | "justify";
-  /**
-   * Whether the section's heading (e.g. "PROFILE", "EXPERIENCE") renders in
-   * the live preview and PDF. `undefined` falls back to the per-section
-   * default (profile hides its heading; everything else shows it).
-   */
+  field_styles?: Record<string, FieldStyle>;
+  /** Whether the section heading renders; undefined uses the section default. */
   show_title?: boolean;
 }
 

@@ -139,8 +139,6 @@ def _build_section_panel(instance: dict, context: dict | None = None) -> Section
     if wrapper_extra:
         wrapper_style = f"{wrapper_style};{wrapper_extra}"
 
-    # The section heading keeps `var(--heading)` so the template palette wins
-    # when no per-section color is set; otherwise it inherits from the wrapper.
     heading_style = (
         "margin-bottom:8px;font-size:1rem;font-weight:700;"
         "text-transform:uppercase;letter-spacing:0.05em;"
@@ -151,15 +149,19 @@ def _build_section_panel(instance: dict, context: dict | None = None) -> Section
     if heading_extra:
         heading_style = f"{heading_style};{heading_extra}"
 
+    panel_id = f"s-{instance.get('id', '')}" if instance.get("id") else ""
+    prop_map = {"font": "font-family", "size": "font-size", "weight": "font-weight"}
+    rules = []
+    for key, field_style in (per_style.get("field_styles") or {}).items():
+        decls = ";".join(f"{prop_map[prop]}:{field_style[prop]}" for prop in prop_map if field_style.get(prop))
+        if decls:
+            rules.append(f"#{panel_id} .f-{key}{{{decls}}}")
+    field_style_css = "".join(rules)
     return SectionPanelIR(
-        type=section_type,
-        title=title if show_title else "",
-        html=panel_html,
-        wrapper_style=wrapper_style,
-        heading_style=heading_style,
+        type=section_type, title=title if show_title else "", html=panel_html,
+        wrapper_style=wrapper_style, heading_style=heading_style,
+        panel_id=panel_id, field_style_css=field_style_css,
     )
-
-
 def _build_asset_panels(manifest: dict, zone_id: str) -> list[SectionPanelIR]:
     """Build SectionPanelIR entries for assets assigned to this zone."""
     panels = []

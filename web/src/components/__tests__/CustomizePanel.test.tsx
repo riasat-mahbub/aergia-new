@@ -148,10 +148,8 @@ describe("CustomizePanel", () => {
     });
 
     expect(screen.getByTestId("zone-view")).toBeDefined();
-    // Section names surface in the mocked zone view, not the per-section override list.
     expect(screen.getByText("John")).toBeDefined();
     expect(screen.getByText("Work")).toBeDefined();
-    // No "Section Overrides" heading anymore.
     expect(screen.queryByText(/Section Overrides/i)).toBeNull();
   });
 
@@ -164,12 +162,10 @@ describe("CustomizePanel", () => {
       ],
     });
 
-    // Per-section panel is hidden before any selection.
     expect(screen.queryByText(/Style: John/)).toBeNull();
 
     fireEvent.click(screen.getByTestId("zone-section-s1"));
 
-    // After selection, the per-section style panel appears.
     expect(screen.getByText(/Style: John/)).toBeDefined();
   });
 
@@ -184,7 +180,6 @@ describe("CustomizePanel", () => {
 
     fireEvent.click(screen.getByTestId("zone-section-s1"));
 
-    // The hex color input is a text input; find by placeholder.
     const hexInput = screen.getByPlaceholderText("Default") as HTMLInputElement;
     fireEvent.change(hexInput, { target: { value: "#ff0000" } });
 
@@ -233,7 +228,6 @@ describe("CustomizePanel", () => {
 
     fireEvent.click(screen.getByTestId("zone-section-s1"));
 
-    // Find the Text Align select among the panel's comboboxes by its options.
     const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
     const alignSelect = selects.find((s) =>
       Array.from(s.options).some((o) => o.value === "justify"),
@@ -242,10 +236,41 @@ describe("CustomizePanel", () => {
     const optionLabels = Array.from(alignSelect!.options).map((o) => o.textContent);
     expect(optionLabels).toEqual(expect.arrayContaining(["Default", "Left", "Right", "Center", "Justify"]));
   });
+
+  it("Per-field typography panel lists profile fields", () => {
+    const onUpdateStyle = vi.fn();
+    renderCustomizePanel({
+      onUpdateStyle,
+      instances: [{ id: "s1", type: "profile", title: "John", enabled: true, data: {} }],
+    });
+
+    fireEvent.click(screen.getByTestId("zone-section-s1"));
+
+    expect(screen.getByText("Per-field typography")).toBeDefined();
+    expect(screen.getByText("Name")).toBeDefined();
+    expect(screen.getByText("Title")).toBeDefined();
+    expect(screen.getByText("Summary")).toBeDefined();
+    expect(screen.getByText("Contact")).toBeDefined();
+  });
+
+  it("Per-field typography panel lists project fields", () => {
+    const onUpdateStyle = vi.fn();
+    renderCustomizePanel({
+      onUpdateStyle,
+      instances: [{ id: "s2", type: "projects", title: "Proj", enabled: true, data: [] }],
+    });
+
+    fireEvent.click(screen.getByTestId("zone-section-s2"));
+
+    expect(screen.getByText("Name")).toBeDefined();
+    expect(screen.getByText("Link")).toBeDefined();
+    expect(screen.getByText("Date")).toBeDefined();
+    expect(screen.getByText("Description")).toBeDefined();
+    expect(screen.getByText("Tech")).toBeDefined();
+  });
 });
 
 describe("globalStyleSchema prop", () => {
-
   it("renders the new toggle from the schema, replacing the hardcoded DEFAULT_SCHEMA", () => {
     renderCustomizePanel({
       globalStyleSchema: [
@@ -261,7 +286,6 @@ describe("globalStyleSchema prop", () => {
   it("falls back to hardcoded schema when no globalStyleSchema is supplied", () => {
     renderCustomizePanel({ globalStyleSchema: undefined });
 
-    // Underline Section Titles is in DEFAULT_SCHEMA; Default Link Style is not.
     expect(screen.getByText("Underline Section Titles")).toBeDefined();
     expect(screen.queryByText("Default Link Style")).toBeNull();
   });
@@ -289,4 +313,3 @@ describe("T48: customization panel switches via tab bar in BuilderPage", () => {
     await waitFor(() => expect(screen.queryByText("Accent")).toBeNull());
   });
 });
-

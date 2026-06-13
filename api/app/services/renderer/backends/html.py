@@ -20,9 +20,12 @@ def _format_zone_panels(zone: ZoneIR) -> str:
     panels = []
     for panel in zone.panels:
         heading_html = f'<h2 style="{panel.heading_style}">{panel.title}</h2>' if panel.title else ""
+        field_css = f"<style>{panel.field_style_css}</style>" if panel.field_style_css else ""
+        panel_id_attr = f' id="{panel.panel_id}"' if panel.panel_id else ""
         panels.append(
-            f'<div style="{panel.wrapper_style}">'
+            f'<div{panel_id_attr} style="{panel.wrapper_style}">'
             f'{heading_html}'
+            f'{field_css}'
             f'{panel.html}'
             f'</div>'
         )
@@ -67,6 +70,11 @@ class HTMLBackend(AbstractRenderer):
     h1, h2, h3, h4, h5, h6 {{
       font-family: {ir.heading_font};
     }}
+    .f-name {{ font-size: var(--profile-name-size, 1.5rem); font-weight: 700; }}
+    .f-title, .f-summary, .f-company, .f-description, .f-institution, .f-category {{ font-size: 0.875rem; }}
+    .f-contact, .f-date, .f-gpa, .f-url, .f-tech, .f-tag, .f-proficiency, .f-meta {{ font-size: 0.75rem; }}
+    .f-position, .f-degree {{ font-weight: 600; }}
+    .f-category {{ font-weight: 600; }}
 {ir.link_styles}    {ir.print_styles}
   </style>
 </head>

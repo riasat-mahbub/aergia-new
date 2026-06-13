@@ -12,10 +12,9 @@ def render_languages(data: list[dict] | None, context: dict | None = None) -> st
     css_vars = (context or {}).get("css_vars") or {}
     subsection_gap = css_vars.get("--subsection-gap", "4px")
     items = "".join(
-        f'<div style="display:flex;justify-content:space-between;align-items:center;'
-        f'font-size:0.875rem;">'
-        f'<span>{esc(e.get("language", ""))}</span>'
-        f'<span style="font-size:0.75rem;">{esc(e.get("proficiency", ""))}</span>'
+        f'<div style="display:flex;justify-content:space-between;align-items:center;">'
+        f'<span class="f-language">{esc(e.get("language", ""))}</span>'
+        f'<span class="f-proficiency">{esc(e.get("proficiency", ""))}</span>'
         f'</div>'
         for e in data
     )

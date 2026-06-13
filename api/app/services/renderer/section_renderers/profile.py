@@ -20,8 +20,6 @@ SECTION_LABELS = {
 
 def render_profile(data: dict, context: dict | None = None) -> str:
     ctx = context or {}
-    css_vars = ctx.get("css_vars") or {}
-    name_size = css_vars.get("--profile-name-size", "1.5rem")
     parts = []
     if data.get("photo_url"):
         parts.append(
@@ -30,19 +28,18 @@ def render_profile(data: dict, context: dict | None = None) -> str:
             f'margin-bottom:12px;border:2px solid var(--accent, transparent);" />'
         )
     parts.append(
-        f'<h2 style="font-size:{name_size};font-weight:700;margin:0;">'
+        f'<h2 class="f-name" style="margin:0;">'
         f'{esc(data.get("name")) or "Your Name"}</h2>'
     )
     parts.append(
-        f'<p style="font-size:0.875rem;margin:0;">'
+        f'<p class="f-title" style="margin:0;">'
         f'{esc(data.get("title", ""))}</p>'
     )
     contact_items = []
     if data.get("email"):
         if data.get("email_link", True) is not False:
             contact_items.append(
-                f'<a href="mailto:{esc_attr(data["email"])}" '
-                f'style="font-size:0.75rem;">'
+                f'<a href="mailto:{esc_attr(data["email"])}" class="f-contact">'
                 f'{esc(data["email"])}</a>'
             )
         else:
@@ -57,20 +54,17 @@ def render_profile(data: dict, context: dict | None = None) -> str:
         # a bare "rmahbub.com" would render visible text but no click target.
         site_href = esc_attr(normalize_url_scheme(data["site_url"]))
         contact_items.append(
-            f'<a href="{site_href}" '
-            f'style="font-size:0.75rem;" '
+            f'<a href="{site_href}" class="f-contact" '
             f'target="_blank" rel="noopener noreferrer">'
             f'{esc(site_text)}</a>'
         )
     if contact_items:
         sep = '<span style="margin:0 6px;color:var(--divider, #d1d5db)">·</span>'
         inner = sep.join(contact_items)
-        parts.append(
-            f'<div style="margin-top:8px;font-size:0.75rem;">{inner}</div>'
-        )
+        parts.append(f'<div class="f-contact" style="margin-top:8px;">{inner}</div>')
     if data.get("summary"):
         parts.append(
-            f'<p style="margin-top:12px;font-size:0.875rem;margin-bottom:0;">'
+            f'<p class="f-summary" style="margin-top:12px;margin-bottom:0;">'
             f'{esc(data["summary"])}</p>'
         )
     # Profile text is centered by default; an explicit per-section text_align
