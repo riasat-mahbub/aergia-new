@@ -14,9 +14,9 @@ export default function ProjectsRenderer({ data = [] }: Props) {
             <div>
               <h3 className="font-semibold">{entry.name}</h3>
               {entry.url && (
-                <a href={entry.url} className="text-xs text-blue-600 hover:underline">
+                <span className="text-xs text-blue-600 underline">
                   {entry.link_text || entry.url}
-                </a>
+                </span>
               )}
             </div>
             <p className="text-xs text-gray-500">

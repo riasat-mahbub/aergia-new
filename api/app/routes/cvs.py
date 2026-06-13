@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse
 from app.services.cv import CVService
 from app.services.pdf import PDFService
 from app.services.renderer import render_preview
+from app.routes.render import strip_anchor_hrefs
 from app.core.deps import get_current_user
 from app.models.user import User
 
@@ -120,6 +121,11 @@ async def preview_cv(
         default_customizations=template_data.get("default_customizations") if template_data else None,
         global_style_schema=manifest.get("globalStyleSchema") if manifest else None,
     )
+    # Preview is rendered inside a sandboxed iframe. Without stripping hrefs,
+    # clicking a project / credential / site link navigates the iframe away
+    # from the CV preview. Strip hrefs so the user sees the link text but
+    # cannot accidentally navigate while editing.
+    html = strip_anchor_hrefs(html)
     return {"html": html}
 
 
