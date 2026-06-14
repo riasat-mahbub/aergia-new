@@ -28,7 +28,7 @@ export default function SectionPreviewPanel({ instance }: Props) {
       <h2 className="mb-2 text-base font-bold uppercase tracking-wide text-gray-800" style={headingStyle}>
         {instance.title}
       </h2>
-      {renderSectionPreview(instance.type, instance.data) || (
+      {renderSectionPreview(instance.type, instance.data, instance.style) || (
         <p className="text-sm text-gray-400 italic">No data</p>
       )}
     </div>

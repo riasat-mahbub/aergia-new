@@ -84,6 +84,7 @@ class SectionStyle(BaseModel):
     weight: str | None = None
     text_align: Literal["left", "right", "center", "justify"] | None = None
     show_title: bool | None = None
+    layout: Literal["block", "inline"] | None = None
     field_styles: dict[str, FieldStyle] | None = None
 
 

@@ -103,6 +103,7 @@ export default function CustomizePanel({
       merged.color ||
       merged.weight ||
       merged.text_align ||
+      merged.layout ||
       typeof merged.show_title === "boolean" ||
       (merged.field_styles && Object.keys(merged.field_styles).length > 0);
     onUpdateStyle(selectedSectionId, hasValues ? merged : {});
@@ -239,6 +240,24 @@ export default function CustomizePanel({
                 <option value="justify">Justify</option>
               </select>
             </div>
+            {selectedInstance.type === "skills" && (
+              <div>
+                <label htmlFor="skills-layout" className="block text-xs text-gray-600">Layout</label>
+                <select
+                  id="skills-layout"
+                  value={selectedStyle.layout ?? ""}
+                  onChange={(e) =>
+                    updateSelectedStyle({
+                      layout: (e.target.value || undefined) as SectionStyle["layout"],
+                    })
+                  }
+                  className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                >
+                  <option value="">Block (default)</option>
+                  <option value="inline">Inline</option>
+                </select>
+              </div>
+            )}
             <div className="flex items-center justify-between pt-1">
               <div>
                 <label className="block text-xs text-gray-600">Show Title</label>

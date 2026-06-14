@@ -1,10 +1,25 @@
-import type { SkillGroup } from "../../../lib/sections/types";
+import type { SkillGroup, SectionStyle } from "../../../lib/sections/types";
 
 interface Props {
   data: SkillGroup[] | undefined;
+  style?: SectionStyle;
 }
 
-export default function SkillsRenderer({ data = [] }: Props) {
+export default function SkillsRenderer({ data = [], style }: Props) {
+  const layout = style?.layout === "inline" ? "inline" : "block";
+  if (layout === "inline") {
+    return (
+      <div className="space-y-1">
+        {data.map((group) => (
+          <div key={group.id}>
+            <span className="text-sm font-semibold">{group.category}</span>
+            {group.category && group.items.length > 0 && ": "}
+            <span className="text-sm">{group.items.join(", ")}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
   return (
     <div className="space-y-3">
       {data.map((group) => (
