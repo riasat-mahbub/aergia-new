@@ -138,4 +138,20 @@ export const sampleInstances = [
       },
     ],
   } as const,
+  {
+    id: "sample_research",
+    type: "research",
+    title: "Research",
+    enabled: true,
+    data: [
+      {
+        id: generateInstanceId(),
+        title: "Efficient Document Rendering with Intermediate Representations",
+        paper_url: "https://doi.org/10.0000/aergia.2026",
+        paper_link_text: "DOI",
+        description: "Demonstrates a layout-stable IR that preserves user intent across template switches.",
+        publication_date: "2026-06",
+      },
+    ],
+  } as const,
 ];

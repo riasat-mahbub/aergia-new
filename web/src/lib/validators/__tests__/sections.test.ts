@@ -3,6 +3,7 @@ import {
   profileSchema,
   projectEntrySchema,
   certificationEntrySchema,
+  researchEntrySchema,
   urlSchema,
 } from "../sections";
 
@@ -127,5 +128,56 @@ describe("certificationEntrySchema.credential_url", () => {
     expect(
       certificationEntrySchema.safeParse({ ...baseCert, credential_url: "https://aws.amazon.com/cert" }).success,
     ).toBe(true);
+  });
+});
+
+describe("researchEntrySchema", () => {
+  const baseResearch = {
+    id: "r1",
+    paper_url: "",
+    paper_link_text: "",
+    publication_date: "",
+  };
+
+  it("requires a non-empty title", () => {
+    const r = researchEntrySchema.safeParse({ ...baseResearch, title: "", description: "Findings" });
+    expect(r.success).toBe(false);
+    expect(r.error!.issues.map((i) => i.path.join("."))).toContain("title");
+  });
+
+  it("requires a non-empty description", () => {
+    const r = researchEntrySchema.safeParse({ ...baseResearch, title: "Title", description: "" });
+    expect(r.success).toBe(false);
+    expect(r.error!.issues.map((i) => i.path.join("."))).toContain("description");
+  });
+
+  it("accepts empty paper_url, link text, and date (all optional)", () => {
+    expect(
+      researchEntrySchema.safeParse({ ...baseResearch, title: "Paper", description: "Findings" }).success,
+    ).toBe(true);
+  });
+
+  it("accepts a valid https URL", () => {
+    expect(
+      researchEntrySchema.safeParse({
+        ...baseResearch,
+        title: "Paper",
+        description: "Findings",
+        paper_url: "https://doi.org/10.0000/aergia.2026",
+        paper_link_text: "DOI",
+        publication_date: "2026-06",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects a bare-domain paper_url with the standard URL-scheme message", () => {
+    const r = researchEntrySchema.safeParse({
+      ...baseResearch,
+      title: "Paper",
+      description: "Findings",
+      paper_url: "example.org/paper",
+    });
+    expect(r.success).toBe(false);
+    expect(r.error!.issues.map((i) => i.path.join("."))).toContain("paper_url");
   });
 });

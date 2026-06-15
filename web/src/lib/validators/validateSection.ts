@@ -7,6 +7,7 @@ import {
   projectEntrySchema,
   languageEntrySchema,
   certificationEntrySchema,
+  researchEntrySchema,
 } from "./sections";
 
 type Errors = Record<string, string>;
@@ -18,6 +19,7 @@ const ARRAY_SECTION_SCHEMAS: Record<string, any> = {
   projects: projectEntrySchema,
   languages: languageEntrySchema,
   certifications: certificationEntrySchema,
+  research: researchEntrySchema,
 };
 
 export function validateSection(instance: SectionInstance): Errors {

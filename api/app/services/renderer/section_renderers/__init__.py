@@ -7,6 +7,7 @@ from .skills import render_skills
 from .projects import render_projects
 from .languages import render_languages
 from .certifications import render_certifications
+from .research import render_research
 
 SECTION_RENDERERS = {
     "profile": render_profile,
@@ -16,6 +17,7 @@ SECTION_RENDERERS = {
     "projects": render_projects,
     "languages": render_languages,
     "certifications": render_certifications,
+    "research": render_research,
 }
 
 

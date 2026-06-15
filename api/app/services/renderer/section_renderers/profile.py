@@ -15,6 +15,7 @@ SECTION_LABELS = {
     "projects": "Projects",
     "languages": "Languages",
     "certifications": "Certifications",
+    "research": "Research",
 }
 
 

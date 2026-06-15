@@ -375,3 +375,53 @@ def test_render_endpoint_preview_flag_strips_hrefs():
     # Anchors without hrefs are untouched.
     assert strip_anchor_hrefs("<a>plain</a>") == "<a>plain</a>"
     assert 'class="x"' in out
+
+
+@pytest.mark.asyncio
+async def test_preview_research_section_all_templates(client, auth_headers):
+    """A research section must survive the create-CV → preview pipeline for
+    every system template and expose the citation-card marker, title, link
+    label, publication metadata, and description in the rendered HTML."""
+    research_instance = {
+        "id": "sec_research",
+        "type": "research",
+        "title": "Research",
+        "enabled": True,
+        "data": [
+            {
+                "id": "r1",
+                "title": "Verified Paper",
+                "paper_url": "example.org/paper",
+                "paper_link_text": "arXiv",
+                "description": "Findings",
+                "publication_date": "2025-04",
+            }
+        ],
+    }
+    for template_id in ("generic-modern", "generic-classic", "generic-minimal"):
+        resp = await client.post(
+            "/api/v1/cvs",
+            json={
+                "title": f"Research {template_id}",
+                "template_id": template_id,
+                "sections": [research_instance],
+            },
+            headers=auth_headers,
+        )
+        assert resp.status_code == 201, resp.text
+        cv_id = resp.json()["id"]
+        preview_resp = await client.get(f"/api/v1/cvs/{cv_id}/preview", headers=auth_headers)
+        assert preview_resp.status_code == 200
+        html = preview_resp.json()["html"]
+        assert 'class="f-research-entry"' in html
+        assert "Verified Paper" in html
+        # The preview iframe intentionally neutralizes destinations to "#"
+        # for click safety; the unit renderer (used by PDF) preserves the
+        # full URL via normalize_url_scheme.
+        assert 'href="#"' in html
+        assert "arXiv" in html
+        assert "↗" in html
+        assert "Published 2025-04" in html
+        assert "Findings" in html
+        # The bare URL must never be exposed as visible text.
+        assert "example.org/paper" not in html

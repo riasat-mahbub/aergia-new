@@ -109,6 +109,13 @@ def test_renderers_emit_no_inline_color_or_font_in_body():
             [{"id": "c1", "name": "AWS Architect", "issuer": "Amazon", "date": "2024"}],
             _ctx(),
         ),
+        "research": lambda: render_section_preview(
+            "research",
+            [{"id": "r1", "title": "Verified Paper",
+              "paper_url": "https://example.org/paper", "paper_link_text": "arXiv",
+              "description": "Findings", "publication_date": "2025-04"}],
+            _ctx(),
+        ),
     }
     for t, render in sample_html_by_type.items():
         html = render()
@@ -200,7 +207,7 @@ def test_certifications_bare_domain_credential_url_is_normalized():
 
 
 def test_all_section_types_registered():
-    for t in ["profile", "experience", "education", "skills", "projects", "languages", "certifications"]:
+    for t in ["profile", "experience", "education", "skills", "projects", "languages", "certifications", "research"]:
         assert t in SECTION_RENDERERS
 
 
@@ -241,3 +248,130 @@ def test_field_styles_omitted_when_empty():
     )
     html = _format_zone_panels(_zone_with([panel]))
     assert "<style>" not in html
+
+
+
+# --- Research renderer --------------------------------------------------
+
+
+def _research_entry(**overrides):
+    base = {
+        "id": "r1",
+        "title": "Verified Paper",
+        "paper_url": "https://example.org/paper",
+        "paper_link_text": "arXiv",
+        "description": "Findings",
+        "publication_date": "2025-04",
+    }
+    base.update(overrides)
+    return base
+
+
+def test_research_emits_citation_card_wrapper():
+    html = render_section_preview("research", [_research_entry()], _ctx())
+    assert 'class="f-research-entry"' in html
+    assert "border-left:2px solid" in html
+
+
+def test_research_title_is_plain_heading_outside_anchor():
+    html = render_section_preview("research", [_research_entry()], _ctx())
+    # Plain heading on the left with no anchor wrapping.
+    assert "<h3 class=\"f-title\"" in html
+    assert "Verified Paper" in html
+
+
+def test_research_renders_custom_label_plus_arrow_glyph():
+    html = render_section_preview("research", [_research_entry(paper_link_text="arXiv")], _ctx())
+    assert 'class="f-url"' in html
+    assert "arXiv" in html
+    # The renderer uses the literal text glyph "↗" — no SVG asset pipeline.
+    assert "↗" in html
+    assert "<svg" not in html
+
+
+def test_research_default_label_is_paper_when_link_text_blank():
+    html = render_section_preview(
+        "research",
+        [_research_entry(paper_link_text="")],
+        _ctx(),
+    )
+    assert ">Paper<" in html or ">Paper " in html
+    assert "↗" in html
+
+
+def test_research_normalizes_bare_domain_paper_url():
+    html = render_section_preview(
+        "research",
+        [_research_entry(paper_url="example.org/paper")],
+        _ctx(),
+    )
+    assert 'href="https://example.org/paper"' in html
+    # The visible text must be the label, NOT the raw URL.
+    assert "example.org/paper" not in html.replace('href="https://example.org/paper"', "")
+
+
+def test_research_omits_anchor_when_url_empty_even_with_link_text():
+    html = render_section_preview(
+        "research",
+        [_research_entry(paper_url="", paper_link_text="arXiv")],
+        _ctx(),
+    )
+    assert "f-url" not in html
+    # The link label must NOT be exposed as visible text without a URL.
+    assert "arXiv" not in html
+
+
+def test_research_renders_published_date_metadata():
+    html = render_section_preview(
+        "research",
+        [_research_entry(publication_date="2025-04")],
+        _ctx(),
+    )
+    assert "Published 2025-04" in html
+    assert 'class="f-date"' in html
+
+
+def test_research_omits_published_date_when_empty():
+    html = render_section_preview(
+        "research",
+        [_research_entry(publication_date="")],
+        _ctx(),
+    )
+    assert "Published" not in html
+    assert "f-date" not in html
+
+
+def test_research_renders_description_paragraph():
+    html = render_section_preview("research", [_research_entry()], _ctx())
+    assert 'class="f-description"' in html
+    assert "Findings" in html
+
+
+def test_research_escapes_html_in_user_fields():
+    html = render_section_preview(
+        "research",
+        [_research_entry(
+            title="<script>alert(1)</script>",
+            paper_link_text="<b>arXiv</b>",
+            description="<img onerror=x>",
+            publication_date="2025-04",
+        )],
+        _ctx(),
+    )
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+    assert "<script>alert(1)</script>" not in html
+    assert "<b>arXiv</b>" not in html
+    assert "<img onerror=x>" not in html
+
+
+def test_research_has_no_hardcoded_font_or_text_color():
+    html = render_section_preview("research", [_research_entry()], _ctx())
+    assert "font-family:" not in html
+    assert "color:var(--text" not in html
+    assert "color:var(--heading" not in html
+
+
+def test_research_emits_no_data_when_empty():
+    html = render_section_preview("research", None, _ctx())
+    assert "No data" in html
+    assert "f-research-entry" not in html

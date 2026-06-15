@@ -87,6 +87,15 @@ export const certificationEntrySchema = z.object({
   credential_url: urlSchema,
 });
 
+export const researchEntrySchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1, "Title is required"),
+  paper_url: urlSchema,
+  paper_link_text: z.string(),
+  description: z.string().min(1, "Description is required"),
+  publication_date: z.string(),
+});
+
 export const sectionInstanceSchema = z.object({
   id: z.string().min(1),
   type: z.string().min(1),
@@ -104,4 +113,5 @@ export type SkillGroup = z.infer<typeof skillGroupSchema>;
 export type ProjectEntry = z.infer<typeof projectEntrySchema>;
 export type LanguageEntry = z.infer<typeof languageEntrySchema>;
 export type CertificationEntry = z.infer<typeof certificationEntrySchema>;
+export type ResearchEntry = z.infer<typeof researchEntrySchema>;
 export type SectionInstance = z.infer<typeof sectionInstanceSchema>;
