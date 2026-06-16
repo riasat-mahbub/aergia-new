@@ -423,5 +423,7 @@ async def test_preview_research_section_all_templates(client, auth_headers):
         assert "↗" in html
         assert "Published 2025-04" in html
         assert "Findings" in html
+        # Border decoration must not be re-introduced; the wrapper is plain block flow.
+        assert "border-left" not in html
         # The bare URL must never be exposed as visible text.
         assert "example.org/paper" not in html

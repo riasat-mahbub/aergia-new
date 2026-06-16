@@ -11,10 +11,7 @@ export default function ResearchRenderer({ data = [] }: Props) {
       {data.map((entry) => {
         const label = entry.paper_link_text.trim() || "Paper";
         return (
-          <article
-            key={entry.id}
-            className="border-l-2 border-blue-200 pl-3"
-          >
+          <article key={entry.id}>
             <div className="flex items-start justify-between gap-3">
               <h3 className="font-semibold">{entry.title}</h3>
               {entry.paper_url && (

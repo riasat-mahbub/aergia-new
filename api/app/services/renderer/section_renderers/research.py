@@ -1,10 +1,9 @@
 """Research section renderer.
 
-Each entry renders as a left-bordered publication citation card — visually
-distinct from the unbordered Projects list. The paper title sits on the left;
-when a URL is present, an explicit label (defaulting to "Paper") plus a small
-external-link glyph appears on the right. Optional publication date and
-prose description follow below.
+Each entry renders as a plain block in the same flow as Projects. The paper
+title sits on the left; when a URL is present, an explicit label (defaulting
+to "Paper") plus a small external-link glyph appears on the right. Optional
+publication date and prose description follow below.
 
 Inline styles are kept minimal so the per-section wrapper's color/font cascade
 remains authoritative.
@@ -50,7 +49,7 @@ def render_research(data: list[dict] | None, context: dict | None = None) -> str
             else ""
         )
         items.append(
-            f'''<article class="f-research-entry" style="border-left:2px solid var(--accent, #2563eb);padding-left:12px;">
+            f'''<article class="f-research-entry">
   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
     <h3 class="f-title" style="margin:0;">{title}</h3>
     {anchor}

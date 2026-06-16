@@ -267,10 +267,10 @@ def _research_entry(**overrides):
     return base
 
 
-def test_research_emits_citation_card_wrapper():
+def test_research_emits_plain_entry_wrapper():
     html = render_section_preview("research", [_research_entry()], _ctx())
     assert 'class="f-research-entry"' in html
-    assert "border-left:2px solid" in html
+    assert "border-left" not in html
 
 
 def test_research_title_is_plain_heading_outside_anchor():
