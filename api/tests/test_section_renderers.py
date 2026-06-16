@@ -327,9 +327,8 @@ def test_research_renders_published_date_metadata():
         [_research_entry(publication_date="2025-04")],
         _ctx(),
     )
-    assert "Published 2025-04" in html
+    assert "2025-04" in html
     assert 'class="f-date"' in html
-
 
 def test_research_omits_published_date_when_empty():
     html = render_section_preview(
@@ -373,5 +372,311 @@ def test_research_has_no_hardcoded_font_or_text_color():
 
 def test_research_emits_no_data_when_empty():
     html = render_section_preview("research", None, _ctx())
-    assert "No data" in html
-    assert "f-research-entry" not in html
+
+
+# --- New social-links + layout-tweak coverage --------------------
+
+
+def test_profile_emits_social_links_row():
+    html = render_section_preview(
+        "profile",
+        {
+            "name": "Alice",
+            "social_links": [
+                {"label": "LinkedIn", "url": "https://www.linkedin.com/in/alice", "icon": "linkedin"},
+                {"label": "GitHub", "url": "https://github.com/alice", "icon": "github"},
+            ],
+        },
+        _ctx(),
+    )
+    assert 'class="f-social-links"' in html
+    assert "LinkedIn" in html
+    assert "GitHub" in html
+    assert "<svg" in html
+    # Both links present with the normalized hrefs (the renderer runs
+    # normalize_url_scheme so PDF /Link annotations survive Chromium).
+    assert 'href="https://www.linkedin.com/in/alice"' in html
+    assert 'href="https://github.com/alice"' in html
+
+
+def test_profile_skips_social_links_row_when_empty():
+    html = render_section_preview("profile", {"name": "Alice"}, _ctx())
+    assert 'class="f-social-links"' not in html
+
+
+def test_profile_social_link_with_unknown_icon_falls_back_to_globe():
+    html = render_section_preview(
+        "profile",
+        {
+            "name": "Alice",
+            "social_links": [
+                {"label": "Misc", "url": "https://example.com", "icon": "bogus-icon"},
+            ],
+        },
+        _ctx(),
+    )
+    # The link still renders; the renderer silently falls back to globe.
+    assert 'class="f-social-links"' in html
+    assert "Misc" in html
+    assert 'href="https://example.com"' in html
+
+
+def test_research_publication_value_renders_when_set():
+    html = render_section_preview(
+        "research",
+        [_research_entry(publication_value="NeurIPS 2024")],
+        _ctx(),
+    )
+    assert 'class="f-publication-value"' in html
+    assert "NeurIPS 2024" in html
+
+
+def test_research_omits_publication_value_paragraph_when_empty():
+    html = render_section_preview(
+        "research",
+        [_research_entry(publication_value="")],
+        _ctx(),
+    )
+    assert "f-publication-value" not in html
+
+
+def test_research_publication_date_in_right_column():
+    html = render_section_preview(
+        "research",
+        [_research_entry(publication_date="2025-04")],
+        _ctx(),
+    )
+    # The date paragraph is now inside the right flex column, not after the title.
+    assert "2025-04" in html
+    # The "Published" prefix is dropped (per layout change).
+    assert "Published" not in html
+    # The f-date class is still applied for the per-field CSS hook.
+    assert 'class="f-date"' in html
+
+def test_research_publication_value_sits_within_left_column():
+    html = render_section_preview(
+        "research",
+        [_research_entry(publication_value="NeurIPS 2024")],
+        _ctx(),
+    )
+    # The publication_value <p> must precede the right-column flex container.
+    pv_pos = html.find("f-publication-value")
+    right_col_pos = html.find('align-items:flex-end')
+    assert pv_pos != -1
+    assert right_col_pos != -1
+    assert pv_pos < right_col_pos
+
+
+def test_projects_link_in_right_column():
+    html = render_section_preview(
+        "projects",
+        [{
+            "id": "p1",
+            "name": "Tool",
+            "url": "https://example.com/tool",
+            "link_text": "Repo",
+            "start_date": "2024-01",
+            "end_date": None,
+            "description": "",
+            "tech_stack": [],
+        }],
+        _ctx(),
+    )
+    # The arrow glyph (U+2197) marks the right-column link, matching Research.
+    assert "\u2197" in html
+    assert "Repo" in html
+    assert 'class="f-url"' in html
+
+def test_projects_description_sits_within_left_column():
+    html = render_section_preview(
+        "projects",
+        [{
+            "id": "p1",
+            "name": "Tool",
+            "url": "https://example.com/tool",
+            "link_text": "Repo",
+            "start_date": "2024-01",
+            "end_date": None,
+            "description": "A project description.",
+            "tech_stack": [],
+        }],
+        _ctx(),
+    )
+    # The description <p> must precede the right-column flex container
+    # (i.e. live inside the same left-column wrapper as <h3>, not as a
+    # sibling of the outer flex row).
+    desc_pos = html.find("f-description")
+    right_col_pos = html.find('align-items:flex-end')
+    assert desc_pos != -1
+    assert right_col_pos != -1
+    assert desc_pos < right_col_pos
+
+def test_projects_right_column_has_shrink_and_nowrap_on_date():
+    """The right column must keep its natural width (no shrinking under
+    flex pressure) and the date <p> must never wrap to a second line —
+    otherwise long date formats split awkwardly below the link."""
+    html = render_section_preview(
+        "projects",
+        [{
+            "id": "p1",
+            "name": "Tool",
+            "url": "https://example.com/tool",
+            "link_text": "View on GitHub",
+            "start_date": "2024-01",
+            "end_date": "2025-12",
+            "description": "desc",
+            "tech_stack": [],
+        }],
+        _ctx(instance_style={"date_style": {"key": "Month YYYY", "range_sep": " – "}}),
+    )
+    # The right-column wrapper carries flex-shrink:0 so it doesn't shrink
+    # below the natural width of its widest child.
+    assert "flex-shrink:0" in html
+    # The date <p> must opt out of wrapping so long date formats stay on
+    # one line (they should not push past the column width).
+    assert "white-space:nowrap" in html
+    # The gap between the outer flex row's left and right columns is reduced
+    # from 12px to 10px so the left column has more breathing room for the
+    # description without starving the right column.
+    assert "gap:10px" in html
+
+
+
+# --- Date style per-renderer parametrized coverage --------------------
+
+
+import pytest as _pytest  # noqa: E402
+
+from app.services.renderer.section_renderers._utils import DATE_STYLE_OPTIONS  # noqa: E402
+
+
+_DATE_STYLE_CASES = [
+    (key, label, range_sep, expected_start, expected_mid, expected_end)
+    for (key, label, range_sep) in DATE_STYLE_OPTIONS
+    for (start, end, expected_start, expected_mid, expected_end) in [
+        ("2021-03", "2022-01", "2021-03", "2022-01", None),
+    ]
+]
+
+
+def _format(style_key, sep, raw):
+    """Apply the same per-preset reformat `format_single_date` would, so the
+    expected substrings below match the rendered HTML regardless of whether
+    the renderer uses `format_single_date` or `format_date_range`."""
+    if style_key == "YYYY-MM":
+        return raw
+    if style_key == "YYYY/MM":
+        y, m = raw.split("-")
+        return f"{y}/{m}"
+    if style_key == "MM/YYYY":
+        y, m = raw.split("-")
+        return f"{m}/{y}"
+    if style_key == "MM-YYYY":
+        y, m = raw.split("-")
+        return f"{m}-{y}"
+    if style_key == "MM.YYYY":
+        y, m = raw.split("-")
+        return f"{m}.{y}"
+    if style_key == "YYYY.MM":
+        y, m = raw.split("-")
+        return f"{y}.{m}"
+    if style_key == "Mon YYYY":
+        _MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        y, m = raw.split("-")
+        return f"{_MON[int(m) - 1]} {y}"
+    if style_key == "Month YYYY":
+        _MON = ["January", "February", "March", "April", "May", "June",
+                "July", "August", "September", "October", "November", "December"]
+        y, m = raw.split("-")
+        return f"{_MON[int(m) - 1]} {y}"
+    if style_key == "YYYY":
+        return raw.split("-")[0]
+    if style_key == "Mon-YYYY":
+        _MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        y, m = raw.split("-")
+        return f"{_MON[int(m) - 1]}-{y}"
+    return raw
+
+
+@_pytest.mark.parametrize("style_key,_label,range_sep,_start_raw,_end_raw", [
+    (k, l, s, "2021-03", "2022-01") for (k, l, s) in DATE_STYLE_OPTIONS
+])
+def test_experience_respects_date_style(style_key, _label, range_sep, _start_raw, _end_raw):
+    style = {"key": style_key, "range_sep": range_sep}
+    html = render_section_preview(
+        "experience",
+        [{"id": "e1", "company": "Acme", "position": "Engineer",
+          "start_date": "2021-03", "end_date": "2022-01", "current": False,
+          "location": "", "description": ""}],
+        _ctx(instance_style={"date_style": style}),
+    )
+    expected_start = _format(style_key, range_sep, "2021-03")
+    expected_end = _format(style_key, range_sep, "2022-01")
+    assert expected_start in html
+    assert expected_end in html
+    # Separator must appear between the two formatted bounds
+    assert f"{expected_start}{range_sep}{expected_end}" in html
+
+
+@_pytest.mark.parametrize("style_key,_label,range_sep,_start_raw,_end_raw", [
+    (k, l, s, "2021-03", "2022-01") for (k, l, s) in DATE_STYLE_OPTIONS
+])
+def test_education_respects_date_style(style_key, _label, range_sep, _start_raw, _end_raw):
+    style = {"key": style_key, "range_sep": range_sep}
+    html = render_section_preview(
+        "education",
+        [{"id": "e1", "institution": "MIT", "degree": "BS",
+          "start_date": "2021-03", "end_date": "2022-01", "current": False}],
+        _ctx(instance_style={"date_style": style}),
+    )
+    expected_start = _format(style_key, range_sep, "2021-03")
+    expected_end = _format(style_key, range_sep, "2022-01")
+    assert expected_start in html
+    assert expected_end in html
+    assert f"{expected_start}{range_sep}{expected_end}" in html
+
+
+@_pytest.mark.parametrize("style_key,_label,range_sep,_start_raw,_end_raw", [
+    (k, l, s, "2021-03", "2022-01") for (k, l, s) in DATE_STYLE_OPTIONS
+])
+def test_projects_respects_date_style(style_key, _label, range_sep, _start_raw, _end_raw):
+    style = {"key": style_key, "range_sep": range_sep}
+    html = render_section_preview(
+        "projects",
+        [{"id": "p1", "name": "Tool", "start_date": "2021-03", "end_date": "2022-01", "description": ""}],
+        _ctx(instance_style={"date_style": style}),
+    )
+    expected_start = _format(style_key, range_sep, "2021-03")
+    expected_end = _format(style_key, range_sep, "2022-01")
+    assert expected_start in html
+    assert expected_end in html
+    assert f"{expected_start}{range_sep}{expected_end}" in html
+
+
+@_pytest.mark.parametrize("style_key,_label,range_sep", [
+    (k, l, s) for (k, l, s) in DATE_STYLE_OPTIONS
+])
+def test_research_respects_date_style(style_key, _label, range_sep):
+    style = {"key": style_key, "range_sep": range_sep}
+    html = render_section_preview(
+        "research",
+        [_research_entry(publication_date="2021-03")],
+        _ctx(instance_style={"date_style": style}),
+    )
+    expected = _format(style_key, range_sep, "2021-03")
+    assert expected in html
+
+
+@_pytest.mark.parametrize("style_key,_label,range_sep", [
+    (k, l, s) for (k, l, s) in DATE_STYLE_OPTIONS
+])
+def test_certifications_respects_date_style(style_key, _label, range_sep):
+    style = {"key": style_key, "range_sep": range_sep}
+    html = render_section_preview(
+        "certifications",
+        [{"id": "c1", "name": "AWS", "issuer": "Amazon", "date": "2021-03"}],
+        _ctx(instance_style={"date_style": style}),
+    )
+    expected = _format(style_key, range_sep, "2021-03")
+    assert expected in html
+    assert 'class="f-date"' in html

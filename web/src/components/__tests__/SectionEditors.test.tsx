@@ -1,3 +1,5 @@
+import type { ProfileData } from "../../lib/sections/types";
+
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import ProfileEditor from "../sections/profile/ProfileEditor";
@@ -8,7 +10,7 @@ import LanguagesEditor from "../sections/languages/LanguagesEditor";
 import ResearchEditor from "../sections/research/ResearchEditor";
 
 describe("ProfileEditor", () => {
-  const baseData = {
+  const baseData: ProfileData = {
     name: "",
     title: "",
     email: "",
@@ -19,7 +21,8 @@ describe("ProfileEditor", () => {
     site_url: "",
     summary: "",
     photo_url: "",
-  } as const;
+    social_links: [],
+  };
 
   it("renders all fields and updates on input", () => {
     const onChange = vi.fn();
@@ -121,6 +124,7 @@ describe("ResearchEditor", () => {
         paper_link_text: "DOI",
         description: "Findings",
         publication_date: "2026-06",
+        publication_value: "NeurIPS 2024",
       },
     ];
     render(<ResearchEditor data={data} onChange={onChange} />);

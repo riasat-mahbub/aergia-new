@@ -1,3 +1,14 @@
+import type { SocialIconKey } from "./socialIcons";
+
+export interface SocialLink {
+  /** User-defined visible text. */
+  label: string;
+  /** Absolute URL the link points to. Normalized via `normalize_url_scheme` on the backend. */
+  url: string;
+  /** One of the 13 keys in `socialIcons.tsx`. */
+  icon: SocialIconKey;
+}
+
 export interface ProfileData {
   name: string;
   title: string;
@@ -9,6 +20,7 @@ export interface ProfileData {
   site_url: string;
   summary: string;
   photo_url: string;
+  social_links: SocialLink[];
 }
 
 export interface ExperienceEntry {
@@ -70,12 +82,33 @@ export interface ResearchEntry {
   paper_link_text: string;
   description: string;
   publication_date: string;
+  publication_value: string;
 }
+
 
 export interface FieldStyle {
   font?: string;
   size?: string;
   weight?: string;
+}
+
+export type DateStyleKey =
+  | "YYYY-MM"
+  | "YYYY/MM"
+  | "MM/YYYY"
+  | "MM-YYYY"
+  | "MM.YYYY"
+  | "YYYY.MM"
+  | "Mon YYYY"
+  | "Month YYYY"
+  | "YYYY"
+  | "Mon-YYYY";
+
+export interface DateStyle {
+  /** One of the 10 preset keys in `DATE_STYLE_OPTIONS` (web/src/lib/sections/DateField.tsx). */
+  key: DateStyleKey;
+  /** Separator used when joining two formatted dates into a range. */
+  rangeSep: string;
 }
 
 export interface SectionStyle {
@@ -92,6 +125,12 @@ export interface SectionStyle {
    * category and its items on one line as plain text.
    */
   layout?: "block" | "inline";
+  /**
+   * Per-section date display format. Only meaningful for sections that
+   * include date fields (experience, education, projects, certifications,
+   * research). Undefined leaves the default `YYYY-MM` rendering.
+   */
+  date_style?: DateStyle;
 }
 
 export interface SectionInstance {
@@ -128,7 +167,7 @@ export const SECTION_TYPES = [
 export function createDefaultSectionData(type: string): any {
   switch (type) {
     case "profile":
-      return { name: "", title: "", email: "", email_link: true, phone: "", location: "", site_text: "", site_url: "", summary: "", photo_url: "" };
+      return { name: "", title: "", email: "", email_link: true, phone: "", location: "", site_text: "", site_url: "", summary: "", photo_url: "", social_links: [] };
     case "experience":
       return [{ id: generateInstanceId(), company: "", position: "", start_date: "", end_date: null, current: false, location: "", description: "" }];
     case "education":
@@ -149,6 +188,7 @@ export function createDefaultSectionData(type: string): any {
         paper_link_text: "",
         description: "",
         publication_date: "",
+        publication_value: "",
       }];
     default:
       return {};

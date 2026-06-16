@@ -16,6 +16,7 @@ export default function ResearchEditor({ data = [], onChange }: Props) {
     paper_link_text: "",
     description: "",
     publication_date: "",
+    publication_value: "",
   }));
 
   return (
@@ -34,6 +35,16 @@ export default function ResearchEditor({ data = [], onChange }: Props) {
                 type="text"
                 value={entry.title}
                 onChange={(e: any) => update(i, "title", e.target.value)}
+                className="mt-0.5 w-full rounded border px-2 py-1 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500">Publication Value</label>
+              <input
+                type="text"
+                placeholder="e.g. Nature, 2024 or NeurIPS 2024"
+                value={entry.publication_value ?? ""}
+                onChange={(e: any) => update(i, "publication_value", e.target.value)}
                 className="mt-0.5 w-full rounded border px-2 py-1 text-sm"
               />
             </div>

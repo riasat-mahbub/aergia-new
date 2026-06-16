@@ -164,3 +164,29 @@ def test_education_summary_html_escaped():
     assert "<script>alert(1)</script>" not in html
     # The literal characters must be HTML-escaped.
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+
+
+def _zone_with(panels):
+    """Tiny duck-typed zone object satisfying _format_zone_panels."""
+    return type("Zone", (), {"panels": panels})()
+
+
+def test_instance_style_date_style_propagates_into_panel_context():
+    """Verifying that the IR pipeline carries `instance.style.date_style`
+    through to `panel_context.instance_style.date_style`, so the renderers
+    can read it as `(context or {}).get("instance_style", {}).get("date_style")`.
+    """
+    from app.services.renderer.ir import _build_section_panel
+    from app.services.renderer.backends.html import _format_zone_panels
+    panel = _build_section_panel(
+        {"id": "e1", "type": "experience", "title": "Work", "enabled": True,
+         "data": [{"id": "x", "company": "A", "position": "P",
+                   "start_date": "2021-03", "end_date": "2022-01", "current": False}],
+         "style": {"date_style": {"key": "Month YYYY", "range_sep": " – "}}},
+        _ctx(),
+    )
+    html = _format_zone_panels(_zone_with([panel]))
+    # The renderer produces the formatted range when reading from the
+    # propagated instance_style.date_style.
+    assert "March 2021" in html
+    assert "January 2022" in html

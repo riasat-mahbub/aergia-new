@@ -1,7 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import DateField, { formatDateRange } from "../DateField";
+import DateField, {
+  formatDateRange,
+  formatSingleDate,
+  DATE_STYLE_OPTIONS,
+} from "../DateField";
+import type { DateStyle } from "../types";
 
 describe("formatDateRange", () => {
   it("returns empty string when start is empty", () => {
@@ -18,6 +23,94 @@ describe("formatDateRange", () => {
   });
   it("ignores end when current is true", () => {
     expect(formatDateRange("2021-03", "2022-01", true)).toBe("2021-03 – Present");
+  });
+  it("uses the style's separator to join the range when style is provided", () => {
+    const style: DateStyle = { key: "MM/YYYY", rangeSep: "/" };
+    expect(formatDateRange("2021-03", "2022-01", false, style)).toBe("03/2021/01/2022");
+  });
+  it("reformats both bounds when style is provided", () => {
+    const style: DateStyle = { key: "Month YYYY", rangeSep: " – " };
+    expect(formatDateRange("2021-03", "2022-01", false, style)).toBe("March 2021 – January 2022");
+  });
+  it("current still wins over end when style is provided", () => {
+    const style: DateStyle = { key: "Month YYYY", rangeSep: " – " };
+    expect(formatDateRange("2021-03", "2022-01", true, style)).toBe("March 2021 – Present");
+  });
+});
+
+describe("formatSingleDate", () => {
+  it("returns empty string for empty input", () => {
+    expect(formatSingleDate("")).toBe("");
+    expect(formatSingleDate("", { key: "Mon YYYY", rangeSep: " – " })).toBe("");
+  });
+  it("returns empty string for null/undefined input", () => {
+    expect(formatSingleDate(null)).toBe("");
+    expect(formatSingleDate(undefined)).toBe("");
+    expect(formatSingleDate(null, { key: "Mon YYYY", rangeSep: " – " })).toBe("");
+  });
+  it("returns raw value when no style is provided", () => {
+    expect(formatSingleDate("2021-03")).toBe("2021-03");
+    expect(formatSingleDate("2021-03", null)).toBe("2021-03");
+  });
+  it("returns raw value when style is missing key", () => {
+    expect(
+      formatSingleDate("2021-03", { key: "" as DateStyle["key"], rangeSep: "x" }),
+    ).toBe("2021-03");
+  });
+  it("returns raw value for legacy year-only inputs", () => {
+    expect(formatSingleDate("2020", { key: "Mon YYYY", rangeSep: " – " })).toBe("2020");
+  });
+  it("returns raw value for out-of-range months", () => {
+    expect(formatSingleDate("2021-13", { key: "Mon YYYY", rangeSep: " – " })).toBe("2021-13");
+  });
+  it("returns raw value for unknown preset keys", () => {
+    expect(
+      formatSingleDate("2021-03", { key: "Garbage" as DateStyle["key"], rangeSep: "x" }),
+    ).toBe("2021-03");
+  });
+
+  it.each(DATE_STYLE_OPTIONS.map((o) => [o.value, o.rangeSep]) as [DateStyle["key"], string][])(
+    "renders %s for 2021-03",
+    (key, rangeSep) => {
+      const expected: Record<string, string> = {
+        "YYYY-MM": "2021-03",
+        "YYYY/MM": "2021/03",
+        "MM/YYYY": "03/2021",
+        "MM-YYYY": "03-2021",
+        "MM.YYYY": "03.2021",
+        "YYYY.MM": "2021.03",
+        "Mon YYYY": "Mar 2021",
+        "Month YYYY": "March 2021",
+        "YYYY": "2021",
+        "Mon-YYYY": "Mar-2021",
+      };
+      expect(formatSingleDate("2021-03", { key, rangeSep })).toBe(expected[key]);
+    },
+  );
+});
+
+describe("DATE_STYLE_OPTIONS", () => {
+  it("has 10 entries", () => {
+    expect(DATE_STYLE_OPTIONS).toHaveLength(10);
+  });
+  it("uses the same keys as the Python DATE_STYLE_OPTIONS contract", () => {
+    expect(DATE_STYLE_OPTIONS.map((o) => o.value)).toEqual([
+      "YYYY-MM",
+      "YYYY/MM",
+      "MM/YYYY",
+      "MM-YYYY",
+      "MM.YYYY",
+      "YYYY.MM",
+      "Mon YYYY",
+      "Month YYYY",
+      "YYYY",
+      "Mon-YYYY",
+    ]);
+  });
+  it("encodes a non-empty rangeSep for each option", () => {
+    for (const opt of DATE_STYLE_OPTIONS) {
+      expect(opt.rangeSep.length).toBeGreaterThan(0);
+    }
   });
 });
 
@@ -131,12 +224,10 @@ describe("DateField", () => {
 
   it("renders the popup in a portal so ancestor overflow cannot clip it", async () => {
     const user = userEvent.setup();
-    // Wrap the field in a container with overflow:hidden to mimic the
-    // accordion body. The popup must still mount in document.body.
     const { container } = render(
       <div style={{ overflow: "hidden", maxHeight: 80 }}>
         <DateField value="" onChange={vi.fn()} label="Start Date" />
-      </div>
+      </div>,
     );
     await user.click(screen.getByRole("button", { name: "Start Date" }));
     const dialog = screen.getByRole("dialog");

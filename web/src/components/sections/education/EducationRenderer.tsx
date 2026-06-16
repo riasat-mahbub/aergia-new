@@ -1,11 +1,12 @@
-import type { EducationEntry } from "../../../lib/sections/types";
+import type { EducationEntry, SectionStyle } from "../../../lib/sections/types";
 import { formatDateRange } from "../../../lib/sections/DateField";
 
 interface Props {
   data: EducationEntry[] | undefined;
+  style?: SectionStyle;
 }
 
-export default function EducationRenderer({ data = [] }: Props) {
+export default function EducationRenderer({ data = [], style }: Props) {
   return (
     <div className="space-y-3">
       {data.map((entry) => (
@@ -16,7 +17,7 @@ export default function EducationRenderer({ data = [] }: Props) {
               <p className="text-sm text-gray-600">{entry.institution}</p>
             </div>
             <p className="text-xs text-gray-500">
-              {formatDateRange(entry.start_date, entry.end_date, entry.current)}
+              {formatDateRange(entry.start_date, entry.end_date, entry.current, style?.date_style ?? null)}
             </p>
           </div>
           {entry.gpa && <p className="text-xs text-gray-500">GPA: {entry.gpa}</p>}

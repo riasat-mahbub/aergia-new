@@ -12,6 +12,7 @@ def render_projects(data: list[dict] | None, context: dict | None = None) -> str
         return '<p style="font-size:0.875rem;font-style:italic;opacity:0.7;">No data</p>'
     css_vars = (context or {}).get("css_vars") or {}
     subsection_gap = css_vars.get("--subsection-gap", "16px")
+    date_style = (context or {}).get("instance_style", {}).get("date_style")
     items = []
     for entry in data:
         tech_items = ""
@@ -27,25 +28,30 @@ def render_projects(data: list[dict] | None, context: dict | None = None) -> str
         # printed PDF would carry no clickable /Link annotation.
         url_href = esc_attr(normalize_url_scheme(url))
         url_link = (
-            f'<a href="{url_href}" class="f-url">'
-            f'{esc(link_text)}</a>' if url else ""
+            f'<a href="{url_href}" class="f-url" target="_blank" rel="noopener noreferrer" '
+            f'style="flex-shrink:0;white-space:nowrap;">{esc(link_text)}'
+            f'<span aria-hidden="true"> \u2197</span></a>'
+            if url else ""
         )
         date_range = format_date_range(
             entry.get("start_date", ""),
             entry.get("end_date"),
             False,
+            date_style,
         )
         items.append(
             f'''<div>
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
     <div>
       <h3 class="f-name" style="margin:0;">{esc(entry.get("name", ""))}</h3>
-      {url_link}
+      {f'<p class="f-description" style="margin-top:4px;margin-bottom:0;">{esc(entry["description"])}</p>' if entry.get("description") else ""}
+      {tech_items}
     </div>
-    <p class="f-date" style="margin:0;">{esc(date_range)}</p>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0;">
+      {url_link}
+      <p class="f-date" style="margin:0;font-size:0.75rem;opacity:0.75;white-space:nowrap;">{esc(date_range)}</p>
+    </div>
   </div>
-  {f'<p class="f-description" style="margin-top:4px;margin-bottom:0;">{esc(entry["description"])}</p>' if entry.get("description") else ""}
-  {tech_items}
 </div>'''
         )
     return f'<div style="display:flex;flex-direction:column;gap:{subsection_gap};">' + "".join(items) + "</div>"

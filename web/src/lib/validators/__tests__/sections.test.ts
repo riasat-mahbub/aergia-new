@@ -137,6 +137,7 @@ describe("researchEntrySchema", () => {
     paper_url: "",
     paper_link_text: "",
     publication_date: "",
+    publication_value: "",
   };
 
   it("requires a non-empty title", () => {
