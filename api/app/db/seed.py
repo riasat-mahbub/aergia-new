@@ -26,13 +26,20 @@ def build_manifest(template: dict) -> dict:
             "label": key.replace("_", " ").title(),
             "default": default
         })
+    # Section/subsection gap sliders clamp to 0–N so users can collapse
+    # spacing entirely. Other length entries fall through to the renderer
+    # default (min 8) since they're rarely zero.
     for key, default in spacing.items():
-        global_style_schema.append({
+        schema_entry = {
             "key": key,
             "type": "length",
             "label": key.replace("_", " ").title(),
-            "default": default
-        })
+            "default": default,
+        }
+        if key in {"section_gap", "subsection_gap"}:
+            schema_entry["min"] = 0
+            schema_entry["max"] = 48 if key == "section_gap" else 24
+        global_style_schema.append(schema_entry)
     for key, default in (customizations.get("flags") or {}).items():
         global_style_schema.append({
             "key": key,
@@ -91,7 +98,7 @@ SEED_TEMPLATES = [
         "default_customizations": {
             "colors": {"accent": "#2563eb", "bg_sidebar": "#f8fafc"},
             "fonts": {"body": "Inter, system-ui, sans-serif", "heading": "Inter, system-ui, sans-serif"},
-            "spacing": {"section_gap": "24px", "subsection_gap": "16px", "profile_name_size": "1.75rem"},
+            "spacing": {"section_gap": "24px", "subsection_gap": "16px"},
             "flags": {"underline_section_titles": False, "default_link_style": False},
         },
     },
@@ -127,7 +134,7 @@ SEED_TEMPLATES = [
         "default_customizations": {
             "colors": {"header": "#000000", "divider": "#d1d5db"},
             "fonts": {"body": "Georgia, Crimson, serif", "heading": "Georgia, Crimson, serif"},
-            "spacing": {"section_gap": "20px", "subsection_gap": "12px", "profile_name_size": "1.5rem"},
+            "spacing": {"section_gap": "20px", "subsection_gap": "12px"},
             "flags": {"underline_section_titles": False, "default_link_style": False},
         },
     },
@@ -162,7 +169,7 @@ SEED_TEMPLATES = [
         "default_customizations": {
             "colors": {"text": "#374151", "heading": "#111827"},
             "fonts": {"body": "system-ui, sans-serif", "heading": "system-ui, sans-serif"},
-            "spacing": {"section_gap": "16px", "subsection_gap": "8px", "profile_name_size": "1.25rem"},
+            "spacing": {"section_gap": "16px", "subsection_gap": "8px"},
             "flags": {"underline_section_titles": False, "default_link_style": False},
         },
     },

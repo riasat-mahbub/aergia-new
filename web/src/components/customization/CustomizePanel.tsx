@@ -106,6 +106,8 @@ export default function CustomizePanel({
       merged.weight ||
       merged.text_align ||
       merged.layout ||
+      merged.subsection_gap ||
+      merged.row_gap ||
       typeof merged.show_title === "boolean" ||
       !!merged.date_style ||
       (merged.field_styles && Object.keys(merged.field_styles).length > 0);
@@ -227,6 +229,76 @@ export default function CustomizePanel({
                 ))}
               </select>
             </div>
+            {["experience", "education", "projects", "skills", "certifications", "research", "languages"].includes(
+              selectedInstance.type,
+            ) && (
+              <div>
+                <div className="flex items-baseline justify-between">
+                  <label htmlFor="subsection-gap" className="block text-xs text-gray-600">
+                    Subsection Gap
+                  </label>
+                  <span className="text-xs text-gray-500">
+                    {selectedStyle.subsection_gap ?? "Default"}
+                  </span>
+                </div>
+                <input
+                  id="subsection-gap"
+                  type="range"
+                  min={0}
+                  max={24}
+                  step={1}
+                  value={(() => {
+                    const raw = selectedStyle.subsection_gap;
+                    if (!raw) return 0;
+                    const n = parseInt(raw.replace("px", ""), 10);
+                    return Number.isFinite(n) ? Math.max(0, Math.min(24, n)) : 0;
+                  })()}
+                  onChange={(e) => {
+                    const n = Math.max(0, Math.min(24, Number(e.target.value)));
+                    updateSelectedStyle({ subsection_gap: `${n}px` });
+                  }}
+                  onDoubleClick={() => updateSelectedStyle({ subsection_gap: undefined })}
+                  className="mt-1 w-full"
+                />
+                <p className="mt-0.5 text-[10px] text-gray-400">
+                  Double-click to reset to template default.
+                </p>
+              </div>
+            )}
+            {selectedInstance.type === "profile" && (
+              <div>
+                <div className="flex items-baseline justify-between">
+                  <label htmlFor="row-gap" className="block text-xs text-gray-600">
+                    Row Gap
+                  </label>
+                  <span className="text-xs text-gray-500">
+                    {selectedStyle.row_gap ?? "Default"}
+                  </span>
+                </div>
+                <input
+                  id="row-gap"
+                  type="range"
+                  min={0}
+                  max={24}
+                  step={1}
+                  value={(() => {
+                    const raw = selectedStyle.row_gap;
+                    if (!raw) return 0;
+                    const n = parseInt(raw.replace("px", ""), 10);
+                    return Number.isFinite(n) ? Math.max(0, Math.min(24, n)) : 0;
+                  })()}
+                  onChange={(e) => {
+                    const n = Math.max(0, Math.min(24, Number(e.target.value)));
+                    updateSelectedStyle({ row_gap: `${n}px` });
+                  }}
+                  onDoubleClick={() => updateSelectedStyle({ row_gap: undefined })}
+                  className="mt-1 w-full"
+                />
+                <p className="mt-0.5 text-[10px] text-gray-400">
+                  Double-click to reset to template default.
+                </p>
+              </div>
+            )}
             <div>
               <label className="block text-xs text-gray-600">Text Align</label>
               <select

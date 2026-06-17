@@ -70,9 +70,9 @@ class HTMLBackend(AbstractRenderer):
     h1, h2, h3, h4, h5, h6 {{
       font-family: {ir.heading_font};
     }}
-    .f-name {{ font-size: var(--profile-name-size, 1.5rem); font-weight: 700; }}
+    .f-name {{ font-size: 1.5rem; font-weight: 700; }}
     .f-title, .f-summary, .f-company, .f-description, .f-institution, .f-category {{ font-size: 0.875rem; }}
-    .f-contact, .f-date, .f-gpa, .f-url, .f-tech, .f-tag, .f-proficiency, .f-meta {{ font-size: 0.75rem; }}
+    .f-contact, .f-contact-sep, .f-email, .f-phone, .f-location, .f-site, .f-social-links, .f-date, .f-gpa, .f-url, .f-tech, .f-tag, .f-proficiency, .f-meta {{ font-size: 0.75rem; }}
     .f-position, .f-degree {{ font-weight: 600; }}
     .f-category {{ font-weight: 600; }}
 {ir.link_styles}    {ir.print_styles}

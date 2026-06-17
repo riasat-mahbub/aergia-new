@@ -131,6 +131,20 @@ export interface SectionStyle {
    * research). Undefined leaves the default `YYYY-MM` rendering.
    */
   date_style?: DateStyle;
+  /**
+   * Per-section gap between entries inside multi-entry sections (experience,
+   * education, projects, skills, certifications, research, languages).
+   * Accepts any CSS length string; the UI clamps to 0–24 px. Undefined
+   * falls through to the template's `--subsection-gap` CSS var.
+   */
+  subsection_gap?: string;
+  /**
+   * Per-section gap between rows inside the Profile section (name, title,
+   * contact, social links, summary). Accepts any CSS length string; the UI
+   * clamps to 0–24 px. Undefined falls through to the template's `--row-gap`
+   * CSS var.
+   */
+  row_gap?: string;
 }
 
 export interface SectionInstance {

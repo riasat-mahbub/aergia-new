@@ -12,10 +12,11 @@ def render_certifications(data: list[dict] | None, context: dict | None = None) 
     if not data:
         return '<p style="font-size:0.875rem;font-style:italic;opacity:0.7;">No data</p>'
     css_vars = (context or {}).get("css_vars") or {}
-    subsection_gap = css_vars.get("--subsection-gap", "8px")
+    instance_style = (context or {}).get("instance_style") or {}
+    subsection_gap = instance_style.get("subsection_gap") or css_vars.get("--subsection-gap", "8px")
     date_style = (context or {}).get("instance_style", {}).get("date_style")
     items = []
-    for entry in data:
+    for i, entry in enumerate(data):
         issuer = esc(entry.get("issuer", ""))
         formatted_date = format_single_date(entry.get("date", ""), date_style)
         cred_link = (

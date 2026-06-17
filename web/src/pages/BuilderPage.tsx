@@ -540,6 +540,8 @@ export function sectionStyleHasValues(style: SectionStyle): boolean {
       style.weight ||
       style.text_align ||
       style.layout ||
+      style.subsection_gap ||
+      style.row_gap ||
       typeof style.show_title === "boolean" ||
       style.date_style ||
       fieldStylesHasMeaningfulPick

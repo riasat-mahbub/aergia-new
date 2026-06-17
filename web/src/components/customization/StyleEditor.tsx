@@ -35,8 +35,8 @@ const DEFAULT_SCHEMA: StyleVarSchema[] = [
   { key: "divider", type: "color", label: "Divider", default: "#d1d5db" },
   { key: "text", type: "color", label: "Text", default: "#374151" },
   { key: "heading", type: "color", label: "Heading", default: "#111827" },
-  { key: "section_gap", type: "length", label: "Section Gap", default: "24px" },
-  { key: "subsection_gap", type: "length", label: "Subsection Gap", default: "12px", min: 2, max: 24 },
+  { key: "section_gap", type: "length", label: "Section Gap", default: "24px", min: 0, max: 48 },
+  { key: "subsection_gap", type: "length", label: "Subsection Gap", default: "12px", min: 0, max: 24 },
   { key: "underline_section_titles", type: "boolean", label: "Underline Section Titles", default: "false" },
 ]
 

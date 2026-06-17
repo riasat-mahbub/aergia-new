@@ -83,6 +83,20 @@ describe("sectionStyleHasValues", () => {
   it("returns true when layout is explicitly block", () => {
     expect(sectionStyleHasValues({ layout: "block" })).toBe(true);
   });
+
+  it("returns true when row_gap is set (per-profile row spacing)", () => {
+    expect(sectionStyleHasValues({ row_gap: "12px" })).toBe(true);
+  });
+
+   it("returns true when subsection_gap is set (per-section override beats template var)", () => {
+    expect(sectionStyleHasValues({ subsection_gap: "20px" })).toBe(true);
+  });
+
+  it("returns false when row_gap is undefined or empty string", () => {
+    expect(sectionStyleHasValues({ row_gap: undefined })).toBe(false);
+    expect(sectionStyleHasValues({ row_gap: "" })).toBe(false);
+  });
+
   it("returns true when date_style is set (new: per-section date format)", () => {
     expect(
       sectionStyleHasValues({ date_style: { key: "Mon YYYY", rangeSep: " \u2013 " } }),

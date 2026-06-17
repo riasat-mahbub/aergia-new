@@ -680,3 +680,61 @@ def test_certifications_respects_date_style(style_key, _label, range_sep):
     expected = _format(style_key, range_sep, "2021-03")
     assert expected in html
     assert 'class="f-date"' in html
+
+
+# --- Per-section subsection_gap override ------------------------------
+
+
+@_pytest.mark.parametrize("section_type,sample_data", [
+    # Each entry exercises one multi-entry renderer with a representative
+    # data shape. The override must win over both the per-renderer default
+    # and the --subsection-gap CSS var.
+    ("certifications", [{"id": "c1", "name": "AWS", "issuer": "Amazon"}]),
+    ("education", [{"id": "e1", "degree": "BS", "institution": "MIT"}]),
+    ("experience", [{"id": "x1", "position": "Eng", "company": "Acme"}]),
+    ("languages", [{"id": "l1", "language": "EN", "proficiency": "Native"}]),
+    ("projects", [{"id": "p1", "name": "X", "description": "Y"}]),
+    ("research", [{"id": "r1", "title": "T"}]),
+    ("skills", [{"id": "s1", "category": "Langs", "items": ["Python"]}]),
+])
+def test_subsection_gap_override_wins_over_css_var(section_type, sample_data):
+    """When instance_style.subsection_gap is set, the wrapper's gap uses
+    the override verbatim — not the --subsection-gap CSS var, not the
+    per-renderer default. The override is the user's authoritative pick.
+    """
+    html = render_section_preview(
+        section_type,
+        sample_data,
+        _ctx(css_vars={"--subsection-gap": "16px"}, instance_style={"subsection_gap": "32px"}),
+    )
+    assert "gap:32px" in html
+    assert "gap:16px" not in html
+    # No CSS-var fallback should be referenced either; the override is a
+    # literal length string.
+    assert "var(--subsection-gap" not in html
+
+
+def test_subsection_gap_falls_through_to_css_var_when_unset():
+    """When instance_style.subsection_gap is absent, the wrapper uses the
+    --subsection-gap CSS var verbatim.
+    """
+    html = render_section_preview(
+        "experience",
+        [{"id": "x1", "position": "Eng", "company": "Acme"}],
+        _ctx(css_vars={"--subsection-gap": "20px"}),
+    )
+    assert "gap:20px" in html
+    assert "var(--subsection-gap" not in html
+
+
+def test_subsection_gap_uses_per_renderer_default_when_no_var_and_no_override():
+    """When both instance_style.subsection_gap and --subsection-gap are
+    missing, the per-renderer default kicks in (16px for experience). This
+    is a defensive fallback for callers that bypass _build_css_vars.
+    """
+    html = render_section_preview(
+        "experience",
+        [{"id": "x1", "position": "Eng", "company": "Acme"}],
+        _ctx(),
+    )
+    assert "gap:16px" in html

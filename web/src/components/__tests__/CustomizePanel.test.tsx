@@ -271,8 +271,12 @@ describe("CustomizePanel", () => {
     expect(screen.getByText("Per-field typography")).toBeDefined();
     expect(screen.getByText("Name")).toBeDefined();
     expect(screen.getByText("Title")).toBeDefined();
+    expect(screen.getByText("Email")).toBeDefined();
+    expect(screen.getByText("Phone")).toBeDefined();
+    expect(screen.getByText("Location")).toBeDefined();
+    expect(screen.getByText("Site")).toBeDefined();
+    expect(screen.getByText("Social Links")).toBeDefined();
     expect(screen.getByText("Summary")).toBeDefined();
-    expect(screen.getByText("Contact")).toBeDefined();
   });
 
   it("Per-field typography panel lists project fields", () => {

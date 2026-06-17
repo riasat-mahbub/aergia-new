@@ -141,7 +141,6 @@ def _build_section_panel(instance: dict, context: dict | None = None) -> Section
 
     heading_style = (
         "margin-bottom:8px;font-size:1rem;font-weight:700;"
-        "text-transform:uppercase;letter-spacing:0.05em;"
         "color:var(--heading, #1f2937)"
     )
     if context and context.get("flags", {}).get("underline_section_titles"):
@@ -180,7 +179,7 @@ def _build_asset_panels(manifest: dict, zone_id: str) -> list[SectionPanelIR]:
             title=asset["name"],
             html=asset_html,
             wrapper_style="margin-bottom:16px",
-            heading_style="font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#6b7280;margin-bottom:4px"
+            heading_style="font-size:0.75rem;font-weight:600;color:#6b7280;margin-bottom:4px"
         ))
     return panels
 
@@ -212,7 +211,7 @@ def _build_css_vars(manifest: dict, customizations: dict) -> dict[str, str]:
         "--heading-font": fonts.get("heading"),
         "--section-gap": spacing.get("section_gap"),
         "--subsection-gap": spacing.get("subsection_gap"),
-        "--profile-name-size": spacing.get("profile_name_size"),
+        "--row-gap": spacing.get("row_gap"),
     }
     return {k: v for k, v in all_vars.items() if v is not None}
 
