@@ -1,5 +1,5 @@
 ---
-id: ADR-01LZ000000000000000000000-three-axis-style-model
+id: ADR-01KZCCM17NP6QSKMGG71QV4PWH-three-axis-style-model
 title: Three-axis style model
 status: DONE
 created: 2026-08-06
@@ -67,7 +67,6 @@ class LayoutHints(BaseModel):
 ### `SectionPolicy` — document semantics
 
 Renderer-implemented structural rules. The HTML renderer implements them with HTML constructs; a future DOCX renderer would implement them with DOCX constructs.
-
 ```python
 class SectionPolicy(BaseModel):
     show_title: bool = True
@@ -100,4 +99,4 @@ class SectionPolicy(BaseModel):
 
 - AGENTS.md, PLAN.md, TEMPLATE_GUIDE.md
 - ADR-html-first-architecture
-- FEAT-html-first-pipeline
+- EPIC-01KZCCC3MTXDGPY31H06NFYP1Q-html-first-pipeline-with-three-axis-style-ast

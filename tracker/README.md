@@ -9,14 +9,14 @@ checks schema integrity.
 
 | Folder | Type | Total |
 |--------|------|-------|
-| [bugs/](bugs/) | bug | 9 |
-| [features/](features/) | feature | 30 |
-| [decisions/](decisions/) | adr | 3 |
-| [tasks/](tasks/) | task | 23 |
+| [bugs/](bugs/) | bug | 15 |
+| [features/](features/) | feature | 46 |
+| [decisions/](decisions/) | adr | 5 |
+| [tasks/](tasks/) | task | 93 |
 | [docs/](docs/) | doc | 1 |
-| [epics/](epics/) | epic | 0 |
+| [epics/](epics/) | epic | 1 |
 
-**Status** (from `tracker stats`, 2026-08-01): DONE 41 · PLANNED 14 · PROPOSED 11 · 66 entries total.
+**Status** (from `tracker stats`, 2026-08-06): DONE 84 · PLANNED 49 · PROPOSED 12 · 162 entries total.
 
 ## Usage
 
