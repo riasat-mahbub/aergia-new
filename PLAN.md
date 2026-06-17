@@ -401,5 +401,91 @@ Remove:
 | 6.3 | Create `SectionZoneView` component | ✅ |
 | 6.4 | Strip `CustomizePanel` to styling only | ✅ |
 | 6.5 | Update `BuilderPage` to wire `SectionZoneView` | ✅ |
-| 6.6 | Remove old components (`SectionList`, `ZoneLayoutBar`, etc.) | ✅ |
 | 6.7 | Verify lint + typecheck + tests | ✅ |
+
+---
+
+## Phase 7 – Three-Axis Style Model + HTML-First Pipeline
+
+**Branch:** `feat/ast-pipeline` (cut from master, merged via regular merge commit, not squash)
+
+**Scope:** Replace the legacy `SectionStyle` cascade and the string-blob IR with a typed three-axis AST and an HTML-first render pipeline. The new system is built from scratch on a separate branch; no migration code, no compatibility shims.
+
+### Architecture
+
+- **HTML-first.** The canonical rendering target is HTML + CSS. PDF is HTML rendered by Chromium. The React tree is the editor surface, not a renderer.
+- **Pydantic schemas are the AST.** Pydantic models in `api/app/schema/models.py` are both the wire shape and the runtime AST. Codegen produces TS types in `generated/schema.ts`; CI checks no diff.
+- **Three orthogonal axes:**
+  - `TextStyle` — inline per-field appearance (bold, italic, underline, strike, color, link, font_size).
+  - `SubsectionStyle` — block-level appearance (text_align, spacing_before, spacing_after, background_color).
+  - `LayoutHints` — page flow + structural (break_before, keep_together, heading_keeps_with_first, orphans, widows, font_family, date_style).
+- **SectionPolicy is document semantics.** The HTML renderer implements it with HTML constructs; a future DOCX renderer implements it with DOCX constructs.
+
+### Pipeline
+
+```
+AST (Pydantic schemas)
+  ↓
+Resolver (apply template defaults, resolve policies, compute CSS variables from design tokens)
+  ↓
+RenderModel (fully resolved; no defaults remain)
+  ↓
+HTMLDocumentRenderer (almost stupid; emits HTML)
+  ↓
+HTML5 + CSS
+  ↓
+Chromium
+  ↓
+PDF
+```
+
+The React tree mirrors the AST but doesn't render HTML. The Python HTML renderer is the document renderer. Both consume the same data; the rendering is different.
+
+### Renderer capabilities
+
+Every renderer declares its own `RendererSupport` (property of the renderer class). The customize panel reads the active renderer's support. The export endpoint reads the renderer's support. The renderer is the source of truth for what it can do.
+
+Each capability field has a `SupportLevel`:
+- `FULL` — the renderer reliably satisfies this; control shown normally.
+- `BEST_EFFORT` — the renderer tries but can't guarantee; control shown with a warning icon.
+- `NONE` — the renderer can't satisfy this; control hidden.
+
+### Design tokens
+
+Templates declare `layout_defaults: { spacing: comfortable }`. The renderer emits CSS variables (`--spacing-section`). The stylesheet defines the values. Three layers, each independent.
+
+### Seed templates
+
+Three system templates, each minimal:
+- Modern: `layout_defaults: { spacing: comfortable }`, `policy_overrides: {}`
+- Classic: `layout_defaults: { spacing: compact }`, `policy_overrides: {}`
+- Minimal: `layout_defaults: { spacing: minimal }`, `policy_overrides: {}`
+
+Templates express taste; renderers express behavior.
+
+### Editor is schematic
+
+The editor visualizes the document structure (sections, fields, brackets). It does not promise to show the exact spacing, page breaks, or font fallbacks the PDF will produce. Visual cues (e.g., "page break" markers) indicate structural intent without literal page boundaries.
+
+### Merge
+
+The new branch merges into `master` via a regular merge commit (not squash). The branch's commit history is preserved on `master`. The merge is the cutover: the old code is gone in one step.
+
+### Tasks
+
+| # | Task | Status |
+|---|------|--------|
+| 7.0 | Phase 0: empty branch + plan docs (AGENTS.md, PLAN.md, TEMPLATE_GUIDE.md) | 🔲 |
+| 7.1 | Phase 1: codegen setup (pyproject.toml, package.json, dev.sh, .qlty/qlty.toml) | 🔲 |
+| 7.2 | Phase 1: schemas (TextStyle, SubsectionStyle, LayoutHints, SectionPolicy, DocumentLayoutHints, DocumentStyles; Document, Section, Entry, FieldBlock, TextRun) | 🔲 |
+| 7.3 | Phase 1: codegen output + CI check (running codegen produces no diff) | 🔲 |
+| 7.4 | Phase 1: support enum + RendererSupport class | 🔲 |
+| 7.5 | Phase 1: SECTION_POLICIES + resolve_policy() | 🔲 |
+| 7.6 | Phase 1: build_ast() + section builders | 🔲 |
+| 7.7 | Phase 1: Resolver + RenderModel + design tokens | 🔲 |
+| 7.8 | Phase 1: HTMLDocumentRenderer class | 🔲 |
+| 7.9 | Phase 1: section renderers (one per type) | 🔲 |
+| 7.10 | Phase 1: routes (POST /render/ast, POST /render/html, POST /render/{target}) | 🔲 |
+| 7.11 | Phase 1: services (cv.py, pdf.py) | 🔲 |
+| 7.12 | Phase 1: seed templates (minimal) | 🔲 |
+| 7.13 | Phase 1: tests | 🔲 |
