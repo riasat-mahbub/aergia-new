@@ -179,26 +179,3 @@ def test_unknown_section_type_raises_value_error():
     with pytest.raises(ValueError):
         build_document(cv)
 
-
-def test_legacy_style_overrides_apply_to_section_three_axes():
-    cv = _cv([{
-        "id": "s1",
-        "type": "profile",
-        "title": "Profile",
-        "enabled": True,
-        "data": {"name": "Ada"},
-        "legacy_style": {
-            "font": "Inter",
-            "color": "#abc",
-            "weight": "bold",
-            "text_align": "left",
-            "show_title": True,
-            "subsection_gap": "12px",
-        },
-    }])
-    doc = build_document(cv)
-    section = doc.sections[0]
-    assert section.subsection.section_color == "#abc"
-    assert section.subsection.text_align == "left"
-    assert section.layout.font_family == "Inter"
-    assert section.policy is not None and section.policy.show_title is True

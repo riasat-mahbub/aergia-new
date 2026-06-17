@@ -8,9 +8,9 @@ The :func:`build_document` entry point walks ``cv.sections``, normalises
 each instance's three-axis style via :func:`build_section_style`, and
 dispatches to the per-type builder.
 
-The legacy ``SectionStyle`` is mapped into the three new axes by
-:func:`build_section_style` per the ADR mapping table. ``legacy_style`` is
-dropped from the resolved section (it's a wire-only field).
+Each builder takes the wire :class:`SectionInstance` and emits a
+:class:`Section` AST node. ``build_section_style`` overlays the per-instance
+three-axis style onto the section.
 """
 
 from __future__ import annotations
@@ -52,7 +52,6 @@ BUILDERS = {
 def build_section_style(
     instance_type: str,
     instance_style: SectionInstanceStyle | None,
-    legacy: dict | None,
     manifest: TemplateManifest | None,
 ) -> tuple[SectionInstanceStyle, SectionPolicy]:
     """Resolve a :class:`SectionInstanceStyle` from the wire form.
@@ -60,8 +59,7 @@ def build_section_style(
     Layers the inputs in this order:
 
     1. ``instance_style`` (already three-axis).
-    2. ``legacy`` field-by-field overlay onto the three axes.
-    3. ``policy`` default from ``SECTION_POLICIES`` (overridden by
+    2. ``policy`` default from ``SECTION_POLICIES`` (overridden by
        ``manifest.policy_overrides.by_type``).
 
     Returns ``(style, policy)``. The style is the resolved three-axis
@@ -77,53 +75,6 @@ def build_section_style(
     layout = LayoutHints.model_validate(layout_dict) if layout_dict else LayoutHints()
     policy_dict = base.get("policy")
     explicit_policy = SectionPolicy.model_validate(policy_dict) if policy_dict else None
-
-    # Overlay the legacy shape (any field may be present).
-    if legacy:
-        if legacy.get("font"):
-            layout = layout.model_copy(update={"font_family": legacy["font"]})
-        if legacy.get("color"):
-            subsection = subsection.model_copy(update={"section_color": legacy["color"]})
-        weight = legacy.get("weight")
-        if weight is not None:
-            bold = weight == "bold"
-            # Apply to every existing text run + a fallback empty key.
-            for k, ts in list(text.items()):
-                text[k] = ts.model_copy(update={"bold": bold})
-            text.setdefault("__section__", TextStyle(bold=bold))
-        if legacy.get("text_align"):
-            subsection = subsection.model_copy(update={"text_align": legacy["text_align"]})
-        if "show_title" in legacy and legacy["show_title"] is not None:
-            if explicit_policy is None:
-                explicit_policy = SectionPolicy()
-            explicit_policy = explicit_policy.model_copy(update={"show_title": bool(legacy["show_title"])})
-        if legacy.get("layout") in {"block", "inline"}:
-            if explicit_policy is None:
-                explicit_policy = SectionPolicy()
-            explicit_policy = explicit_policy.model_copy(update={"skill_variant": legacy["layout"]})
-        # legacy field_styles is a dict[field_key -> {font, size, weight}].
-        for fkey, fstyle in (legacy.get("field_styles") or {}).items():
-            if not isinstance(fstyle, dict):
-                continue
-            ts = text.get(fkey) or TextStyle()
-            new = ts.model_dump()
-            if fstyle.get("font"):
-                # Field-level font is the same key the TextStyle uses.
-                pass  # TextStyle doesn't carry font; cascade via wrapper.
-            if fstyle.get("weight") == "bold":
-                new["bold"] = True
-            elif fstyle.get("weight") == "normal":
-                new["bold"] = False
-            size = fstyle.get("size")
-            if size in {"xs", "small", "normal", "large", "xl"}:
-                new["font_size"] = size
-            text[fkey] = TextStyle.model_validate(new)
-        if isinstance(legacy.get("date_style"), dict):
-            layout = layout.model_copy(update={"date_style": legacy["date_style"]})
-        if legacy.get("subsection_gap"):
-            subsection = subsection.model_copy(update={"spacing_after": legacy["subsection_gap"]})
-        if legacy.get("row_gap"):
-            subsection = subsection.model_copy(update={"spacing_after": legacy["row_gap"]})
 
     # Resolve the default policy unless the instance declared one.
     if explicit_policy is None:
@@ -170,7 +121,6 @@ def build_document(
         style, policy = build_section_style(
             instance_type=instance.type,
             instance_style=instance.style,
-            legacy=instance.legacy_style,
             manifest=manifest,
         )
 
