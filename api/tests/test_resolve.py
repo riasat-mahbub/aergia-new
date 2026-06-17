@@ -9,17 +9,17 @@ from app.schema.models import (
     Document,
     Entry,
     FieldBlock,
+    LayoutHints,
     Section,
     SectionInstance,
     TemplateManifest,
     TextRun,
     Zone,
 )
+
 from app.services.renderer import build_document, resolve
 from app.services.renderer.html import HTMLDocumentRenderer
 from app.services.renderer.support import RendererSupport, SupportLevel
-
-
 def _manifest(spacing="comfortable"):
     return TemplateManifest(
         name="M",
@@ -159,3 +159,34 @@ def test_support_with_skills_inline_none_forces_block_variant():
     ])
     model = resolve(doc, _manifest(), Customizations(), support)
     assert model.sections["s"].policy.skill_variant == "block"
+
+
+def test_support_none_zeroes_layout_hints():
+    support = RendererSupport(
+        break_before=SupportLevel.NONE,
+        keep_together=SupportLevel.NONE,
+        heading_keeps_with_first=SupportLevel.NONE,
+    )
+    doc = Document(sections=[
+        Section(id="p", type="profile", title="P", enabled=True,
+                layout=LayoutHints(
+                    break_before=True,
+                    keep_together=True,
+                    heading_keeps_with_first=True,
+                ),
+                entries=[Entry(id="e1", fields=[FieldBlock(key="name", runs=[TextRun(text="")])])])
+    ])
+    sec = resolve(doc, None, Customizations(), support).sections["p"]
+    assert sec.layout.break_before is False
+    assert sec.layout.keep_together is False
+    assert sec.layout.heading_keeps_with_first is False
+
+
+def test_support_full_preserves_layout_hints():
+    doc = Document(sections=[
+        Section(id="p", type="profile", title="P", enabled=True,
+                layout=LayoutHints(break_before=True),
+                entries=[Entry(id="e1", fields=[FieldBlock(key="name", runs=[TextRun(text="")])])])
+    ])
+    sec = resolve(doc, None, Customizations(), RendererSupport()).sections["p"]
+    assert sec.layout.break_before is True

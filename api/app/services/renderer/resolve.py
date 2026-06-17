@@ -217,9 +217,37 @@ def _resolve_zones(document: Document, manifest: TemplateManifest | None) -> lis
 
 
 def _drop_none_features(model: RenderModel, support: RendererSupport) -> RenderModel:
-    """Drop features the renderer declared as ``NONE``."""
+    """Drop features the renderer declared as ``NONE``.
 
-    return model
+    Only fields with a per-section resolver mapping are gated here:
+    ``break_before``, ``keep_together``, ``heading_keeps_with_first``.
+    The no-op markers ``keep_with_next``, ``feature_section_underline``,
+    and ``feature_anchor_styling`` have no per-section resolver mapping
+    today; the renderer ignores them regardless of support level. The
+    panel hides their controls on NONE but the resolver does not act.
+    """
+    none_fields = [
+        f for f in ("break_before", "keep_together", "heading_keeps_with_first")
+        if getattr(support, f) is SupportLevel.NONE
+    ]
+    if not none_fields:
+        return model
+
+    def _strip(section: Section) -> Section:
+        if section.layout is None:
+            return section
+        layout = section.layout
+        updates: dict[str, object] = {}
+        for f in none_fields:
+            if getattr(layout, f):
+                updates[f] = False
+        if not updates:
+            return section
+        return section.model_copy(update={"layout": layout.model_copy(update=updates)})
+
+    new_sections = {sid: _strip(s) for sid, s in model.sections.items()}
+    return model.model_copy(update={"sections": new_sections})
+
 
 
 def _check_manifest(manifest: TemplateManifest | dict | None) -> TemplateManifest | None:
@@ -235,7 +263,6 @@ def _check_manifest(manifest: TemplateManifest | dict | None) -> TemplateManifes
             )
         return TemplateManifest.model_validate(manifest)
     raise ManifestVersionError("Template manifest must be a dict or TemplateManifest.")
-
 
 def resolve(
     document: Document,
