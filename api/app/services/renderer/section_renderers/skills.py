@@ -14,10 +14,10 @@ def render_skills(data: list[dict] | None, context: dict | None = None) -> str:
     instance_style = (context or {}).get("instance_style") or {}
     layout = instance_style.get("layout") or "block"
     css_vars = (context or {}).get("css_vars") or {}
-    subsection_gap = css_vars.get("--subsection-gap", "12px")
+    subsection_gap = instance_style.get("subsection_gap") or css_vars.get("--subsection-gap", "12px")
     items = []
     if layout == "inline":
-        for group in data:
+        for i, group in enumerate(data):
             label = esc(group.get("category", "") or "")
             items_html = ", ".join(esc(item) for item in group.get("items", []) if item)
             items.append(
@@ -28,7 +28,7 @@ def render_skills(data: list[dict] | None, context: dict | None = None) -> str:
                 f'</div>'
             )
         return f'<div style="display:flex;flex-direction:column;gap:{subsection_gap};">' + "".join(items) + "</div>"
-    for group in data:
+    for i, group in enumerate(data):
         skill_items = "".join(
             f'<span class="f-tag" style="display:inline-block;background:#f3f4f6;padding:2px 8px;border-radius:4px;'
             f'">{esc(item)}</span>'

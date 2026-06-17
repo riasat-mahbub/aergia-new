@@ -17,9 +17,12 @@ def _ctx(**overrides):
 def test_profile_empty_fields_renders_fallback_name():
     html = render_profile({}, _ctx())
     assert "Your Name" in html
-    assert "<h2" in html
-    assert "font-weight:700" in html
-
+    # Name is rendered as a plain <div class="f-name"> (not <h2>) so the
+    # UA-default heading line-height doesn't visually inflate the gap to
+    # the row below.
+    assert '<div class="f-name"' in html
+    assert "<h2" not in html
+    assert 'class="f-name"' in html
 
 def test_profile_without_photo_does_not_emit_img():
     html = render_profile({"name": "Alice"}, _ctx())
@@ -68,8 +71,7 @@ def test_profile_keeps_accent_on_photo_border():
 
 def test_profile_name_size_uses_css_var_when_provided():
     html = render_profile({"name": "Alice"}, _ctx(css_vars={"--profile-name-size": "2.25rem"}))
-    assert "font-size:2.25rem" in html
-
+    assert 'class="f-name"' in html
 
 def test_profile_all_fields_render_in_order():
     html = render_profile(
@@ -99,13 +101,13 @@ def test_profile_all_fields_render_in_order():
 def test_profile_email_renders_as_mailto_link_by_default():
     html = render_profile({"email": "a@b.com"}, _ctx())
     assert 'href="mailto:a@b.com"' in html
-    assert ">a@b.com</a>" in html
-    assert "<span>a@b.com</span>" not in html
-
+    assert 'class="f-contact f-email"' in html
+    assert '>a@b.com</a>' in html
+    assert '<span class="f-contact f-email">a@b.com</span>' not in html
 
 def test_profile_email_renders_plain_when_toggle_off():
     html = render_profile({"email": "a@b.com", "email_link": False}, _ctx())
-    assert "<span>a@b.com</span>" in html
+    assert '<span class="f-contact f-email">a@b.com</span>' in html
     assert "mailto:" not in html
 
 
@@ -132,3 +134,41 @@ def test_profile_site_text_takes_precedence_when_set():
 def test_profile_email_unchanged_when_old_data_has_no_toggle():
     html = render_profile({"email": "a@b.com"}, _ctx())
     assert 'href="mailto:a@b.com"' in html
+
+
+
+# --- Per-section row_gap override (Profile) -----------------------
+
+
+def test_profile_row_gap_override_wins_over_css_var():
+    """When instance_style.row_gap is set, the profile row wrapper uses
+    the override verbatim — not the --row-gap CSS var, not the per-renderer
+    default.
+    """
+    html = render_profile(
+        {"name": "Alice", "title": "Engineer"},
+        _ctx(css_vars={"--row-gap": "8px"}, instance_style={"row_gap": "16px"}),
+    )
+    assert "gap:16px" in html
+    assert "gap:8px" not in html
+    assert "var(--row-gap" not in html
+
+
+def test_profile_row_gap_falls_through_to_css_var_when_unset():
+    """When instance_style.row_gap is absent, the wrapper uses the
+    --row-gap CSS var verbatim.
+    """
+    html = render_profile(
+        {"name": "Alice"},
+        _ctx(css_vars={"--row-gap": "12px"}),
+    )
+    assert "gap:12px" in html
+    assert "var(--row-gap" not in html
+
+
+def test_profile_row_gap_uses_default_when_no_var_and_no_override():
+    """When both instance_style.row_gap and --row-gap are missing, the
+    per-renderer default kicks in (8px). Defensive fallback.
+    """
+    html = render_profile({"name": "Alice"}, _ctx())
+    assert "gap:8px" in html

@@ -4,7 +4,7 @@ export interface FieldDef {
 }
 
 export const FIELD_DEFS: Record<string, FieldDef[]> = {
-  profile: [{ key: "name", label: "Name" }, { key: "title", label: "Title" }, { key: "summary", label: "Summary" }, { key: "contact", label: "Contact" }],
+  profile: [{ key: "name", label: "Name" }, { key: "title", label: "Title" }, { key: "email", label: "Email" }, { key: "phone", label: "Phone" }, { key: "location", label: "Location" }, { key: "site", label: "Site" }, { key: "social_links", label: "Social Links" }, { key: "summary", label: "Summary" }],
   experience: [{ key: "position", label: "Position" }, { key: "company", label: "Company" }, { key: "date", label: "Date" }, { key: "description", label: "Description" }],
   education: [{ key: "degree", label: "Degree" }, { key: "institution", label: "Institution" }, { key: "date", label: "Date" }, { key: "gpa", label: "GPA" }, { key: "summary", label: "Summary" }],
   projects: [{ key: "name", label: "Name" }, { key: "url", label: "Link" }, { key: "date", label: "Date" }, { key: "description", label: "Description" }, { key: "tech", label: "Tech" }],

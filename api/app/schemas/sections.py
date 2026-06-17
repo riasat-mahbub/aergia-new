@@ -114,6 +114,12 @@ class SectionStyle(BaseModel):
     layout: Literal["block", "inline"] | None = None
     field_styles: dict[str, FieldStyle] | None = None
     date_style: DateStyle | None = None
+    # Accepts any CSS length string ("8px", "1rem", "0.5em", etc.). The UI
+    # clamps to 0–24 px; the schema intentionally accepts arbitrary input so
+    # programmatic customizations never 422.
+    subsection_gap: str | None = None
+    # Same semantics as subsection_gap but applies to profile's row layout.
+    row_gap: str | None = None
 
 
 # Map section type → data model

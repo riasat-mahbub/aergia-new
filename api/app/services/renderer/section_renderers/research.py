@@ -16,10 +16,11 @@ def render_research(data: list[dict] | None, context: dict | None = None) -> str
     if not data:
         return '<p style="font-size:0.875rem;font-style:italic;opacity:0.7;">No data</p>'
     css_vars = (context or {}).get("css_vars") or {}
-    subsection_gap = css_vars.get("--subsection-gap", "16px")
+    instance_style = (context or {}).get("instance_style") or {}
+    subsection_gap = instance_style.get("subsection_gap") or css_vars.get("--subsection-gap", "16px")
     date_style = (context or {}).get("instance_style", {}).get("date_style")
     items = []
-    for entry in data:
+    for i, entry in enumerate(data):
         title = esc(entry.get("title", ""))
         paper_url = entry.get("paper_url") or ""
         # paper_link_text is content for the f-url anchor; default to "Paper"
@@ -72,9 +73,4 @@ def render_research(data: list[dict] | None, context: dict | None = None) -> str
   {description_paragraph}
 </article>'''
         )
-
-    return (
-        f'<div style="display:flex;flex-direction:column;gap:{subsection_gap};">'
-        + "".join(items)
-        + "</div>"
-    )
+    return f'<div style="display:flex;flex-direction:column;gap:{subsection_gap};">' + "".join(items) + "</div>"

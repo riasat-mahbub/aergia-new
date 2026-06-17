@@ -10,12 +10,13 @@ def render_languages(data: list[dict] | None, context: dict | None = None) -> st
     if not data:
         return '<p style="font-size:0.875rem;font-style:italic;opacity:0.7;">No data</p>'
     css_vars = (context or {}).get("css_vars") or {}
-    subsection_gap = css_vars.get("--subsection-gap", "4px")
+    instance_style = (context or {}).get("instance_style") or {}
+    subsection_gap = instance_style.get("subsection_gap") or css_vars.get("--subsection-gap", "4px")
     items = "".join(
-        f'<div style="display:flex;justify-content:space-between;align-items:center;">'
-        f'<span class="f-language">{esc(e.get("language", ""))}</span>'
-        f'<span class="f-proficiency">{esc(e.get("proficiency", ""))}</span>'
-        f'</div>'
-        for e in data
+        '<div style="display:flex;justify-content:space-between;align-items:center;'
+        + '"><span class="f-language">' + esc(e.get("language", "")) + '</span>'
+        + '<span class="f-proficiency">' + esc(e.get("proficiency", "")) + '</span>'
+        + '</div>'
+        for i, e in enumerate(data)
     )
     return f'<div style="display:flex;flex-direction:column;gap:{subsection_gap};">{items}</div>'

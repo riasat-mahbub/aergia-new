@@ -11,10 +11,11 @@ def render_education(data: list[dict] | None, context: dict | None = None) -> st
     if not data:
         return '<p style="font-size:0.875rem;font-style:italic;opacity:0.7;">No data</p>'
     css_vars = (context or {}).get("css_vars") or {}
-    subsection_gap = css_vars.get("--subsection-gap", "12px")
+    instance_style = (context or {}).get("instance_style") or {}
+    subsection_gap = instance_style.get("subsection_gap") or css_vars.get("--subsection-gap", "12px")
     date_style = (context or {}).get("instance_style", {}).get("date_style")
     items = []
-    for entry in data:
+    for i, entry in enumerate(data):
         gpa = (
             f'<p class="f-gpa" style="margin:0;">GPA: {esc(entry["gpa"])}</p>'
             if entry.get("gpa")
