@@ -1,345 +1,156 @@
-# Phase 7 Implementation Prompt
+# Phase 7 Intent
 
-You are implementing the new render pipeline for the Aergia CV Builder. The architecture is fully designed and committed to in the docs. This prompt is how you execute.
+You are implementing a new render pipeline for the Aergia CV Builder. The architecture is already committed to in writing. Read the docs first, then execute.
 
-## The three docs that are the implementation reference
+## The one-paragraph summary
 
-1. **`AGENTS.md`** — the architecture promise, render model discipline, renderer capabilities, merge policy, pipeline diagram. Read this first.
-2. **`PLAN.md`** — Phase 7 (three-axis style model + HTML-first pipeline). Read this for the phase structure.
-3. **`TEMPLATE_GUIDE.md`** — the new manifest pipeline. Read this for the manifest schema and design tokens.
+The current renderer is a string-concatenation function. The legacy `SectionStyle` (10 fields) conflates three different concerns — inline per-field appearance, block-level appearance, and page-flow intent. The customize panel flattens these into one disclosure. The "renderer-agnostic" framing is aspirational; the reality is HTML-first. The new system replaces the legacy with a typed AST, three orthogonal axes (`TextStyle`, `SubsectionStyle`, `LayoutHints`), an explicit Resolver stage, and a renderer that declares its own capabilities. The React tree is the editor surface, not a renderer. The merge is a regular merge commit, not a squash.
 
-The tracker entries (EPIC + FEAT + 2 ADRs) link these together and document the full phase plan with task-level granularity.
+## The intent of the change
 
-## The architecture in one sentence
+The current architecture has four problems that cumulate:
 
-The renderer is HTML. PDF is HTML rendered by Chromium. The React tree is the editor surface, not a renderer. The schema is Pydantic. The pipeline is `AST → Resolver → RenderModel → Renderer`.
+1. **String-concatenation renderer.** The IR is a manually-built string blob. Hard to test, hard to extend, easy to break in subtle ways.
+2. **Conflated styling.** `SectionStyle` mixes inline per-field, block-level, and page-flow concerns. The customize panel can't tell them apart; the user can't tell them apart.
+3. **Render drift.** The Python HTML renderer and the React renderer (the former under `web/src/components/sections/*Renderer.tsx`) drift. A snapshot test catches it but doesn't prevent it.
+4. **HTML knowledge scattered.** CSS values are hardcoded. The renderer knows `24px`. The customize panel hides this fact, but the underlying rigidity is real.
 
-## The four layers
+The new architecture solves all four:
 
-**1. Pydantic schema (the source of truth).**
-- `api/app/schema/models.py` — Pydantic models that are both the wire shape and the runtime AST.
-- Place at `api/app/schema/models.py`. The file content is fully specified in the FEAT entry.
-- Models: `TextStyle`, `SubsectionStyle`, `LayoutHints`, `SectionPolicy`, `DocumentLayoutHints`, `DocumentStyles`, `Document`, `Section`, `Entry`, `FieldBlock`, `TextRun`, `SectionInstance`, `CVRow`, `Zone`, `ZoneStyle`, `LayoutConfig`, `LayoutDefaults`, `PolicyOverrides`, `DocumentLayout`, `Customizations`, `TemplateManifest`.
+1. **Pydantic schema as AST.** The Pydantic models in `api/app/schema/models.py` are both the wire shape and the runtime AST. They're the source of truth. TypeScript types are generated from them via codegen.
+2. **Three orthogonal axes.** `TextStyle` (inline per-field), `SubsectionStyle` (block-level), `LayoutHints` (page flow + structural). Each lives on its own data structure. The customize panel exposes three disclosure groups.
+3. **Resolver → RenderModel → Renderer.** The renderer receives a fully resolved document. No defaults, no conditional logic, no "what does the user want" decisions. The renderer is almost stupid.
+4. **Design tokens.** Templates declare `spacing: comfortable`. The renderer maps to CSS variables. The stylesheet defines the values. Three layers, each independent.
 
-**2. AST JSON output (codegen).**
-- Generate `web/src/generated/schema.ts` from the Pydantic schema.
-- Use a custom Python script at `api/scripts/codegen_schema.py` (the existing `datamodel-code-generator` and `pydantic-to-typescript` tools have dependency issues — write a small custom generator that reads `model_json_schema()` and walks the JSON Schema to emit TypeScript interfaces).
-- The custom generator must use double quotes, target TS 5.6, produce stable output.
-- CI checks: `python -m scripts.codegen_schema` produces no diff vs the committed file.
+## The how
 
-**3. Resolver + RenderModel.**
-- `api/app/services/renderer/resolve.py` — the new stage.
-- `resolve(document, template, renderer.support)` → `RenderModel` (fully resolved; no defaults remain).
-- The Resolver applies template defaults, resolves policies, computes CSS variables from design tokens, resolves font choices.
-- Design tokens: `spacing: comfortable` → CSS variable → stylesheet value. Three layers, each independent.
+The implementation follows a `AST → Resolver → Renderer` pipeline. The renderer is HTML. PDF is HTML rendered by Chromium. React tree is the editor surface.
 
-**4. Renderer.**
-- `api/app/services/renderer/html.py` — `HTMLDocumentRenderer` class.
-- Tree of small functions (one per AST node type). Each function returns an HTML string. Composition is string concatenation.
-- A single `h()` escape helper is the only escape call.
-- The renderer is the source of truth for its capabilities.
-- `HTMLDocumentRenderer.support` returns a `RendererSupport` with per-field `SupportLevel` (FULL, BEST_EFFORT, NONE).
+**The schema is the AST.** Pydantic models in `api/app/schema/models.py` define every typed shape — the three style axes, the AST nodes (`Document`, `Section`, `Entry`, `FieldBlock`, `TextRun`), the wire carriers (`SectionInstance`, `CVRow`, `TemplateManifest`, `Customizations`). The codegen script produces TypeScript types in `web/src/generated/schema.ts`. CI checks that running codegen produces no diff.
 
-## The five rules
+**The Resolver is the new stage.** Takes the AST + template + renderer's capabilities, produces a `RenderModel`. Applies template defaults, resolves policies, computes CSS variables from design tokens, resolves font choices. By the time the renderer sees the document, every decision has been made.
+
+**The renderer is the source of truth for its capabilities.** `HTMLDocumentRenderer.support` returns a `RendererSupport` with per-field `SupportLevel` (FULL, BEST_EFFORT, NONE). The customize panel reads the renderer's support. The export endpoint reads the renderer's support. Capabilities are not a config dict; they're a property of the renderer.
+
+**SectionPolicy is document semantics.** The HTML renderer implements it with HTML constructs; a future DOCX renderer implements it with DOCX constructs. The policy stays semantic.
+
+**The editor is schematic.** The React tree visualizes the document structure (sections, fields, brackets). It does not promise to show the exact spacing, page breaks, or font fallbacks the PDF will produce. Visual cues (e.g., "page break" markers) indicate structural intent without literal page boundaries.
+
+**The merge is a regular merge commit.** The branch's commit history is preserved on master. The merge is the cutover — the old code is gone in one step.
+
+## The phase plan
+
+The work is broken into three phases. Each phase is independently committable. The phases are designed so any single phase can be landed without breaking the build.
+
+### Phase 1 — Backend foundation
+
+The Pydantic schema, the codegen, the Resolver, the renderer, the routes, the services, the seed templates, the tests.
+
+**Goal:** The backend can build the AST, resolve it, render it to HTML, and export to PDF. The customize panel and the frontend editor are not yet changed.
+
+**Tasks:**
+
+1. Create `api/app/schema/models.py` with the full Pydantic schema (text styles, subsection styles, layout hints, section policy, document styles, AST nodes, wire carriers).
+2. Create `api/scripts/codegen_schema.py` — a custom Pydantic-to-TypeScript generator. The existing `datamodel-code-generator` and `pydantic-to-typescript` tools have dependency issues; write a small custom script that reads `model_json_schema()` and emits TypeScript interfaces. The script must produce stable output (double quotes, TS 5.6 target).
+3. Wire codegen into the build:
+   - `dev.sh` runs codegen after `pip install`, before `alembic upgrade head`.
+   - `Dockerfile` adds a codegen stage that runs before the frontend build.
+   - `package.json` adds `codegen` and `codegen:check` scripts.
+   - `pyproject.toml` adds the codegen dependency to a `[codegen]` optional extras group.
+4. Generate `web/src/generated/schema.ts` and commit it. CI checks no diff.
+5. Add `api/app/services/renderer/support.py` with `SupportLevel` enum and `RendererSupport` dataclass.
+6. Add `api/app/services/renderer/policy.py` with `SECTION_POLICIES` map and `resolve_policy()` helper.
+7. Add `api/app/services/renderer/build.py` with `build_ast()` and section builders (one per type) under `api/app/services/renderer/builders/`.
+8. Add `api/app/services/renderer/resolve.py` with `resolve()` and `RenderModel`. The Resolver applies template defaults, resolves policies, computes CSS variables from design tokens.
+9. Add `api/app/services/renderer/html.py` with `HTMLDocumentRenderer` class. Tree of small functions (one per AST node type). A single `h()` escape helper. The renderer is the source of truth for its capabilities.
+10. Add `api/app/services/renderer/section_renderers/` with one file per type (profile, experience, education, skills, projects, languages, certifications, research).
+11. Add routes in `api/app/routes/render.py`:
+    - `POST /render/ast` — returns the AST as JSON.
+    - `POST /render/html` — returns rendered HTML.
+    - `POST /render/{target}` — returns the rendered output for the target format (HTML, PDF, future DOCX).
+12. Update `api/app/services/cv.py` and `api/app/services/pdf.py` to use the new schema and renderer.
+13. Update `api/app/db/seed.py` with three minimal templates (Modern, Classic, Minimal) using `layout_defaults: { spacing: ... }` and `policy_overrides: {}`.
+14. Add Phase 1 tests.
+
+### Phase 2 — Frontend foundation
+
+The TypeScript types, the AST walker, the React renderer components, the CustomizePanel rewrite, the section editors, the Builder page, the template creator, the tests.
+
+**Goal:** The frontend uses the new schema. The customize panel exposes three disclosure groups. The inline preview uses the new AST walker.
+
+**Tasks:**
+
+1. `web/src/lib/sections/types.ts` re-exports the generated types. Hand-written wrappers only where the generated types are too verbose.
+2. `web/src/lib/validators/sections.ts` updated Zod schemas for the new types.
+3. `web/src/lib/renderer/walk.ts` — a TS AST walker for the inline editor preview. Mirrors the Python serializer's tree shape.
+4. `web/src/components/renderer/` — tree-walking React components (`DocumentRenderer`, `SectionRenderer`, `EntryRenderer`, `TextRunRenderer`).
+5. `web/src/components/customization/CustomizePanel.tsx` — rewrite to expose three disclosure groups (Layout, Block style, Field styles). Reads the renderer's support for control visibility.
+6. `web/src/components/sections/SectionRegistry.tsx` — editor registry only (no `*Renderer.tsx` files).
+7. `web/src/components/sections/{profile,experience,education,skills,projects,languages,certifications,research}/Editor.tsx` — updated to use the new structure.
+8. `web/src/components/customization/LayoutHintsEditor.tsx` — new component for the Layout disclosure group.
+9. `web/src/components/preview/UserTemplateRenderer.tsx` — uses the new AST walker for the inline preview.
+10. `web/src/pages/BuilderPage.tsx` — wires the new renderer.
+11. `web/src/components/template-creator/` — uses the new manifest schema.
+12. Add Phase 2 tests.
+
+### Phase 3 — Cutover and merge
+
+Delete the old code, merge into master.
+
+**Goal:** The old code is gone. The new code is the only code. The merge commit is the cutover.
+
+**Tasks:**
+
+1. Delete the old code:
+   - `api/app/services/renderer/ir.py`
+   - `api/app/services/renderer/types.py`
+   - `api/app/services/renderer/backends/`
+   - `api/app/services/renderer/section_renderers/` (replaced by `builders/`)
+   - `web/src/components/sections/*/Renderer.tsx` (8 files)
+   - `web/src/components/sections/SectionPreviewPanel.tsx`
+   - `SectionStyle` and `FieldStyle` interfaces in `web/src/lib/sections/types.ts`
+   - `web/src/lib/sections/fieldStyles.ts` (or rewrite as a pure registry)
+2. Merge `feat/ast-pipeline` into `master` via a regular merge commit.
+3. Verify the build: `pytest`, `npm run lint`, `npm run test`, `npm run build` all pass.
+
+## The rules
 
 1. **HTML-first.** The renderer is HTML. PDF is HTML rendered by Chromium. The React tree is the editor surface, not a renderer.
-2. **Three orthogonal axes.** TextStyle (per-field inline), SubsectionStyle (block-level), LayoutHints (page flow + structural). No fourth axis.
+2. **Three orthogonal axes.** `TextStyle` (per-field inline), `SubsectionStyle` (block-level), `LayoutHints` (page flow + structural). No fourth axis.
 3. **SectionPolicy is document semantics.** The HTML renderer implements it with HTML constructs; a future DOCX renderer implements it with DOCX constructs. The policy stays semantic.
 4. **Capabilities are properties of the renderer.** `HTMLDocumentRenderer.support` is the source of truth. The customize panel and export endpoint read the renderer.
 5. **Editor is schematic.** It visualizes structure, not the computed layout. Visual cues (e.g., "page break" markers) indicate structural intent.
 
 ## The branch
 
-`feat/ast-pipeline` — cut from master, never merged into master. Implementation happens on this branch. The merge is a regular merge commit (not squash). The branch's commit history is preserved on master.
+`feat/ast-pipeline` — cut from master. Implementation happens on this branch. The merge is a regular merge commit (not squash). The branch's commit history is preserved on master.
 
-## The order
+## What to read
 
-The implementation order is the phase order in the EPIC:
+The full architecture and rationale are in:
 
-- **Phase 1** (backend): codegen + schemas + Resolver + Renderer + routes + services + seed templates + tests.
-- **Phase 2** (frontend): TS types + walker + React renderer components + CustomizePanel rewrite + section editors + Builder page + template creator + tests.
-- **Phase 3** (cutover): delete old code, merge into master.
+- **`AGENTS.md`** — architecture promise, render model discipline, renderer capabilities, merge policy, pipeline diagram.
+- **`PLAN.md`** — Phase 7 with the full task list.
+- **`TEMPLATE_GUIDE.md`** — the new manifest pipeline.
+- **Tracker entries:**
+  - `EPIC-01KZCCC3MTXDGPY31H06NFYP1Q-html-first-pipeline-with-three-axis-style-ast` — the umbrella with the full phase plan.
+  - `FEAT-01KZCCM17NP6QSKMGG71QV4PWF-html-first-pipeline` — feature-level summary.
+  - `ADR-01KZCCM17NP6QSKMGG71QV4PWG-html-first-architecture` — the architectural decision.
+  - `ADR-01KZCCM17NP6QSKMGG71QV4PWH-three-axis-style-model` — the three-axis decision.
 
-Each phase is independently committable. The phases are designed so any single phase can be landed without breaking the build.
+Read these first. The prompt is the summary; the docs are the implementation reference.
 
-## The merge
+## What to not do
 
-The merge is a regular merge commit. The branch's commit history is preserved on master. The merge is the cutover — the old code is gone in one step.
+1. **Don't reimplement Python logic in TypeScript.** The codegen bridge is for types only. Runtime logic stays on the backend. If you find yourself writing a Zod validator that mirrors a Pydantic validator, that's a design smell — move the logic to the backend.
+2. **Don't add backward compatibility shims.** The old code dies on the merge. No `X_LEGACY` shims, no `_resolve_legacy_*` functions, no "preserve old behavior" tests. The branch lives; the merge is the cutover.
+3. **Don't squash the merge.** The branch's commit history is preserved on master. The merge is a regular merge commit.
 
-## What the implementation looks like
+## What to do
 
-### Phase 1 — backend foundation
-
-```
-api/app/schema/
-└── models.py                                       # NEW: Pydantic source of truth
-
-api/scripts/
-└── codegen_schema.py                                # NEW: custom Pydantic → TS generator
-
-api/app/services/renderer/
-├── support.py                                       # NEW: SupportLevel enum, RendererSupport class
-├── policy.py                                        # NEW: SECTION_POLICIES, resolve_policy()
-├── build.py                                         # NEW: build_ast(), section builders
-├── resolve.py                                       # NEW: Resolver, RenderModel
-├── html.py                                          # NEW: HTMLDocumentRenderer class
-└── section_renderers/                               # NEW: one per type (profile, experience, etc.)
-
-api/app/services/
-├── cv.py                                            # USE the new schema
-└── pdf.py                                           # USE the new renderer
-
-api/app/routes/
-├── render.py                                        # NEW: POST /render/ast, POST /render/html
-└── cvs.py                                           # USE the new schema
-
-api/app/db/seed.py                                   # USE the new minimal templates
-
-web/src/generated/
-└── schema.ts                                        # NEW: generated TS types
-```
-
-### Phase 2 — frontend foundation
-
-```
-web/src/lib/renderer/
-└── walk.ts                                          # NEW: TS AST walker
-
-web/src/components/renderer/
-├── DocumentRenderer.tsx                             # NEW
-├── SectionRenderer.tsx                              # NEW
-├── EntryRenderer.tsx                                # NEW
-└── TextRunRenderer.tsx                              # NEW
-
-web/src/components/customization/
-└── CustomizePanel.tsx                               # REWRITE: three disclosure groups
-
-web/src/components/sections/
-├── SectionRegistry.tsx                              # REWRITE: editor registry only
-├── {profile,experience,education,skills,projects,languages,certifications,research}/
-│   └── Editor.tsx                                   # REWRITE: use new structure
-└── ...
-
-web/src/components/preview/
-└── UserTemplateRenderer.tsx                         # USE the new AST walker
-
-web/src/pages/
-└── BuilderPage.tsx                                  # WIRE the new renderer
-
-web/src/lib/
-├── sections/types.ts                                # USE generated types
-└── validators/sections.ts                           # UPDATE Zod schemas
-
-web/src/components/template-creator/
-└── ...                                              # USE the new manifest schema
-```
-
-### Phase 3 — cutover
-
-```
-DELETE:
-- api/app/services/renderer/ir.py
-- api/app/services/renderer/types.py
-- api/app/services/renderer/backends/
-- api/app/services/renderer/section_renderers/ (replaced by builders/)
-- web/src/components/sections/*/Renderer.tsx (8 files)
-- web/src/components/sections/SectionPreviewPanel.tsx
-- web/src/lib/sections/fieldStyles.ts (or rewrite as FieldDef registry)
-- web/src/components/sections/SectionStyle, FieldStyle interfaces
-
-MERGE feat/ast-pipeline into master via regular merge commit.
-
-VERIFY: pytest, npm run lint, npm run test, npm run build all pass.
-```
-
-## The schema (from the FEAT entry)
-
-```python
-class TextStyle(BaseModel):
-    bold: bool = False
-    italic: bool = False
-    underline: bool = False
-    strike: bool = False
-    color: str | None = None
-    link: str | None = None
-    font_size: Literal["xs", "small", "normal", "large", "xl"] | None = None
-
-class SubsectionStyle(BaseModel):
-    text_align: Literal["left", "right", "center", "justify"] | None = None
-    spacing_before: str | None = None
-    spacing_after: str | None = None
-    background_color: str | None = None
-
-class DateStyle(BaseModel):
-    key: str
-    range_sep: str = "–"
-
-class LayoutHints(BaseModel):
-    font_family: str | None = None
-    date_style: DateStyle | None = None
-    break_before: bool = False
-    keep_together: bool = True
-    heading_keeps_with_first: bool = True
-    orphans: int = 2
-    widows: int = 2
-
-class SectionPolicy(BaseModel):
-    show_title: bool = True
-    skill_variant: Literal["block", "inline"] | None = None
-
-class DocumentLayoutHints(BaseModel):
-    page_style: str = "A4"
-    break_before_first_section: bool = False
-    default_orphan_threshold: int = 2
-    default_widow_threshold: int = 2
-
-class DocumentStyles(BaseModel):
-    accent_color: str | None = None
-    body_font: str | None = None
-    heading_font: str | None = None
-    default_text_align: Literal["left", "right", "center", "justify"] | None = None
-
-class TextRun(BaseModel):
-    text: str
-    style: TextStyle = Field(default_factory=TextStyle)
-    link: str | None = None
-
-class FieldBlock(BaseModel):
-    field_key: str
-    runs: list[TextRun] = Field(default_factory=list)
-    subsection_style: SubsectionStyle | None = None
-
-class Entry(BaseModel):
-    id: str
-    fields: list[FieldBlock] = Field(default_factory=list)
-    subsection_style: SubsectionStyle | None = None
-    keep_together: bool = True
-
-class Section(BaseModel):
-    type: str
-    id: str
-    title: str
-    enabled: bool = True
-    entries: list[Entry] = Field(default_factory=list)
-    layout_hints: LayoutHints = Field(default_factory=LayoutHints)
-    subsection_style: SubsectionStyle | None = None
-    section_policy: SectionPolicy = Field(default_factory=SectionPolicy)
-
-class Document(BaseModel):
-    page_style: DocumentLayoutHints = Field(default_factory=DocumentLayoutHints)
-    global_styles: DocumentStyles = Field(default_factory=DocumentStyles)
-    sections: list[Section] = Field(default_factory=list)
-```
-
-Plus the wire-shape carriers:
-
-```python
-class SectionInstance(BaseModel):
-    id: str
-    type: str
-    title: str
-    enabled: bool = True
-    data: list[dict[str, Any]] | dict[str, Any] = Field(default_factory=dict)
-    layout_hints: LayoutHints = Field(default_factory=LayoutHints)
-    subsection_style: SubsectionStyle | None = None
-    section_policy: SectionPolicy = Field(default_factory=SectionPolicy)
-
-class ZoneStyle(BaseModel):
-    width: str | None = None
-    background_color: str | None = None
-    padding: str | None = None
-
-class Zone(BaseModel):
-    id: str
-    label: str | None = None
-    styles: ZoneStyle = Field(default_factory=ZoneStyle)
-
-class LayoutConfig(BaseModel):
-    zones: list[Zone] = Field(default_factory=list)
-    placement: dict[str, str] = Field(default_factory=dict)
-
-class LayoutDefaults(BaseModel):
-    spacing: Literal["compact", "comfortable", "minimal"] = "comfortable"
-
-class PolicyOverrides(BaseModel):
-    skills: dict[str, Any] | None = None
-
-class DocumentLayout(BaseModel):
-    page_style: str = "A4"
-    break_before_first_section: bool = False
-    default_orphan_threshold: int = 2
-    default_widow_threshold: int = 2
-
-class Customizations(BaseModel):
-    global_styles: DocumentStyles = Field(default_factory=DocumentStyles)
-    layout: LayoutConfig = Field(default_factory=LayoutConfig)
-    layout_defaults: LayoutDefaults = Field(default_factory=LayoutDefaults)
-    document_layout: DocumentLayout = Field(default_factory=DocumentLayout)
-    flags: dict[str, bool] = Field(default_factory=dict)
-
-class TemplateManifest(BaseModel):
-    manifest_version: Literal[2] = 2
-    name: str
-    description: str | None = None
-    zones: list[Zone] = Field(default_factory=list)
-    placement: dict[str, str] = Field(default_factory=dict)
-    layout_defaults: LayoutDefaults = Field(default_factory=LayoutDefaults)
-    policy_overrides: PolicyOverrides = Field(default_factory=PolicyOverrides)
-    global_styles: DocumentStyles = Field(default_factory=DocumentStyles)
-    document_layout: DocumentLayout = Field(default_factory=DocumentLayout)
-    section_schema: dict[str, Any] = Field(default_factory=dict)
-    assets: dict[str, Any] = Field(default_factory=dict)
-```
-
-## The seed templates (minimal)
-
-```python
-SEED_TEMPLATES = [
-    {
-        "id": "generic-modern",
-        "name": "Modern",
-        "manifest_version": 2,
-        "layout_defaults": {"spacing": "comfortable"},
-        "policy_overrides": {},
-        "zones": [{"id": "sidebar", "styles": {"width": "30%", "background-color": "#f8fafc", "padding": "24px"}},
-                  {"id": "main", "styles": {"width": "70%", "padding": "24px"}}],
-        "placement": {"profile": "sidebar", "experience": "main", "education": "main",
-                       "skills": "main", "projects": "main", "languages": "main",
-                       "certifications": "main", "research": "main"},
-        "global_styles": {"accent_color": "#2563eb",
-                          "body_font": "Inter, system-ui, sans-serif",
-                          "heading_font": "Inter, system-ui, sans-serif"},
-    },
-    {
-        "id": "generic-classic",
-        "name": "Classic",
-        "manifest_version": 2,
-        "layout_defaults": {"spacing": "compact"},
-        "policy_overrides": {},
-        "zones": [{"id": "main", "styles": {"width": "100%", "padding": "32px"}}],
-        "placement": {"profile": "main", "experience": "main", "education": "main",
-                       "skills": "main", "projects": "main", "languages": "main",
-                       "certifications": "main", "research": "main"},
-        "global_styles": {"accent_color": "#1f2937",
-                          "body_font": "Georgia, serif",
-                          "heading_font": "Georgia, serif"},
-    },
-    {
-        "id": "generic-minimal",
-        "name": "Minimal",
-        "manifest_version": 2,
-        "layout_defaults": {"spacing": "minimal"},
-        "policy_overrides": {},
-        "zones": [{"id": "main", "styles": {"width": "100%", "padding": "48px"}}],
-        "placement": {"profile": "main", "experience": "main", "education": "main",
-                       "skills": "main", "projects": "main", "languages": "main",
-                       "certifications": "main", "research": "main"},
-        "global_styles": {"accent_color": "#000000",
-                          "body_font": "system-ui, sans-serif",
-                          "heading_font": "system-ui, sans-serif"},
-    },
-]
-```
+1. **Read the docs.** AGENTS.md, PLAN.md, TEMPLATE_GUIDE.md. The EPIC + FEAT + ADRs.
+2. **Commit incrementally.** Each commit is independently buildable. The branch's history tells the story of the new system being built.
+3. **Follow the phase order.** Phase 1 (backend) → Phase 2 (frontend) → Phase 3 (cutover). Each phase is independently committable.
 
 ## The pipeline (one more time)
 
@@ -361,23 +172,8 @@ PDF
 
 The React tree is the editor surface. It mirrors the AST but doesn't render HTML. The Python HTML renderer is the document renderer. Both consume the same data; the rendering is different.
 
-## The merge
-
-The branch is `feat/ast-pipeline`. The merge is a regular merge commit (not squash). The branch's commit history is preserved on master. The merge is the cutover.
-
 ## Start
 
-Begin with Phase 1.1: create `api/app/schema/models.py` with the schema above. Then the codegen script. Then the resolve. Then the renderer. The phase order is in the EPIC.
+Begin with Phase 1.1: create `api/app/schema/models.py` with the schema. The detailed model definitions are in the FEAT entry's "Schema additions" section. Then the codegen script. Then the Resolver. Then the renderer. The phase order is the order in the EPIC.
 
-Always read the docs first. The architecture is committed to in writing. The implementation is the code that follows the architecture.
-
-## Three things to not do
-
-1. **Don't reimplement Python logic in TypeScript.** The codegen bridge is for types only. Runtime logic stays on the backend.
-2. **Don't add backward compatibility shims.** The old code dies on the merge. No `X_LEGACY` shims, no `_resolve_legacy_*` functions, no "preserve old behavior" tests.
-3. **Don't squash the merge.** The branch's commit history is preserved on master.
-
-## The two things to do
-
-1. **Read the docs.** AGENTS.md, PLAN.md, TEMPLATE_GUIDE.md. The EPIC + FEAT + ADRs link them together.
-2. **Commit incrementally.** Each commit is independently buildable. The branch's history tells the story of the new system being built.
+The docs are the implementation reference. The prompt is the summary. The implementation is the code that follows.
