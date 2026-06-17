@@ -22,6 +22,12 @@ export const urlSchema = z
     { message: "URL must start with a scheme (https://, mailto:, tel:, etc.)" },
   );
 
+const socialLinkSchema = z.object({
+  label: z.string(),
+  url: urlSchema,
+  icon: z.string(),  // validated by the editor dropdown; backend trusts it
+});
+
 export const profileSchema = z.object({
   name: z.string().min(1, "Name is required"),
   title: z.string().min(1, "Title is required"),
@@ -33,6 +39,7 @@ export const profileSchema = z.object({
   site_url: urlSchema,
   summary: z.string().min(1, "Summary is required"),
   photo_url: z.string(),
+  social_links: z.array(socialLinkSchema).default([]),
 });
 
 export const experienceEntrySchema = z.object({
@@ -94,6 +101,7 @@ export const researchEntrySchema = z.object({
   paper_link_text: z.string(),
   description: z.string().min(1, "Description is required"),
   publication_date: z.string(),
+  publication_value: z.string(),
 });
 
 export const sectionInstanceSchema = z.object({

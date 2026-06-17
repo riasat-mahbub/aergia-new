@@ -290,6 +290,127 @@ describe("CustomizePanel", () => {
     expect(screen.getByText("Description")).toBeDefined();
     expect(screen.getByText("Tech")).toBeDefined();
   });
+
+  it("renders a Date Style dropdown for the experience section that updates the section style", () => {
+    const onUpdateStyle = vi.fn();
+    renderCustomizePanel({
+      onUpdateStyle,
+      instances: [
+        {
+          id: "s1",
+          type: "experience",
+          title: "Work",
+          enabled: true,
+          data: [],
+        },
+      ],
+    });
+
+    fireEvent.click(screen.getByTestId("zone-section-s1"));
+
+    const dateStyleSelect = screen.getByLabelText("Date Style") as HTMLSelectElement;
+    expect(dateStyleSelect).toBeDefined();
+    expect(dateStyleSelect.value).toBe("");
+    fireEvent.change(dateStyleSelect, { target: { value: "Mon YYYY" } });
+    expect(onUpdateStyle).toHaveBeenCalledWith(
+      "s1",
+      expect.objectContaining({
+        date_style: { key: "Mon YYYY", rangeSep: " \u2013 " },
+      }),
+    );
+  });
+
+  it("does NOT render a Date Style dropdown for the profile section", () => {
+    renderCustomizePanel({
+      instances: [
+        { id: "s1", type: "profile", title: "John", enabled: true, data: {} },
+      ],
+    });
+    fireEvent.click(screen.getByTestId("zone-section-s1"));
+    expect(screen.queryByLabelText("Date Style")).toBeNull();
+  });
+
+  it("does NOT render a Date Style dropdown for the skills section", () => {
+    renderCustomizePanel({
+      instances: [
+        {
+          id: "s1",
+          type: "skills",
+          title: "Skills",
+          enabled: true,
+          data: [{ id: "g1", category: "Languages", items: ["Python"] }],
+        },
+      ],
+    });
+    fireEvent.click(screen.getByTestId("zone-section-s1"));
+    expect(screen.queryByLabelText("Date Style")).toBeNull();
+  });
+
+  it("does NOT render a Date Style dropdown for the languages section", () => {
+    renderCustomizePanel({
+      instances: [
+        {
+          id: "s1",
+          type: "languages",
+          title: "Languages",
+          enabled: true,
+          data: [{ id: "l1", language: "English", proficiency: "Native" }],
+        },
+      ],
+    });
+    fireEvent.click(screen.getByTestId("zone-section-s1"));
+    expect(screen.queryByLabelText("Date Style")).toBeNull();
+  });
+
+  it("renders a Date Style dropdown for certifications", () => {
+    renderCustomizePanel({
+      instances: [
+        {
+          id: "s1",
+          type: "certifications",
+          title: "Certs",
+          enabled: true,
+          data: [],
+        },
+      ],
+    });
+    fireEvent.click(screen.getByTestId("zone-section-s1"));
+    expect(screen.getByLabelText("Date Style")).toBeDefined();
+  });
+
+  it("renders a Date Style dropdown for research", () => {
+    renderCustomizePanel({
+      instances: [
+        {
+          id: "s1",
+          type: "research",
+          title: "Papers",
+          enabled: true,
+          data: [],
+        },
+      ],
+    });
+    fireEvent.click(screen.getByTestId("zone-section-s1"));
+    expect(screen.getByLabelText("Date Style")).toBeDefined();
+  });
+
+  it("Date Style dropdown shows the current value when style.date_style is set", () => {
+    renderCustomizePanel({
+      instances: [
+        {
+          id: "s1",
+          type: "experience",
+          title: "Work",
+          enabled: true,
+          data: [],
+          style: { date_style: { key: "Month YYYY", rangeSep: " \u2013 " } },
+        },
+      ],
+    });
+    fireEvent.click(screen.getByTestId("zone-section-s1"));
+    const dateStyleSelect = screen.getByLabelText("Date Style") as HTMLSelectElement;
+    expect(dateStyleSelect.value).toBe("Month YYYY");
+  });
 });
 
 describe("globalStyleSchema prop", () => {

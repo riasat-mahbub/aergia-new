@@ -1,3 +1,5 @@
+import { SocialIcon } from "../../../lib/sections/socialIcons";
+
 import type { ProfileData } from "../../../lib/sections/types";
 
 interface Props {
@@ -29,7 +31,29 @@ export default function ProfileRenderer({ data }: Props) {
           </span>
         )}
       </div>
-      {data.summary && <p className="mt-3 text-sm text-gray-700">{data.summary}</p>}
+      {(data.social_links ?? []).length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-gray-700">
+          {(data.social_links ?? []).map((link, i) => (
+            link.url ? (
+              <a
+                key={i}
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 hover:underline"
+              >
+                <SocialIcon name={link.icon} className="h-3.5 w-3.5" />
+                <span>{link.label || link.url}</span>
+              </a>
+            ) : (
+              <span key={i} className="inline-flex items-center gap-1 text-gray-400">
+                <SocialIcon name={link.icon} className="h-3.5 w-3.5" />
+                <span>{link.label || "(empty URL)"}</span>
+              </span>
+            )
+          ))}
+        </div>
+      )}
     </div>
   );
 }

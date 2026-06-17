@@ -6,6 +6,8 @@ import { getFieldDefs } from "../../lib/sections/fieldStyles";
 import TemplateSelectorModal from "./TemplateSelectorModal";
 import StyleEditor, { type StyleVarSchema } from "./StyleEditor";
 import SectionZoneView from "../layout/SectionZoneView";
+import { DATE_STYLE_OPTIONS } from "../../lib/sections/DateField";
+import type { DateStyle } from "../../lib/sections/types";
 interface Props {
   customizations: Record<string, any>;
   onChange: (customizations: Record<string, any>) => void;
@@ -105,6 +107,7 @@ export default function CustomizePanel({
       merged.text_align ||
       merged.layout ||
       typeof merged.show_title === "boolean" ||
+      !!merged.date_style ||
       (merged.field_styles && Object.keys(merged.field_styles).length > 0);
     onUpdateStyle(selectedSectionId, hasValues ? merged : {});
   };
@@ -283,6 +286,35 @@ export default function CustomizePanel({
                 />
               </button>
             </div>
+            {["experience", "education", "projects", "certifications", "research"].includes(
+              selectedInstance.type,
+            ) && (
+              <div>
+                <label htmlFor="date-style" className="block text-xs text-gray-600">
+                  Date Style
+                </label>
+                <select
+                  id="date-style"
+                  value={selectedStyle.date_style?.key ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const opt = v ? DATE_STYLE_OPTIONS.find((o) => o.value === v) : undefined;
+                    const next: DateStyle | undefined = opt
+                      ? { key: opt.value, rangeSep: opt.rangeSep }
+                      : undefined;
+                    updateSelectedStyle({ date_style: next });
+                  }}
+                  className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                >
+                  <option value="">Default (YYYY-MM)</option>
+                  {DATE_STYLE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             {getFieldDefs(selectedInstance.type).length > 0 && (
               <div className="border-t pt-2 mt-2">
                 <h5 className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">

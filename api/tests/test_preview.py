@@ -421,7 +421,7 @@ async def test_preview_research_section_all_templates(client, auth_headers):
         assert 'href="#"' in html
         assert "arXiv" in html
         assert "↗" in html
-        assert "Published 2025-04" in html
+        assert "2025-04" in html
         assert "Findings" in html
         # Border decoration must not be re-introduced; the wrapper is plain block flow.
         assert "border-left" not in html

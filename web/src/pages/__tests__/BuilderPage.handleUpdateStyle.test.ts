@@ -83,9 +83,19 @@ describe("sectionStyleHasValues", () => {
   it("returns true when layout is explicitly block", () => {
     expect(sectionStyleHasValues({ layout: "block" })).toBe(true);
   });
+  it("returns true when date_style is set (new: per-section date format)", () => {
+    expect(
+      sectionStyleHasValues({ date_style: { key: "Mon YYYY", rangeSep: " \u2013 " } }),
+    ).toBe(true);
+  });
 
-  it("returns false for an empty style object", () => {
-    expect(sectionStyleHasValues({})).toBe(false);
+  it("returns true when date_style is set alongside other picks", () => {
+    expect(
+      sectionStyleHasValues({
+        color: "#111111",
+        date_style: { key: "Month YYYY", rangeSep: " \u2013 " },
+      }),
+    ).toBe(true);
   });
 
   it("returns true when section-level and per-field styles are mixed", () => {

@@ -17,6 +17,10 @@ export const sampleInstances = [
       site_url: "https://aergia.dev",
       summary: "Experienced software engineer with 8+ years in full-stack development. Passionate about building scalable systems and clean user experiences.",
       photo_url: "",
+      social_links: [
+        { label: "LinkedIn", url: "https://www.linkedin.com/in/alex-morgan", icon: "linkedin" },
+        { label: "GitHub", url: "https://github.com/alexmorgan", icon: "github" },
+      ],
     },
   } as const,
   {
@@ -150,6 +154,7 @@ export const sampleInstances = [
         paper_url: "https://doi.org/10.0000/aergia.2026",
         paper_link_text: "DOI",
         description: "Demonstrates a layout-stable IR that preserves user intent across template switches.",
+        publication_value: "NeurIPS 2024",
         publication_date: "2026-06",
       },
     ],
