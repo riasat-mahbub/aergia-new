@@ -76,7 +76,59 @@ npm run lint         # ESLint
 - **Templates**: 3 seed templates (modern, classic, minimal) seeded on each startup (`seed.py` — idempotent, checks existence). Data stored as JSONB in `cvs.sections` and `cvs.customizations`.
 - **PDF export**: Uses Playwright (Chromium, headless, singleton browser). Must be installed: `playwright install chromium`. Browser is reused across requests, closed on app shutdown via lifespan event (`pdf.py:18-45`).
 - **Rate limiting**: slowapi with 100 req/min global, 10 req/min on auth routes.
-- **Sections**: The data model uses `SectionInstance[]` — an array of self-contained section objects with `id`, `type`, `title`, `enabled`, and `data`. Multiple instances of the same type allowed. See `PLAN.md:107-155`.
+## Architecture promise
+
+The new system (Phase 6) is HTML-first:
+
+- **Canonical rendering target is HTML + CSS.** The preview iframe, the PDF export, and any future HTML-based output all go through the same Python HTML renderer.
+- **PDF export is HTML rendered by Chromium.** Not a separate engine.
+- **The React tree is the editor surface, not a renderer.** It does not produce HTML for the preview or PDF. The preview and PDF are produced by the Python HTML renderer.
+- **Editor is schematic, not rendered.** The editor visualizes the document structure (sections, fields, brackets); the PDF visualizes the computed layout. The editor does not promise to show the exact spacing, page breaks, or font fallbacks the PDF will produce. Visual cues (e.g., "page break" markers) indicate structural intent without literal page boundaries.
+- **Templates express taste; renderers express behavior.** Seed templates declare `layout_defaults: { spacing: comfortable }`. The renderer maps `comfortable` to CSS variables; the stylesheet defines the values. Templates don't override CSS values directly.
+
+## Render model discipline
+
+- **Logic stays on the backend.** Pydantic models are data shapes, not logic containers. Validation lives in the service layer, not as Pydantic methods. The frontend never validates data shapes; it asks the backend for validation results.
+- **Codegen is for types only.** Generated TypeScript files (in `generated/`) are never edited manually. CI checks that running `datamodel-code-generator` produces no diff. If TS wrapper code reimplements Python validator logic, that's a design smell — extract it to a shared runtime module or move the logic to the backend.
+- **Three orthogonal axes for styling:**
+  - `TextStyle` — inline per-field appearance (bold, italic, color, font-size, link).
+  - `SubsectionStyle` — block-level appearance per section/entry (text_align, spacing, background_color).
+  - `LayoutHints` — page flow and structural intent (break_before, keep_together, orphans, widows, font_family, date_style).
+- **SectionPolicy is document semantics, not HTML-oriented.** The HTML renderer implements policy with HTML constructs; a future DOCX renderer would implement the same policy with DOCX constructs. The policy stays semantic.
+
+## Renderer capabilities
+
+Every renderer declares its own `RendererSupport` (property of the renderer class). The customize panel reads the active renderer's support. The export endpoint reads the renderer's support. The renderer is the source of truth for what it can do.
+
+Each capability field has a `SupportLevel`:
+- `FULL` — the renderer reliably satisfies this; the control is shown normally.
+- `BEST_EFFORT` — the renderer tries but can't guarantee; the control is shown with a warning icon.
+- `NONE` — the renderer can't satisfy this; the control is hidden.
+
+## Merge policy
+
+The new branch merges into `master` via a regular merge commit (not squash). The branch's commit history is preserved on `master`. The merge is the cutover: the old code is gone in one step.
+
+## Pipeline
+
+```
+AST (Pydantic schemas)
+  ↓
+Resolver (apply template defaults, resolve policies, compute CSS variables)
+  ↓
+RenderModel (fully resolved; no defaults remain)
+  ↓
+HTMLDocumentRenderer (almost stupid; emits HTML)
+  ↓
+HTML5 + CSS
+  ↓
+Chromium
+  ↓
+PDF
+```
+
+The React tree mirrors the AST but doesn't render HTML. The Python HTML renderer is the document renderer. Both consume the same data; the rendering is different.
+
 
 ## Architectural Decisions (ADRs)
 
