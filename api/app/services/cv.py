@@ -6,6 +6,20 @@ from sqlalchemy import select
 from app.models.cv import CV
 from app.models.template import Template
 from app.schemas.cv import CVCreate, CVUpdate
+from app.schema.models import Customizations
+from app.services.legacy_customizations import migrate_legacy_customizations
+
+
+def coerce_customizations(raw: dict | None) -> Customizations:
+    """Validate raw DB customizations to the canonical Customizations model.
+
+    Migrates the legacy v1 ``{colors, fonts, spacing, flags}`` shape on
+    read so legacy CVs continue to render correctly until each user
+    re-saves.
+    """
+    raw = raw or {}
+    migrated = migrate_legacy_customizations(raw)
+    return Customizations.model_validate(migrated)
 
 
 class CVService:
@@ -37,23 +51,11 @@ class CVService:
     async def create_cv(self, user_id: str, data: CVCreate) -> CV:
         raw_sections = data.sections if isinstance(data.sections, list) else []
         sections = [s.model_dump() if hasattr(s, "model_dump") else s for s in raw_sections]
-        customizations = data.customizations or {}
-
-        # Inherit layout from template when CV doesn't have one yet
-        if not customizations.get("layout") and data.template_id:
-            template = await self.db.get(Template, data.template_id)
-            lc = template.manifest.get("layout_config") if template and template.manifest else None
-            if lc:
-                placement = lc.get("placement", {}) or {}
-                if placement and not any(k.startswith("sec_") for k in placement):
-                    customizations["layout"] = {
-                        **lc,
-                        "placement": {
-                            inst["id"]: placement[inst["type"]]
-                            for inst in sections
-                            if isinstance(inst, dict) and inst.get("type") in placement
-                        },
-                    }
+        customizations = (
+            data.customizations.model_dump(exclude_none=True)
+            if data.customizations is not None and hasattr(data.customizations, "model_dump")
+            else (data.customizations or {})
+        )
 
         cv = CV(
             user_id=user_id,

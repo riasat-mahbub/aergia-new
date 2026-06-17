@@ -5,7 +5,7 @@ web/src/lib/sections/DateField.tsx and the shared `DATE_STYLE_OPTIONS` list.
 """
 import pytest
 
-from app.services.renderer.section_renderers._utils import (
+from app.services.renderer.builders._utils import (
     DATE_STYLE_OPTIONS,
     format_date_range,
     format_single_date,

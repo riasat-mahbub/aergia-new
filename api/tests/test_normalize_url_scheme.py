@@ -4,7 +4,7 @@ Strips whitespace, then ensures every returned string starts with a URL
 scheme. Empty / None inputs return '' so callers can keep treating them
 as 'no link'.
 """
-from app.services.renderer.section_renderers._utils import normalize_url_scheme
+from app.services.renderer.builders._utils import normalize_url_scheme
 
 
 def test_none_returns_empty():

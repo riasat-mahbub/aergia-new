@@ -1,3 +1,12 @@
+"""Template routes — list, retrieve, create, delete templates.
+
+The multipart upload endpoint validates against the v2
+:class:`TemplateManifest` schema. Legacy ``layout_config`` /
+``globalStyleSchema`` fields are gone.
+"""
+
+from __future__ import annotations
+
 import uuid as uuid_module
 import json
 from typing import Optional
@@ -9,32 +18,14 @@ from sqlalchemy import select
 from app.db.session import get_db
 from app.models.template import Template
 from app.models.user import User
-from app.schemas.template import TemplateListItem, TemplateDetail, UserTemplateCreate
-from app.schemas.manifest import Manifest
+from app.schema.models import TemplateManifest
+from app.schema.models import TemplateListItem, TemplateDetail, UserTemplateCreate
 from app.core.deps import get_current_user, get_optional_current_user
+
 
 NOT_FOUND = "Template not found"
 
 router = APIRouter()
-
-
-def _build_default_customizations(
-    schema: list[dict] | list,
-) -> dict[str, dict[str, str]]:
-    """Build nested default_customizations dict from globalStyleSchema list."""
-    result: dict[str, dict[str, str]] = {}
-    for var in schema:
-        if isinstance(var, dict):
-            var_type = var.get("type", "")
-            key = var.get("key", "")
-            default = var.get("default", "")
-        else:
-            var_type = getattr(var, "type", "")
-            key = getattr(var, "key", "")
-            default = getattr(var, "default", "")
-        bucket = "flags" if var_type == "boolean" else var_type + "s"
-        result.setdefault(bucket, {})[key] = default
-    return result
 
 
 @router.get("", response_model=list[TemplateListItem])
@@ -65,9 +56,7 @@ async def get_template(template_id: str, db: AsyncSession = Depends(get_db)):
     template = await db.get(Template, template_id)
     if not template:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
-    detail = TemplateDetail.model_validate(template)
-    detail.layout_config = template.manifest.get("layout_config") if template.manifest else None
-    return detail
+    return TemplateDetail.model_validate(template)
 
 
 @router.get("/{template_id}/manifest", response_model=dict)
@@ -88,20 +77,19 @@ async def create_template_from_manifest(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a template from a manifest.json (multipart)."""
+
     try:
         manifest_data = json.loads(manifest_json)
-        manifest = Manifest(**manifest_data)
+        manifest = TemplateManifest.model_validate(manifest_data)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid manifest: {e}")
 
-    # If user uploaded custom HTML/CSS, use them (optional)
     if template_html:
         content = await template_html.read()
         _ = content.decode("utf-8")  # validated for future use
     if styles_css:
         pass
 
-    # Assets handling: store asset mapping
     asset_map = {}
     if assets:
         for asset in assets:
@@ -122,9 +110,9 @@ async def create_template_from_manifest(
         name=manifest.name,
         description=manifest.description,
         preview_image_url=None,
-        default_customizations=_build_default_customizations(manifest.global_style_schema),
+        default_customizations=_default_customizations_from_manifest(manifest),
         is_system=False,
-        manifest=manifest.model_dump(by_alias=True),
+        manifest=manifest.model_dump(),
         assets=asset_map,
         user_id=current_user.id,
     )
@@ -178,3 +166,27 @@ async def delete_user_template(
     await db.delete(template)
     await db.commit()
     return None
+
+
+def _default_customizations_from_manifest(manifest: TemplateManifest) -> dict:
+    """Build a legacy-shape ``default_customizations`` from a v2 manifest.
+
+    The customize panel still reads the legacy shape; we keep the field
+    populated so user templates work without an extra migration."""
+
+    bucket: dict[str, dict[str, str]] = {"colors": {}, "fonts": {}, "spacing": {}, "flags": {}}
+    for key, value in manifest.global_styles.items():
+        if key in {"accent_color", "header", "heading", "text"}:
+            bucket["colors"].setdefault("accent", value)
+        elif key == "body_font":
+            bucket["fonts"]["body"] = value
+        elif key == "heading_font":
+            bucket["fonts"]["heading"] = value
+        elif key.endswith("_color"):
+            bucket["colors"][key.removesuffix("_color")] = value
+    bucket["spacing"]["section_gap"] = {
+        "compact": "16px",
+        "comfortable": "24px",
+        "minimal": "8px",
+    }.get(manifest.layout_defaults.spacing, "24px")
+    return bucket

@@ -42,17 +42,6 @@ async def test_template_detail_not_found(client):
     assert resp.status_code == 404
 
 
-@pytest.mark.asyncio
-async def test_all_templates_have_render_config(client):
-    """T16: All 3 templates have complete render config for preview"""
-    resp = await client.get("/api/v1/templates")
-    for t in resp.json():
-        detail = await client.get(f"/api/v1/templates/{t['id']}")
-        data = detail.json()
-        assert "manifest" in data
-        assert "default_customizations" in data
-        assert "layout_config" in data["manifest"]
-        assert "placement" in data["manifest"]
 
 
 @pytest.mark.asyncio
@@ -67,12 +56,3 @@ async def test_seed_templates_have_no_row_fields(client):
         assert "rowHeights" not in manifest.get("layout_config", {})
 
 
-@pytest.mark.asyncio
-async def test_template_detail_includes_layout_config(client):
-    """TemplateDetail exposes a derived, row-free layout_config."""
-    headers = await register_and_login(client, "tmpl-layout@example.com")
-    resp = await client.get("/api/v1/templates/generic-modern", headers=headers)
-    body = resp.json()
-    assert body["layout_config"] is not None
-    assert len(body["layout_config"]["zones"]) >= 1
-    assert "rowHeights" not in body["layout_config"]

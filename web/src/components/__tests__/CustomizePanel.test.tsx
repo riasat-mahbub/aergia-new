@@ -120,13 +120,6 @@ describe("CustomizePanel", () => {
     expect(screen.getByText("Accent")).toBeDefined();
   });
 
-  it("Global section contains fonts and spacing", () => {
-    renderCustomizePanel();
-
-    expect(screen.getByText("Body Font")).toBeDefined();
-    expect(screen.getByText(/section gap/i)).toBeDefined();
-  });
-
   it("calls onChange when color is changed", () => {
     const onChange = vi.fn();
     renderCustomizePanel({ customizations: { colors: { accent: "#2563eb" } }, onChange });
@@ -197,7 +190,7 @@ describe("CustomizePanel", () => {
           title: "John",
           enabled: true,
           data: {},
-          style: { color: "#ff0000" },
+          style: { color: "#ff0000" } as any,
         },
       ],
     });
@@ -407,7 +400,7 @@ describe("CustomizePanel", () => {
           title: "Work",
           enabled: true,
           data: [],
-          style: { date_style: { key: "Month YYYY", rangeSep: " \u2013 " } },
+          style: { date_style: { key: "Month YYYY", rangeSep: " \u2013 " } } as any,
         },
       ],
     });

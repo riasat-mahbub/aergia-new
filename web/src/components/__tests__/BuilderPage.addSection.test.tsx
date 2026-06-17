@@ -221,7 +221,7 @@ describe("BuilderPage.handleTemplateChange zone install", () => {
     const { getByText, getByTestId } = render(
       <TestTemplateChangeHarness
         initialInstances={[
-          { id: "sec_1", type: "profile", title: "Profile", enabled: true, data: {}, style: { color: "#fff" } },
+          { id: "sec_1", type: "profile", title: "Profile", enabled: true, data: {}, style: { color: "#fff" } as any },
           { id: "sec_2", type: "experience", title: "Experience", enabled: true, data: {} },
         ]}
         initialCustomizations={{ colors: { accent: "#123456" } }}

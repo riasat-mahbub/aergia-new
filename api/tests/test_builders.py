@@ -1,0 +1,204 @@
+"""Builder tests — one fixture per section type.
+
+Each test verifies that ``build_document`` produces a ``Document`` with the
+expected ``Section`` shape: one ``Section`` per ``SectionInstance``, the
+expected ``FieldBlock`` keys, and a stable ``TextRun`` count. No HTML
+matching — that's the renderer's job.
+"""
+
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+import pytest
+
+from app.services.renderer.builders import build_document
+from app.schema.models import Section
+
+
+def _cv(sections):
+    return SimpleNamespace(sections=sections)
+
+
+def test_profile_emits_name_title_summary_and_social_fields():
+    cv = _cv([{
+        "id": "s1",
+        "type": "profile",
+        "title": "Profile",
+        "enabled": True,
+        "data": {
+            "name": "Ada",
+            "title": "Engineer",
+            "email": "a@b.com",
+            "summary": "Summary",
+            "social_links": [{"url": "https://x.dev", "label": "X"}],
+        },
+    }])
+    doc = build_document(cv)
+    assert len(doc.sections) == 1
+    section = doc.sections[0]
+    assert section.type == "profile"
+    keys = [f.key for f in section.entries[0].fields]
+    assert keys == ["name", "title", "email", "summary", "social_links.0"]
+    assert section.entries[0].fields[0].runs[0].text == "Ada"
+
+
+def test_experience_emits_one_entry_per_row_with_date_text_run():
+    cv = _cv([{
+        "id": "x",
+        "type": "experience",
+        "title": "Experience",
+        "enabled": True,
+        "data": [
+            {"id": "e1", "position": "Dev", "company": "Co", "start_date": "2020-01", "end_date": "2022-06", "description": "did stuff"},
+            {"id": "e2", "position": "Sr", "company": "Other", "start_date": "2022-07", "current": True},
+        ],
+    }])
+    doc = build_document(cv)
+    entries = doc.sections[0].entries
+    assert len(entries) == 2
+    first_keys = [f.key for f in entries[0].fields]
+    assert "position" in first_keys and "company" in first_keys and "date" in first_keys and "description" in first_keys
+    second_keys = [f.key for f in entries[1].fields]
+    assert "date" in second_keys
+
+
+def test_education_emits_degree_institution_date_gpa_summary():
+    cv = _cv([{
+        "id": "edu",
+        "type": "education",
+        "title": "Education",
+        "enabled": True,
+        "data": [
+            {"id": "sc1", "degree": "BS", "institution": "MIT", "start_date": "2010-09", "end_date": "2014-06", "gpa": "3.9", "summary": "Honors"},
+        ],
+    }])
+    doc = build_document(cv)
+    keys = [f.key for f in doc.sections[0].entries[0].fields]
+    assert keys == ["degree", "institution", "date", "gpa", "summary"]
+
+
+def test_skills_emits_category_plus_tag_per_item():
+    cv = _cv([{
+        "id": "sk",
+        "type": "skills",
+        "title": "Skills",
+        "enabled": True,
+        "data": [
+            {"id": "g1", "category": "Backend", "items": ["Python", "Go"]},
+            {"id": "g2", "category": "Frontend", "items": ["React"]},
+        ],
+    }])
+    doc = build_document(cv)
+    assert len(doc.sections[0].entries) == 2
+    keys = [f.key for f in doc.sections[0].entries[0].fields]
+    assert keys == ["category", "tag.0", "tag.1"]
+
+
+def test_projects_emits_name_link_date_description_tech():
+    cv = _cv([{
+        "id": "pr",
+        "type": "projects",
+        "title": "Projects",
+        "enabled": True,
+        "data": [
+            {
+                "id": "p1",
+                "name": "X",
+                "url": "https://x.dev",
+                "link_text": "Repo",
+                "start_date": "2024-01",
+                "end_date": "2024-12",
+                "description": "Did things",
+                "tech_stack": ["Python", "FastAPI"],
+            }
+        ],
+    }])
+    doc = build_document(cv)
+    keys = [f.key for f in doc.sections[0].entries[0].fields]
+    assert keys == ["name", "link", "date", "description", "tech.0", "tech.1"]
+
+
+def test_languages_emits_language_and_proficiency():
+    cv = _cv([{
+        "id": "lng",
+        "type": "languages",
+        "title": "Languages",
+        "enabled": True,
+        "data": [
+            {"id": "l1", "language": "English", "proficiency": "Native"},
+        ],
+    }])
+    doc = build_document(cv)
+    keys = [f.key for f in doc.sections[0].entries[0].fields]
+    assert keys == ["language", "proficiency"]
+
+
+def test_certifications_emits_name_meta_link():
+    cv = _cv([{
+        "id": "cert",
+        "type": "certifications",
+        "title": "Certifications",
+        "enabled": True,
+        "data": [
+            {"id": "c1", "name": "AWS SAA", "issuer": "AWS", "date": "2023-05", "credential_url": "https://aws.example"},
+        ],
+    }])
+    doc = build_document(cv)
+    keys = [f.key for f in doc.sections[0].entries[0].fields]
+    assert keys == ["name", "meta", "link"]
+
+
+def test_research_emits_title_link_date_description():
+    cv = _cv([{
+        "id": "res",
+        "type": "research",
+        "title": "Research",
+        "enabled": True,
+        "data": [
+            {"id": "r1", "title": "Paper", "paper_url": "https://arxiv.org/abs/1", "paper_link_text": "PDF", "publication_date": "2023-01", "description": "Abstract"},
+        ],
+    }])
+    doc = build_document(cv)
+    keys = [f.key for f in doc.sections[0].entries[0].fields]
+    assert keys == ["title", "link", "date", "description"]
+
+
+def test_disabled_section_is_dropped():
+    cv = _cv([
+        {"id": "s1", "type": "profile", "title": "P", "enabled": False, "data": {"name": "X"}},
+        {"id": "s2", "type": "skills", "title": "S", "enabled": True, "data": []},
+    ])
+    doc = build_document(cv)
+    assert len(doc.sections) == 1
+    assert doc.sections[0].id == "s2"
+
+
+def test_unknown_section_type_raises_value_error():
+    cv = _cv([{"id": "s1", "type": "wat", "title": "X", "enabled": True, "data": {}}])
+    with pytest.raises(ValueError):
+        build_document(cv)
+
+
+def test_legacy_style_overrides_apply_to_section_three_axes():
+    cv = _cv([{
+        "id": "s1",
+        "type": "profile",
+        "title": "Profile",
+        "enabled": True,
+        "data": {"name": "Ada"},
+        "legacy_style": {
+            "font": "Inter",
+            "color": "#abc",
+            "weight": "bold",
+            "text_align": "left",
+            "show_title": True,
+            "subsection_gap": "12px",
+        },
+    }])
+    doc = build_document(cv)
+    section = doc.sections[0]
+    assert section.subsection.section_color == "#abc"
+    assert section.subsection.text_align == "left"
+    assert section.layout.font_family == "Inter"
+    assert section.policy is not None and section.policy.show_title is True

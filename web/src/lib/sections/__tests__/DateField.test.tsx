@@ -84,7 +84,7 @@ describe("formatSingleDate", () => {
         "YYYY": "2021",
         "Mon-YYYY": "Mar-2021",
       };
-      expect(formatSingleDate("2021-03", { key, rangeSep })).toBe(expected[key]);
+      expect(formatSingleDate("2021-03", { key, rangeSep })).toBe((expected as any)["" + key]);
     },
   );
 });

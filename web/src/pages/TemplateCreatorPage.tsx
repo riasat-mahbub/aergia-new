@@ -124,7 +124,7 @@ const handleBackToPicker = useCallback(() => {
                 <div className="mx-auto max-w-[210mm] rounded bg-white shadow-sm">
                   <TemplateSwitcher
                     templateId="wizard"
-                    instances={sampleInstances as unknown as typeof sampleInstances}
+                    instances={sampleInstances as unknown as any}
                     customizations={liveManifest?.default_customizations || {}}
                     layoutConfig={liveManifest ? { zones: liveManifest.zones, placement: liveManifest.placement } : undefined}
                     defaultCustomizations={liveManifest?.default_customizations || {}}

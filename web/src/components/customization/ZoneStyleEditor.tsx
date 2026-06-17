@@ -1,4 +1,6 @@
-import type { Zone } from "../../lib/sections/types";
+import type { LegacyZone } from "../../lib/sections/types";
+
+type Zone = LegacyZone;
 
 const FONT_OPTIONS = [
   "",

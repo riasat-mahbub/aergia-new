@@ -1,65 +1,86 @@
+"""Seed templates for the new v2 manifest pipeline.
+
+Each template declares:
+
+- ``manifest_version: 2``
+- ``zones`` — layout zones with explicit CSS-level styles.
+- ``placement`` — section_type → zone_id.
+- ``layout_defaults.spacing`` — design-token preference (compact / comfortable / minimal).
+- ``policy_overrides.by_type`` — per-type policy overrides (empty for the seed).
+- ``global_styles`` — accent color and body/heading fonts.
+
+The legacy ``layout_config`` / ``globalStyleSchema`` fields are gone.
+User-uploaded templates must use the same shape.
+"""
+
+from __future__ import annotations
+
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.template import Template
 
 
+def _spacing_preset_for(section_gap: str) -> str:
+    """Map the legacy ``section_gap`` CSS string to a v2 spacing preset."""
+
+    if section_gap in {"16px", "20px"}:
+        return "compact"
+    if section_gap == "8px":
+        return "minimal"
+    return "comfortable"
+
+
 def build_manifest(template: dict) -> dict:
-    """Construct a manifest dict from the seed template data."""
+    """Construct a v2 manifest dict from the seed template data."""
+
     layout_config = template["layout_config"]
     customizations = template.get("default_customizations", {})
-    colors = customizations.get("colors", {})
-    fonts = customizations.get("fonts", {})
-    spacing = customizations.get("spacing", {})
+    colors = customizations.get("colors") or {}
+    fonts = customizations.get("fonts") or {}
+    spacing = (customizations.get("spacing") or {}).get("section_gap", "24px")
+    spacing_preset = _spacing_preset_for(spacing)
 
-    # Build global style schema from default_customizations
-    global_style_schema = []
-    for key, default in colors.items():
-        global_style_schema.append({
-            "key": key,
-            "type": "color",
-            "label": key.replace("_", " ").title(),
-            "default": default
+    zones = []
+    for zone in layout_config.get("zones", []):
+        styles = dict(zone.get("styles") or {})
+        # Normalize the hyphenated background-color key for ZoneStyle.
+        if "background-color" in styles and "background_color" not in styles:
+            styles["background_color"] = styles.pop("background-color")
+        zones.append({
+            "id": zone["id"],
+            "label": zone.get("label"),
+            "styles": styles,
         })
-    for key, default in fonts.items():
-        global_style_schema.append({
-            "key": key,
-            "type": "font",
-            "label": key.replace("_", " ").title(),
-            "default": default
-        })
-    # Section/subsection gap sliders clamp to 0–N so users can collapse
-    # spacing entirely. Other length entries fall through to the renderer
-    # default (min 8) since they're rarely zero.
-    for key, default in spacing.items():
-        schema_entry = {
-            "key": key,
-            "type": "length",
-            "label": key.replace("_", " ").title(),
-            "default": default,
-        }
-        if key in {"section_gap", "subsection_gap"}:
-            schema_entry["min"] = 0
-            schema_entry["max"] = 48 if key == "section_gap" else 24
-        global_style_schema.append(schema_entry)
-    for key, default in (customizations.get("flags") or {}).items():
-        global_style_schema.append({
-            "key": key,
-            "type": "boolean",
-            "label": key.replace("_", " ").title(),
-            "default": str(default).lower(),
-        })
-    # Schema buckets must mirror the keys used in default_customizations (`spacing`).
-    # Re-key `length` entries into `spacing` so `_build_css_vars` picks them up.
+
+    placement = layout_config.get("placement") or {}
+    global_styles: dict[str, str] = {}
+    if colors.get("accent"):
+        global_styles["accent_color"] = colors["accent"]
+    elif colors.get("header"):
+        global_styles["accent_color"] = colors["header"]
+    elif colors.get("heading"):
+        global_styles["accent_color"] = colors["heading"]
+    elif colors.get("text"):
+        global_styles["accent_color"] = colors["text"]
+    if fonts.get("body"):
+        global_styles["body_font"] = fonts["body"]
+    if fonts.get("heading"):
+        global_styles["heading_font"] = fonts["heading"]
+    if colors.get("bg_sidebar"):
+        global_styles["bg_sidebar"] = colors["bg_sidebar"]
+    if colors.get("divider"):
+        global_styles["divider"] = colors["divider"]
+
     manifest = {
-        "version": 1,
+        "manifest_version": 2,
         "id": template["id"],
         "name": template["name"],
         "description": template.get("description"),
-        "layout_config": layout_config,
-        "zones": layout_config.get("zones", []),
-        "placement": layout_config.get("placement", {}),
-        "globalStyleSchema": global_style_schema,
-        "assets": {},
-        "sectionSchema": template.get("section_schema", {}),
+        "zones": zones,
+        "placement": placement,
+        "layout_defaults": {"spacing": spacing_preset},
+        "policy_overrides": {"by_type": {}},
+        "global_styles": global_styles,
     }
     return manifest
 
@@ -72,7 +93,7 @@ SEED_TEMPLATES = [
         "layout_config": {
             "zones": [
                 {"id": "sidebar", "styles": {"width": "30%", "background-color": "#f8fafc", "padding": "24px"}},
-                {"id": "main", "styles": {"width": "70%", "padding": "24px"}}
+                {"id": "main", "styles": {"width": "70%", "padding": "24px"}},
             ],
             "placement": {
                 "profile": "sidebar",
@@ -82,8 +103,8 @@ SEED_TEMPLATES = [
                 "projects": "main",
                 "languages": "main",
                 "certifications": "main",
-                "research": "main"
-            }
+                "research": "main",
+            },
         },
         "section_schema": {
             "profile": {"fields": ["name", "title", "email", "email_link", "phone", "location", "site_text", "site_url", "summary", "photo_url"]},
@@ -108,7 +129,7 @@ SEED_TEMPLATES = [
         "description": "Single-column layout with serif fonts and traditional styling",
         "layout_config": {
             "zones": [
-                {"id": "main", "styles": {"width": "100%", "padding": "32px"}}
+                {"id": "main", "styles": {"width": "100%", "padding": "32px"}},
             ],
             "placement": {
                 "profile": "main",
@@ -118,8 +139,8 @@ SEED_TEMPLATES = [
                 "projects": "main",
                 "languages": "main",
                 "certifications": "main",
-                "research": "main"
-            }
+                "research": "main",
+            },
         },
         "section_schema": {
             "profile": {"fields": ["name", "title", "email", "email_link", "phone", "location", "site_text", "site_url", "summary"]},
@@ -143,7 +164,7 @@ SEED_TEMPLATES = [
         "name": "Minimal",
         "layout_config": {
             "zones": [
-                {"id": "main", "styles": {"width": "100%", "padding": "32px"}}
+                {"id": "main", "styles": {"width": "100%", "padding": "32px"}},
             ],
             "placement": {
                 "profile": "main",
@@ -153,8 +174,8 @@ SEED_TEMPLATES = [
                 "projects": "main",
                 "languages": "main",
                 "certifications": "main",
-                "research": "main"
-            }
+                "research": "main",
+            },
         },
         "section_schema": {
             "profile": {"fields": ["name", "title", "email", "email_link", "phone", "location", "site_text", "site_url"]},
@@ -169,15 +190,17 @@ SEED_TEMPLATES = [
         "default_customizations": {
             "colors": {"text": "#374151", "heading": "#111827"},
             "fonts": {"body": "system-ui, sans-serif", "heading": "system-ui, sans-serif"},
-            "spacing": {"section_gap": "16px", "subsection_gap": "8px"},
+            "spacing": {"section_gap": "8px", "subsection_gap": "8px"},
             "flags": {"underline_section_titles": False, "default_link_style": False},
         },
     },
 ]
 
+
 # Pre-compute manifests for each seed template
 for t in SEED_TEMPLATES:
     t["manifest"] = build_manifest(t)
+
 
 async def seed_templates(db: AsyncSession) -> None:
     for data in SEED_TEMPLATES:
@@ -194,10 +217,6 @@ async def seed_templates(db: AsyncSession) -> None:
         elif existing.manifest is None:
             existing.manifest = data["manifest"]
         else:
-            # Refresh manifest/defaults so newly added customization buckets
-            # (e.g. `flags`) propagate to existing seed rows. User-created
-            # templates are unaffected because their `is_system` is False
-            # and they were not loaded from this seed path.
             existing.manifest = data["manifest"]
             existing.default_customizations = data.get("default_customizations")
     await db.commit()

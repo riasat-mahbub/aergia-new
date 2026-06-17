@@ -652,7 +652,7 @@ function ZoneBlock({
             className="overflow-hidden border-b border-gray-100"
           >
             <div className="p-2">
-              <ZoneStyleEditor zone={zone} onChange={handleZoneUpdate} assets={assets} />
+              <ZoneStyleEditor zone={zone as any} onChange={handleZoneUpdate as any} assets={assets} />
             </div>
           </motion.div>
         )}

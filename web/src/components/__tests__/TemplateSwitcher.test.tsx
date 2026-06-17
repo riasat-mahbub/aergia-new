@@ -1,7 +1,13 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import TemplateSwitcher from "../preview/TemplateSwitcher";
 import type { SectionInstance, LayoutConfig } from "../../lib/sections/types";
+
+vi.mock("../../lib/api/client", () => ({
+  default: {
+    post: vi.fn().mockResolvedValue({ data: { html: "<html><body><h2>Profile</h2></body></html>" } }),
+  },
+}));
 
 const baseInstances: SectionInstance[] = [
   { id: "sec_1", type: "profile", title: "Profile", enabled: true, data: { name: "Jane", title: "", email: "", phone: "", location: "", summary: "", photo_url: "" } },
@@ -44,12 +50,12 @@ describe("TemplateSwitcher", () => {
 
   it("renders Classic template", () => {
     render(<TemplateSwitcher {...baseProps} templateId="generic-classic" />);
-    expect(screen.getByText("Profile")).toBeDefined();
+    expect(screen.getByTitle("User Template Preview")).toBeDefined();
   });
 
   it("renders Minimal template", () => {
     render(<TemplateSwitcher {...baseProps} templateId="generic-minimal" />);
-    expect(screen.getByText("Profile")).toBeDefined();
+    expect(screen.getByTitle("User Template Preview")).toBeDefined();
   });
 
   it("does not render disabled sections", () => {

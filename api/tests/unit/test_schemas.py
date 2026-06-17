@@ -46,4 +46,4 @@ class TestCVSchemas:
         data = CVCreate(title="My CV")
         assert data.template_id == "generic-modern"
         assert data.sections == DEFAULT_SECTIONS
-        assert data.customizations == {}
+        assert data.customizations is None
