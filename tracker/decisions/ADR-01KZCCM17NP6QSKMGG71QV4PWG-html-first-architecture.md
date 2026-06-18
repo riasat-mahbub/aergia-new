@@ -1,5 +1,5 @@
 ---
-id: ADR-01LZ000000000000000000000-html-first-architecture
+id: ADR-01KZCCM17NP6QSKMGG71QV4PWG-html-first-architecture
 title: HTML-first architecture
 status: DONE
 created: 2026-08-06
@@ -59,4 +59,4 @@ PDF
 ## Related
 
 - AGENTS.md, PLAN.md, TEMPLATE_GUIDE.md
-- FEAT-html-first-pipeline
+- EPIC-01KZCCC3MTXDGPY31H06NFYP1Q-html-first-pipeline-with-three-axis-style-ast

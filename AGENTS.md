@@ -8,13 +8,16 @@ files in `tracker/` (project-tracker SCHEMA 3, ULID IDs).  See
 
 | Folder | DONE | OPEN | Total |
 |--------|------|------|-------|
-| [bugs/](tracker/bugs/) | 9 | 0 | 9 |
-| [features/](tracker/features/) | 20 | 10 | 30 |
-| [decisions/](tracker/decisions/) | 3 | 0 | 3 |
-| [tasks/](tracker/tasks/) | 9 | 14 | 23 |
+| [bugs/](tracker/bugs/) | 15 | 0 | 15 |
+| [features/](tracker/features/) | 46 | 0 | 46 |
+| [decisions/](tracker/decisions/) | 5 | 0 | 5 |
+| [tasks/](tracker/tasks/) | 93 | 0 | 93 |
 | [docs/](tracker/docs/) | 0 | 1 | 1 |
+| [epics/](tracker/epics/) | 0 | 1 | 1 |
 
-**Last updated:** 2026-08-01 (from `tracker stats`)
+**Last updated:** 2026-08-06 (from `tracker stats`)
+
+
 
 ## Required skill: project-tracker
 

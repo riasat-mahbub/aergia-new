@@ -1,5 +1,5 @@
 ---
-id: FEAT-01LZ000000000000000000000-html-first-pipeline
+id: FEAT-01KZCCM17NP6QSKMGG71QV4PWF-html-first-pipeline
 title: HTML-first pipeline with three-axis style AST
 status: PLANNED
 created: 2026-08-06
@@ -7,6 +7,10 @@ updated: 2026-08-06
 ---
 
 # HTML-first pipeline with three-axis style AST
+
+## Summary
+
+This is a feature-level entry for the new render pipeline. The full phase plan lives in the EPIC. See **EPIC-01KZCCC3MTXDGPY31H06NFYP1Q** for phases, tasks, and the merge plan.
 
 ## Background
 
@@ -49,48 +53,15 @@ PDF
 3. `HTMLDocumentRenderer.render(model)` → HTML5 string.
 4. `Chromium` → PDF bytes.
 
-## Schema additions
-
-- `TextStyle` — bold, italic, underline, strike, color, link, font_size.
-- `SubsectionStyle` — text_align, spacing_before, spacing_after, background_color.
-- `LayoutHints` — break_before, keep_together, heading_keeps_with_first, orphans, widows, font_family, date_style.
-- `SectionPolicy` — show_title, skill_variant, etc. (document semantics).
-- `DocumentLayoutHints` — page_style, break_before_first_section, default_orphan_threshold, default_widow_threshold.
-- `DocumentStyles` — accent_color, body_font, heading_font, default_text_align.
-- AST nodes: `Document`, `Section`, `Entry`, `FieldBlock`, `TextRun`.
-
-## Manifest additions
-
-- `layout_defaults` — e.g., `{ "spacing": "comfortable" }`.
-- `policy_overrides` — per-section structural rules.
-- `global_styles` — default colors, fonts, alignment.
-- `document_layout` — page-level settings.
-
-## Renderer capabilities
-
-Each renderer declares its own `RendererSupport` (property of the renderer class). Each capability field has a `SupportLevel`:
-- `FULL` — the renderer reliably satisfies this.
-- `BEST_EFFORT` — the renderer tries but can't guarantee.
-- `NONE` — the renderer can't satisfy this.
-
-The customize panel reads the renderer's support. The export endpoint reads the renderer's support.
-
-## Codegen
-
-Pydantic models are the source of truth. `datamodel-code-generator` produces TS types in `generated/schema.ts`. CI checks that running codegen produces no diff. Generated files are never edited manually.
-
 ## Implementation
+
+This entry's implementation IS the EPIC. See EPIC-01KZCCC3MTXDGPY31H06NFYP1Q for phases, tasks, and the merge plan.
 
 Branch: `feat/ast-pipeline` (cut from master, merged via regular merge commit, not squash).
 
-Phase 0 (this commit): empty branch + plan docs + tracker entries.
-Phase 1: codegen + schemas + resolver + renderer.
-Phase 2: TS AST walker + React renderer components + CustomizePanel rewrite.
-Phase 3: section editors + Builder page + template creator.
-Phase 4: tests + docs + Docker.
-
 ## Related
 
+- EPIC-01KZCCC3MTXDGPY31H06NFYP1Q-html-first-pipeline-with-three-axis-style-ast
+- ADR-01LZ000000000000000000000-html-first-architecture
+- ADR-01LZ000000000000000000000-three-axis-style-model
 - AGENTS.md, PLAN.md, TEMPLATE_GUIDE.md
-- ADR-html-first-architecture
-- ADR-three-axis-style-model
