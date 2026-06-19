@@ -489,3 +489,5 @@ The new branch merges into `master` via a regular merge commit (not squash). The
 | 7.11 | Phase 1: services (cv.py, pdf.py) | 🔲 |
 | 7.12 | Phase 1: seed templates (minimal) | 🔲 |
 | 7.13 | Phase 1: tests | 🔲 |
+
+**Implementation prompt:** See `PHASE_7_PROMPT.md` for the succinct instruction set used to implement this phase. Reference docs: AGENTS.md, PLAN.md, TEMPLATE_GUIDE.md, and tracker entries (EPIC + FEAT + ADRs).
