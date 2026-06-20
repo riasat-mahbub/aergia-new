@@ -1,40 +1,32 @@
-import ProfileEditor from "./profile/ProfileEditor";
-import ProfileRenderer from "./profile/ProfileRenderer";
-import ExperienceEditor from "./experience/ExperienceEditor";
-import ExperienceRenderer from "./experience/ExperienceRenderer";
-import EducationEditor from "./education/EducationEditor";
-import EducationRenderer from "./education/EducationRenderer";
-import SkillsEditor from "./skills/SkillsEditor";
-import SkillsRenderer from "./skills/SkillsRenderer";
-import ProjectsEditor from "./projects/ProjectsEditor";
-import ProjectsRenderer from "./projects/ProjectsRenderer";
-import LanguagesEditor from "./languages/LanguagesEditor";
-import LanguagesRenderer from "./languages/LanguagesRenderer";
-import CertificationsEditor from "./certifications/CertificationsEditor";
-import CertificationsRenderer from "./certifications/CertificationsRenderer";
-import ResearchEditor from "./research/ResearchEditor";
-import ResearchRenderer from "./research/ResearchRenderer";
-import type { SectionStyle } from "../../lib/sections/types";
-type EditorProps<T> = { data: T | undefined; onChange: (data: T) => void };
-type RendererProps<T> = { data: T | undefined; style?: SectionStyle };
+// Section registry — Editor-only.
 
-interface SectionComponent<T = unknown> {
-  Editor: (props: EditorProps<T>) => React.JSX.Element;
-  Renderer: (props: RendererProps<T>) => React.JSX.Element;
+import ProfileEditor from "./profile/ProfileEditor";
+import ExperienceEditor from "./experience/ExperienceEditor";
+import EducationEditor from "./education/EducationEditor";
+import SkillsEditor from "./skills/SkillsEditor";
+import ProjectsEditor from "./projects/ProjectsEditor";
+import LanguagesEditor from "./languages/LanguagesEditor";
+import CertificationsEditor from "./certifications/CertificationsEditor";
+import ResearchEditor from "./research/ResearchEditor";
+
+type EditorProps = { data: any; onChange: (data: any) => void };
+
+interface SectionEditorComponent {
+  Editor: (props: EditorProps) => React.JSX.Element;
 }
 
-const sectionMap: Record<string, SectionComponent<any>> = {
-  profile: { Editor: ProfileEditor, Renderer: ProfileRenderer },
-  experience: { Editor: ExperienceEditor, Renderer: ExperienceRenderer },
-  education: { Editor: EducationEditor, Renderer: EducationRenderer },
-  skills: { Editor: SkillsEditor, Renderer: SkillsRenderer },
-  projects: { Editor: ProjectsEditor, Renderer: ProjectsRenderer },
-  languages: { Editor: LanguagesEditor, Renderer: LanguagesRenderer },
-  certifications: { Editor: CertificationsEditor, Renderer: CertificationsRenderer },
-  research: { Editor: ResearchEditor, Renderer: ResearchRenderer },
+const sectionMap: Record<string, SectionEditorComponent> = {
+  profile: { Editor: ProfileEditor },
+  experience: { Editor: ExperienceEditor },
+  education: { Editor: EducationEditor },
+  skills: { Editor: SkillsEditor },
+  projects: { Editor: ProjectsEditor },
+  languages: { Editor: LanguagesEditor },
+  certifications: { Editor: CertificationsEditor },
+  research: { Editor: ResearchEditor },
 };
 
-export function getSectionComponent(type: string): SectionComponent | null {
+export function getSectionComponent(type: string): SectionEditorComponent | null {
   return sectionMap[type] || null;
 }
 
@@ -44,11 +36,5 @@ export function renderSectionEditor(type: string, data: any, onChange: (data: an
   return <comp.Editor data={data} onChange={onChange} />;
 }
 
-export function renderSectionPreview(type: string, data: any, style?: SectionStyle) {
-  const comp = sectionMap[type];
-  if (!comp) return null;
-  return <comp.Renderer data={data} style={style} />;
-}
-
 export { sectionMap };
-export type { SectionComponent };
+export type { SectionEditorComponent };

@@ -7,15 +7,16 @@ from fastapi.responses import StreamingResponse
 
 from app.services.cv import CVService
 from app.services.pdf import PDFService
-from app.services.renderer import render_preview
+from app.services.renderer import HTMLDocumentRenderer, build_document, resolve
+from app.services.renderer._pdf_runtime import html_to_pdf
 from app.routes.render import strip_anchor_hrefs
 from app.core.deps import get_current_user
 from app.models.user import User
+from app.services.cv import coerce_customizations, CVService
 
 NOT_FOUND = "CV not found"
 
 router = APIRouter()
-
 
 @router.get("", response_model=list[CVListItem])
 async def list_cvs(
@@ -114,13 +115,16 @@ async def preview_cv(
     if isinstance(cv_layout, dict) and cv_layout.get("zones"):
         layout_config = cv_layout
 
-    html = render_preview(
-        instances=instances,
-        customizations=cv.customizations or {},
-        layout_config=layout_config,
-        default_customizations=template_data.get("default_customizations") if template_data else None,
-        global_style_schema=manifest.get("globalStyleSchema") if manifest else None,
-    )
+    from app.schema.models import Customizations, SectionInstance, TemplateManifest
+
+    document = build_document(cv, None)
+    try:
+        manifest_model = TemplateManifest.model_validate(manifest)
+    except Exception:
+        manifest_model = None
+    customizations_model = coerce_customizations(cv.customizations)
+    model = resolve(document, manifest_model, customizations_model, HTMLDocumentRenderer.support)
+    html = HTMLDocumentRenderer().render(model)
     # Preview is rendered inside a sandboxed iframe. Without stripping hrefs,
     # clicking a project / credential / site link navigates the iframe away
     # from the CV preview. Strip hrefs so the user sees the link text but

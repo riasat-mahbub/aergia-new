@@ -7,7 +7,6 @@ import TemplateSelectorModal from "./TemplateSelectorModal";
 import StyleEditor, { type StyleVarSchema } from "./StyleEditor";
 import SectionZoneView from "../layout/SectionZoneView";
 import { DATE_STYLE_OPTIONS } from "../../lib/sections/DateField";
-import type { DateStyle } from "../../lib/sections/types";
 interface Props {
   customizations: Record<string, any>;
   onChange: (customizations: Record<string, any>) => void;
@@ -95,7 +94,7 @@ export default function CustomizePanel({
   }, [instances, selectedSectionId]);
 
   const selectedInstance = instances.find((i) => i.id === selectedSectionId) || null;
-  const selectedStyle: SectionStyle = selectedInstance?.style || {};
+  const selectedStyle: SectionStyle = (selectedInstance?.style as unknown as SectionStyle) || {};
 
   const updateSelectedStyle = (partial: Partial<SectionStyle>) => {
     if (!selectedSectionId) return;
@@ -109,7 +108,7 @@ export default function CustomizePanel({
       merged.subsection_gap ||
       merged.row_gap ||
       typeof merged.show_title === "boolean" ||
-      !!merged.date_style ||
+      !!(merged.date_style && Object.keys(merged.date_style).length > 0) ||
       (merged.field_styles && Object.keys(merged.field_styles).length > 0);
     onUpdateStyle(selectedSectionId, hasValues ? merged : {});
   };
@@ -371,10 +370,10 @@ export default function CustomizePanel({
                   onChange={(e) => {
                     const v = e.target.value;
                     const opt = v ? DATE_STYLE_OPTIONS.find((o) => o.value === v) : undefined;
-                    const next: DateStyle | undefined = opt
+                    const next = opt
                       ? { key: opt.value, rangeSep: opt.rangeSep }
                       : undefined;
-                    updateSelectedStyle({ date_style: next });
+                    updateSelectedStyle({ date_style: next as any });
                   }}
                   className="mt-1 w-full rounded border px-2 py-1 text-sm"
                 >

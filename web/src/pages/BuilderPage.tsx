@@ -241,10 +241,10 @@ export default function BuilderPage() {
       setLocalCustomizations((prev) => {
         const existingLayout = prev.layout as LayoutConfig | undefined;
         const hasValidLayout = existingLayout && existingLayout.zones?.length;
-        const baseLayout = hasValidLayout
+        const baseLayout: LayoutConfig = hasValidLayout
           ? existingLayout
           : templateLayoutConfig?.zones?.length
-            ? migratePlacement(templateLayoutConfig, instancesRef.current)
+            ? (migratePlacement(templateLayoutConfig, instancesRef.current) as LayoutConfig)
             : { zones: [], placement: {} };
         const targetZoneId = zoneId ?? getFirstZoneId(baseLayout);
         if (!targetZoneId) return prev;
@@ -284,7 +284,7 @@ export default function BuilderPage() {
       const hasValues = sectionStyleHasValues(style);
       setLocalInstances((prev) =>
         prev.map((i) =>
-          i.id === sectionId ? { ...i, style: hasValues ? style : undefined } : i
+          i.id === sectionId ? { ...i, style: hasValues ? (style as unknown as import("../lib/sections/types").SectionInstanceStyle) : undefined } : i
         )
       );
     },

@@ -1,0 +1,167 @@
+"""Shared utilities for AST builders.
+
+Date formatters, HTML escape helpers, and URL-scheme normalisation. The
+date helpers are pure (no AST knowledge) — they only transform strings —
+so they live alongside the builders rather than inside the renderer.
+
+The :data:`DATE_STYLE_OPTIONS` list is the canonical preset table shared
+with the frontend; each preset encodes its own ``range_sep`` so backend
+and frontend cannot drift.
+"""
+
+from __future__ import annotations
+
+import html
+import re
+
+from app.schema.models import DateStyle
+
+
+_URL_SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.\-]*:")
+
+
+def normalize_url_scheme(value: object) -> str:
+    """Ensure ``value`` carries an absolute URL scheme.
+
+    Chromium's print pipeline silently drops ``<a href>`` annotations when
+    the href is missing a scheme (e.g. ``rmahbub.com`` is treated as a
+    relative path against ``about:blank`` and never becomes a clickable
+    ``/Link`` in the exported PDF). Always emit a scheme so the link
+    survives both rendering and PDF export.
+
+    - Empty / None / whitespace-only strings return ``""``.
+    - Strings that already start with a scheme pass through unchanged.
+    - Otherwise ``https://`` is prepended.
+    """
+
+    if value is None:
+        return ""
+    s = str(value).strip()
+    if not s:
+        return ""
+    if _URL_SCHEME_RE.match(s):
+        return s
+    return f"https://{s}"
+
+
+def esc(text: object) -> str:
+    """Escape text for safe insertion into HTML (between tags)."""
+
+    if text is None:
+        return ""
+    return html.escape(str(text))
+
+
+def esc_attr(text: object) -> str:
+    """Escape text for safe insertion into a double-quoted HTML attribute."""
+
+    if text is None:
+        return ""
+    return html.escape(str(text), quote=True)
+
+
+SHORT_MONTH_NAMES = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+]
+
+MONTH_NAMES = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+]
+
+
+# Canonical list of date-format presets. Mirrors the dropdown in
+# ``web/src/components/sections/DateField.tsx``.
+DATE_STYLE_OPTIONS: list[tuple[str, str, str]] = [
+    ("YYYY-MM", "YYYY-MM (default)", " \u2013 "),
+    ("YYYY/MM", "YYYY/MM", "/"),
+    ("MM/YYYY", "MM/YYYY", "/"),
+    ("MM-YYYY", "MM-YYYY", "-"),
+    ("MM.YYYY", "MM.YYYY", "."),
+    ("YYYY.MM", "YYYY.MM", "."),
+    ("Mon YYYY", "Mon YYYY (e.g. Mar 2021)", " \u2013 "),
+    ("Month YYYY", "Month YYYY (e.g. March 2021)", " \u2013 "),
+    ("YYYY", "YYYY", " \u2013 "),
+    ("Mon-YYYY", "Mon-YYYY (e.g. Mar-2021)", "-"),
+]
+
+
+def _style_dict(style: DateStyle | dict | None) -> dict | None:
+    """Coerce a ``DateStyle`` or ``dict`` to a plain ``dict`` for the
+    legacy formatter signature."""
+
+    if style is None:
+        return None
+    if isinstance(style, dict):
+        return style
+    return style.model_dump()
+
+
+def format_single_date(value: str | None, style: DateStyle | dict | None = None) -> str:
+    """Format a single ``YYYY-MM`` date string for display using ``style``."""
+
+    if not value:
+        return ""
+    style_dict = _style_dict(style)
+    if not style_dict or not style_dict.get("key"):
+        return value
+    raw = str(value)
+    parts = raw.split("-")
+    if len(parts) != 2:
+        return raw
+    year_str, month_str = parts
+    if not year_str or not month_str:
+        return raw
+    try:
+        year = int(year_str)
+        month = int(month_str)
+    except ValueError:
+        return raw
+    if month < 1 or month > 12:
+        return raw
+    yy = str(year)
+    mm = f"{month:02d}"
+    key = style_dict["key"]
+    if key == "YYYY-MM":
+        return f"{yy}-{mm}"
+    if key == "YYYY/MM":
+        return f"{yy}/{mm}"
+    if key == "MM/YYYY":
+        return f"{mm}/{yy}"
+    if key == "MM-YYYY":
+        return f"{mm}-{yy}"
+    if key == "MM.YYYY":
+        return f"{mm}.{yy}"
+    if key == "YYYY.MM":
+        return f"{yy}.{mm}"
+    if key == "Mon YYYY":
+        return f"{SHORT_MONTH_NAMES[month - 1]} {yy}"
+    if key == "Month YYYY":
+        return f"{MONTH_NAMES[month - 1]} {yy}"
+    if key == "YYYY":
+        return yy
+    if key == "Mon-YYYY":
+        return f"{SHORT_MONTH_NAMES[month - 1]}-{yy}"
+    return raw
+
+
+def format_date_range(
+    start: str,
+    end: str | None,
+    current: bool,
+    style: DateStyle | dict | None = None,
+) -> str:
+    """Format a date range for display."""
+
+    if not start:
+        return ""
+    if current:
+        return f"{format_single_date(start, style)} – Present"
+    if not end:
+        return format_single_date(start, style)
+    a = format_single_date(start, style)
+    b = format_single_date(end, style)
+    style_dict = _style_dict(style)
+    sep = style_dict["range_sep"] if style_dict and style_dict.get("range_sep") else " – "
+    return f"{a}{sep}{b}"

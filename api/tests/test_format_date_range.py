@@ -1,5 +1,5 @@
 """Tests for format_date_range helper (mirrors the TS version)."""
-from app.services.renderer.section_renderers._utils import format_date_range
+from app.services.renderer.builders._utils import format_date_range
 
 
 def test_empty_start_returns_empty():

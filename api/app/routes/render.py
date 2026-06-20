@@ -1,61 +1,154 @@
-"""Template rendering endpoint for the new IR-based renderer."""
+"""Render routes — new AST-driven pipeline.
 
+Four endpoints replace the legacy IR pipeline:
+
+- ``POST /render/ast`` — body: ``{ cv_sections, manifest, customizations }``.
+  Returns ``{ document }``. Builds the AST without mutating CV data.
+- ``POST /render/html`` — body: same. Returns ``{ html }``. When
+  ``preview=true`` is set, anchor hrefs are neutered so the iframe does
+  not navigate on click.
+- ``POST /render/pdf`` — body: same. Returns ``{ pdf_base64 }``. PDF is
+  rendered via the new HTMLDocumentRenderer + the Playwright plumbing in
+  ``app.services.renderer._pdf_runtime``.
+- ``GET /render/support`` — returns the HTMLDocumentRenderer's
+  :class:`RendererSupport` as JSON. Used by the customize panel.
+"""
+
+from __future__ import annotations
+
+import base64
 import re
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
-from typing import Any
+from pydantic import BaseModel, Field
 
 from app.models.user import User
 from app.core.deps import get_current_user
-from app.services.renderer import render_html
+from app.schema.models import (
+    Customizations,
+    Document,
+    SectionInstance,
+    TemplateManifest,
+)
+from app.services.cv import coerce_customizations
+from app.services.renderer import build_document, resolve
+from app.services.renderer._pdf_runtime import html_to_pdf
+from app.services.renderer.html import HTMLDocumentRenderer
+from app.services.renderer.resolve import ManifestVersionError
+
 
 router = APIRouter(prefix="/render", tags=["render"])
 
 
 # Matches ``href="..."`` on every <a> tag without disturbing other attributes
-# or the surrounding markup. Used to keep links visually styled (matching the
-# accent color / underline) while making them non-clickable in the live preview
-# iframe. A sandboxed iframe otherwise replaces its own contents when an anchor
-# is clicked — the "new browser in the iframe" symptom users hit while editing.
+# or the surrounding markup. Used to keep links visually styled (matching
+# the accent color / underline) while making them non-clickable in the
+# live preview iframe.
 _HREF_RE = re.compile(r'(<a\b[^>]*?\bhref=")[^"]*(")', re.IGNORECASE)
 
 
 def strip_anchor_hrefs(html: str) -> str:
-    """Replace ``href="..."`` values with ``href="#"`` so anchors remain styled
-    but clicking no longer navigates the iframe.
-
-    Anchors retain their class, style, target, and rel attributes — only the
-    destination is neutralized. The PDF export takes a separate code path and
-    keeps the real hrefs so exported PDFs still carry clickable link annotations.
-    """
+    """Replace ``href="..."`` values with ``href="#"`` so anchors remain
+    visually styled but don't navigate the live preview iframe."""
     return _HREF_RE.sub(r"\1#\2", html)
 
 
 class RenderRequest(BaseModel):
-    manifest: dict[str, Any]
-    cv_data: dict[str, Any]
-    customizations: dict[str, Any]
-    # When True, the rendered HTML is intended for the live preview iframe.
-    # Links are kept visible (so the user sees the URL text) but their
-    # ``href`` is neutered — clicking no longer navigates the iframe.
+    cv_sections: list[SectionInstance] = Field(default_factory=list)
+    manifest: TemplateManifest | dict | None = None
+    customizations: Customizations | dict | None = None
     preview: bool = False
 
 
-@router.post("/html")
-async def render_template_html(
+def _coerce_manifest(manifest: TemplateManifest | dict | None) -> TemplateManifest | None:
+    if manifest is None:
+        return None
+    if isinstance(manifest, TemplateManifest):
+        return manifest
+    return TemplateManifest.model_validate(manifest)
+
+
+def _build_document_from_request(request: RenderRequest) -> tuple[Document, TemplateManifest | None, Customizations]:
+    manifest_model = _coerce_manifest(request.manifest)
+    customizations_model = coerce_customizations(request.customizations if not isinstance(request.customizations, Customizations) else None)
+
+    if isinstance(request.customizations, Customizations):
+        customizations_model = request.customizations
+
+    from types import SimpleNamespace
+
+    cv = SimpleNamespace(sections=[s.model_dump() for s in request.cv_sections])
+    document = build_document(cv, manifest_model)
+    return document, manifest_model, customizations_model
+
+
+@router.post("/ast")
+async def render_ast(
     request: RenderRequest,
     current_user: User = Depends(get_current_user),
 ):
-    """Render a template to HTML using the new IR-based renderer."""
+    """Build the AST without rendering."""
+
     try:
-        html = render_html(
-            manifest=request.manifest,
-            cv_data=request.cv_data,
-            customizations=request.customizations,
-        )
+        document, _, _ = _build_document_from_request(request)
+    except ManifestVersionError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return {"document": document.model_dump(mode="json")}
+
+
+@router.post("/html")
+async def render_html(
+    request: RenderRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Render to HTML using the new pipeline."""
+
+    try:
+        document, manifest, customizations = _build_document_from_request(request)
+        model = resolve(document, manifest, customizations, HTMLDocumentRenderer.support)
+        html = HTMLDocumentRenderer().render(model)
         if request.preview:
             html = strip_anchor_hrefs(html)
-        return {"html": html}
-    except Exception as e:
+    except ManifestVersionError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    return {"html": html}
+
+
+@router.post("/pdf")
+async def render_pdf(
+    request: RenderRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Render to PDF and return it base64-encoded."""
+
+    try:
+        document, manifest, customizations = _build_document_from_request(request)
+        model = resolve(document, manifest, customizations, HTMLDocumentRenderer.support)
+        html = HTMLDocumentRenderer().render(model)
+        pdf_bytes = await html_to_pdf(html)
+    except ManifestVersionError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    return {"pdf_base64": base64.b64encode(pdf_bytes).decode("ascii")}
+
+
+@router.get("/support")
+async def render_support(
+    current_user: User = Depends(get_current_user),
+):
+    """Return the HTMLDocumentRenderer's :class:`RendererSupport` as JSON."""
+
+    support = HTMLDocumentRenderer.support
+    return {
+        field: level.value
+        for field, level in vars(support).items()
+    }
+
+
+__all__ = ["router", "strip_anchor_hrefs"]

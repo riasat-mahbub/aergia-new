@@ -17,7 +17,7 @@ from app.routes.cvs import router as cvs_router
 from app.routes.assets import router as assets_router
 from app.routes.templates import router as templates_router
 from app.routes.render import router as render_router
-from app.services.renderer.backends.pdf import _close_browser
+from app.services.renderer._pdf_runtime import close_browser as _close_browser
 
 settings = get_settings()
 

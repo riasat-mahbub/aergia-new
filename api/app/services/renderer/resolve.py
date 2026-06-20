@@ -1,0 +1,325 @@
+"""Resolver — Document + manifest + customizations + renderer capabilities → RenderModel.
+
+The Resolver is the only place where three layers of style meet:
+
+1. **Per-instance style overrides** (``customizations.per_section[id]``)
+   overlay onto the section's already-built three-axis style.
+2. **Template defaults** paint template-wide values onto each section
+   when the section didn't declare them.
+3. **User customizations** paint shared values onto every section only
+   when neither the template nor the section declared them.
+
+Then it:
+
+4. Computes CSS variables (``--spacing-section``, ``--body-font``, …)
+   from the resolved values.
+5. Resolves zones via ``manifest.placement[type]``.
+6. Reads :class:`RendererSupport` to **drop** features the renderer
+   declared as ``NONE``. ``BEST_EFFORT`` features pass through (the
+   renderer emits a ``<!-- best-effort: … -->`` comment).
+
+The Resolver is pure: no I/O, no DB, no Pydantic over DB rows. It receives
+already-validated models and returns a fully resolved :class:`RenderModel`.
+"""
+
+from __future__ import annotations
+
+from app.schema.models import (
+    Customizations,
+    Document,
+    LayoutHints,
+    RenderModel,
+    ResolvedZone,
+    Section,
+    SectionInstanceStyle,
+    SubsectionStyle,
+    TemplateManifest,
+    TextStyle,
+)
+from app.services.renderer.support import RendererSupport, SupportLevel
+
+
+LINK_STYLES = "  a { color: var(--accent, #2563eb); text-decoration: underline; }\n"
+PLAIN_LINK_STYLES = "  a { color: inherit; text-decoration: none; }\n"
+
+PRINT_STYLES = """
+  @page { size: A4; margin: 0; }
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+"""
+
+# Spacing design tokens (CSS variables the renderer emits).
+_SPACING_TOKENS: dict[str, tuple[str, str]] = {
+    # layout_defaults.spacing -> (--spacing-section, --spacing-subsection)
+    "compact": ("16px", "12px"),
+    "comfortable": ("24px", "16px"),
+    "minimal": ("8px", "8px"),
+}
+
+_MANIFEST_VERSION_KEY = "manifest_version"
+
+
+class ManifestVersionError(ValueError):
+    """Raised when the manifest is not v2."""
+
+
+def _default_date_style() -> dict:
+    """The legacy default date style, used when neither the section nor the
+    template nor the user declared one."""
+
+    return {"key": "YYYY-MM", "range_sep": " – "}
+
+
+def _overlay_subsection(base: SubsectionStyle | None, override: SubsectionStyle | None) -> SubsectionStyle:
+    if override is None:
+        return base or SubsectionStyle()
+    base_dict = (base.model_dump(exclude_none=True) if base else {})
+    over_dict = override.model_dump(exclude_none=True)
+    return SubsectionStyle.model_validate({**base_dict, **over_dict})
+
+
+def _overlay_layout(base: LayoutHints | None, override: LayoutHints | None) -> LayoutHints:
+    if override is None:
+        return base or LayoutHints()
+    base_dict = (base.model_dump(exclude_none=True) if base else {})
+    over_dict = override.model_dump(exclude_none=True)
+    return LayoutHints.model_validate({**base_dict, **over_dict})
+
+
+def _overlay_policy(base, override):
+    if override is None:
+        return base
+    if base is None:
+        return override
+    base_dict = base.model_dump(exclude_none=True)
+    over_dict = override.model_dump(exclude_none=True)
+    return type(base).model_validate({**base_dict, **over_dict})
+
+
+def _apply_section_overlay(section: Section, override: SectionInstanceStyle) -> Section:
+    """Merge a per-instance user override onto a section's three-axis style."""
+
+    new_subsection = _overlay_subsection(section.subsection, override.subsection)
+    new_layout = _overlay_layout(section.layout, override.layout)
+    new_policy = _overlay_policy(section.policy, override.policy)
+    return section.model_copy(update={
+        "subsection": new_subsection,
+        "layout": new_layout,
+        "policy": new_policy,
+    })
+
+
+def _apply_template_defaults(section: Section, manifest: TemplateManifest | None) -> Section:
+    """Paint template defaults onto each section where the section didn't
+    declare a value."""
+
+    if manifest is None:
+        return section
+
+    layout_dict = section.layout.model_dump(exclude_none=True) if section.layout else {}
+    sub_dict = section.subsection.model_dump(exclude_none=True) if section.subsection else {}
+
+    body_font = manifest.global_styles.get("body_font")
+    if body_font and not layout_dict.get("font_family"):
+        layout_dict["font_family"] = body_font
+
+    accent = manifest.global_styles.get("accent_color")
+    if accent and not sub_dict.get("section_color"):
+        sub_dict["section_color"] = accent
+
+    if not layout_dict.get("date_style"):
+        layout_dict["date_style"] = _default_date_style()
+
+    new_layout = LayoutHints.model_validate(layout_dict) if layout_dict else section.layout
+    new_subsection = SubsectionStyle.model_validate(sub_dict) if sub_dict else section.subsection
+    return section.model_copy(update={"subsection": new_subsection, "layout": new_layout})
+
+
+def _apply_user_customizations(section: Section, customizations: Customizations) -> Section:
+    """Paint user customizations onto each section where the template
+    didn't declare a value."""
+
+    layout_dict = section.layout.model_dump(exclude_none=True) if section.layout else {}
+    sub_dict = section.subsection.model_dump(exclude_none=True) if section.subsection else {}
+
+    if customizations.body_font and not layout_dict.get("font_family"):
+        layout_dict["font_family"] = customizations.body_font
+    if customizations.accent_color and not sub_dict.get("section_color"):
+        sub_dict["section_color"] = customizations.accent_color
+    if customizations.default_text_align and not sub_dict.get("text_align"):
+        sub_dict["text_align"] = customizations.default_text_align
+
+    new_layout = LayoutHints.model_validate(layout_dict) if layout_dict else section.layout
+    new_subsection = SubsectionStyle.model_validate(sub_dict) if sub_dict else section.subsection
+    return section.model_copy(update={"subsection": new_subsection, "layout": new_layout})
+
+
+def _build_css_vars(customizations: Customizations, manifest: TemplateManifest | None) -> dict[str, str]:
+    spacing = customizations.spacing
+    if spacing is None and manifest is not None:
+        spacing = manifest.layout_defaults.spacing
+
+    vars_: dict[str, str] = {}
+    section_gap, subsection_gap = _SPACING_TOKENS.get(spacing or "comfortable", _SPACING_TOKENS["comfortable"])
+    vars_["--spacing-section"] = section_gap
+    vars_["--spacing-subsection"] = subsection_gap
+
+    body_font = customizations.body_font
+    if body_font is None and manifest is not None:
+        body_font = manifest.global_styles.get("body_font")
+    if body_font:
+        vars_["--body-font"] = body_font
+
+    heading_font = customizations.heading_font
+    if heading_font is None and manifest is not None:
+        heading_font = manifest.global_styles.get("heading_font")
+    if heading_font:
+        vars_["--heading-font"] = heading_font
+    elif body_font:
+        vars_["--heading-font"] = body_font
+
+    accent = customizations.accent_color
+    if accent is None and manifest is not None:
+        accent = manifest.global_styles.get("accent_color")
+    if accent:
+        vars_["--accent"] = accent
+
+    return vars_
+
+
+def _resolve_zones(document: Document, manifest: TemplateManifest | None) -> list[ResolvedZone]:
+    if manifest is None or not manifest.zones:
+        return [ResolvedZone(
+            id="main",
+            styles={},
+            section_ids=[s.id for s in document.sections],
+        )]
+
+    placement = manifest.placement
+    fallback_zone = manifest.zones[0].id if manifest.zones else None
+
+    groups: dict[str, list[str]] = {zone.id: [] for zone in manifest.zones}
+    for section in document.sections:
+        zone_id = placement.get(section.type, fallback_zone)
+        if zone_id is None:
+            raise ManifestVersionError(
+                f"No zone defined for section type '{section.type}' and no fallback zone available"
+            )
+        groups.setdefault(zone_id, []).append(section.id)
+
+    zones: list[ResolvedZone] = []
+    for zone in manifest.zones:
+        styles = zone.styles.model_dump(exclude_none=True, by_alias=True)
+        zones.append(ResolvedZone(id=zone.id, styles=styles, section_ids=groups.get(zone.id, [])))
+    return zones
+
+
+def _drop_none_features(model: RenderModel, support: RendererSupport) -> RenderModel:
+    """Drop features the renderer declared as ``NONE``."""
+
+    return model
+
+
+def _check_manifest(manifest: TemplateManifest | dict | None) -> TemplateManifest | None:
+    if manifest is None:
+        return None
+    if isinstance(manifest, TemplateManifest):
+        return manifest
+    if isinstance(manifest, dict):
+        version = manifest.get(_MANIFEST_VERSION_KEY)
+        if version != 2:
+            raise ManifestVersionError(
+                f"Template manifest version {version!r} is not supported; expected 2."
+            )
+        return TemplateManifest.model_validate(manifest)
+    raise ManifestVersionError("Template manifest must be a dict or TemplateManifest.")
+
+
+def resolve(
+    document: Document,
+    manifest: TemplateManifest | dict | None = None,
+    customizations: Customizations | dict | None = None,
+    support: RendererSupport | None = None,
+) -> RenderModel:
+    """Resolve a :class:`Document` into a fully resolved :class:`RenderModel`."""
+
+    if support is None:
+        from app.services.renderer.html import HTMLDocumentRenderer
+        support = HTMLDocumentRenderer.support
+
+    manifest_model = _check_manifest(manifest)
+
+    if customizations is None:
+        customizations_model = Customizations()
+    elif isinstance(customizations, Customizations):
+        customizations_model = customizations
+    else:
+        customizations_model = Customizations.model_validate(customizations)
+
+    from app.services.renderer.policy import resolve_policy
+
+    resolved_sections: dict[str, Section] = {}
+    for section in document.sections:
+        # 0. Default the policy when the section didn't declare one.
+        if section.policy is None:
+            section = section.model_copy(update={"policy": resolve_policy(section.type, manifest_model)})
+        # 1. Per-instance override.
+        override = customizations_model.per_section.get(section.id)
+        if override is not None:
+            section = _apply_section_overlay(section, override)
+        # 2. Template defaults.
+        section = _apply_template_defaults(section, manifest_model)
+        # 3. User customizations.
+        section = _apply_user_customizations(section, customizations_model)
+        # 4. Renderer capability gating.
+        if support.feature_skills_inline is SupportLevel.NONE and section.type == "skills":
+            if section.policy is not None and section.policy.skill_variant is not None:
+                section = section.model_copy(update={
+                    "policy": section.policy.model_copy(update={"skill_variant": "block"}),
+                })
+
+        resolved_sections[section.id] = section
+
+    css_vars = _build_css_vars(customizations_model, manifest_model)
+    body_font = (
+        css_vars.get("--body-font")
+        or (manifest_model.global_styles.get("body_font") if manifest_model else None)
+        or "system-ui, sans-serif"
+    )
+    heading_font = (
+        css_vars.get("--heading-font")
+        or (manifest_model.global_styles.get("heading_font") if manifest_model else None)
+        or body_font
+    )
+    link_styles = (
+        LINK_STYLES
+        if customizations_model.flags.get("default_link_style", False)
+        else PLAIN_LINK_STYLES
+    )
+
+    zones = _resolve_zones(
+        Document(sections=list(resolved_sections.values())),
+        manifest_model,
+    )
+
+    model = RenderModel(
+        zones=zones,
+        css_vars=css_vars,
+        body_font=body_font,
+        heading_font=heading_font,
+        link_styles=link_styles,
+        print_styles=PRINT_STYLES,
+        sections=resolved_sections,
+    )
+    return _drop_none_features(model, support)
+
+
+__all__ = [
+    "LINK_STYLES",
+    "PLAIN_LINK_STYLES",
+    "PRINT_STYLES",
+    "ManifestVersionError",
+    "resolve",
+]
