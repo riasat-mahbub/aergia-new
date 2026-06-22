@@ -1,10 +1,12 @@
 import { describe, it, expect } from "vitest";
-import {
-  profileSchema,
-  projectEntrySchema,
-  certificationEntrySchema,
-  researchEntrySchema,
-  urlSchema,
+ import {
+   profileSchema,
+   projectEntrySchema,
+   certificationEntrySchema,
+   researchEntrySchema,
+   urlSchema,
+   sectionInstanceSchema,
+   customizationsSchema,
 } from "../sections";
 
 describe("urlSchema", () => {
@@ -180,5 +182,66 @@ describe("researchEntrySchema", () => {
     });
     expect(r.success).toBe(false);
     expect(r.error!.issues.map((i) => i.path.join("."))).toContain("paper_url");
+  });
+});
+
+
+describe("sectionInstanceSchema three-axis style", () => {
+  it("accepts a three-axis style on a profile section", () => {
+    const r = sectionInstanceSchema.safeParse({
+      id: "p1", type: "profile", title: "Profile", enabled: true, data: {},
+      style: {
+        layout: { font_family: "Inter", break_before: true },
+        subsection: { text_align: "left", section_color: "#ff0000" },
+        policy: { show_title: true },
+        text: { name: { font_size: "small", bold: true } },
+      },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects legacy top-level keys on style", () => {
+    const r = sectionInstanceSchema.safeParse({
+      id: "p1", type: "profile", title: "P", enabled: true, data: {},
+      style: { font: "Inter" as any },
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects unknown inner-axis keys (strict)", () => {
+    const r = sectionInstanceSchema.safeParse({
+      id: "p1", type: "profile", title: "P", enabled: true, data: {},
+      style: { layout: { not_a_field: true } as any },
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("accepts missing style", () => {
+    const r = sectionInstanceSchema.safeParse({
+      id: "p1", type: "profile", title: "P", enabled: true, data: {},
+    });
+    expect(r.success).toBe(true);
+  });
+});
+
+describe("customizationsSchema canonical", () => {
+  it("accepts canonical fields", () => {
+    const r = customizationsSchema.safeParse({
+      accent_color: "#abc",
+      body_font: "Inter",
+      spacing: "compact",
+      per_section: { p1: { layout: { font_family: "Inter" } } },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects legacy top-level colors", () => {
+    const r = customizationsSchema.safeParse({ colors: { accent: "#abc" } });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects legacy top-level fonts", () => {
+    const r = customizationsSchema.safeParse({ fonts: { body: "Inter" } });
+    expect(r.success).toBe(false);
   });
 });
