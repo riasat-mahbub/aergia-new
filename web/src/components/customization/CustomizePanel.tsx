@@ -1,24 +1,41 @@
-import { useEffect, useState } from "react";
-import { Check } from "lucide-react";
-import type { SectionInstance, SectionStyle, LayoutConfig, FieldStyle } from "../../lib/sections/types";
+import { useEffect, useState, useMemo } from "react";
+import { AlertTriangle, Check } from "lucide-react";
+
+import type {
+  SectionInstance,
+  SectionInstanceStyle,
+  LayoutHints,
+  SectionPolicy,
+  SubsectionStyle,
+  TextStyle,
+  LayoutConfig,
+} from "../../lib/sections/types";
 import { SECTION_LABELS } from "../../lib/sections/types";
 import { getFieldDefs } from "../../lib/sections/fieldStyles";
 import TemplateSelectorModal from "./TemplateSelectorModal";
-import StyleEditor, { type StyleVarSchema } from "./StyleEditor";
 import SectionZoneView from "../layout/SectionZoneView";
+import {
+  useSupportStore,
+  type SupportField,
+} from "../../lib/store/supportStore";
 import { DATE_STYLE_OPTIONS } from "../../lib/sections/DateField";
+
 interface Props {
-  customizations: Record<string, any>;
-  onChange: (customizations: Record<string, any>) => void;
+  /**
+   * Customizations are passed for API compatibility with BuilderPage but
+   * Phase 2 does NOT expose global customizations controls in the panel.
+   * The fields flow from manifest.global_styles only. The Phase 3 plan
+   * adds a Document <details> that writes this object.
+   */
+  customizations?: Record<string, any>;
+  onChange?: (customizations: Record<string, any>) => void;
   templateId: string;
   onTemplateChange: (templateId: string) => void;
   instances: SectionInstance[];
-  onUpdateStyle: (id: string, style: SectionStyle) => void;
+  onUpdateStyle: (id: string, style: SectionInstanceStyle) => void;
   layoutConfig: LayoutConfig;
   onLayoutConfigChange: (config: LayoutConfig) => void;
   assets?: Record<string, string>;
-
-  globalStyleSchema?: StyleVarSchema[];
 }
 
 const FONT_OPTIONS = [
@@ -30,50 +47,116 @@ const FONT_OPTIONS = [
   "Courier New, monospace",
 ];
 
-const WEIGHT_OPTIONS = [
-  { label: "Normal", value: "400" },
-  { label: "Medium", value: "500" },
-  { label: "Semibold", value: "600" },
-  { label: "Bold", value: "700" },
-];
+// TextStyle.font_size is a Literal enum (xs / small / normal / large / xl).
+// The panel surfaces enum names and maps them to CSS strings at write
+// time. Unmapped CSS values snap to the nearest enum bucket.
+const FONT_SIZE_CSS: Record<NonNullable<TextStyle["font_size"]>, string> = {
+  xs: "0.75rem",
+  small: "0.875rem",
+  normal: "1rem",
+  large: "1.125rem",
+  xl: "1.25rem",
+};
 
-const SIZE_OPTIONS = [
-  "0.625rem", "0.75rem", "0.875rem", "1rem", "1.125rem", "1.25rem",
-  "1.5rem", "1.75rem", "2rem", "2.25rem", "2.5rem", "3rem",
-];
+const FONT_SIZE_TO_ENUM: Record<string, NonNullable<TextStyle["font_size"]>> = Object.fromEntries(
+  Object.entries(FONT_SIZE_CSS).map(([k, v]) => [v, k]),
+) as Record<string, NonNullable<TextStyle["font_size"]>>;
 
-function FieldStyleRow({ label, value, onChange }: { label: string; value: FieldStyle; onChange: (next: FieldStyle) => void }) {
+function normalizeFontSize(css: string | null | undefined): TextStyle["font_size"] {
+  if (!css) return null;
+  const direct = FONT_SIZE_TO_ENUM[css];
+  if (direct) return direct;
+  const rem = parseFloat(css);
+  if (isNaN(rem)) return null;
+  let bestKey: NonNullable<TextStyle["font_size"]> = "normal";
+  let bestDelta = Infinity;
+  for (const [k, v] of Object.entries(FONT_SIZE_CSS)) {
+    const d = Math.abs(parseFloat(v) - rem);
+    if (d < bestDelta) {
+      bestDelta = d;
+      bestKey = k as NonNullable<TextStyle["font_size"]>;
+    }
+  }
+  return bestKey;
+}
+
+function FieldStyleRow({
+  label,
+  initial,
+  onChange,
+}: {
+  label: string;
+  initial: TextStyle;
+  onChange: (next: TextStyle) => void;
+}) {
+  const fontSizeValue = (initial.font_size as string | null | undefined) ?? "";
+  const weightValue =
+    initial.bold === true ? "bold" : initial.bold === false ? "normal" : "";
+  const hasValue = fontSizeValue !== "" || weightValue !== "";
+
   return (
     <div>
       <div className="mb-1 flex items-center justify-between">
         <span className="text-xs font-medium text-gray-700">{label}</span>
-        {(value.font || value.size || value.weight) && (
-          <button type="button" onClick={() => onChange({})} className="text-[10px] text-blue-600 hover:underline">
+        {hasValue && (
+          <button
+            type="button"
+            onClick={() => onChange({})}
+            className="text-[10px] text-blue-600 hover:underline"
+          >
             Reset
           </button>
         )}
       </div>
-      <div className="grid grid-cols-3 gap-1">
-        <select value={value.font || ""} onChange={(e) => onChange({ ...value, font: e.target.value || undefined })} className="rounded border px-1 py-1 text-xs">
-          <option value="">Font</option>
-          {FONT_OPTIONS.map((f) => <option key={f} value={f}>{f.split(",")[0]}</option>)}
-        </select>
-        <select value={value.size || ""} onChange={(e) => onChange({ ...value, size: e.target.value || undefined })} className="rounded border px-1 py-1 text-xs">
+      <div className="grid grid-cols-2 gap-1">
+        <select
+          value={fontSizeValue}
+          onChange={(e) =>
+            onChange({ font_size: (e.target.value || null) as TextStyle["font_size"] })
+          }
+          className="rounded border px-1 py-1 text-xs"
+        >
           <option value="">Size</option>
-          {SIZE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+          {(Object.entries(FONT_SIZE_CSS) as [NonNullable<TextStyle["font_size"]>, string][]).map(
+            ([k, v]) => (
+              <option key={k} value={k}>
+                {k} ({v})
+              </option>
+            ),
+          )}
         </select>
-        <select value={value.weight || ""} onChange={(e) => onChange({ ...value, weight: e.target.value || undefined })} className="rounded border px-1 py-1 text-xs">
+        <select
+          value={weightValue}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === "") onChange({});
+            else if (v === "bold") onChange({ bold: true });
+            else if (v === "normal") onChange({ bold: false });
+          }}
+          className="rounded border px-1 py-1 text-xs"
+        >
           <option value="">Weight</option>
-          {WEIGHT_OPTIONS.map((w) => <option key={w.value} value={w.value}>{w.label}</option>)}
+          <option value="normal">Normal</option>
+          <option value="bold">Bold</option>
         </select>
       </div>
     </div>
   );
 }
 
+function BestEffortBadge({ field }: { field: SupportField }) {
+  const support = useSupportStore((s) => s.support);
+  const level = support?.[field];
+  if (level !== "BEST_EFFORT") return null;
+  return (
+    <AlertTriangle
+      className="ml-1 inline h-3.5 w-3.5 text-amber-500"
+      aria-label="Renderer is best-effort for this feature"
+    />
+  );
+}
+
 export default function CustomizePanel({
-  customizations,
-  onChange,
   templateId,
   onTemplateChange,
   instances,
@@ -81,12 +164,13 @@ export default function CustomizePanel({
   layoutConfig,
   onLayoutConfigChange,
   assets,
-  globalStyleSchema,
 }: Props) {
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
+  const support = useSupportStore((s) => s.support);
+  const supportError = useSupportStore((s) => s.error);
+  const supportLoaded = useSupportStore((s) => s.loaded);
 
-  // Clear selection if the selected section no longer exists.
   useEffect(() => {
     if (selectedSectionId && !instances.some((i) => i.id === selectedSectionId)) {
       setSelectedSectionId(null);
@@ -94,47 +178,61 @@ export default function CustomizePanel({
   }, [instances, selectedSectionId]);
 
   const selectedInstance = instances.find((i) => i.id === selectedSectionId) || null;
-  const selectedStyle: SectionStyle = (selectedInstance?.style as unknown as SectionStyle) || {};
+  const selectedStyle = (selectedInstance?.style ?? {}) as SectionInstanceStyle;
 
-  const updateSelectedStyle = (partial: Partial<SectionStyle>) => {
+  const writeStyle = (style: SectionInstanceStyle) => {
     if (!selectedSectionId) return;
-    const merged = { ...selectedStyle, ...partial };
-    const hasValues =
-      merged.font ||
-      merged.color ||
-      merged.weight ||
-      merged.text_align ||
-      merged.layout ||
-      merged.subsection_gap ||
-      merged.row_gap ||
-      typeof merged.show_title === "boolean" ||
-      !!(merged.date_style && Object.keys(merged.date_style).length > 0) ||
-      (merged.field_styles && Object.keys(merged.field_styles).length > 0);
-    onUpdateStyle(selectedSectionId, hasValues ? merged : {});
+    onUpdateStyle(selectedSectionId, style);
   };
 
-  const updateSelectedFieldStyle = (field: string, partial: FieldStyle) => {
-    if (!selectedSectionId) return;
-    const current = selectedStyle.field_styles?.[field] || {};
-    const nextField = { ...current, ...partial };
-    const nextFieldStyles = { ...(selectedStyle.field_styles || {}) };
-    if (nextField.font || nextField.size || nextField.weight) {
-      nextFieldStyles[field] = nextField;
-    } else {
-      delete nextFieldStyles[field];
-    }
-    updateSelectedStyle({ field_styles: nextFieldStyles });
-  };
+  const updateSelectedLayout = (partial: Partial<LayoutHints>) =>
+    writeStyle({ ...selectedStyle, layout: { ...(selectedStyle.layout ?? {}), ...partial } });
 
-  const defaultShowTitle = selectedInstance?.type !== "profile";
+  const updateSelectedSubsection = (partial: Partial<SubsectionStyle>) =>
+    writeStyle({
+      ...selectedStyle,
+      subsection: { ...(selectedStyle.subsection ?? {}), ...partial },
+    });
+
+  const updateSelectedPolicy = (partial: Partial<SectionPolicy>) =>
+    writeStyle({
+      ...selectedStyle,
+      policy: { ...(selectedStyle.policy ?? {}), ...partial },
+    });
+
+  const supportLoadedButEmpty = supportLoaded && support === null && supportError !== null;
+  const retry = () => useSupportStore.getState().retry();
+
+  const defaultShowTitle = selectedInstance ? selectedInstance.type !== "profile" : true;
   const currentShowTitle =
-    typeof selectedStyle.show_title === "boolean"
-      ? selectedStyle.show_title
+    typeof selectedStyle.policy?.show_title === "boolean"
+      ? selectedStyle.policy.show_title
       : defaultShowTitle;
+
+  const fieldDefs = useMemo(
+    () => (selectedInstance ? getFieldDefs(selectedInstance.type) : []),
+    [selectedInstance],
+  );
 
   return (
     <div>
       <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Customize</h3>
+
+      {supportLoadedButEmpty && (
+        <div
+          className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700"
+          role="status"
+        >
+          <span>Renderer support unavailable.</span>
+          <button
+            onClick={retry}
+            className="rounded bg-amber-200 px-2 py-1 text-[11px] font-medium hover:bg-amber-300"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       <div className="mb-4">
         <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Template</h4>
         <div className="space-y-1.5">
@@ -144,7 +242,9 @@ export default function CustomizePanel({
           >
             <div>
               <p className="text-sm font-medium text-gray-900">
-                {templateId.startsWith("user_") ? "User Template" : templateId.split("-")[1] || templateId}
+                {templateId.startsWith("user_")
+                  ? "User Template"
+                  : templateId.split("-")[1] || templateId}
               </p>
               <p className="text-xs text-gray-400">Click to change template</p>
             </div>
@@ -152,7 +252,6 @@ export default function CustomizePanel({
           </button>
         </div>
       </div>
-
 
       <h4 className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-gray-500">Layout</h4>
       <SectionZoneView
@@ -181,234 +280,281 @@ export default function CustomizePanel({
               </p>
             </div>
           </div>
-          <div className="space-y-2 p-3">
-            <div>
-              <label className="block text-xs text-gray-600">Font</label>
-              <select
-                value={selectedStyle.font || ""}
-                onChange={(e) => updateSelectedStyle({ font: e.target.value || undefined })}
-                className="mt-1 w-full rounded border px-2 py-1 text-sm"
-              >
-                <option value="">Default</option>
-                {FONT_OPTIONS.map((f) => (
-                  <option key={f} value={f}>
-                    {f.split(",")[0]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex items-center gap-2">
-              <label className="w-14 text-xs text-gray-600">Color</label>
-              <input
-                type="color"
-                value={selectedStyle.color || "#374151"}
-                onChange={(e) => updateSelectedStyle({ color: e.target.value })}
-                className="h-7 w-10 cursor-pointer rounded border"
-              />
-              <input
-                type="text"
-                value={selectedStyle.color || ""}
-                onChange={(e) => updateSelectedStyle({ color: e.target.value || undefined })}
-                placeholder="Default"
-                className="flex-1 rounded border px-2 py-1 text-xs"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-600">Weight</label>
-              <select
-                value={selectedStyle.weight || ""}
-                onChange={(e) => updateSelectedStyle({ weight: e.target.value || undefined })}
-                className="mt-1 w-full rounded border px-2 py-1 text-sm"
-              >
-                <option value="">Default</option>
-                {WEIGHT_OPTIONS.map((w) => (
-                  <option key={w.value} value={w.value}>
-                    {w.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {["experience", "education", "projects", "skills", "certifications", "research", "languages"].includes(
-              selectedInstance.type,
-            ) && (
-              <div>
-                <div className="flex items-baseline justify-between">
-                  <label htmlFor="subsection-gap" className="block text-xs text-gray-600">
-                    Subsection Gap
-                  </label>
-                  <span className="text-xs text-gray-500">
-                    {selectedStyle.subsection_gap ?? "Default"}
-                  </span>
+
+          <div className="space-y-3 p-3">
+            <details open className="rounded border border-gray-100 p-2">
+              <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                Layout (page flow)
+              </summary>
+              <div className="mt-2 space-y-2">
+                <div>
+                  <label className="block text-[11px] text-gray-600">Font family</label>
+                  <select
+                    value={(selectedStyle.layout?.font_family as string | null | undefined) ?? ""}
+                    onChange={(e) =>
+                      updateSelectedLayout({
+                        font_family: e.target.value || null,
+                      })
+                    }
+                    className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                  >
+                    <option value="">Default</option>
+                    {FONT_OPTIONS.map((f) => (
+                      <option key={f} value={f}>
+                        {f.split(",")[0]}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <input
-                  id="subsection-gap"
-                  type="range"
-                  min={0}
-                  max={24}
-                  step={1}
-                  value={(() => {
-                    const raw = selectedStyle.subsection_gap;
-                    if (!raw) return 0;
-                    const n = parseInt(raw.replace("px", ""), 10);
-                    return Number.isFinite(n) ? Math.max(0, Math.min(24, n)) : 0;
-                  })()}
-                  onChange={(e) => {
-                    const n = Math.max(0, Math.min(24, Number(e.target.value)));
-                    updateSelectedStyle({ subsection_gap: `${n}px` });
-                  }}
-                  onDoubleClick={() => updateSelectedStyle({ subsection_gap: undefined })}
-                  className="mt-1 w-full"
-                />
-                <p className="mt-0.5 text-[10px] text-gray-400">
-                  Double-click to reset to template default.
-                </p>
-              </div>
-            )}
-            {selectedInstance.type === "profile" && (
-              <div>
-                <div className="flex items-baseline justify-between">
-                  <label htmlFor="row-gap" className="block text-xs text-gray-600">
-                    Row Gap
+
+                {support?.break_before !== "NONE" && (
+                  <label className="flex items-center gap-2 text-xs text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={selectedStyle.layout?.break_before === true}
+                      onChange={(e) => updateSelectedLayout({ break_before: e.target.checked })}
+                    />
+                    Break before
+                    <BestEffortBadge field="break_before" />
                   </label>
-                  <span className="text-xs text-gray-500">
-                    {selectedStyle.row_gap ?? "Default"}
-                  </span>
+                )}
+
+                {support?.keep_together !== "NONE" && (
+                  <label className="flex items-center gap-2 text-xs text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={selectedStyle.layout?.keep_together === true}
+                      onChange={(e) => updateSelectedLayout({ keep_together: e.target.checked })}
+                    />
+                    Keep together
+                    <BestEffortBadge field="keep_together" />
+                  </label>
+                )}
+
+                {support?.heading_keeps_with_first !== "NONE" && (
+                  <label className="flex items-center gap-2 text-xs text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={selectedStyle.layout?.heading_keeps_with_first === true}
+                      onChange={(e) =>
+                        updateSelectedLayout({ heading_keeps_with_first: e.target.checked })
+                      }
+                    />
+                    Heading keeps with first
+                    <BestEffortBadge field="heading_keeps_with_first" />
+                  </label>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <label className="w-20 text-[11px] text-gray-600">Orphans</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={selectedStyle.layout?.orphans ?? ""}
+                    onChange={(e) =>
+                      updateSelectedLayout({
+                        orphans: e.target.value === "" ? undefined : Number(e.target.value),
+                      })
+                    }
+                    className="w-20 rounded border px-2 py-1 text-xs"
+                  />
+                  <label className="w-20 text-[11px] text-gray-600">Widows</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={selectedStyle.layout?.widows ?? ""}
+                    onChange={(e) =>
+                      updateSelectedLayout({
+                        widows: e.target.value === "" ? undefined : Number(e.target.value),
+                      })
+                    }
+                    className="w-20 rounded border px-2 py-1 text-xs"
+                  />
                 </div>
-                <input
-                  id="row-gap"
-                  type="range"
-                  min={0}
-                  max={24}
-                  step={1}
-                  value={(() => {
-                    const raw = selectedStyle.row_gap;
-                    if (!raw) return 0;
-                    const n = parseInt(raw.replace("px", ""), 10);
-                    return Number.isFinite(n) ? Math.max(0, Math.min(24, n)) : 0;
-                  })()}
-                  onChange={(e) => {
-                    const n = Math.max(0, Math.min(24, Number(e.target.value)));
-                    updateSelectedStyle({ row_gap: `${n}px` });
-                  }}
-                  onDoubleClick={() => updateSelectedStyle({ row_gap: undefined })}
-                  className="mt-1 w-full"
-                />
-                <p className="mt-0.5 text-[10px] text-gray-400">
-                  Double-click to reset to template default.
-                </p>
+
+                {["experience", "education", "projects", "certifications", "research"].includes(
+                  selectedInstance.type,
+                ) && (
+                  <div>
+                    <label className="block text-[11px] text-gray-600">Date format</label>
+                    <select
+                      value={selectedStyle.layout?.date_style?.key ?? ""}
+                      onChange={(e) =>
+                        updateSelectedLayout({
+                          date_style: e.target.value
+                            ? { key: e.target.value, rangeSep: " – " }
+                            : undefined,
+                        })
+                      }
+                      className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                    >
+                      <option value="">Default (YYYY-MM)</option>
+                      {DATE_STYLE_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
-            )}
-            <div>
-              <label className="block text-xs text-gray-600">Text Align</label>
-              <select
-                value={selectedStyle.text_align ?? ""}
-                onChange={(e) =>
-                  updateSelectedStyle({ text_align: (e.target.value || undefined) as SectionStyle["text_align"] })
-                }
-                className="mt-1 w-full rounded border px-2 py-1 text-sm"
-              >
-                <option value="">Default</option>
-                <option value="left">Left</option>
-                <option value="right">Right</option>
-                <option value="center">Center</option>
-                <option value="justify">Justify</option>
-              </select>
-            </div>
-            {selectedInstance.type === "skills" && (
-              <div>
-                <label htmlFor="skills-layout" className="block text-xs text-gray-600">Layout</label>
-                <select
-                  id="skills-layout"
-                  value={selectedStyle.layout ?? ""}
-                  onChange={(e) =>
-                    updateSelectedStyle({
-                      layout: (e.target.value || undefined) as SectionStyle["layout"],
-                    })
-                  }
-                  className="mt-1 w-full rounded border px-2 py-1 text-sm"
-                >
-                  <option value="">Block (default)</option>
-                  <option value="inline">Inline</option>
-                </select>
+            </details>
+
+            <details className="rounded border border-gray-100 p-2">
+              <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                Block style (subsection)
+              </summary>
+              <div className="mt-2 space-y-2">
+                <div>
+                  <label className="block text-[11px] text-gray-600">Text align</label>
+                  <select
+                    value={selectedStyle.subsection?.text_align ?? ""}
+                    onChange={(e) =>
+                      updateSelectedSubsection({
+                        text_align: (e.target.value || null) as SubsectionStyle["text_align"],
+                      })
+                    }
+                    className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                  >
+                    <option value="">Default</option>
+                    <option value="left">Left</option>
+                    <option value="center">Center</option>
+                    <option value="right">Right</option>
+                    <option value="justify">Justify</option>
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="w-28 text-[11px] text-gray-600">Spacing before</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 12px"
+                    value={selectedStyle.subsection?.spacing_before ?? ""}
+                    onChange={(e) =>
+                      updateSelectedSubsection({
+                        spacing_before: e.target.value || null,
+                      })
+                    }
+                    className="flex-1 rounded border px-2 py-1 text-xs"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="w-28 text-[11px] text-gray-600">Spacing after</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 12px"
+                    value={selectedStyle.subsection?.spacing_after ?? ""}
+                    onChange={(e) =>
+                      updateSelectedSubsection({
+                        spacing_after: e.target.value || null,
+                      })
+                    }
+                    className="flex-1 rounded border px-2 py-1 text-xs"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="w-28 text-[11px] text-gray-600">BG color</label>
+                  <input
+                    type="color"
+                    value={selectedStyle.subsection?.background_color ?? "#ffffff"}
+                    onChange={(e) =>
+                      updateSelectedSubsection({ background_color: e.target.value })
+                    }
+                  />
+                  <input
+                    type="text"
+                    value={selectedStyle.subsection?.background_color ?? ""}
+                    onChange={(e) =>
+                      updateSelectedSubsection({
+                        background_color: e.target.value || null,
+                      })
+                    }
+                    className="flex-1 rounded border px-2 py-1 text-xs"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="w-28 text-[11px] text-gray-600">Section color</label>
+                  <input
+                    type="color"
+                    value={selectedStyle.subsection?.section_color ?? "#000000"}
+                    onChange={(e) => updateSelectedSubsection({ section_color: e.target.value })}
+                  />
+                  <input
+                    type="text"
+                    value={selectedStyle.subsection?.section_color ?? ""}
+                    onChange={(e) =>
+                      updateSelectedSubsection({
+                        section_color: e.target.value || null,
+                      })
+                    }
+                    className="flex-1 rounded border px-2 py-1 text-xs"
+                  />
+                </div>
               </div>
-            )}
-            <div className="flex items-center justify-between pt-1">
-              <div>
-                <label className="block text-xs text-gray-600">Show Title</label>
-                <p className="mt-0.5 text-[10px] text-gray-400">
-                  {selectedInstance?.type === "profile"
-                    ? "Hidden by default for profile."
-                    : "Section heading in the live preview and PDF."}
-                </p>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={currentShowTitle}
-                onClick={() => updateSelectedStyle({ show_title: !currentShowTitle })}
-                className={`relative h-5 w-9 rounded-full transition-colors ${
-                  currentShowTitle ? "bg-blue-600" : "bg-gray-300"
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
-                    currentShowTitle ? "translate-x-4" : "translate-x-0.5"
-                  }`}
-                />
-              </button>
-            </div>
-            {["experience", "education", "projects", "certifications", "research"].includes(
-              selectedInstance.type,
-            ) && (
-              <div>
-                <label htmlFor="date-style" className="block text-xs text-gray-600">
-                  Date Style
+            </details>
+
+            <details className="rounded border border-gray-100 p-2">
+              <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                Section policy
+              </summary>
+              <div className="mt-2 space-y-2">
+                <label className="flex items-center gap-2 text-xs text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={currentShowTitle}
+                    onChange={(e) => updateSelectedPolicy({ show_title: e.target.checked })}
+                  />
+                  Show title
                 </label>
-                <select
-                  id="date-style"
-                  value={selectedStyle.date_style?.key ?? ""}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    const opt = v ? DATE_STYLE_OPTIONS.find((o) => o.value === v) : undefined;
-                    const next = opt
-                      ? { key: opt.value, rangeSep: opt.rangeSep }
-                      : undefined;
-                    updateSelectedStyle({ date_style: next as any });
-                  }}
-                  className="mt-1 w-full rounded border px-2 py-1 text-sm"
-                >
-                  <option value="">Default (YYYY-MM)</option>
-                  {DATE_STYLE_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+                {selectedInstance.type === "skills" &&
+                  support?.feature_skills_inline !== "NONE" && (
+                    <div>
+                      <label className="block text-[11px] text-gray-600">Skills layout</label>
+                      <select
+                        value={selectedStyle.policy?.skill_variant ?? ""}
+                        onChange={(e) =>
+                          updateSelectedPolicy({
+                            skill_variant: (e.target.value || null) as SectionPolicy["skill_variant"],
+                          })
+                        }
+                        className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                      >
+                        <option value="">Default</option>
+                        <option value="block">Block</option>
+                        <option value="inline">Inline</option>
+                      </select>
+                    </div>
+                  )}
               </div>
-            )}
-            {getFieldDefs(selectedInstance.type).length > 0 && (
-              <div className="border-t pt-2 mt-2">
-                <h5 className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                  Per-field typography
-                </h5>
-                <div className="space-y-3">
-                  {getFieldDefs(selectedInstance.type).map((f) => (
+            </details>
+
+            {fieldDefs.length > 0 && (
+              <details className="rounded border border-gray-100 p-2">
+                <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                  Field styles
+                </summary>
+                <div className="mt-2 space-y-3">
+                  {fieldDefs.map((f) => (
                     <FieldStyleRow
                       key={f.key}
                       label={f.label}
-                      value={selectedStyle.field_styles?.[f.key] || {}}
-                      onChange={(next) => updateSelectedFieldStyle(f.key, next)}
+                      initial={selectedStyle.text?.[f.key] ?? {}}
+                      onChange={(next) => {
+                        const text = { ...(selectedStyle.text ?? {}) };
+                        if (Object.keys(next).length === 0) {
+                          delete text[f.key];
+                        } else {
+                          text[f.key] = next;
+                        }
+                        writeStyle({ ...selectedStyle, text });
+                      }}
                     />
                   ))}
                 </div>
-              </div>
+              </details>
             )}
           </div>
         </div>
       )}
-
-      <StyleEditor customizations={customizations} onChange={onChange} title="Global" globalStyleSchema={globalStyleSchema} />
-
 
       <TemplateSelectorModal
         open={showTemplateModal}
@@ -422,3 +568,5 @@ export default function CustomizePanel({
     </div>
   );
 }
+
+export { normalizeFontSize };

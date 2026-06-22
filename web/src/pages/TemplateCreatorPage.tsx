@@ -112,9 +112,9 @@ const handleBackToPicker = useCallback(() => {
               <div className="w-5/12 overflow-y-auto rounded-lg border bg-white shadow-sm p-4">
                 <TemplateWizard
                   initialManifest={selectedManifest || undefined}
-                  onManifestChange={(m) => setLiveManifest(m)}
+                  onManifestChange={(m: Record<string, any>) => setLiveManifest(m)}
                   onComplete={handleBackToPicker}
-                  onSave={(manifest) => console.log("Template saved:", manifest)}
+                  onSave={(manifest: Record<string, any>) => console.log("Template saved:", manifest)}
                 />
               </div>
 

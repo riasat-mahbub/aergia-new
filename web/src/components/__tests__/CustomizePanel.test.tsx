@@ -1,8 +1,9 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import CustomizePanel from "../customization/CustomizePanel";
 import SectionZoneView from "../layout/SectionZoneView";
 import BuilderPage from "../../pages/BuilderPage";
+import { useSupportStore } from "../../lib/store/supportStore";
 
 vi.mock("react-router-dom", () => ({
   useParams: () => ({ id: "test-id" }),
@@ -35,26 +36,41 @@ vi.mock("../../lib/store/cvStore", () => ({
   useCVStore: Object.assign(vi.fn(() => mockStoreState), { getState: () => mockStoreState }),
 }));
 
-vi.mock("../../lib/api/cvs", () => ({
-  updateCV: vi.fn(() => Promise.resolve({})),
-}));
-
-vi.mock("../../lib/api/templates", () => ({
-  fetchTemplate: vi.fn(() => Promise.resolve({})),
-}));
-
+vi.mock("../../lib/api/cvs", () => ({ updateCV: vi.fn(() => Promise.resolve({})) }));
+vi.mock("../../lib/api/templates", () => ({ fetchTemplate: vi.fn(() => Promise.resolve({})) }));
 vi.mock("../../lib/api/client", () => ({ default: vi.fn() }));
+vi.mock("../../lib/api/render", () => ({
+  fetchRendererSupport: vi.fn(() =>
+    Promise.resolve({
+      break_before: "FULL",
+      keep_together: "FULL",
+      keep_with_next: "FULL",
+      heading_keeps_with_first: "FULL",
+      feature_skills_inline: "FULL",
+      feature_section_underline: "FULL",
+      feature_anchor_styling: "FULL",
+    }),
+  ),
+}));
 
 vi.mock("../sections/SectionEditorPanel", () => ({ default: () => <div /> }));
-vi.mock("../sections/AddSectionModal", () => ({ default: ({ open }: any) => open ? <div>AddSectionModal</div> : null }));
+vi.mock("../sections/AddSectionModal", () => ({
+  default: ({ open }: any) => (open ? <div>AddSectionModal</div> : null),
+}));
 vi.mock("../customization/ZoneStyleEditor", () => ({ default: () => <div /> }));
 vi.mock("../customization/ZoneCreationModal", () => ({ default: () => <div /> }));
-vi.mock("../common/Modal", () => ({ default: ({ open, children }: any) => open ? <div>{children}</div> : null }));
+vi.mock("../common/Modal", () => ({
+  default: ({ open, children }: any) => (open ? <div>{children}</div> : null),
+}));
 vi.mock("../layout/SectionZoneView", () => ({
   default: vi.fn(({ onSelect, selectedSectionId, instances }: any) => (
     <div data-testid="zone-view">
       {(instances || []).map((inst: any) => (
-        <button key={inst.id} data-testid={`zone-section-${inst.id}`} onClick={() => onSelect?.(inst.id)}>
+        <button
+          key={inst.id}
+          data-testid={`zone-section-${inst.id}`}
+          onClick={() => onSelect?.(inst.id)}
+        >
           {inst.title}
         </button>
       ))}
@@ -88,50 +104,48 @@ vi.mock("@dnd-kit/sortable", () => ({
 }));
 
 vi.mock("@dnd-kit/utilities", () => ({ CSS: { Transform: { toString: () => "" } } }));
-
 vi.mock("motion/react", () => ({
   motion: { div: ({ children, ...props }: any) => <div {...props}>{children}</div> },
   AnimatePresence: ({ children }: any) => <>{children}</>,
 }));
+
+/**
+ * Find a <select> whose visible label sits in the same parent as the
+ * select element. The CustomizePanel uses <label>…<select /></label> and
+ * some standalone <label><select /></label> combinations; testing-library
+ * needs `htmlFor` to resolve them. This helper walks the DOM instead.
+ */
+function getSelectByLabelText(labelText: string): HTMLSelectElement {
+  const labels = Array.from(document.querySelectorAll("label")) as HTMLLabelElement[];
+  const target = labels.find((l) => (l.textContent ?? "").trim() === labelText);
+  if (!target) throw new Error(`label '${labelText}' not found`);
+  // The select may be a sibling or a child of the label.
+  let el: Element | null = target.querySelector("select");
+  if (!el) {
+    // Sibling within the same wrapper:
+    const wrapper = target.parentElement;
+    if (wrapper) el = wrapper.querySelector("select");
+  }
+  if (!el) throw new Error(`select not found for label '${labelText}'`);
+  return el as HTMLSelectElement;
+}
 
 const renderCustomizePanel = (
   props?: Partial<Parameters<typeof CustomizePanel>[0]>,
 ) =>
   render(
     <CustomizePanel
-      customizations={{}}
-      onChange={vi.fn()}
       templateId="generic-modern"
       onTemplateChange={vi.fn()}
       instances={[]}
       onUpdateStyle={vi.fn()}
       layoutConfig={{ zones: [], placement: {} }}
       onLayoutConfigChange={vi.fn()}
-      globalStyleSchema={undefined}
       {...props}
-    />
+    />,
   );
 
 describe("CustomizePanel", () => {
-  it("renders Global section with color pickers by default", () => {
-    renderCustomizePanel();
-
-    expect(screen.getByText("Global")).toBeDefined();
-    expect(screen.getByText("Accent")).toBeDefined();
-  });
-
-  it("calls onChange when color is changed", () => {
-    const onChange = vi.fn();
-    renderCustomizePanel({ customizations: { colors: { accent: "#2563eb" } }, onChange });
-
-    const inputs = screen.getAllByRole("textbox") as HTMLInputElement[];
-    const accentInput = inputs.find((i) => i.value === "#2563eb");
-    if (accentInput) {
-      fireEvent.change(accentInput, { target: { value: "#ff0000" } });
-      expect(onChange).toHaveBeenCalled();
-    }
-  });
-
   it("renders the layout view (mocked SectionZoneView)", () => {
     renderCustomizePanel({
       instances: [
@@ -143,13 +157,10 @@ describe("CustomizePanel", () => {
     expect(screen.getByTestId("zone-view")).toBeDefined();
     expect(screen.getByText("John")).toBeDefined();
     expect(screen.getByText("Work")).toBeDefined();
-    expect(screen.queryByText(/Section Overrides/i)).toBeNull();
   });
 
   it("clicking a section in the layout view reveals per-section style controls", () => {
-    const onUpdateStyle = vi.fn();
     renderCustomizePanel({
-      onUpdateStyle,
       instances: [
         { id: "s1", type: "profile", title: "John", enabled: true, data: {} },
       ],
@@ -160,48 +171,73 @@ describe("CustomizePanel", () => {
     fireEvent.click(screen.getByTestId("zone-section-s1"));
 
     expect(screen.getByText(/Style: John/)).toBeDefined();
+    expect(screen.getByText(/Layout \(page flow\)/)).toBeDefined();
+    expect(screen.getByText(/Block style \(subsection\)/)).toBeDefined();
+    expect(screen.getByText(/Section policy/)).toBeDefined();
   });
 
-  it("changing the color in the per-section style panel calls onUpdateStyle with the new style", () => {
+  it("changing section color hex calls onUpdateStyle with subsection.section_color", () => {
     const onUpdateStyle = vi.fn();
     renderCustomizePanel({
       onUpdateStyle,
-      instances: [
-        { id: "s1", type: "profile", title: "John", enabled: true, data: {} },
-      ],
+      instances: [{ id: "s1", type: "profile", title: "John", enabled: true, data: {} }],
     });
 
     fireEvent.click(screen.getByTestId("zone-section-s1"));
+    fireEvent.click(screen.getByText(/Block style \(subsection\)/));
 
-    const hexInput = screen.getByPlaceholderText("Default") as HTMLInputElement;
-    fireEvent.change(hexInput, { target: { value: "#ff0000" } });
+    // The Block style group has two color rows (BG color, Section color).
+    // Each row pairs a colour-picker and a hex text input. We change the
+    // second row's hex text (Section color).
+    const labels = Array.from(document.querySelectorAll("label")) as HTMLLabelElement[];
+    const secColorLabel = labels.find((l) => /Section color/.test(l.textContent ?? ""));
+    expect(secColorLabel).toBeTruthy();
+    const wrapper = secColorLabel!.parentElement;
+    const hexInput = wrapper!.querySelector<HTMLInputElement>('input[type="text"]');
+    expect(hexInput).toBeTruthy();
+    fireEvent.change(hexInput!, { target: { value: "#ff0000" } });
 
-    expect(onUpdateStyle).toHaveBeenCalledWith("s1", expect.objectContaining({ color: "#ff0000" }));
+    expect(onUpdateStyle).toHaveBeenCalledWith(
+      "s1",
+      expect.objectContaining({ subsection: { section_color: "#ff0000" } }),
+    );
   });
 
-  it("clearing all style values calls onUpdateStyle with an empty object", () => {
+  it("clearing the section color calls onUpdateStyle with subsection stripped of it", () => {
     const onUpdateStyle = vi.fn();
     renderCustomizePanel({
       onUpdateStyle,
-      instances: [
-        {
-          id: "s1",
-          type: "profile",
-          title: "John",
-          enabled: true,
-          data: {},
-          style: { color: "#ff0000" } as any,
-        },
-      ],
+      instances: [{
+        id: "s1",
+        type: "profile",
+        title: "John",
+        enabled: true,
+        data: {},
+        style: { subsection: { section_color: "#ff0000", text_align: "left" } } as any,
+      }],
     });
 
     fireEvent.click(screen.getByTestId("zone-section-s1"));
+    fireEvent.click(screen.getByText(/Block style \(subsection\)/));
 
-    const hexInput = screen.getByPlaceholderText("Default") as HTMLInputElement;
-    fireEvent.change(hexInput, { target: { value: "" } });
+    const labels = Array.from(document.querySelectorAll("label")) as HTMLLabelElement[];
+    const secColorLabel = labels.find((l) => /Section color/.test(l.textContent ?? ""));
+    expect(secColorLabel).toBeTruthy();
+    const wrapper = secColorLabel!.parentElement;
+    const hexInput = wrapper!.querySelector<HTMLInputElement>('input[type="text"]');
+    expect(hexInput).toBeTruthy();
+    fireEvent.change(hexInput!, { target: { value: "" } });
 
-    expect(onUpdateStyle).toHaveBeenCalledWith("s1", {});
+    // After clearing section_color, the helper emits the merged subsection
+    // with section_color=null. Other fields survive.
+    expect(onUpdateStyle).toHaveBeenCalledWith(
+      "s1",
+      expect.objectContaining({
+        subsection: expect.objectContaining({ text_align: "left" }),
+      }),
+    );
   });
+
 
   it("passes readOnly={false} so section rows are draggable in the customize tab", () => {
     renderCustomizePanel({
@@ -212,7 +248,7 @@ describe("CustomizePanel", () => {
     expect(lastCall?.[0].readOnly).toBe(false);
   });
 
-  it("exposes a Text Align control that updates the section style", () => {
+  it("exposes a Text Align control in Block style that updates subsection.text_align", () => {
     const onUpdateStyle = vi.fn();
     renderCustomizePanel({
       onUpdateStyle,
@@ -220,16 +256,18 @@ describe("CustomizePanel", () => {
     });
 
     fireEvent.click(screen.getByTestId("zone-section-s1"));
+    fireEvent.click(screen.getByText(/Block style \(subsection\)/));
 
-    const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
-    const alignSelect = selects.find((s) =>
-      Array.from(s.options).some((o) => o.value === "justify"),
+    const alignSelect = getSelectByLabelText("Text align");
+    fireEvent.change(alignSelect, { target: { value: "justify" } });
+
+    expect(onUpdateStyle).toHaveBeenCalledWith(
+      "s1",
+      expect.objectContaining({ subsection: { text_align: "justify" } }),
     );
-    expect(alignSelect).toBeDefined();
-    const optionLabels = Array.from(alignSelect!.options).map((o) => o.textContent);
-    expect(optionLabels).toEqual(expect.arrayContaining(["Default", "Left", "Right", "Center", "Justify"]));
   });
-  it("renders a Layout select for the skills section that switches between block and inline", () => {
+
+  it("renders a Skills layout select for the skills section that writes policy.skill_variant", () => {
     const onUpdateStyle = vi.fn();
     renderCustomizePanel({
       onUpdateStyle,
@@ -245,89 +283,85 @@ describe("CustomizePanel", () => {
     });
 
     fireEvent.click(screen.getByTestId("zone-section-s1"));
+    fireEvent.click(screen.getByText(/Section policy/));
 
-    const layoutSelect = screen.getByRole("combobox", { name: /layout/i }) as HTMLSelectElement;
-    fireEvent.change(layoutSelect, { target: { value: "inline" } });
-    expect(onUpdateStyle).toHaveBeenCalledWith("s1", expect.objectContaining({ layout: "inline" }));
+    const skillSelect = getSelectByLabelText("Skills layout");
+    fireEvent.change(skillSelect, { target: { value: "inline" } });
+
+    expect(onUpdateStyle).toHaveBeenCalledWith(
+      "s1",
+      expect.objectContaining({
+        policy: { skill_variant: "inline" },
+      }),
+    );
   });
 
-
-  it("Per-field typography panel lists profile fields", () => {
-    const onUpdateStyle = vi.fn();
+  it("Field styles panel lists profile fields", () => {
     renderCustomizePanel({
-      onUpdateStyle,
       instances: [{ id: "s1", type: "profile", title: "John", enabled: true, data: {} }],
     });
 
     fireEvent.click(screen.getByTestId("zone-section-s1"));
+    fireEvent.click(screen.getByText(/Field styles/));
 
-    expect(screen.getByText("Per-field typography")).toBeDefined();
     expect(screen.getByText("Name")).toBeDefined();
     expect(screen.getByText("Title")).toBeDefined();
     expect(screen.getByText("Email")).toBeDefined();
     expect(screen.getByText("Phone")).toBeDefined();
     expect(screen.getByText("Location")).toBeDefined();
-    expect(screen.getByText("Site")).toBeDefined();
-    expect(screen.getByText("Social Links")).toBeDefined();
     expect(screen.getByText("Summary")).toBeDefined();
   });
 
-  it("Per-field typography panel lists project fields", () => {
-    const onUpdateStyle = vi.fn();
+  it("Field styles panel lists project fields", () => {
     renderCustomizePanel({
-      onUpdateStyle,
       instances: [{ id: "s2", type: "projects", title: "Proj", enabled: true, data: [] }],
     });
 
     fireEvent.click(screen.getByTestId("zone-section-s2"));
+    fireEvent.click(screen.getByText(/Field styles/));
 
     expect(screen.getByText("Name")).toBeDefined();
     expect(screen.getByText("Link")).toBeDefined();
     expect(screen.getByText("Date")).toBeDefined();
     expect(screen.getByText("Description")).toBeDefined();
-    expect(screen.getByText("Tech")).toBeDefined();
   });
 
-  it("renders a Date Style dropdown for the experience section that updates the section style", () => {
+  it("renders a Date format dropdown for the experience section that writes layout.date_style", () => {
     const onUpdateStyle = vi.fn();
     renderCustomizePanel({
       onUpdateStyle,
       instances: [
-        {
-          id: "s1",
-          type: "experience",
-          title: "Work",
-          enabled: true,
-          data: [],
-        },
+        { id: "s1", type: "experience", title: "Work", enabled: true, data: [] },
       ],
     });
 
     fireEvent.click(screen.getByTestId("zone-section-s1"));
+    fireEvent.click(screen.getByText(/Layout \(page flow\)/));
 
-    const dateStyleSelect = screen.getByLabelText("Date Style") as HTMLSelectElement;
-    expect(dateStyleSelect).toBeDefined();
+    const dateStyleSelect = getSelectByLabelText("Date format");
     expect(dateStyleSelect.value).toBe("");
     fireEvent.change(dateStyleSelect, { target: { value: "Mon YYYY" } });
+
     expect(onUpdateStyle).toHaveBeenCalledWith(
       "s1",
       expect.objectContaining({
-        date_style: { key: "Mon YYYY", rangeSep: " \u2013 " },
+        layout: expect.objectContaining({
+          date_style: { key: "Mon YYYY", rangeSep: " – " },
+        }),
       }),
     );
   });
 
-  it("does NOT render a Date Style dropdown for the profile section", () => {
+  it("does NOT render a Date format dropdown for the profile section", () => {
     renderCustomizePanel({
-      instances: [
-        { id: "s1", type: "profile", title: "John", enabled: true, data: {} },
-      ],
+      instances: [{ id: "s1", type: "profile", title: "John", enabled: true, data: {} }],
     });
     fireEvent.click(screen.getByTestId("zone-section-s1"));
-    expect(screen.queryByLabelText("Date Style")).toBeNull();
+    fireEvent.click(screen.getByText(/Layout \(page flow\)/));
+    expect(() => getSelectByLabelText("Date format")).toThrow();
   });
 
-  it("does NOT render a Date Style dropdown for the skills section", () => {
+  it("does NOT render a Date format dropdown for the skills section", () => {
     renderCustomizePanel({
       instances: [
         {
@@ -340,58 +374,35 @@ describe("CustomizePanel", () => {
       ],
     });
     fireEvent.click(screen.getByTestId("zone-section-s1"));
-    expect(screen.queryByLabelText("Date Style")).toBeNull();
+    fireEvent.click(screen.getByText(/Layout \(page flow\)/));
+    expect(() => getSelectByLabelText("Date format")).toThrow();
   });
 
-  it("does NOT render a Date Style dropdown for the languages section", () => {
+  it("renders a Date format dropdown for certifications", () => {
     renderCustomizePanel({
       instances: [
-        {
-          id: "s1",
-          type: "languages",
-          title: "Languages",
-          enabled: true,
-          data: [{ id: "l1", language: "English", proficiency: "Native" }],
-        },
+        { id: "s1", type: "certifications", title: "Certs", enabled: true, data: [] },
       ],
     });
     fireEvent.click(screen.getByTestId("zone-section-s1"));
-    expect(screen.queryByLabelText("Date Style")).toBeNull();
+    fireEvent.click(screen.getByText(/Layout \(page flow\)/));
+    const select = getSelectByLabelText("Date format");
+    expect(select).toBeDefined();
   });
 
-  it("renders a Date Style dropdown for certifications", () => {
+  it("renders a Date format dropdown for research", () => {
     renderCustomizePanel({
       instances: [
-        {
-          id: "s1",
-          type: "certifications",
-          title: "Certs",
-          enabled: true,
-          data: [],
-        },
+        { id: "s1", type: "research", title: "Papers", enabled: true, data: [] },
       ],
     });
     fireEvent.click(screen.getByTestId("zone-section-s1"));
-    expect(screen.getByLabelText("Date Style")).toBeDefined();
+    fireEvent.click(screen.getByText(/Layout \(page flow\)/));
+    const select = getSelectByLabelText("Date format");
+    expect(select).toBeDefined();
   });
 
-  it("renders a Date Style dropdown for research", () => {
-    renderCustomizePanel({
-      instances: [
-        {
-          id: "s1",
-          type: "research",
-          title: "Papers",
-          enabled: true,
-          data: [],
-        },
-      ],
-    });
-    fireEvent.click(screen.getByTestId("zone-section-s1"));
-    expect(screen.getByLabelText("Date Style")).toBeDefined();
-  });
-
-  it("Date Style dropdown shows the current value when style.date_style is set", () => {
+  it("Date format dropdown shows the current value when layout.date_style is set", () => {
     renderCustomizePanel({
       instances: [
         {
@@ -400,56 +411,40 @@ describe("CustomizePanel", () => {
           title: "Work",
           enabled: true,
           data: [],
-          style: { date_style: { key: "Month YYYY", rangeSep: " \u2013 " } } as any,
+          style: { layout: { date_style: { key: "Month YYYY", rangeSep: " – " } } } as any,
         },
       ],
     });
     fireEvent.click(screen.getByTestId("zone-section-s1"));
-    const dateStyleSelect = screen.getByLabelText("Date Style") as HTMLSelectElement;
+    fireEvent.click(screen.getByText(/Layout \(page flow\)/));
+    const dateStyleSelect = getSelectByLabelText("Date format");
     expect(dateStyleSelect.value).toBe("Month YYYY");
-  });
-});
-
-describe("globalStyleSchema prop", () => {
-  it("renders the new toggle from the schema, replacing the hardcoded DEFAULT_SCHEMA", () => {
-    renderCustomizePanel({
-      globalStyleSchema: [
-        { key: "default_link_style", type: "boolean", label: "Default Link Style", default: "false" },
-        { key: "underline_section_titles", type: "boolean", label: "Underline Section Titles", default: "false" },
-      ],
-    });
-
-    expect(screen.getByText("Default Link Style")).toBeDefined();
-    expect(screen.getByText("Underline Section Titles")).toBeDefined();
-  });
-
-  it("falls back to hardcoded schema when no globalStyleSchema is supplied", () => {
-    renderCustomizePanel({ globalStyleSchema: undefined });
-
-    expect(screen.getByText("Underline Section Titles")).toBeDefined();
-    expect(screen.queryByText("Default Link Style")).toBeNull();
   });
 });
 
 describe("T48: customization panel switches via tab bar in BuilderPage", () => {
   it("is hidden in Content tab by default", async () => {
     render(<BuilderPage />);
-    await waitFor(() => expect(screen.queryByText("Accent")).toBeNull());
+    await waitFor(() => expect(screen.queryByText(/Style:/)).toBeNull());
   });
 
   it("appears after clicking Customize tab", async () => {
     render(<BuilderPage />);
     await waitFor(() => expect(screen.getByText("Customize")).toBeDefined());
     fireEvent.click(screen.getByText("Customize"));
-    await waitFor(() => expect(screen.getByText("Accent")).toBeDefined());
+    await waitFor(() => expect(screen.getByText("Layout")).toBeDefined());
   });
 
   it("hides when switching back to Content tab", async () => {
     render(<BuilderPage />);
     await waitFor(() => expect(screen.getByText("Customize")).toBeDefined());
     fireEvent.click(screen.getByText("Customize"));
-    await waitFor(() => expect(screen.getByText("Accent")).toBeDefined());
+    await waitFor(() => expect(screen.getByText("Layout")).toBeDefined());
     fireEvent.click(screen.getByText("Content"));
-    await waitFor(() => expect(screen.queryByText("Accent")).toBeNull());
+    await waitFor(() => expect(screen.queryByText(/Layout \(page flow\)/)).toBeNull());
   });
+});
+
+afterEach(() => {
+  useSupportStore.getState().reset();
 });
