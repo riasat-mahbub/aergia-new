@@ -91,18 +91,6 @@ def test_text_style_defaults_are_false():
     assert s.font_size is None
 
 
-def test_section_instance_legacy_style_round_trips():
-    inst = SectionInstance(
-        id="s1",
-        type="profile",
-        title="Profile",
-        data={"name": "Ada"},
-        legacy_style={"font": "Inter", "color": "#abc", "weight": "bold"},
-    )
-    assert inst.legacy_style == {"font": "Inter", "color": "#abc", "weight": "bold"}
-    payload = inst.model_dump(mode="json")
-    restored = SectionInstance.model_validate(payload)
-    assert restored.legacy_style == inst.legacy_style
 
 
 def test_render_model_round_trips():

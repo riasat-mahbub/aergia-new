@@ -180,11 +180,6 @@ class SectionInstance(BaseModel):
     ``data`` is either a ``dict`` (for ``profile``) or a ``list[dict]`` (for
     the entry-based sections). The builder dispatches by ``type`` and
     constructs the AST accordingly.
-
-    ``legacy_style`` is accepted on inbound payloads for backwards
-    compatibility with rows stored before the cutover; the builder
-    normalises it into the three-axis shape and drops the legacy field.
-    It will be deleted once every legacy row has been re-saved.
     """
 
     id: str
@@ -193,7 +188,7 @@ class SectionInstance(BaseModel):
     enabled: bool = True
     data: list | dict = Field(default_factory=dict)
     style: SectionInstanceStyle | None = None
-    legacy_style: dict | None = None
+
 
 
 class CVRow(BaseModel):
