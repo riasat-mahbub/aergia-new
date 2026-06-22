@@ -19,13 +19,58 @@ DOCX renderer would implement the same policy with DOCX constructs.
 
 Manifest version 2 supersedes the legacy v1 schema (``layout_config`` /
 ``globalStyleSchema``). Old manifests are no longer valid.
+
+The manifest exposes a **closed design vocabulary** (the constrained tokens
+in :data:`WidthToken`, :data:`SpacingToken`, :data:`FontToken`, etc.).
+The manifest never carries raw CSS strings; the resolver maps each token
+to the renderer's native value. A future DOCX renderer reads the same
+tokens and produces DOCX equivalents.
 """
 
 from __future__ import annotations
 
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
+
+
+# ---------------------------------------------------------------------------
+# Design tokens — the constrained vocabulary the manifest exposes
+# ---------------------------------------------------------------------------
+
+
+# A zone's width. ``narrow`` ≈ 30%, ``half`` ≈ 50%, ``full`` ≈ 100%.
+# ``auto`` lets the renderer fall back to its content-driven default.
+WidthToken = Literal["narrow", "half", "full", "auto"]
+
+# Spacing and padding presets. The resolver maps these to design-token
+# CSS variables (``--spacing-section`` etc.). The values are renderer-
+# defined; the schema only carries the names.
+SpacingToken = Literal["none", "tight", "comfortable", "loose"]
+
+# Font families exposed to template authors. Each renderer maps a token
+# to its native font stack (CSS, DOCX font reference, etc.).
+FontToken = Literal["sans-serif", "serif", "mono", "display"]
+
+# Font size class. The resolver maps each to a concrete CSS length.
+FontSizeToken = Literal["xs", "small", "normal", "large", "xl"]
+
+# Text alignment. Mirrors CSS ``text-align`` values and DOCX alignment.
+AlignmentToken = Literal["left", "right", "center", "justify"]
+
+# A color reference is either a hex literal (``#RRGGBB``) or a named
+# palette slot (``palette.<name>``). Renderers define their own
+# palettes; the schema carries the reference, not the color value.
+_HEX_LITERAL = re.compile(r"^#[0-9a-fA-F]{6}$")
+_PALETTE_REF = re.compile(r"^palette\.[a-z][a-z0-9_-]*$")
+
+
+def is_color_ref(value: object) -> bool:
+    """Type guard for ``ColorRef``. Used by Pydantic field validators."""
+    if not isinstance(value, str):
+        return False
+    return bool(_HEX_LITERAL.match(value)) or bool(_PALETTE_REF.match(value))
 
 
 # ---------------------------------------------------------------------------
@@ -61,7 +106,7 @@ class TextStyle(BaseModel):
     strike: bool = False
     color: str | None = None
     link: str | None = None
-    font_size: Literal["xs", "small", "normal", "large", "xl"] | None = None
+    font_size: FontSizeToken | None = None
 
 
 class SubsectionStyle(BaseModel):
@@ -71,7 +116,7 @@ class SubsectionStyle(BaseModel):
     the per-section accent color used by the heading and other wrappers.
     """
 
-    text_align: Literal["left", "right", "center", "justify"] | None = None
+    text_align: AlignmentToken | None = None
     spacing_before: str | None = None
     spacing_after: str | None = None
     background_color: str | None = None
@@ -135,14 +180,14 @@ class Section(BaseModel):
     """One section of the document. Carries the three-axis style."""
 
     id: str
-    type: str  # profile, experience, education, ...
+    type: str
     title: str
     enabled: bool = True
-    entries: list[Entry]
-    policy: SectionPolicy | None = None
-    subsection: SubsectionStyle | None = None
+    entries: list[Entry] = Field(default_factory=list)
+    fields: list[FieldBlock] = Field(default_factory=list)
     layout: LayoutHints | None = None
-
+    subsection: SubsectionStyle | None = None
+    policy: SectionPolicy | None = None
 
 class Document(BaseModel):
     """The full document AST."""
@@ -174,6 +219,7 @@ class SectionInstanceStyle(BaseModel):
     layout: LayoutHints | None = None
     policy: SectionPolicy | None = None
 
+
 class SectionInstance(BaseModel):
     """The wire representation of a section in a CV.
 
@@ -188,7 +234,6 @@ class SectionInstance(BaseModel):
     enabled: bool = True
     data: list | dict = Field(default_factory=dict)
     style: SectionInstanceStyle | None = None
-
 
 
 class CVRow(BaseModel):
@@ -218,17 +263,59 @@ class PolicyOverrides(BaseModel):
     by_type: dict[str, SectionPolicy] = Field(default_factory=dict)
 
 
+class GlobalStyles(BaseModel):
+    """Template-level style tokens.
+
+    Closed vocabulary: ``accent_color`` is a color ref (a hex literal or
+    a ``palette.<name>`` reference); ``body_font`` and ``heading_font``
+    are :data:`FontToken` enums. The schema rejects unknown keys, so a
+    manifest cannot smuggle in arbitrary CSS.
+    """
+
+    model_config = {"extra": "forbid"}
+
+    accent_color: str | None = None
+    body_font: FontToken | None = None
+    heading_font: FontToken | None = None
+
+    @model_validator(mode="after")
+    def _check_color_ref(self):
+        if self.accent_color is not None and not is_color_ref(self.accent_color):
+            raise ValueError(
+                f"GlobalStyles.accent_color must be a hex literal (#RRGGBB) "
+                f"or a palette reference (palette.<name>); got {self.accent_color!r}"
+            )
+        return self
+
+
 class ZoneStyle(BaseModel):
-    """Explicit CSS-level style on a zone.
+    """Constrained style for a zone.
 
-    Stored with a hyphen-cased alias for ``background-color`` because
-    manifests are authored by humans and the CSS convention is hyphens."""
+    The manifest exposes a closed vocabulary: ``width`` is a
+    :data:`WidthToken`, ``background`` is a color ref (a hex literal or
+    a palette reference), and ``padding`` is a :data:`SpacingToken`.
+    The manifest never carries raw CSS strings; the resolver maps each
+    token to the renderer's native value.
 
-    width: str | None = None
-    background_color: str | None = Field(None, alias="background-color")
-    padding: str | None = None
+    The schema is closed (``extra="forbid"``) so a manifest cannot smuggle
+    in raw CSS like ``display: flex`` or ``position: absolute``. The
+    renderer's vocabulary is the only vocabulary.
+    """
 
-    model_config = {"extra": "allow", "populate_by_name": True}
+    width: WidthToken | None = None
+    background: str | None = None
+    padding: SpacingToken | None = None
+
+    model_config = {"extra": "forbid", "populate_by_name": True}
+
+    @model_validator(mode="after")
+    def _check_color_ref(self):
+        if self.background is not None and not is_color_ref(self.background):
+            raise ValueError(
+                f"ZoneStyle.background must be a hex literal (#RRGGBB) "
+                f"or a palette reference (palette.<name>); got {self.background!r}"
+            )
+        return self
 
 
 class Zone(BaseModel):
@@ -244,6 +331,12 @@ class TemplateManifest(BaseModel):
 
     Supersedes the legacy v1 schema (``layout_config`` / ``globalStyleSchema``).
     Every seed manifest is v2; user-uploaded manifests must match.
+
+    The manifest is a closed declarative document. ``global_styles`` is a
+    typed :class:`GlobalStyles` with a fixed key set: ``accent_color``
+    (a color ref), ``body_font`` and ``heading_font`` (a
+    :data:`FontToken`). The schema rejects unknown keys so a manifest
+    cannot smuggle in arbitrary CSS.
     """
 
     manifest_version: Literal[2] = 2
@@ -253,7 +346,7 @@ class TemplateManifest(BaseModel):
     placement: dict[str, str] = Field(default_factory=dict)  # section_type -> zone_id
     layout_defaults: LayoutDefaults = Field(default_factory=LayoutDefaults)
     policy_overrides: PolicyOverrides = Field(default_factory=PolicyOverrides)
-    global_styles: dict[str, str] = Field(default_factory=dict)  # accent_color, body_font, ...
+    global_styles: GlobalStyles = Field(default_factory=GlobalStyles)
 
 
 # ---------------------------------------------------------------------------
@@ -288,18 +381,16 @@ class RenderModel(BaseModel):
 class Customizations(BaseModel):
     """User-level overrides on the cascade (canonical v2 shape).
 
-    Phase 2 cut over from the legacy ``{colors, fonts, spacing, flags}``
-    shape: those top-level keys are now rejected at the boundary via
-    ``_reject_legacy`` below. Stored legacy rows are migrated on read
-    by ``app.services.legacy_customizations``; this model only accepts
-    the canonical v2 fields, so any panel or wizard that writes the
-    legacy shape fails loudly instead of silently dropping values.
+    The four canonical fields are written by the per-CV customizations
+    editor. ``accent_color`` is a color ref (hex literal or palette
+    reference). The legacy ``{colors, fonts, spacing, flags}`` top-level
+    keys are rejected at the boundary via ``_reject_legacy`` below.
     """
 
     accent_color: str | None = None
-    body_font: str | None = None
-    heading_font: str | None = None
-    default_text_align: Literal["left", "right", "center", "justify"] | None = None
+    body_font: FontToken | None = None
+    heading_font: FontToken | None = None
+    default_text_align: AlignmentToken | None = None
     spacing: Literal["compact", "comfortable", "minimal"] | None = None
     flags: dict[str, bool] = Field(default_factory=dict)
     per_section: dict[str, SectionInstanceStyle] = Field(default_factory=dict)
@@ -316,6 +407,15 @@ class Customizations(BaseModel):
                 f"Use accent_color / body_font / heading_font instead."
             )
         return data
+
+    @model_validator(mode="after")
+    def _check_accent_color_ref(self):
+        if self.accent_color is not None and not is_color_ref(self.accent_color):
+            raise ValueError(
+                f"Customizations.accent_color must be a hex literal (#RRGGBB) "
+                f"or a palette reference (palette.<name>); got {self.accent_color!r}"
+            )
+        return self
 
 
 class TemplateListItem(BaseModel):
@@ -337,7 +437,12 @@ class TemplateListItem(BaseModel):
 
 
 class TemplateDetail(BaseModel):
-    """Detail-page representation of a template."""
+    """Detail-page representation of a template.
+
+    The manifest is the only template payload. The legacy
+    ``default_customizations`` and ``layout_config`` keys are no longer
+    persisted; renderers and the editor consume the manifest directly.
+    """
 
     model_config = {"from_attributes": True}
 
@@ -345,10 +450,7 @@ class TemplateDetail(BaseModel):
     name: str
     description: str | None
     preview_image_url: str | None
-    default_customizations: dict | None
     manifest: dict | None = None
-    assets: dict | None = None
-    generated_html_url: str | None = None
     is_user_template: bool = False
 
     @classmethod
@@ -363,4 +465,4 @@ class UserTemplateCreate(BaseModel):
 
     name: str
     description: str | None = None
-    default_customizations: dict | None = None
+    manifest: TemplateManifest
