@@ -1,5 +1,5 @@
 // This file is generated. Do not edit by hand.
-// Source: api/app/schema/models.py (sha256:e4ac9dd659cf8514)
+// Source: api/app/schema/models.py (sha256:4d3917f624c4d440)
 
 export interface TextStyle {
   "bold"?: boolean;
@@ -80,7 +80,6 @@ export interface SectionInstance {
   "data"?: Array<unknown> | Record<string, unknown>;
   "enabled"?: boolean;
   "id": string;
-  "legacy_style"?: (Record<string, unknown>) | null;
   "style"?: (SectionInstanceStyle) | null;
   "title": string;
   "type": string;
