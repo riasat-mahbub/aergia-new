@@ -104,13 +104,90 @@ export const researchEntrySchema = z.object({
   publication_value: z.string(),
 });
 
+// Sub-schemas for the three-axis SectionInstanceStyle. These mirror the
+// codegen-derived TypeScript interfaces in `web/src/generated/schema.ts`.
+// `.strict()` rejects unknown keys so typos at the panel become loud
+// validation errors rather than silently dropped values.
+const textStyleSchema = z.object({
+  bold: z.boolean().optional(),
+  italic: z.boolean().optional(),
+  underline: z.boolean().optional(),
+  strike: z.boolean().optional(),
+  color: z.string().nullable().optional(),
+  link: z.string().nullable().optional(),
+  font_size: z
+    .union([z.literal("xs"), z.literal("small"), z.literal("normal"), z.literal("large"), z.literal("xl")])
+    .nullable()
+    .optional(),
+}).strict();
+
+const layoutHintsSchema = z.object({
+  font_family: z.string().nullable().optional(),
+  date_style: z
+    .object({ key: z.string().optional(), rangeSep: z.string().optional() })
+    .strict()
+    .nullable()
+    .optional(),
+  break_before: z.boolean().optional(),
+  keep_together: z.boolean().optional(),
+  heading_keeps_with_first: z.boolean().optional(),
+  orphans: z.number().optional(),
+  widows: z.number().optional(),
+}).strict();
+
+const subsectionStyleSchema = z.object({
+  text_align: z
+    .union([z.literal("left"), z.literal("right"), z.literal("center"), z.literal("justify")])
+    .nullable()
+    .optional(),
+  spacing_before: z.string().nullable().optional(),
+  spacing_after: z.string().nullable().optional(),
+  background_color: z.string().nullable().optional(),
+  section_color: z.string().nullable().optional(),
+}).strict();
+
+const sectionPolicySchema = z.object({
+  show_title: z.boolean().optional(),
+  skill_variant: z.union([z.literal("block"), z.literal("inline")]).nullable().optional(),
+}).strict();
+
+const sectionInstanceStyleSchema = z
+  .object({
+    layout: layoutHintsSchema.optional(),
+    subsection: subsectionStyleSchema.optional(),
+    policy: sectionPolicySchema.optional(),
+    text: z.record(z.string(), textStyleSchema).optional(),
+  })
+  .strict();
+
 export const sectionInstanceSchema = z.object({
   id: z.string().min(1),
   type: z.string().min(1),
   title: z.string().min(1),
   enabled: z.boolean(),
-  data: z.any(),
-});
+  data: z.unknown(),
+  style: sectionInstanceStyleSchema.optional(),
+}).strict();
+
+// Canonical Customizations schema. Strips / rejects legacy top-level
+// keys (`{colors, fonts, spacing, flags}`) at the wire boundary.
+export const customizationsSchema = z
+  .object({
+    accent_color: z.string().nullable().optional(),
+    body_font: z.string().nullable().optional(),
+    heading_font: z.string().nullable().optional(),
+    default_text_align: z
+      .union([z.literal("left"), z.literal("right"), z.literal("center"), z.literal("justify")])
+      .nullable()
+      .optional(),
+    spacing: z
+      .union([z.literal("compact"), z.literal("comfortable"), z.literal("minimal")])
+      .nullable()
+      .optional(),
+    flags: z.record(z.string(), z.boolean()).optional(),
+    per_section: z.record(z.string(), sectionInstanceStyleSchema).optional(),
+  })
+  .strict();
 
 export const sectionInstancesSchema = z.array(sectionInstanceSchema);
 

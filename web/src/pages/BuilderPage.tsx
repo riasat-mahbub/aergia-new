@@ -8,8 +8,8 @@ import ContentSectionList from "../components/builder/ContentSectionList";
 import { useCVStore } from "../lib/store/cvStore";
 import TemplateSwitcher from "../components/preview/TemplateSwitcher";
 import CustomizePanel from "../components/customization/CustomizePanel";
-
-import type { SectionInstance, SectionStyle, LayoutConfig } from "../lib/sections/types";
+import { useSupportStore } from "../lib/store/supportStore";
+import type { SectionInstance, SectionInstanceStyle, LayoutConfig } from "../lib/sections/types";
 import { createDefaultInstance, getFirstZoneId, migratePlacement } from "../lib/sections/types";
 import { normalizeWidths } from "../lib/sections/zones";
 import { updateCV } from "../lib/api/cvs";
@@ -66,6 +66,10 @@ export default function BuilderPage() {
     return () => { cancelled = true; };
   }, [id, loadCV]);
 
+  useEffect(() => {
+    useSupportStore.getState().ensureLoaded();
+  }, []);
+
   const instances = localInstances;
   const customizations = localCustomizations;
 
@@ -82,8 +86,6 @@ export default function BuilderPage() {
     if (!effectiveLayoutConfig?.zones?.length) return effectiveLayoutConfig;
     return { ...effectiveLayoutConfig, zones: normalizeWidths(effectiveLayoutConfig.zones) };
   }, [effectiveLayoutConfig]);
-
-
   const handleLayoutConfigChange = useCallback(
     (config: LayoutConfig) => {
       hasChangesRef.current = true;
@@ -275,7 +277,7 @@ export default function BuilderPage() {
   );
 
   const handleUpdateStyle = useCallback(
-    (sectionId: string, style: SectionStyle) => {
+    (sectionId: string, style: SectionInstanceStyle) => {
       hasChangesRef.current = true;
       setHasUnsavedChanges(true);
       // Persist the style object when any field (including an explicit
@@ -284,7 +286,7 @@ export default function BuilderPage() {
       const hasValues = sectionStyleHasValues(style);
       setLocalInstances((prev) =>
         prev.map((i) =>
-          i.id === sectionId ? { ...i, style: hasValues ? (style as unknown as import("../lib/sections/types").SectionInstanceStyle) : undefined } : i
+          i.id === sectionId ? { ...i, style: hasValues ? style : undefined } : i
         )
       );
     },
@@ -343,16 +345,6 @@ export default function BuilderPage() {
     },
     [id, localInstances, localCustomizations, loadCV, setIsSaving]
   );
-
-  const handleCustomizationsChange = useCallback(
-    (newCustomizations: Record<string, unknown>) => {
-      hasChangesRef.current = true;
-      setHasUnsavedChanges(true);
-      setLocalCustomizations(newCustomizations);
-    },
-    []
-  );
-
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -462,8 +454,6 @@ export default function BuilderPage() {
               )}
               {activeTab === "customize" && (
                 <CustomizePanel
-                  customizations={customizations}
-                  onChange={handleCustomizationsChange}
                   templateId={currentCV.template_id}
                   onTemplateChange={handleTemplateChange}
                   instances={instances}
@@ -471,7 +461,6 @@ export default function BuilderPage() {
                   layoutConfig={normalizedLayoutConfig || { zones: [], placement: {} }}
                   onLayoutConfigChange={handleLayoutConfigChange}
                   assets={templateManifest?.assets}
-                  globalStyleSchema={templateManifest?.globalStyleSchema}
                 />
               )}
             </div>
@@ -524,27 +513,15 @@ export default function BuilderPage() {
  * the exact predicate that `handleUpdateStyle` uses without rendering the
  * full BuilderPage.
  */
-export function sectionStyleHasValues(style: SectionStyle): boolean {
-  let fieldStylesHasMeaningfulPick = false;
-  if (style.field_styles != null) {
-    for (const entry of Object.values(style.field_styles)) {
-      if (entry && (entry.font || entry.size || entry.weight)) {
-        fieldStylesHasMeaningfulPick = true;
-        break;
-      }
-    }
-  }
+export function sectionStyleHasValues(style: SectionInstanceStyle): boolean {
+  // True when any of the three axes has at least one populated key.
+  // The customize panel emits only the three-axis shape; legacy keys
+  // never appear on the wire.
   return Boolean(
-    style.font ||
-      style.color ||
-      style.weight ||
-      style.text_align ||
-      style.layout ||
-      style.subsection_gap ||
-      style.row_gap ||
-      typeof style.show_title === "boolean" ||
-      style.date_style ||
-      fieldStylesHasMeaningfulPick
+    (style.layout && Object.keys(style.layout).length > 0) ||
+      (style.subsection && Object.keys(style.subsection).length > 0) ||
+      (style.policy && Object.keys(style.policy).length > 0) ||
+      (style.text && Object.keys(style.text).length > 0)
   );
 }
 

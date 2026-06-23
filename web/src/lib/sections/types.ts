@@ -61,25 +61,6 @@ export type {
   ZoneStyle,
 };
 
-// ---------------------------------------------------------------------------
-// Legacy aliases — kept for downstream code that still references the old
-// entry interfaces and the legacy style / layout types.
-// ---------------------------------------------------------------------------
-
-export interface SectionStyle {
-  font?: string;
-  color?: string;
-  weight?: string;
-  text_align?: "left" | "right" | "center" | "justify";
-  field_styles?: Record<string, FieldStyle>;
-  show_title?: boolean;
-  layout?: "block" | "inline";
-  date_style?: { key?: string; rangeSep: string };
-  subsection_gap?: string;
-  row_gap?: string;
-  [key: string]: unknown;
-}
-
 export interface LayoutConfig {
   zones: Zone[];
   placement: Record<string, string>;
@@ -179,12 +160,6 @@ export interface ResearchEntry {
   description?: string;
   publication_date?: string;
   publication_value?: string;
-}
-
-export interface FieldStyle {
-  font?: string;
-  size?: string;
-  weight?: string;
 }
 
 export type DateStyleKey = DateStyle["key"];
