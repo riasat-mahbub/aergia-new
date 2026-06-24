@@ -1,12 +1,13 @@
 import { describe, it, expect } from "vitest";
- import {
-   profileSchema,
-   projectEntrySchema,
-   certificationEntrySchema,
-   researchEntrySchema,
-   urlSchema,
-   sectionInstanceSchema,
-   customizationsSchema,
+import {
+  profileSchema,
+  projectEntrySchema,
+  certificationEntrySchema,
+  researchEntrySchema,
+  urlSchema,
+  sectionInstanceSchema,
+  customizationsSchema,
+  templateManifestSchema,
 } from "../sections";
 
 describe("urlSchema", () => {
@@ -239,9 +240,39 @@ describe("customizationsSchema canonical", () => {
     const r = customizationsSchema.safeParse({ colors: { accent: "#abc" } });
     expect(r.success).toBe(false);
   });
-
   it("rejects legacy top-level fonts", () => {
     const r = customizationsSchema.safeParse({ fonts: { body: "Inter" } });
+    expect(r.success).toBe(false);
+  });
+});
+describe("templateManifestSchema (v2)", () => {
+  it("accepts the canonical v2 shape", () => {
+    const r = templateManifestSchema.safeParse({
+      manifest_version: 2,
+      name: "Modern",
+      zones: [{ id: "main" }],
+      placement: { profile: "main" },
+      global_styles: { accent_color: "#2563eb" },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects manifest_version: 1", () => {
+    const r = templateManifestSchema.safeParse({
+      manifest_version: 1,
+      name: "Old",
+      zones: [],
+      placement: {},
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("rejects a global_styles value that is not a string", () => {
+    const r = templateManifestSchema.safeParse({
+      manifest_version: 2,
+      name: "X",
+      global_styles: { accent_color: 42 },
+    });
     expect(r.success).toBe(false);
   });
 });
