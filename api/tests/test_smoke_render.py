@@ -66,8 +66,8 @@ def _manifest():
         "manifest_version": 2,
         "name": "Modern",
         "zones": [
-            {"id": "sidebar", "styles": {"width": "30%"}},
-            {"id": "main", "styles": {"width": "70%"}},
+            {"id": "sidebar", "styles": {"width": "narrow"}},
+            {"id": "main", "styles": {"width": "full"}},
         ],
         "placement": {
             "profile": "sidebar",
@@ -78,8 +78,8 @@ def _manifest():
         "policy_overrides": {"by_type": {}},
         "global_styles": {
             "accent_color": "#2563eb",
-            "body_font": "Inter, system-ui, sans-serif",
-            "heading_font": "Inter, system-ui, sans-serif",
+            "body_font": "sans-serif",
+            "heading_font": "sans-serif",
         },
     })
 

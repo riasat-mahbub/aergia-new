@@ -33,7 +33,7 @@ async def test_template_detail(client):
     data = resp.json()
     assert data["id"] == "generic-modern"
     assert "manifest" in data
-    assert "default_customizations" in data
+    assert data.get("default_customizations") is None
 
 
 @pytest.mark.asyncio
@@ -56,3 +56,110 @@ async def test_seed_templates_have_no_row_fields(client):
         assert "rowHeights" not in manifest.get("layout_config", {})
 
 
+
+@pytest.mark.asyncio
+async def test_create_user_template_with_v2_manifest(client):
+    """POST /api/v1/templates/user accepts a v2 manifest payload.
+
+    Persists the manifest on the template and derives the legacy
+    ``default_customizations`` bucket for the CV builder.
+    """
+    headers = await register_and_login(client, "v2-template@example.com")
+    payload = {
+        "name": "T",
+        "manifest": {
+            "manifest_version": 2,
+            "name": "T",
+            "zones": [{"id": "main", "styles": {"width": "full"}}],
+            "placement": {"profile": "main", "experience": "main"},
+            "global_styles": {"accent_color": "#abcdef", "body_font": "sans-serif", "heading_font": "sans-serif"},
+        },
+    }
+    resp = await client.post("/api/v1/templates/user", json=payload, headers=headers)
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["manifest"]["manifest_version"] == 2
+    # The legacy bucket is gone; the manifest is the only template payload.
+    assert data.get("default_customizations") is None
+    assert data["manifest"]["global_styles"]["accent_color"] == "#abcdef"
+    assert data["name"] == "T"
+
+
+@pytest.mark.asyncio
+async def test_create_user_template_rejects_v1_manifest(client):
+    """A v1 manifest is rejected at the model boundary (400)."""
+    headers = await register_and_login(client, "v1-rejected@example.com")
+    payload = {
+        "name": "Old",
+        "manifest": {
+            "manifest_version": 1,
+            "name": "Old",
+            "zones": [],
+            "placement": {},
+        },
+    }
+    resp = await client.post("/api/v1/templates/user", json=payload, headers=headers)
+    assert resp.status_code in (400, 422)
+
+
+@pytest.mark.asyncio
+async def test_create_user_template_requires_manifest(client):
+    """A request with no manifest field is rejected (422)."""
+    headers = await register_and_login(client, "no-manifest@example.com")
+    resp = await client.post("/api/v1/templates/user", json={"name": "T"}, headers=headers)
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_user_template_does_not_persist_default_customizations(client):
+    """The route persists the manifest only; the legacy bucket is not written."""
+    headers = await register_and_login(client, "no-legacy@example.com")
+    payload = {
+        "name": "NoLegacy",
+        "manifest": {
+            "manifest_version": 2,
+            "name": "NoLegacy",
+            "zones": [{"id": "main", "styles": {"width": "full"}}],
+            "placement": {"profile": "main"},
+            "global_styles": {"accent_color": "#aabbcc", "body_font": "sans-serif", "heading_font": "sans-serif"},
+        },
+    }
+    resp = await client.post("/api/v1/templates/user", json=payload, headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data.get("default_customizations") is None
+    assert data["manifest"]["global_styles"]["accent_color"] == "#aabbcc"
+
+
+@pytest.mark.asyncio
+async def test_create_user_template_rejects_css_strings(client):
+    """A manifest carrying raw CSS in zone styles is rejected at the boundary."""
+    headers = await register_and_login(client, "css-rejected@example.com")
+    payload = {
+        "name": "Css",
+        "manifest": {
+            "manifest_version": 2,
+            "name": "Css",
+            "zones": [{"id": "main", "styles": {"width": "30%"}}],
+            "placement": {"profile": "main"},
+        },
+    }
+    resp = await client.post("/api/v1/templates/user", json=payload, headers=headers)
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_user_template_rejects_extra_zone_keys(client):
+    """A manifest with arbitrary CSS keys (e.g. ``display: flex``) is rejected."""
+    headers = await register_and_login(client, "extra-rejected@example.com")
+    payload = {
+        "name": "Extra",
+        "manifest": {
+            "manifest_version": 2,
+            "name": "Extra",
+            "zones": [{"id": "main", "styles": {"width": "full", "display": "flex"}}],
+            "placement": {"profile": "main"},
+        },
+    }
+    resp = await client.post("/api/v1/templates/user", json=payload, headers=headers)
+    assert resp.status_code == 422
