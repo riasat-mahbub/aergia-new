@@ -1,5 +1,5 @@
 // This file is generated. Do not edit by hand.
-// Source: api/app/schema/models.py (sha256:4d3917f624c4d440)
+// Source: api/app/schema/models.py (sha256:276a08d803da95f1)
 
 export interface TextStyle {
   "bold"?: boolean;
@@ -56,7 +56,8 @@ export interface Entry {
 
 export interface Section {
   "enabled"?: boolean;
-  "entries": Array<Entry>;
+  "entries"?: Array<Entry>;
+  "fields"?: Array<FieldBlock>;
   "id": string;
   "layout"?: (LayoutHints) | null;
   "policy"?: (SectionPolicy) | null;
@@ -94,9 +95,9 @@ export interface PolicyOverrides {
 }
 
 export interface ZoneStyle {
-  "background-color"?: (string) | null;
-  "padding"?: (string) | null;
-  "width"?: (string) | null;
+  "background"?: (string) | null;
+  "padding"?: (("none" | "tight" | "comfortable" | "loose")) | null;
+  "width"?: (("narrow" | "half" | "full" | "auto")) | null;
 }
 
 export interface Zone {
@@ -107,7 +108,7 @@ export interface Zone {
 
 export interface TemplateManifest {
   "description"?: (string) | null;
-  "global_styles"?: Record<string, string>;
+  "global_styles"?: GlobalStyles;
   "layout_defaults"?: LayoutDefaults;
   "manifest_version"?: number;
   "name": string;
@@ -134,10 +135,10 @@ export interface RenderModel {
 
 export interface Customizations {
   "accent_color"?: (string) | null;
-  "body_font"?: (string) | null;
+  "body_font"?: (("sans-serif" | "serif" | "mono" | "display")) | null;
   "default_text_align"?: (("left" | "right" | "center" | "justify")) | null;
   "flags"?: Record<string, boolean>;
-  "heading_font"?: (string) | null;
+  "heading_font"?: (("sans-serif" | "serif" | "mono" | "display")) | null;
   "per_section"?: Record<string, SectionInstanceStyle>;
   "spacing"?: (("compact" | "comfortable" | "minimal")) | null;
 }
