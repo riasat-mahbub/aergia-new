@@ -1,6 +1,7 @@
 # Aergia CV Builder — Active Plan
 
-**Last updated:** 2026-06-27  
+**Last updated:** 2026-08-07
+**Phase 2 status:** Three-axis AST pipeline shipped. Customize panel + Customizations wire are canonical; legacy `{colors,fonts,spacing,flags}` rejected at the boundary. See tracker entries FEAT-01KZJ0PHASE2QA*, BUG-01KZJ0PHASE2QA*, TASK-01KZJ0PHASE2QA*. Full plan: `local://ast-pipeline-phase-2-plan-v5.md`.  
 **Scope:** Manifest-first template system rewrite with visual step-by-step editor.
 
 ---

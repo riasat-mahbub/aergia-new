@@ -164,3 +164,23 @@ The React tree mirrors the AST but doesn't render HTML. The Python HTML renderer
 - The SPA catch-all route uses `/{full_path:path}` — this can conflict if you add new API routes that are not under `/api/v1/`.
 - Playwright browsers install to `~/.cache/ms-playwright` locally, `/app/ms-playwright` in Docker.
 - `SECRET_KEY` default `change-me-in-production` raises a `RuntimeError` in production mode.
+
+## Phase 2 status (2026-08-07)
+
+The customize panel writes only the three-axis `SectionInstanceStyle`
+(`style.layout / .subsection / .policy / .text[key]`). The per-CV
+`Customizations` is canonical (no legacy `{colors, fonts, spacing,
+flags}` keys) — those legacy keys are now rejected at the model
+boundary. `/render/support` returns the renderer's capability map;
+the panel gates per-control visibility on those values.
+
+Components deliberately stubbed in Phase 2 — to be rebuilt in Phase 3:
+- `web/src/components/template-creator/TemplateWizard.tsx` (deprecated banner)
+- `web/src/components/customization/StyleEditor.tsx` (deleted; was the wizard's editor)
+
+Trackers: `FEAT-01KZJ0PHASE2QA-phase-2-three-axis-customize-panel`,
+`BUG-01KZJ0PHASE2QA-customizations-wire-mismatch`,
+`BUG-01KZJ0PHASE2QA-template-wizard-on-legacy-paths`,
+`TASK-01KZJ0PHASE2QA-phase-3-template-creator-and-global-customizations`.
+
+Full plan: `'/home/riasat/.omp/agent/sessions/-Projects-aergia/2026-08-07T01-11-42-848Z_019fd9c6-a800-7000-a163-80d19cc593e9/local/ast-pipeline-phase-2-plan-v5.md'`.
