@@ -23,14 +23,14 @@ from app.services.renderer.support import RendererSupport, SupportLevel
 def _manifest(spacing="comfortable"):
     return TemplateManifest(
         name="M",
-        zones=[Zone(id="main", styles={"width": "100%"})],
+        zones=[Zone(id="main", styles={"width": "full", "padding": "comfortable"})],
         placement={
             "profile": "main",
             "experience": "main",
             "skills": "main",
         },
         layout_defaults={"spacing": spacing},
-        global_styles={"accent_color": "#abc", "body_font": "Inter", "heading_font": "Inter"},
+        global_styles={"accent_color": "#aabbcc", "body_font": "sans-serif", "heading_font": "sans-serif"},
     )
 
 
@@ -53,9 +53,9 @@ def test_css_vars_include_spacing_section_body_font_heading_font_accent():
     model = resolve(_document(), _manifest(), Customizations(), HTMLDocumentRenderer.support)
     assert model.css_vars["--spacing-section"] == "24px"
     assert model.css_vars["--spacing-subsection"] == "16px"
-    assert model.css_vars["--body-font"] == "Inter"
-    assert model.css_vars["--heading-font"] == "Inter"
-    assert model.css_vars["--accent"] == "#abc"
+    assert model.css_vars["--body-font"] == "Inter, system-ui, sans-serif"
+    assert model.css_vars["--heading-font"] == "Inter, system-ui, sans-serif"
+    assert model.css_vars["--accent"] == "#aabbcc"
 
 
 def test_compact_spacing_maps_to_smaller_vars():
@@ -90,18 +90,18 @@ def test_template_font_family_paints_section_layout():
                 entries=[Entry(id="e1", fields=[FieldBlock(key="name", runs=[TextRun(text="Ada")])])])
     ])
     model = resolve(doc, _manifest(), Customizations(), HTMLDocumentRenderer.support)
-    assert model.sections["p"].layout.font_family == "Inter"
+    assert model.sections["p"].layout.font_family == "Inter, system-ui, sans-serif"
 
 
 def test_user_accent_overrides_template_only_when_section_unset():
     doc = Document(sections=[
         Section(id="p", type="profile", title="P", enabled=True,
-                subsection={"section_color": "#user"},
+                subsection={"section_color": "#aabbcc"},
                 entries=[Entry(id="e1", fields=[FieldBlock(key="name", runs=[TextRun(text="Ada")])])])
     ])
-    custom = Customizations(accent_color="#override")
+    custom = Customizations(accent_color="#ddeeff")
     model = resolve(doc, _manifest(), custom, HTMLDocumentRenderer.support)
-    assert model.sections["p"].subsection.section_color == "#user"
+    assert model.sections["p"].subsection.section_color == "#aabbcc"
 
 
 def test_policy_show_title_is_false_for_profile_by_default():
@@ -190,3 +190,37 @@ def test_support_full_preserves_layout_hints():
     ])
     sec = resolve(doc, None, Customizations(), RendererSupport()).sections["p"]
     assert sec.layout.break_before is True
+
+
+def test_resolver_maps_width_tokens():
+    """``narrow`` → 30%, ``half`` → 50%, ``full`` → 100%, ``auto`` → auto."""
+    from app.services.renderer.resolve import _resolve_zone_styles
+    from app.schema.models import Zone
+    for token, expected in [("narrow", "30%"), ("half", "50%"), ("full", "100%"), ("auto", "auto")]:
+        zone = Zone(id="z", styles={"width": token})
+        assert _resolve_zone_styles(zone)["width"] == expected
+
+
+def test_resolver_maps_padding_tokens():
+    """``none`` → 0, ``tight`` → 12px, ``comfortable`` → 24px, ``loose`` → 32px."""
+    from app.services.renderer.resolve import _resolve_zone_styles
+    from app.schema.models import Zone
+    for token, expected in [("none", "0"), ("tight", "12px"), ("comfortable", "24px"), ("loose", "32px")]:
+        zone = Zone(id="z", styles={"padding": token})
+        assert _resolve_zone_styles(zone)["padding"] == expected
+
+
+def test_resolver_maps_color_palette_reference():
+    """A ``palette.<name>`` reference resolves through :data:`DEFAULT_PALETTE`."""
+    from app.services.renderer.resolve import _resolve_zone_styles
+    from app.schema.models import Zone
+    zone = Zone(id="z", styles={"background": "palette.surface-2"})
+    assert _resolve_zone_styles(zone)["background-color"] == "#f8fafc"
+
+
+def test_resolver_falls_back_to_hex_literal():
+    """A ``#RRGGBB`` literal is returned unchanged."""
+    from app.services.renderer.resolve import _resolve_zone_styles
+    from app.schema.models import Zone
+    zone = Zone(id="z", styles={"background": "#aabbcc"})
+    assert _resolve_zone_styles(zone)["background-color"] == "#aabbcc"
