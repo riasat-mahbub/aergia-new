@@ -1,20 +1,66 @@
 import { z } from "zod";
 
+// ---------------------------------------------------------------------------
+// Design tokens — mirror of the backend's constrained vocabulary
+// ---------------------------------------------------------------------------
+
+// A zone's width. ``narrow`` ≈ 30%, ``half`` ≈ 50%, ``full`` ≈ 100%.
+const widthTokenSchema = z.union([
+  z.literal("narrow"),
+  z.literal("half"),
+  z.literal("full"),
+  z.literal("auto"),
+]);
+
+// Spacing and padding presets.
+const spacingTokenSchema = z.union([
+  z.literal("none"),
+  z.literal("tight"),
+  z.literal("comfortable"),
+  z.literal("loose"),
+]);
+
+// Font families exposed to template authors.
+const fontTokenSchema = z.union([
+  z.literal("sans-serif"),
+  z.literal("serif"),
+  z.literal("mono"),
+  z.literal("display"),
+]);
+
+// Text alignment.
+const alignmentTokenSchema = z.union([
+  z.literal("left"),
+  z.literal("right"),
+  z.literal("center"),
+  z.literal("justify"),
+]);
+
+// Compact / comfortable / minimal — the legacy v2 spacing enum.
+const layoutSpacingTokenSchema = z.union([
+  z.literal("compact"),
+  z.literal("comfortable"),
+  z.literal("minimal"),
+]);
+
+// A color reference is either a hex literal (``#RRGGBB``) or a named
+// palette slot (``palette.<name>``). Renderers define their own palettes.
+const HEX_LITERAL = /^#[0-9a-fA-F]{6}$/;
+const PALETTE_REF = /^palette\.[a-z][a-z0-9_-]*$/;
+const colorRefSchema = z
+  .string()
+  .refine(
+    (v) => HEX_LITERAL.test(v) || PALETTE_REF.test(v),
+    { message: "Color must be a hex literal (#RRGGBB) or a palette reference (palette.<name>)" },
+  );
+// URL scheme validator. Bare domains are rejected at the form layer.
+const URL_SCHEME_RE = /^[a-zA-Z][a-zA-Z0-9+.\-]*:/;
+
 /** Validates URL fields on section entries.
- *
  * Empty strings pass (these fields are all optional in profile / projects /
  * certifications). When populated, the value MUST start with a URL scheme
- * such as https://, http://, mailto:, or tel:. Bare domains like
- * 'rmahbub.com' are rejected here for two reasons:
- *   1. Chromium's print pipeline treats them as relative URLs and emits no
- *      /Link annotation in the exported PDF.
- *   2. The TypeScript preview renderers emit <a href={value}> verbatim;
- *      without a scheme the browser also resolves it relative to the
- *      current page.
- * The backend renderer normalizes bare domains defensively, but validating
- * at the form layer gives the user immediate feedback at the source.
+ * such as https://, http://, mailto:, or tel:.
  */
-const URL_SCHEME_RE = /^[a-zA-Z][a-zA-Z0-9+.\-]*:/;
 export const urlSchema = z
   .string()
   .refine(
@@ -173,23 +219,77 @@ export const sectionInstanceSchema = z.object({
 // keys (`{colors, fonts, spacing, flags}`) at the wire boundary.
 export const customizationsSchema = z
   .object({
-    accent_color: z.string().nullable().optional(),
-    body_font: z.string().nullable().optional(),
-    heading_font: z.string().nullable().optional(),
-    default_text_align: z
-      .union([z.literal("left"), z.literal("right"), z.literal("center"), z.literal("justify")])
-      .nullable()
-      .optional(),
-    spacing: z
-      .union([z.literal("compact"), z.literal("comfortable"), z.literal("minimal")])
-      .nullable()
-      .optional(),
+    accent_color: colorRefSchema.nullable().optional(),
+    body_font: fontTokenSchema.nullable().optional(),
+    heading_font: fontTokenSchema.nullable().optional(),
+    default_text_align: alignmentTokenSchema.nullable().optional(),
+    spacing: layoutSpacingTokenSchema.nullable().optional(),
     flags: z.record(z.string(), z.boolean()).optional(),
     per_section: z.record(z.string(), sectionInstanceStyleSchema).optional(),
   })
   .strict();
 
 export const sectionInstancesSchema = z.array(sectionInstanceSchema);
+
+// Template manifest schema (v2) — used by the TemplateWizard to gate Save.
+// Mirrors the backend's `TemplateManifest` shape but is intentionally a
+// partial check: the wizard only writes the keys it can edit, and any
+// extra fields the backend permits (e.g. `id`, `assets`) are not exposed.
+const zoneStyleSchema = z
+  .object({
+    width: widthTokenSchema.nullable().optional(),
+    background: colorRefSchema.nullable().optional(),
+    padding: spacingTokenSchema.nullable().optional(),
+  })
+  .strict();
+const zoneSchema = z
+  .object({
+    id: z.string().min(1),
+    label: z.string().nullable().optional(),
+    styles: zoneStyleSchema.optional(),
+  })
+  .strict();
+const layoutDefaultsSchema = z
+  .object({
+    spacing: layoutSpacingTokenSchema.optional(),
+  })
+  .strict();
+const manifestPolicySchema = z
+  .object({
+    show_title: z.boolean().optional(),
+    skill_variant: z
+      .union([z.literal("block"), z.literal("inline")])
+      .nullable()
+      .optional(),
+  })
+  .strict();
+const policyOverridesSchema = z
+  .object({
+    by_type: z.record(z.string(), manifestPolicySchema).optional(),
+  })
+  .strict();
+// Closed global styles: the manifest exposes a fixed key set.
+// ``accent_color`` is a color ref; ``body_font`` and ``heading_font``
+// are font tokens. Unknown keys are rejected.
+const globalStylesSchema = z
+  .object({
+    accent_color: colorRefSchema.nullable().optional(),
+    body_font: fontTokenSchema.nullable().optional(),
+    heading_font: fontTokenSchema.nullable().optional(),
+  })
+  .strict();
+export const templateManifestSchema = z
+  .object({
+    manifest_version: z.literal(2),
+    name: z.string().min(1),
+    description: z.string().nullable().optional(),
+    zones: z.array(zoneSchema).optional(),
+    placement: z.record(z.string(), z.string()).optional(),
+    layout_defaults: layoutDefaultsSchema.optional(),
+    policy_overrides: policyOverridesSchema.optional(),
+    global_styles: globalStylesSchema.optional(),
+  })
+  .strict();
 
 export type ProfileData = z.infer<typeof profileSchema>;
 export type ExperienceEntry = z.infer<typeof experienceEntrySchema>;
