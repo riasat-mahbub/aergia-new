@@ -96,9 +96,9 @@ def test_text_style_defaults_are_false():
 def test_render_model_round_trips():
     model = RenderModel(
         zones=[ResolvedZone(id="main", styles={"width": "100%"}, section_ids=["s1"])],
-        css_vars={"--accent": "#abc"},
-        body_font="Inter",
-        heading_font="Inter",
+        css_vars={"--accent": "#aabbcc"},
+        body_font="Inter, system-ui, sans-serif",
+        heading_font="Inter, system-ui, sans-serif",
         link_styles="",
         print_styles="",
         sections={"s1": Section(id="s1", type="profile", title="P", enabled=True,
@@ -117,11 +117,13 @@ def test_policy_overrides_default_empty():
     assert PolicyOverrides().by_type == {}
 
 
-def test_zone_style_accepts_alias_background_color():
-    payload = {"width": "30%", "background-color": "#abc"}
+def test_zone_style_uses_closed_vocabulary():
+    payload = {"width": "narrow", "background": "#aabbcc", "padding": "comfortable"}
     zone_style = ZoneStyle.model_validate(payload)
-    dumped = zone_style.model_dump(by_alias=True)
-    assert dumped.get("background-color") == "#abc"
+    dumped = zone_style.model_dump()
+    assert dumped["width"] == "narrow"
+    assert dumped["background"] == "#aabbcc"
+    assert dumped["padding"] == "comfortable"
 
 
 def test_customizations_rejects_legacy_top_level_colors():
@@ -137,8 +139,7 @@ def test_customizations_rejects_legacy_top_level_fonts():
     with pytest.raises(ValidationError):
         Customizations.model_validate({"fonts": {"body": "Inter"}})
 
-
 def test_customizations_accepts_canonical_shape():
-    c = Customizations.model_validate({"accent_color": "#abc", "body_font": "Inter"})
-    assert c.accent_color == "#abc"
-    assert c.body_font == "Inter"
+    c = Customizations.model_validate({"accent_color": "#aabbcc", "body_font": "sans-serif"})
+    assert c.accent_color == "#aabbcc"
+    assert c.body_font == "sans-serif"

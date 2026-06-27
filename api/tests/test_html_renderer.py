@@ -27,9 +27,9 @@ from app.services.renderer.html import HTMLDocumentRenderer
 def _model():
     manifest = TemplateManifest(
         name="M",
-        zones=[Zone(id="main", styles={"width": "100%"})],
+        zones=[Zone(id="main", styles={"width": "full"})],
         placement={"profile": "main"},
-        global_styles={"accent_color": "#abc", "body_font": "Inter"},
+        global_styles={"accent_color": "#aabbcc", "body_font": "sans-serif", "heading_font": "sans-serif"},
     )
     doc = Document(sections=[
         Section(
@@ -50,8 +50,8 @@ def test_renders_doctype_and_body():
 
 def test_renders_css_vars_as_root_block():
     model = _model()
-    assert "--accent: #abc;" in HTMLDocumentRenderer().render(model)
-    assert "--body-font: Inter;" in HTMLDocumentRenderer().render(model)
+    assert "--accent: #aabbcc;" in HTMLDocumentRenderer().render(model)
+    assert "--body-font: Inter, system-ui, sans-serif;" in HTMLDocumentRenderer().render(model)
 
 
 def test_escapes_user_provided_text():
@@ -88,3 +88,31 @@ def test_render_bytes_returns_utf8_bytes():
     html = HTMLDocumentRenderer().render_bytes(_model())
     assert isinstance(html, bytes)
     assert html.startswith(b"<!DOCTYPE html>")
+
+
+def test_html_renderer_uses_resolved_css_not_manifest_css():
+    """The renderer reads from ``RenderModel`` (resolved CSS), not from the
+    manifest directly. A manifest with the ``narrow`` token must produce
+    CSS containing the resolved percentage value, not the token name.
+    """
+    manifest = TemplateManifest(
+        name="M",
+        zones=[Zone(id="main", styles={"width": "narrow", "padding": "comfortable"})],
+        placement={"profile": "main"},
+        global_styles={"accent_color": "#aabbcc", "body_font": "sans-serif", "heading_font": "sans-serif"},
+    )
+    doc = Document(sections=[
+        Section(id="p", type="profile", title="P", enabled=True,
+                entries=[Entry(id="e1", fields=[FieldBlock(key="name", runs=[TextRun(text="Ada")])])])
+    ])
+    model = resolve(doc, manifest, Customizations(), HTMLDocumentRenderer.support)
+    html = HTMLDocumentRenderer().render(model)
+    # The resolved zone width is 30%, not the literal "narrow" token.
+    assert "30%" in html
+    assert "narrow" not in html
+    # The resolved padding is 24px.
+    assert "24px" in html
+    # The resolved body font stack is the rendered value, not the token.
+    assert "Inter, system-ui, sans-serif" in html
+    # The accent color resolved through the manifest's hex literal.
+    assert "#aabbcc" in html
