@@ -49,16 +49,27 @@ PRINT_STYLES = """
     img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 """
+# Default palette and token maps live in their own modules so the
+# resolver, the HTML renderer, and a future DOCX renderer all share
+# the same vocabulary. The schema declares the tokens; this layer
+# maps them to renderer-specific values.
+from app.services.renderer.palette import DEFAULT_PALETTE, resolve_palette_ref
+from app.services.renderer.tokens import (
+    FONT_TOKEN_VALUES as FONT_TOKENS,
+    PADDING_TOKEN_VALUES as PADDING_TOKENS,
+    SPACING_TOKEN_VALUES as _SPACING_TOKENS,
+    WIDTH_TOKEN_VALUES as WIDTH_TOKENS,
+)
 
-# Spacing design tokens (CSS variables the renderer emits).
-_SPACING_TOKENS: dict[str, tuple[str, str]] = {
-    # layout_defaults.spacing -> (--spacing-section, --spacing-subsection)
-    "compact": ("16px", "12px"),
-    "comfortable": ("24px", "16px"),
-    "minimal": ("8px", "8px"),
-}
 
-_MANIFEST_VERSION_KEY = "manifest_version"
+def resolve_color(value: str) -> str:
+    """Resolve a color ref to a concrete color value.
+
+    A hex literal is returned as-is. A palette reference is resolved
+    against :data:`DEFAULT_PALETTE`; unknown palette names fall back to
+    the literal string (the renderer will fail loudly downstream).
+    """
+    return resolve_palette_ref(value, DEFAULT_PALETTE)
 
 
 class ManifestVersionError(ValueError):
@@ -121,13 +132,13 @@ def _apply_template_defaults(section: Section, manifest: TemplateManifest | None
     layout_dict = section.layout.model_dump(exclude_none=True) if section.layout else {}
     sub_dict = section.subsection.model_dump(exclude_none=True) if section.subsection else {}
 
-    body_font = manifest.global_styles.get("body_font")
+    body_font = manifest.global_styles.body_font
     if body_font and not layout_dict.get("font_family"):
-        layout_dict["font_family"] = body_font
+        layout_dict["font_family"] = FONT_TOKENS.get(body_font, body_font)
 
-    accent = manifest.global_styles.get("accent_color")
+    accent = manifest.global_styles.accent_color
     if accent and not sub_dict.get("section_color"):
-        sub_dict["section_color"] = accent
+        sub_dict["section_color"] = resolve_color(accent)
 
     if not layout_dict.get("date_style"):
         layout_dict["date_style"] = _default_date_style()
@@ -145,9 +156,9 @@ def _apply_user_customizations(section: Section, customizations: Customizations)
     sub_dict = section.subsection.model_dump(exclude_none=True) if section.subsection else {}
 
     if customizations.body_font and not layout_dict.get("font_family"):
-        layout_dict["font_family"] = customizations.body_font
+        layout_dict["font_family"] = FONT_TOKENS.get(customizations.body_font, customizations.body_font)
     if customizations.accent_color and not sub_dict.get("section_color"):
-        sub_dict["section_color"] = customizations.accent_color
+        sub_dict["section_color"] = resolve_color(customizations.accent_color)
     if customizations.default_text_align and not sub_dict.get("text_align"):
         sub_dict["text_align"] = customizations.default_text_align
 
@@ -168,25 +179,42 @@ def _build_css_vars(customizations: Customizations, manifest: TemplateManifest |
 
     body_font = customizations.body_font
     if body_font is None and manifest is not None:
-        body_font = manifest.global_styles.get("body_font")
+        body_font = manifest.global_styles.body_font
     if body_font:
-        vars_["--body-font"] = body_font
+        vars_["--body-font"] = FONT_TOKENS.get(body_font, body_font)
 
     heading_font = customizations.heading_font
     if heading_font is None and manifest is not None:
-        heading_font = manifest.global_styles.get("heading_font")
+        heading_font = manifest.global_styles.heading_font
     if heading_font:
-        vars_["--heading-font"] = heading_font
+        vars_["--heading-font"] = FONT_TOKENS.get(heading_font, heading_font)
     elif body_font:
-        vars_["--heading-font"] = body_font
+        vars_["--heading-font"] = FONT_TOKENS.get(body_font, body_font)
 
     accent = customizations.accent_color
     if accent is None and manifest is not None:
-        accent = manifest.global_styles.get("accent_color")
+        accent = manifest.global_styles.accent_color
     if accent:
-        vars_["--accent"] = accent
+        vars_["--accent"] = resolve_color(accent)
 
     return vars_
+
+
+def _resolve_zone_styles(zone: Zone) -> dict[str, str]:
+    """Map a manifest zone's token-based styles to concrete CSS values.
+
+    This is the only place raw CSS values are produced from the manifest's
+    token vocabulary. A future DOCX renderer would provide its own
+    mapping; the manifest stays renderer-independent.
+    """
+    css: dict[str, str] = {}
+    if zone.styles.width is not None:
+        css["width"] = WIDTH_TOKENS.get(zone.styles.width, zone.styles.width)
+    if zone.styles.background is not None:
+        css["background-color"] = resolve_color(zone.styles.background)
+    if zone.styles.padding is not None:
+        css["padding"] = PADDING_TOKENS.get(zone.styles.padding, zone.styles.padding)
+    return css
 
 
 def _resolve_zones(document: Document, manifest: TemplateManifest | None) -> list[ResolvedZone]:
@@ -209,11 +237,10 @@ def _resolve_zones(document: Document, manifest: TemplateManifest | None) -> lis
             )
         groups.setdefault(zone_id, []).append(section.id)
 
-    zones: list[ResolvedZone] = []
-    for zone in manifest.zones:
-        styles = zone.styles.model_dump(exclude_none=True, by_alias=True)
-        zones.append(ResolvedZone(id=zone.id, styles=styles, section_ids=groups.get(zone.id, [])))
-    return zones
+    return [
+        ResolvedZone(id=zone.id, styles=_resolve_zone_styles(zone), section_ids=groups.get(zone.id, []))
+        for zone in manifest.zones
+    ]
 
 
 def _drop_none_features(model: RenderModel, support: RendererSupport) -> RenderModel:
@@ -312,12 +339,12 @@ def resolve(
     css_vars = _build_css_vars(customizations_model, manifest_model)
     body_font = (
         css_vars.get("--body-font")
-        or (manifest_model.global_styles.get("body_font") if manifest_model else None)
+        or (manifest_model.global_styles.body_font if manifest_model else None)
         or "system-ui, sans-serif"
     )
     heading_font = (
         css_vars.get("--heading-font")
-        or (manifest_model.global_styles.get("heading_font") if manifest_model else None)
+        or (manifest_model.global_styles.heading_font if manifest_model else None)
         or body_font
     )
     link_styles = (
