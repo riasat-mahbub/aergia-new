@@ -6,8 +6,8 @@ describe("getFirstZoneId", () => {
   it("returns the first zone's id when zones exist", () => {
     const layout: LayoutConfig = {
       zones: [
-        { id: "main", styles: { width: "60%" } },
-        { id: "side", styles: { width: "40%" } },
+        { id: "main", styles: { width: "half" } },
+        { id: "side", styles: { width: "narrow" } },
       ],
       placement: {},
     };

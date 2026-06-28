@@ -53,6 +53,7 @@ EMITTED_MODELS: tuple[str, ...] = (
     "SectionInstance",
     "LayoutDefaults",
     "PolicyOverrides",
+    "GlobalStyles",
     "ZoneStyle",
     "Zone",
     "TemplateManifest",

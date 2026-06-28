@@ -94,6 +94,12 @@ export interface PolicyOverrides {
   "by_type"?: Record<string, SectionPolicy>;
 }
 
+export interface GlobalStyles {
+  "accent_color"?: (string) | null;
+  "body_font"?: (("sans-serif" | "serif" | "mono" | "display")) | null;
+  "heading_font"?: (("sans-serif" | "serif" | "mono" | "display")) | null;
+}
+
 export interface ZoneStyle {
   "background"?: (string) | null;
   "padding"?: (("none" | "tight" | "comfortable" | "loose")) | null;
