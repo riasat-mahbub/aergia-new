@@ -5,21 +5,16 @@ from sqlalchemy import select
 
 from app.models.cv import CV
 from app.models.template import Template
-from app.schemas.cv import CVCreate, CVUpdate
 from app.schema.models import Customizations
-from app.services.legacy_customizations import migrate_legacy_customizations
 
 
 def coerce_customizations(raw: dict | None) -> Customizations:
-    """Validate raw DB customizations to the canonical Customizations model.
-
-    Migrates the legacy v1 ``{colors, fonts, spacing, flags}`` shape on
-    read so legacy CVs continue to render correctly until each user
-    re-saves.
+    """Validate raw DB customizations against the canonical Customizations
+    model. The legacy ``{colors, fonts, spacing, flags}`` shape is no longer
+    written; old rows in the DB will surface as a validation error if read.
     """
     raw = raw or {}
-    migrated = migrate_legacy_customizations(raw)
-    return Customizations.model_validate(migrated)
+    return Customizations.model_validate(raw)
 
 
 class CVService:

@@ -109,10 +109,9 @@ async def create_template_from_manifest(
         id=template_id,
         name=manifest.name,
         description=manifest.description,
-        preview_image_url=None,
-        default_customizations=_default_customizations_from_manifest(manifest),
-        is_system=False,
         manifest=manifest.model_dump(),
+        default_customizations=None,
+        is_system=False,
         assets=asset_map,
         user_id=current_user.id,
     )
@@ -140,9 +139,10 @@ async def create_user_template(
     template = Template(
         id=template_id,
         name=data.name,
-        description=data.description or f"User template: {data.name}",
+        description=data.description or data.manifest.description or f"User template: {data.name}",
         preview_image_url=None,
-        default_customizations=data.default_customizations,
+        manifest=data.manifest.model_dump(),
+        default_customizations=None,
         is_system=False,
         user_id=current_user.id,
     )
@@ -150,7 +150,6 @@ async def create_user_template(
     await db.commit()
     await db.refresh(template)
     return TemplateDetail.model_validate(template)
-
 
 @router.delete("/user/{template_id}")
 async def delete_user_template(
@@ -168,25 +167,3 @@ async def delete_user_template(
     return None
 
 
-def _default_customizations_from_manifest(manifest: TemplateManifest) -> dict:
-    """Build a legacy-shape ``default_customizations`` from a v2 manifest.
-
-    The customize panel still reads the legacy shape; we keep the field
-    populated so user templates work without an extra migration."""
-
-    bucket: dict[str, dict[str, str]] = {"colors": {}, "fonts": {}, "spacing": {}, "flags": {}}
-    for key, value in manifest.global_styles.items():
-        if key in {"accent_color", "header", "heading", "text"}:
-            bucket["colors"].setdefault("accent", value)
-        elif key == "body_font":
-            bucket["fonts"]["body"] = value
-        elif key == "heading_font":
-            bucket["fonts"]["heading"] = value
-        elif key.endswith("_color"):
-            bucket["colors"][key.removesuffix("_color")] = value
-    bucket["spacing"]["section_gap"] = {
-        "compact": "16px",
-        "comfortable": "24px",
-        "minimal": "8px",
-    }.get(manifest.layout_defaults.spacing, "24px")
-    return bucket
