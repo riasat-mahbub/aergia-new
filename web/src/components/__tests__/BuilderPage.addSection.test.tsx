@@ -101,8 +101,8 @@ describe("BuilderPage.handleAddSection first-zone assignment", () => {
       <TestAddSectionHarness
         initialLayout={{
           zones: [
-            { id: "main", styles: { width: "60%" } },
-            { id: "side", styles: { width: "40%" } },
+            { id: "main", styles: { width: "half" } },
+            { id: "side", styles: { width: "narrow" } },
           ],
           placement: {},
         }}
@@ -134,12 +134,12 @@ describe("BuilderPage.handleAddSection first-zone assignment", () => {
       <TestAddSectionHarness
         initialLayout={{
           zones: [
-            { id: "main", styles: { width: "60%" } },
-            { id: "side", styles: { width: "40%" } },
+            { id: "main", styles: { width: "half" } },
+            { id: "side", styles: { width: "narrow" } },
           ],
           placement: {},
         }}
-      />,
+      />
     );
     act(() => {
       fireEvent.click(getByText("Add Skills (explicit)"));

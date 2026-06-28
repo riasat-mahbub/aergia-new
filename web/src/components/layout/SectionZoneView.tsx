@@ -22,7 +22,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Plus, Trash2, Pencil } from "lucide-react";
 import type { SectionInstance, Zone, LayoutConfig } from "../../lib/sections/types";
 import { SECTION_LABELS, getFirstZoneId } from "../../lib/sections/types";
-import { normalizeWidths, getWidthPercent } from "../../lib/sections/zones";
+import { normalizeWidths, getWidthPercent, percentToToken, widthTokenToCss, spacingTokenToCss } from "../../lib/sections/zones";
 import AddSectionModal from "../sections/AddSectionModal";
 import ZoneStyleEditor from "../customization/ZoneStyleEditor";
 import ZoneCreationModal from "../customization/ZoneCreationModal";
@@ -367,21 +367,22 @@ export default function SectionZoneView({
   };
 
   const handleCreateZone = (zone: Zone) => {
-    const requestedWidth = Math.max(15, parseInt(zone.styles?.width?.replace("%", "") || "50"));
+    const requestedWidth = Math.max(15, getWidthPercent(zone) || 50);
     let newZones: Zone[];
     if (zones.length === 0) {
-      newZones = [{ ...zone, styles: { ...zone.styles, width: "100%" } }];
+      newZones = [{ ...zone, styles: { ...zone.styles, width: "full" } }];
     } else {
       const available = 100 - requestedWidth;
       const totalExisting = zones.reduce((sum, z) => sum + getWidthPercent(z), 0);
       const updatedExisting = zones.map((z) => {
         const w = getWidthPercent(z);
         const scale = totalExisting > 0 ? available / totalExisting : 1;
-        return { ...z, styles: { ...z.styles, width: `${Math.round(w * scale)}%` } };
+        const nextPercent = Math.round(w * scale);
+        return { ...z, styles: { ...z.styles, width: percentToToken(nextPercent) } };
       });
       newZones = [
         ...updatedExisting,
-        { ...zone, styles: { ...zone.styles, width: `${requestedWidth}%` } },
+        { ...zone, styles: { ...zone.styles, width: percentToToken(requestedWidth) } },
       ];
     }
     onLayoutConfigChange({ ...layoutConfig, zones: normalizeWidths(newZones) });
@@ -576,10 +577,10 @@ function ZoneBlock({
   // chrome (border/header) stays visually stable. The styles are already in
   // kebab-case from the editor and pass through unchanged.
   const zoneStyles = zone.styles || {};
-  const widthPct = zoneStyles.width || "100%";
-  const wrapperStyle: React.CSSProperties = { width: widthPct };
-  if (zoneStyles["background-color"]) wrapperStyle.backgroundColor = zoneStyles["background-color"];
-  if (zoneStyles.padding) wrapperStyle.padding = zoneStyles.padding;
+  const widthToken = zoneStyles.width || "full";
+  const wrapperStyle: React.CSSProperties = { width: widthTokenToCss(widthToken) };
+  if (zoneStyles.background) wrapperStyle.backgroundColor = zoneStyles.background;
+  if (zoneStyles.padding) wrapperStyle.padding = spacingTokenToCss(zoneStyles.padding);
 
   const sectionIds = zoneSectionIds[zone.id] || [];
   const zoneInstances = sectionIds
@@ -591,7 +592,7 @@ function ZoneBlock({
   return (
     <div
       className="flex shrink-0 flex-col rounded border border-gray-100"
-      style={{ width: widthPct }}
+      style={{ width: widthTokenToCss(widthToken) }}
     >
       {/* Zone chrome header — kept outside the styled content area so backgrounds tint content, not chrome. */}
       <div className="flex items-center justify-between rounded-t border-b border-gray-100 bg-gray-50 px-2 py-1">
@@ -600,7 +601,7 @@ function ZoneBlock({
             {zone.label || zone.id}
           </span>
           <span className="rounded bg-gray-100 px-1 py-0.5 text-[10px] text-gray-500">
-            {widthPct}
+            {widthToken}
           </span>
         </div>
         <div className="flex items-center gap-0.5">

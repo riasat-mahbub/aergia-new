@@ -16,8 +16,8 @@ const baseInstances: SectionInstance[] = [
 
 const modernLayoutConfig: LayoutConfig = {
   zones: [
-    { id: "sidebar", styles: { width: "30%", padding: "24px" } },
-    { id: "main", styles: { padding: "24px" } },
+    { id: "sidebar", styles: { width: "narrow", padding: "comfortable" } },
+    { id: "main", styles: { padding: "comfortable" } },
   ],
   placement: {
     profile: "sidebar",

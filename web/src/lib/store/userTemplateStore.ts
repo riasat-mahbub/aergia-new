@@ -20,17 +20,39 @@ interface UserTemplateStore {
   templates: UserTemplate[];
   isLoading: boolean;
   error: string | null;
-  
+
   fetchUserTemplates: () => Promise<void>;
-  uploadTemplate: (name: string, layout_template: string, layout_config?: Record<string, unknown>) => Promise<void>;
-  createTemplate: (data: {
-    name: string;
-    layout_template: string;
-    layout_config?: Record<string, unknown>;
-    default_customizations?: Record<string, unknown>;
-  }) => Promise<void>;
+  /**
+   * Legacy HTML upload path. Kept for the template-selector modal's
+   * file-upload affordance: the user drops an .html file and we POST a
+   * minimal v2 manifest wrapping it.
+   */
+  uploadTemplate: (name: string, htmlContent: string) => Promise<void>;
+  createTemplate: (data: templatesApi.UserTemplateCreate) => Promise<void>;
   deleteTemplate: (id: string) => Promise<void>;
   getTemplateById: (id: string) => UserTemplate | undefined;
+}
+
+function htmlToManifest(htmlContent: string): Record<string, unknown> {
+  return {
+    manifest_version: 2,
+    name: "HTML upload",
+    zones: [{ id: "main", styles: { width: "100%" } }],
+    placement: {
+      profile: "main",
+      experience: "main",
+      education: "main",
+      skills: "main",
+      projects: "main",
+      languages: "main",
+      certifications: "main",
+      research: "main",
+    },
+    layout_defaults: { spacing: "comfortable" },
+    policy_overrides: { by_type: {} },
+    global_styles: {},
+    layout_template: htmlContent,
+  } as Record<string, unknown>;
 }
 
 const useUserTemplateStore = create<UserTemplateStore>()(
@@ -38,7 +60,7 @@ const useUserTemplateStore = create<UserTemplateStore>()(
     templates: [],
     isLoading: false,
     error: null,
-    
+
     fetchUserTemplates: async () => {
       set({ isLoading: true, error: null });
       try {
@@ -50,11 +72,12 @@ const useUserTemplateStore = create<UserTemplateStore>()(
         set({ isLoading: false });
       }
     },
-    
-    uploadTemplate: async (name: string, layout_template: string, layout_config?: Record<string, unknown>) => {
+
+    uploadTemplate: async (name: string, htmlContent: string) => {
       set({ isLoading: true, error: null });
       try {
-        const newTemplate = await templatesApi.uploadUserTemplate({ name, layout_template, layout_config });
+        const manifest = htmlToManifest(htmlContent);
+        const newTemplate = await templatesApi.uploadUserTemplate({ name, manifest });
         set({ templates: [...get().templates, newTemplate] });
       } catch (error) {
         set({ error: error instanceof Error ? error.message : "Failed to upload template" });
@@ -64,12 +87,7 @@ const useUserTemplateStore = create<UserTemplateStore>()(
       }
     },
 
-    createTemplate: async (data: {
-      name: string;
-      layout_template: string;
-      layout_config?: Record<string, unknown>;
-      default_customizations?: Record<string, unknown>;
-    }) => {
+    createTemplate: async (data) => {
       set({ isLoading: true, error: null });
       try {
         const newTemplate = await templatesApi.uploadUserTemplate(data);
@@ -81,7 +99,7 @@ const useUserTemplateStore = create<UserTemplateStore>()(
         set({ isLoading: false });
       }
     },
-    
+
     deleteTemplate: async (id: string) => {
       set({ isLoading: true, error: null });
       try {
@@ -94,7 +112,7 @@ const useUserTemplateStore = create<UserTemplateStore>()(
         set({ isLoading: false });
       }
     },
-    
+
     getTemplateById: (id: string) => {
       return get().templates.find(t => t.id === id);
     },
