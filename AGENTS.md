@@ -184,3 +184,44 @@ Trackers: `FEAT-01KZJ0PHASE2QA-phase-2-three-axis-customize-panel`,
 `TASK-01KZJ0PHASE2QA-phase-3-template-creator-and-global-customizations`.
 
 Full plan: `'/home/riasat/.omp/agent/sessions/-Projects-aergia/2026-08-07T01-11-42-848Z_019fd9c6-a800-7000-a163-80d19cc593e9/local/ast-pipeline-phase-2-plan-v5.md'`.
+
+## Phase 3 status (2026-08-07)
+
+Phase 3 rebuilt the template creator and added a global customizations
+editor. The new `TemplateWizard` is a four-step wizard (Basics / Layout /
+Global Styles / Review). It writes the v2 `TemplateManifest` shape and is
+gated by `templateManifestSchema` before save. The customize panel's
+"Document" disclosure writes per-CV `Customizations.accent_color / body_font /
+heading_font / spacing` — the only top-level customizations the user
+can author in this phase. Legacy `default_customizations` is no longer
+written.
+
+Full plan: see Phase 2 plan above.
+
+## Phase 4 status (2026-08-07)
+
+Phase 4 replaced the legacy `{colors, fonts, spacing, flags}` shape and
+the free-form CSS strings on `ZoneStyle` with a typed closed
+vocabulary. The manifest exposes a constrained design vocabulary:
+`WidthToken | SpacingToken | FontToken | ColorRef (hex literal or
+palette.<name>)`. Raw CSS strings are no longer accepted at the
+schema boundary. The resolver is the only place tokens become CSS
+values; it imports renderer-defined token and palette tables from
+`app/services/renderer/palette.py` and `tokens.py`. The legacy
+`default_customizations` column is no longer written by the seed or
+routes. The HTML renderer reads from `RenderModel` only; the manifest's
+tokens are resolved at the resolver boundary, not in the template HTML.
+A future DOCX renderer ships its own `tokens_docx.py` and reuses the
+same `palette.py` and the same resolver.
+
+Out of scope (deferred to later phases):
+- Drag-drop zone authoring (the user-facing CV editor's interactive
+  divider / zone-create / zone-resize surface).
+- Multi-template preview side-by-side (comparison UX, not editor richness).
+- Per-entry policy overrides (`SectionPolicy` is per-section-type; an
+  instance-level `policy` override would let two "Skills" sections
+  render differently).
+- DOCX renderer.
+- Asset upload UI.
+
+Full plan: `local://ast-pipeline-phase-4-plan-v2.md`.
