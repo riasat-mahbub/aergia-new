@@ -1,5 +1,6 @@
 import { motion } from "motion/react";
 import type { UserTemplate } from "../../lib/api/templates";
+import { widthTokenToCss } from "../../lib/sections/zones";
 
 interface Props {
   template: UserTemplate;
@@ -26,9 +27,9 @@ function renderThumbnail(manifest: any) {
           key={zone.id}
           className="h-full rounded"
           style={{
-            width: zone.styles?.width || defaultWidth,
-            backgroundColor: zone.styles?.["background-color"] || "transparent",
-            border: zone.styles?.["background-color"] ? "none" : "1px dashed #d1d5db",
+            width: zone.styles?.width ? widthTokenToCss(zone.styles?.width) : defaultWidth,
+            backgroundColor: zone.styles?.background || "transparent",
+            border: zone.styles?.background ? "none" : "1px dashed #d1d5db",
           }}
         />
       ))}

@@ -21,7 +21,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Plus, Trash2 } from "lucide-react";
 import type { Zone } from "../../lib/sections/types";
 import { SECTION_TYPES, SECTION_LABELS } from "../../lib/sections/types";
-import { normalizeWidths, percentToToken, getWidthPercent } from "../../lib/sections/zones";
+import { normalizeWidths, percentToToken, getWidthPercent, widthTokenToCss } from "../../lib/sections/zones";
 
 interface Props {
   zones: Zone[];
@@ -105,12 +105,12 @@ function ZoneCard({
     opacity: isDragging ? 0.5 : 1,
   };
 
-  const widthPct = zone.styles?.width || "100%";
+  const widthCss = widthTokenToCss(zone.styles?.width);
 
   return (
     <div
       ref={setNodeRef}
-      style={{ ...cardStyle, width: widthPct }}
+      style={{ ...cardStyle, width: widthCss }}
       className="flex shrink-0 flex-col rounded border border-gray-100 bg-gray-50"
     >
       <div className="flex items-center justify-between border-b border-gray-100 px-2 py-1">
@@ -129,7 +129,7 @@ function ZoneCard({
         </div>
         <div className="flex items-center gap-1">
           <span className="rounded bg-gray-100 px-1 py-0.5 text-[10px] text-gray-500">
-            {parseInt(widthPct)}%
+            {getWidthPercent(zone)}%
           </span>
           <button
             onClick={() => onDeleteZone(zone.id)}
@@ -146,7 +146,7 @@ function ZoneCard({
           type="range"
           min={15}
           max={85}
-          value={parseInt(widthPct)}
+          value={getWidthPercent(zone)}
           onChange={(e) => onUpdateZoneWidth(zone.id, parseInt(e.target.value))}
           className="w-full h-1"
         />
