@@ -228,16 +228,16 @@ describe("sectionInstanceSchema three-axis style", () => {
 describe("customizationsSchema canonical", () => {
   it("accepts canonical fields", () => {
     const r = customizationsSchema.safeParse({
-      accent_color: "#abc",
-      body_font: "Inter",
+      accent_color: "#aabbcc",
+      body_font: "sans-serif",
       spacing: "compact",
-      per_section: { p1: { layout: { font_family: "Inter" } } },
+      per_section: { p1: { layout: { font_family: "Inter, system-ui, sans-serif" } } },
     });
     expect(r.success).toBe(true);
   });
 
   it("rejects legacy top-level colors", () => {
-    const r = customizationsSchema.safeParse({ colors: { accent: "#abc" } });
+    const r = customizationsSchema.safeParse({ colors: { accent: "#aabbcc" } });
     expect(r.success).toBe(false);
   });
   it("rejects legacy top-level fonts", () => {

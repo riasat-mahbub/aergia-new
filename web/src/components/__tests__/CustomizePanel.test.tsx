@@ -422,6 +422,44 @@ describe("CustomizePanel", () => {
   });
 });
 
+describe("CustomizePanel — Document group", () => {
+  it("renders the Document disclosure with accent, fonts, and spacing controls", () => {
+    renderCustomizePanel();
+    const group = screen.getByTestId("document-group");
+    expect(group).toBeDefined();
+    fireEvent.click(screen.getByText("Document"));
+    expect(screen.getByTestId("document-accent-input")).toBeDefined();
+    expect(screen.getByTestId("document-body-font")).toBeDefined();
+    expect(screen.getByTestId("document-spacing-compact")).toBeDefined();
+    expect(screen.getByTestId("document-spacing-comfortable")).toBeDefined();
+    expect(screen.getByTestId("document-spacing-minimal")).toBeDefined();
+  });
+
+  it("changing the accent color hex calls onCustomizationsChange with the new value", () => {
+    const onCustomizationsChange = vi.fn();
+    renderCustomizePanel({ onCustomizationsChange });
+    fireEvent.click(screen.getByText("Document"));
+    fireEvent.change(screen.getByTestId("document-accent-input"), {
+      target: { value: "#abcdef" },
+    });
+    expect(onCustomizationsChange).toHaveBeenCalledWith(
+      expect.objectContaining({ accent_color: "#abcdef" }),
+    );
+  });
+
+  it("selecting a different body font calls onCustomizationsChange with the new value", () => {
+    const onCustomizationsChange = vi.fn();
+    renderCustomizePanel({ onCustomizationsChange });
+    fireEvent.click(screen.getByText("Document"));
+    fireEvent.change(screen.getByTestId("document-body-font"), {
+      target: { value: "Inter, system-ui, sans-serif" },
+    });
+    expect(onCustomizationsChange).toHaveBeenCalledWith(
+      expect.objectContaining({ body_font: "Inter, system-ui, sans-serif" }),
+    );
+  });
+});
+
 describe("T48: customization panel switches via tab bar in BuilderPage", () => {
   it("is hidden in Content tab by default", async () => {
     render(<BuilderPage />);

@@ -19,10 +19,8 @@ export interface UserTemplate {
 
 export interface UserTemplateCreate {
   name: string;
-  layout_template: string;
-  layout_config?: Record<string, unknown>;
-  section_schema?: Record<string, unknown>;
-  default_customizations?: Record<string, unknown>;
+  description?: string;
+  manifest: Record<string, any>;
 }
 
 export async function fetchSystemTemplates(): Promise<UserTemplate[]> {

@@ -21,7 +21,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Plus, Trash2 } from "lucide-react";
 import type { Zone } from "../../lib/sections/types";
 import { SECTION_TYPES, SECTION_LABELS } from "../../lib/sections/types";
-import { normalizeWidths } from "../../lib/sections/zones";
+import { normalizeWidths, percentToToken, getWidthPercent } from "../../lib/sections/zones";
 
 interface Props {
   zones: Zone[];
@@ -191,20 +191,18 @@ export default function TemplateLayoutView({ zones, placement, onChange }: Props
 
   const addZone = () => {
     const newId = `zone_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-    const existingWidth = zones.reduce(
-      (s, z) => s + parseInt((z.styles?.width || "100").replace("%", "")),
-      0,
-    );
-    const newWidth = Math.min(50, 100 - existingWidth);
+    const existingWidth = zones.reduce((s, z) => s + getWidthPercent(z), 0);
+    const newPercent = Math.min(50, 100 - existingWidth);
     const newZone: Zone = {
       id: newId,
       label: `Zone ${zones.length + 1}`,
-      styles: { width: `${newWidth}%`, padding: "24px" },
+      styles: { width: percentToToken(newPercent), padding: "comfortable" },
     };
     const updated = zones.map((z) => {
-      const w = parseInt((z.styles?.width || "100").replace("%", ""));
-      const scale = existingWidth > 0 ? (100 - newWidth) / existingWidth : 1;
-      return { ...z, styles: { ...z.styles, width: `${Math.round(w * scale)}%` } };
+      const w = getWidthPercent(z);
+      const scale = existingWidth > 0 ? (100 - newPercent) / existingWidth : 1;
+      const next = Math.round(w * scale);
+      return { ...z, styles: { ...z.styles, width: percentToToken(next) } };
     });
     onChange({ zones: [...updated, newZone], placement });
   };
@@ -219,10 +217,10 @@ export default function TemplateLayoutView({ zones, placement, onChange }: Props
     onChange({ zones: remaining, placement: newPlacement });
   };
 
-  const updateZoneWidth = (zoneId: string, newWidth: number) => {
+  const updateZoneWidth = (zoneId: string, newPercent: number) => {
     const updated = zones.map((z) => {
       if (z.id === zoneId) {
-        return { ...z, styles: { ...z.styles, width: `${newWidth}%` } };
+        return { ...z, styles: { ...z.styles, width: percentToToken(newPercent) } };
       }
       return z;
     });

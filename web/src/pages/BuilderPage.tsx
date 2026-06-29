@@ -293,6 +293,15 @@ export default function BuilderPage() {
     []
   );
 
+  const handleUpdateCustomizations = useCallback(
+    (next: Record<string, unknown>) => {
+      hasChangesRef.current = true;
+      setHasUnsavedChanges(true);
+      setLocalCustomizations(next);
+    },
+    [],
+  );
+
   const handleTemplateChange = useCallback(
     async (newTemplateId: string) => {
       if (!id) return;
@@ -461,6 +470,8 @@ export default function BuilderPage() {
                   layoutConfig={normalizedLayoutConfig || { zones: [], placement: {} }}
                   onLayoutConfigChange={handleLayoutConfigChange}
                   assets={templateManifest?.assets}
+                  customizations={localCustomizations}
+                  onCustomizationsChange={handleUpdateCustomizations}
                 />
               )}
             </div>

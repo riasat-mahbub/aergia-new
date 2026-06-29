@@ -19,16 +19,18 @@ import {
   type SupportField,
 } from "../../lib/store/supportStore";
 import { DATE_STYLE_OPTIONS } from "../../lib/sections/DateField";
-
 interface Props {
   /**
-   * Customizations are passed for API compatibility with BuilderPage but
-   * Phase 2 does NOT expose global customizations controls in the panel.
-   * The fields flow from manifest.global_styles only. The Phase 3 plan
-   * adds a Document <details> that writes this object.
+   * Per-CV ``Customizations`` overrides. The Document <details> group
+   * below writes these four canonical fields:
+   *   - accent_color
+   *   - body_font
+   *   - heading_font
+   *   - spacing
+   * Other keys (``per_section``, ``flags``) are preserved.
    */
-  customizations?: Record<string, any>;
-  onChange?: (customizations: Record<string, any>) => void;
+  customizations?: Record<string, unknown>;
+  onCustomizationsChange?: (customizations: Record<string, unknown>) => void;
   templateId: string;
   onTemplateChange: (templateId: string) => void;
   instances: SectionInstance[];
@@ -51,11 +53,11 @@ const FONT_OPTIONS = [
 // The panel surfaces enum names and maps them to CSS strings at write
 // time. Unmapped CSS values snap to the nearest enum bucket.
 const FONT_SIZE_CSS: Record<NonNullable<TextStyle["font_size"]>, string> = {
-  xs: "0.75rem",
-  small: "0.875rem",
-  normal: "1rem",
-  large: "1.125rem",
-  xl: "1.25rem",
+  xs: "11px",
+  small: "12px",
+  normal: "14px",
+  large: "16px",
+  xl: "18px",
 };
 
 const FONT_SIZE_TO_ENUM: Record<string, NonNullable<TextStyle["font_size"]>> = Object.fromEntries(
@@ -63,21 +65,16 @@ const FONT_SIZE_TO_ENUM: Record<string, NonNullable<TextStyle["font_size"]>> = O
 ) as Record<string, NonNullable<TextStyle["font_size"]>>;
 
 function normalizeFontSize(css: string | null | undefined): TextStyle["font_size"] {
-  if (!css) return null;
-  const direct = FONT_SIZE_TO_ENUM[css];
-  if (direct) return direct;
-  const rem = parseFloat(css);
-  if (isNaN(rem)) return null;
-  let bestKey: NonNullable<TextStyle["font_size"]> = "normal";
-  let bestDelta = Infinity;
-  for (const [k, v] of Object.entries(FONT_SIZE_CSS)) {
-    const d = Math.abs(parseFloat(v) - rem);
-    if (d < bestDelta) {
-      bestDelta = d;
-      bestKey = k as NonNullable<TextStyle["font_size"]>;
-    }
-  }
-  return bestKey;
+  if (!css) return undefined;
+  if (css in FONT_SIZE_TO_ENUM) return FONT_SIZE_TO_ENUM[css];
+  // Snap to nearest known enum value (rounded to 14px if in between).
+  const numeric = parseFloat(css);
+  if (Number.isNaN(numeric)) return undefined;
+  if (numeric <= 11) return "xs";
+  if (numeric <= 12) return "small";
+  if (numeric <= 14) return "normal";
+  if (numeric <= 16) return "large";
+  return "xl";
 }
 
 function FieldStyleRow({
@@ -89,56 +86,56 @@ function FieldStyleRow({
   initial: TextStyle;
   onChange: (next: TextStyle) => void;
 }) {
-  const fontSizeValue = (initial.font_size as string | null | undefined) ?? "";
-  const weightValue =
-    initial.bold === true ? "bold" : initial.bold === false ? "normal" : "";
-  const hasValue = fontSizeValue !== "" || weightValue !== "";
-
   return (
-    <div>
-      <div className="mb-1 flex items-center justify-between">
-        <span className="text-xs font-medium text-gray-700">{label}</span>
-        {hasValue && (
-          <button
-            type="button"
-            onClick={() => onChange({})}
-            className="text-[10px] text-blue-600 hover:underline"
+    <div className="rounded border border-gray-100 p-2">
+      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">{label}</p>
+      <div className="space-y-1">
+        <div className="flex items-center gap-2">
+          <label className="w-16 text-[11px] text-gray-600">Bold</label>
+          <input
+            type="checkbox"
+            checked={initial.bold === true}
+            onChange={(e) => onChange({ ...initial, bold: e.target.checked || undefined })}
+          />
+          <label className="w-16 text-[11px] text-gray-600">Italic</label>
+          <input
+            type="checkbox"
+            checked={initial.italic === true}
+            onChange={(e) => onChange({ ...initial, italic: e.target.checked || undefined })}
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="w-16 text-[11px] text-gray-600">Color</label>
+          <input
+            type="color"
+            value={initial.color ?? "#000000"}
+            onChange={(e) => onChange({ ...initial, color: e.target.value })}
+          />
+          <input
+            type="text"
+            value={initial.color ?? ""}
+            onChange={(e) => onChange({ ...initial, color: e.target.value || null })}
+            className="flex-1 rounded border px-2 py-1 text-xs"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="w-16 text-[11px] text-gray-600">Size</label>
+          <select
+            value={initial.font_size ?? ""}
+            onChange={(e) => {
+              const v = e.target.value;
+              onChange({ ...initial, font_size: v ? (v as NonNullable<TextStyle["font_size"]>) : undefined });
+            }}
+            className="rounded border px-2 py-1 text-xs"
           >
-            Reset
-          </button>
-        )}
-      </div>
-      <div className="grid grid-cols-2 gap-1">
-        <select
-          value={fontSizeValue}
-          onChange={(e) =>
-            onChange({ font_size: (e.target.value || null) as TextStyle["font_size"] })
-          }
-          className="rounded border px-1 py-1 text-xs"
-        >
-          <option value="">Size</option>
-          {(Object.entries(FONT_SIZE_CSS) as [NonNullable<TextStyle["font_size"]>, string][]).map(
-            ([k, v]) => (
+            <option value="">Default</option>
+            {Object.keys(FONT_SIZE_CSS).map((k) => (
               <option key={k} value={k}>
-                {k} ({v})
+                {k}
               </option>
-            ),
-          )}
-        </select>
-        <select
-          value={weightValue}
-          onChange={(e) => {
-            const v = e.target.value;
-            if (v === "") onChange({});
-            else if (v === "bold") onChange({ bold: true });
-            else if (v === "normal") onChange({ bold: false });
-          }}
-          className="rounded border px-1 py-1 text-xs"
-        >
-          <option value="">Weight</option>
-          <option value="normal">Normal</option>
-          <option value="bold">Bold</option>
-        </select>
+            ))}
+          </select>
+        </div>
       </div>
     </div>
   );
@@ -156,6 +153,8 @@ function BestEffortBadge({ field }: { field: SupportField }) {
   );
 }
 
+const SPACING_OPTIONS = ["compact", "comfortable", "minimal"] as const;
+
 export default function CustomizePanel({
   templateId,
   onTemplateChange,
@@ -164,6 +163,8 @@ export default function CustomizePanel({
   layoutConfig,
   onLayoutConfigChange,
   assets,
+  customizations,
+  onCustomizationsChange,
 }: Props) {
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
@@ -200,6 +201,26 @@ export default function CustomizePanel({
       policy: { ...(selectedStyle.policy ?? {}), ...partial },
     });
 
+  const writeCustomizations = (partial: Record<string, unknown>) => {
+    const next: Record<string, unknown> = { ...(customizations ?? {}), ...partial };
+    onCustomizationsChange?.(next);
+  };
+
+  const updateCustomizationsField = (key: string, value: unknown) => {
+    const next: Record<string, unknown> = { ...(customizations ?? {}) };
+    if (value === null || value === undefined) {
+      delete next[key];
+    } else {
+      next[key] = value;
+    }
+    onCustomizationsChange?.(next);
+  };
+
+  const customizationString = (key: string): string => {
+    const v = customizations?.[key];
+    return typeof v === "string" ? v : "";
+  };
+
   const supportLoadedButEmpty = supportLoaded && support === null && supportError !== null;
   const retry = () => useSupportStore.getState().retry();
 
@@ -232,6 +253,90 @@ export default function CustomizePanel({
           </button>
         </div>
       )}
+
+      <details className="mb-3 rounded border border-gray-100 p-2" data-testid="document-group">
+        <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+          Document
+        </summary>
+        <div className="mt-2 space-y-2">
+          <div className="flex items-center gap-2">
+            <label className="w-28 text-[11px] text-gray-600" htmlFor="doc-accent">
+              Accent color
+            </label>
+            <input
+              id="doc-accent"
+              type="color"
+              value={customizationString("accent_color") || "#000000"}
+              onChange={(e) => updateCustomizationsField("accent_color", e.target.value)}
+            />
+            <input
+              type="text"
+              value={customizationString("accent_color")}
+              onChange={(e) => updateCustomizationsField("accent_color", e.target.value || null)}
+              data-testid="document-accent-input"
+              className="flex-1 rounded border px-2 py-1 text-xs"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="w-28 text-[11px] text-gray-600" htmlFor="doc-body">
+              Body font
+            </label>
+            <select
+              id="doc-body"
+              value={customizationString("body_font")}
+              onChange={(e) => updateCustomizationsField("body_font", e.target.value || null)}
+              data-testid="document-body-font"
+              className="flex-1 rounded border px-2 py-1 text-xs"
+            >
+              <option value="">Default</option>
+              {FONT_OPTIONS.map((f) => (
+                <option key={f} value={f}>
+                  {f.split(",")[0]}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="w-28 text-[11px] text-gray-600" htmlFor="doc-heading">
+              Heading font
+            </label>
+            <select
+              id="doc-heading"
+              value={customizationString("heading_font")}
+              onChange={(e) => updateCustomizationsField("heading_font", e.target.value || null)}
+              className="flex-1 rounded border px-2 py-1 text-xs"
+            >
+              <option value="">Default</option>
+              {FONT_OPTIONS.map((f) => (
+                <option key={f} value={f}>
+                  {f.split(",")[0]}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <span className="mb-1 block text-[11px] text-gray-600">Spacing</span>
+            <div className="flex gap-3">
+              {SPACING_OPTIONS.map((s) => (
+                <label key={s} className="flex items-center gap-1 text-xs text-gray-700">
+                  <input
+                    type="radio"
+                    name="document-spacing"
+                    value={s}
+                    checked={customizationString("spacing") === s}
+                    onChange={() => writeCustomizations({ spacing: s })}
+                    data-testid={`document-spacing-${s}`}
+                  />
+                  {s}
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+      </details>
 
       <div className="mb-4">
         <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Template</h4>
