@@ -55,14 +55,14 @@ describe("BaseTemplateCard zone strip", () => {
   it("renders a flat strip even when zones carry legacy row data", () => {
     const template = makeTemplate({
       zones: [
-        { id: "a", row: 0, styles: { width: "30%" } },
-        { id: "b", row: 1, styles: { width: "70%" } },
+        { id: "a", row: 0, styles: { width: "narrow" } },
+        { id: "b", row: 1, styles: { width: "half" } },
       ],
     });
     const { container } = render(<BaseTemplateCard template={template} onSelect={() => {}} />);
     const rects = container.querySelectorAll("div.h-full.rounded");
     expect(rects).toHaveLength(2);
     expect((rects[0] as HTMLElement).style.width).toBe("30%");
-    expect((rects[1] as HTMLElement).style.width).toBe("70%");
+    expect((rects[1] as HTMLElement).style.width).toBe("50%");
   });
 });
