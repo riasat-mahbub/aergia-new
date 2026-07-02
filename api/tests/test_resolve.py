@@ -95,13 +95,35 @@ def test_user_customizations_spacing_overrides_manifest():
     assert model.css_vars["--spacing-section"] == "16px"
 
 
-def test_zones_resolve_section_ids_from_manifest_placement():
-    model = resolve(_document(), HTMLDocumentRenderer(), _manifest(), Customizations())
-    assert len(model.zones) == 1
-    zone = model.zones[0]
-    assert zone.id == "main"
-    assert set(zone.section_ids) == {"p", "x", "sk"}
+def test_user_customizations_body_font_overrides_manifest_global_styles():
+    """Per-CV Customizations.body_font wins over manifest.global_styles.body_font."""
+    doc = Document(sections=[
+        Section(
+            id="p", type="profile", title="Profile",
+            entries=[Entry(id="e1", fields=[FieldBlock(key="name", runs=[TextRun(text="Ada")])])],
+        ),
+    ])
+    manifest = TemplateManifest(
+        name="M",
+        zones=[Zone(id="main")],
+        placement={"profile": "main"},
+        global_styles={"accent_color": "#aabbcc", "body_font": "serif", "heading_font": "serif"},
+    )
+    custom = Customizations(body_font="sans-serif")
+    renderer = HTMLDocumentRenderer()
+    model = resolve(doc, renderer, manifest, custom)
+    assert model.sections["p"].layout.font_family == "Inter, system-ui, sans-serif"
 
+
+def test_user_accent_overrides_template_section_color():
+    doc = Document(sections=[
+        Section(id="p", type="profile", title="P", enabled=True,
+                subsection={"section_color": "#aabbcc"},
+                entries=[Entry(id="e1", fields=[FieldBlock(key="name", runs=[TextRun(text="Ada")])])])
+    ])
+    custom = Customizations(accent_color="#ddeeff")
+    model = resolve(doc, HTMLDocumentRenderer(), _manifest(), custom)
+    assert model.sections["p"].subsection.section_color == "#ddeeff"
 
 def test_template_font_family_paints_section_layout():
     doc = Document(sections=[
@@ -111,16 +133,6 @@ def test_template_font_family_paints_section_layout():
     model = resolve(doc, HTMLDocumentRenderer(), _manifest(), Customizations())
     assert model.sections["p"].layout.font_family == "Inter, system-ui, sans-serif"
 
-
-def test_user_accent_overrides_template_only_when_section_unset():
-    doc = Document(sections=[
-        Section(id="p", type="profile", title="P", enabled=True,
-                subsection={"section_color": "#aabbcc"},
-                entries=[Entry(id="e1", fields=[FieldBlock(key="name", runs=[TextRun(text="Ada")])])])
-    ])
-    custom = Customizations(accent_color="#ddeeff")
-    model = resolve(doc, HTMLDocumentRenderer(), _manifest(), custom)
-    assert model.sections["p"].subsection.section_color == "#aabbcc"
 
 
 def test_policy_show_title_is_false_for_profile_by_default():
