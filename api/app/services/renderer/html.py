@@ -234,8 +234,8 @@ def _render_zone(zone: ResolvedZone, sections_by_id) -> str:
     return f'<div class="zone" style="{style_str}">{"".join(panels)}</div>'
 
 
-def _render_document(model: RenderModel) -> str:
-    best_effort = "\n".join(_best_effort_comments(model, HTMLDocumentRenderer.support))
+def _render_document(model: RenderModel, support: RendererSupport) -> str:
+    best_effort = "\n".join(_best_effort_comments(model, support))
     css_vars_block = _render_css_vars(model)
     zones_html = "".join(_render_zone(zone, model.sections) for zone in model.zones)
     return f"""<!DOCTYPE html>
@@ -277,7 +277,7 @@ class HTMLDocumentRenderer(DocumentRenderer):
     support = RendererSupport()
 
     def render(self, model: RenderModel) -> str:
-        return _render_document(model)
+        return _render_document(model, self.support)
 
     def render_bytes(self, model: RenderModel) -> bytes:
         return self.render(model).encode("utf-8")

@@ -34,8 +34,9 @@ class PDFService:
         manifest = TemplateManifest.model_validate(manifest_dict)
         customizations = coerce_customizations(cv.customizations)
 
-        model = resolve(document, manifest, customizations, HTMLDocumentRenderer.support)
-        html = HTMLDocumentRenderer().render(model)
+        renderer = HTMLDocumentRenderer()
+        model = resolve(document, renderer, manifest, customizations)
+        html = renderer.render(model)
         return await html_to_pdf(html)
 
 
