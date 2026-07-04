@@ -41,9 +41,9 @@ def _discovered_models() -> list[type[BaseModel]]:
     """Return every BaseModel subclass defined in the schema module.
 
     Order is alphabetical by class name for stable diffs. HTTP wrapper
-    models (TemplateListItem, TemplateDetail, UserTemplateCreate, CVRow)
-    are emitted alongside the wire shapes — they describe the same
-    schema source of truth and are cheap to keep in lockstep.
+    models (TemplateListItem, TemplateDetail, CVRow) are emitted
+    alongside the wire shapes — they describe the same schema source of
+    truth and are cheap to keep in lockstep.
     """
     module = sys.modules[SOURCE_MODULE]
     return sorted(

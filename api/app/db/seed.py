@@ -167,7 +167,6 @@ async def seed_templates(db: AsyncSession) -> None:
                 id=data["id"],
                 name=data["name"],
                 description=data.get("description"),
-                is_system=True,
                 manifest=manifest.model_dump(),
             ))
         else:

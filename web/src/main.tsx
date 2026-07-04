@@ -9,7 +9,6 @@ import RegisterPage from "./pages/RegisterPage";
 import CvListPage from "./pages/CvListPage";
 import BuilderPage from "./pages/BuilderPage";
 import SettingsPage from "./pages/SettingsPage";
-import TemplateCreatorPage from "./pages/TemplateCreatorPage";
 import HomePage from "./pages/HomePage";
 import NotFoundPage from "./pages/NotFoundPage";
 import "./index.css";
@@ -26,7 +25,6 @@ const router = createBrowserRouter(
       >
         <Route index element={<CvListPage />} />
         <Route path="builder/:id" element={<BuilderPage />} />
-        <Route path="template-creator" element={<TemplateCreatorPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<NotFoundPage />} />

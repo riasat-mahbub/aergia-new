@@ -231,10 +231,11 @@ export const customizationsSchema = z
 
 export const sectionInstancesSchema = z.array(sectionInstanceSchema);
 
-// Template manifest schema (v2) — used by the TemplateWizard to gate Save.
-// Mirrors the backend's `TemplateManifest` shape but is intentionally a
-// partial check: the wizard only writes the keys it can edit, and any
-// extra fields the backend permits (e.g. `id`, `assets`) are not exposed.
+// Template manifest schema (v2) — closed vocabulary, validated at the
+// frontend boundary. Mirrors the backend's `TemplateManifest` shape; the
+// schema is intentionally partial because the editor only writes the keys
+// it can edit, and extra fields the backend permits (e.g. `id`, `assets`)
+// are not exposed in this surface.
 const zoneStyleSchema = z
   .object({
     width: widthTokenSchema.nullable().optional(),
