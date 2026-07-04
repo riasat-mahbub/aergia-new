@@ -123,8 +123,9 @@ async def preview_cv(
     except Exception:
         manifest_model = None
     customizations_model = coerce_customizations(cv.customizations)
-    model = resolve(document, manifest_model, customizations_model, HTMLDocumentRenderer.support)
-    html = HTMLDocumentRenderer().render(model)
+    renderer = HTMLDocumentRenderer()
+    model = resolve(document, renderer, manifest_model, customizations_model)
+    html = renderer.render(model)
     # Preview is rendered inside a sandboxed iframe. Without stripping hrefs,
     # clicking a project / credential / site link navigates the iframe away
     # from the CV preview. Strip hrefs so the user sees the link text but

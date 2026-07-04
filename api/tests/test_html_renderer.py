@@ -38,7 +38,7 @@ def _model():
             entries=[Entry(id="e1", fields=[FieldBlock(key="name", runs=[TextRun(text="Ada<script>")])])],
         )
     ])
-    return resolve(doc, manifest, Customizations(), HTMLDocumentRenderer.support)
+    return resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
 
 
 def test_renders_doctype_and_body():
@@ -78,7 +78,7 @@ def test_section_shows_h2_when_show_title_is_true():
             entries=[Entry(id="e1", fields=[FieldBlock(key="position", runs=[TextRun(text="Dev")])])],
         )
     ])
-    model = resolve(doc, manifest, Customizations(), HTMLDocumentRenderer.support)
+    model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
     html = HTMLDocumentRenderer().render(model)
     assert "<h2" in html
     assert "Experience" in html
@@ -105,7 +105,7 @@ def test_html_renderer_uses_resolved_css_not_manifest_css():
         Section(id="p", type="profile", title="P", enabled=True,
                 entries=[Entry(id="e1", fields=[FieldBlock(key="name", runs=[TextRun(text="Ada")])])])
     ])
-    model = resolve(doc, manifest, Customizations(), HTMLDocumentRenderer.support)
+    model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
     html = HTMLDocumentRenderer().render(model)
     # The resolved zone width is 30%, not the literal "narrow" token.
     assert "30%" in html

@@ -1,4 +1,4 @@
-"""Resolver tests — Document + manifest + customizations + support → RenderModel."""
+"""Resolver tests — Document + manifest + customizations + renderer → RenderModel."""
 
 from __future__ import annotations
 
@@ -18,8 +18,20 @@ from app.schema.models import (
 )
 
 from app.services.renderer import build_document, resolve
+from app.services.renderer.base import DocumentRenderer
 from app.services.renderer.html import HTMLDocumentRenderer
 from app.services.renderer.support import RendererSupport, SupportLevel
+
+
+class FakeRenderer(DocumentRenderer):
+    """Test double — proves resolve() consumes the protocol, not a concrete class."""
+
+    support = RendererSupport()
+
+    def render(self, model):
+        return f"<fake>{len(model.sections)}</fake>"
+
+
 def _manifest(spacing="comfortable"):
     return TemplateManifest(
         name="M",
@@ -49,8 +61,15 @@ def _document():
     ])
 
 
+def test_resolve_accepts_fake_renderer():
+    """The resolver consumes DocumentRenderer; any conforming object works."""
+    model = resolve(_document(), FakeRenderer(), _manifest(), Customizations())
+    assert set(model.sections.keys()) == {"p", "x", "sk"}
+    assert model.zones
+
+
 def test_css_vars_include_spacing_section_body_font_heading_font_accent():
-    model = resolve(_document(), _manifest(), Customizations(), HTMLDocumentRenderer.support)
+    model = resolve(_document(), HTMLDocumentRenderer(), _manifest(), Customizations())
     assert model.css_vars["--spacing-section"] == "24px"
     assert model.css_vars["--spacing-subsection"] == "16px"
     assert model.css_vars["--body-font"] == "Inter, system-ui, sans-serif"
@@ -59,25 +78,25 @@ def test_css_vars_include_spacing_section_body_font_heading_font_accent():
 
 
 def test_compact_spacing_maps_to_smaller_vars():
-    model = resolve(_document(), _manifest("compact"), Customizations(), HTMLDocumentRenderer.support)
+    model = resolve(_document(), HTMLDocumentRenderer(), _manifest("compact"), Customizations())
     assert model.css_vars["--spacing-section"] == "16px"
     assert model.css_vars["--spacing-subsection"] == "12px"
 
 
 def test_minimal_spacing_maps_to_smallest_vars():
-    model = resolve(_document(), _manifest("minimal"), Customizations(), HTMLDocumentRenderer.support)
+    model = resolve(_document(), HTMLDocumentRenderer(), _manifest("minimal"), Customizations())
     assert model.css_vars["--spacing-section"] == "8px"
     assert model.css_vars["--spacing-subsection"] == "8px"
 
 
 def test_user_customizations_spacing_overrides_manifest():
     custom = Customizations(spacing="compact")
-    model = resolve(_document(), _manifest(), custom, HTMLDocumentRenderer.support)
+    model = resolve(_document(), HTMLDocumentRenderer(), _manifest(), custom)
     assert model.css_vars["--spacing-section"] == "16px"
 
 
 def test_zones_resolve_section_ids_from_manifest_placement():
-    model = resolve(_document(), _manifest(), Customizations(), HTMLDocumentRenderer.support)
+    model = resolve(_document(), HTMLDocumentRenderer(), _manifest(), Customizations())
     assert len(model.zones) == 1
     zone = model.zones[0]
     assert zone.id == "main"
@@ -89,7 +108,7 @@ def test_template_font_family_paints_section_layout():
         Section(id="p", type="profile", title="P", enabled=True,
                 entries=[Entry(id="e1", fields=[FieldBlock(key="name", runs=[TextRun(text="Ada")])])])
     ])
-    model = resolve(doc, _manifest(), Customizations(), HTMLDocumentRenderer.support)
+    model = resolve(doc, HTMLDocumentRenderer(), _manifest(), Customizations())
     assert model.sections["p"].layout.font_family == "Inter, system-ui, sans-serif"
 
 
@@ -100,7 +119,7 @@ def test_user_accent_overrides_template_only_when_section_unset():
                 entries=[Entry(id="e1", fields=[FieldBlock(key="name", runs=[TextRun(text="Ada")])])])
     ])
     custom = Customizations(accent_color="#ddeeff")
-    model = resolve(doc, _manifest(), custom, HTMLDocumentRenderer.support)
+    model = resolve(doc, HTMLDocumentRenderer(), _manifest(), custom)
     assert model.sections["p"].subsection.section_color == "#aabbcc"
 
 
@@ -109,7 +128,7 @@ def test_policy_show_title_is_false_for_profile_by_default():
         Section(id="p", type="profile", title="P", enabled=True,
                 entries=[Entry(id="e1", fields=[FieldBlock(key="name", runs=[TextRun(text="Ada")])])])
     ])
-    model = resolve(doc, _manifest(), Customizations(), HTMLDocumentRenderer.support)
+    model = resolve(doc, HTMLDocumentRenderer(), _manifest(), Customizations())
     assert model.sections["p"].policy.show_title is False
 
 
@@ -118,7 +137,7 @@ def test_policy_show_title_is_true_for_experience_by_default():
         Section(id="x", type="experience", title="X", enabled=True,
                 entries=[Entry(id="e1", fields=[FieldBlock(key="position", runs=[TextRun(text="D")])])])
     ])
-    model = resolve(doc, _manifest(), Customizations(), HTMLDocumentRenderer.support)
+    model = resolve(doc, HTMLDocumentRenderer(), _manifest(), Customizations())
     assert model.sections["x"].policy.show_title is True
 
 
@@ -127,7 +146,7 @@ def test_policy_skill_variant_defaults_to_block_for_skills():
         Section(id="s", type="skills", title="S", enabled=True,
                 entries=[Entry(id="e1", fields=[FieldBlock(key="category", runs=[TextRun(text="X")])])])
     ])
-    model = resolve(doc, _manifest(), Customizations(), HTMLDocumentRenderer.support)
+    model = resolve(doc, HTMLDocumentRenderer(), _manifest(), Customizations())
     assert model.sections["s"].policy.skill_variant == "block"
 
 
@@ -135,7 +154,7 @@ def test_manifest_v1_raises_manifest_version_error():
     import pytest
 
     with pytest.raises(Exception) as exc:
-        resolve(_document(), {"version": 1, "name": "Old"}, Customizations(), HTMLDocumentRenderer.support)
+        resolve(_document(), HTMLDocumentRenderer(), {"version": 1, "name": "Old"}, Customizations())
     assert "version" in str(exc.value).lower() or "manifest" in str(exc.value).lower()
 
 
@@ -146,7 +165,7 @@ def test_per_section_style_overlay_paints_onto_section():
                 entries=[Entry(id="e1", fields=[FieldBlock(key="name", runs=[TextRun(text="Ada")])])])
     ])
     custom = Customizations(per_section={"p": {"subsection": {"text_align": "right"}}})
-    model = resolve(doc, _manifest(), custom, HTMLDocumentRenderer.support)
+    model = resolve(doc, HTMLDocumentRenderer(), _manifest(), custom)
     assert model.sections["p"].subsection.text_align == "right"
 
 
@@ -157,7 +176,9 @@ def test_support_with_skills_inline_none_forces_block_variant():
                 policy={"skill_variant": "inline"},
                 entries=[Entry(id="e1", fields=[FieldBlock(key="category", runs=[TextRun(text="X")])])])
     ])
-    model = resolve(doc, _manifest(), Customizations(), support)
+    renderer = FakeRenderer()
+    renderer.support = support
+    model = resolve(doc, renderer, _manifest(), Customizations())
     assert model.sections["s"].policy.skill_variant == "block"
 
 
@@ -176,7 +197,9 @@ def test_support_none_zeroes_layout_hints():
                 ),
                 entries=[Entry(id="e1", fields=[FieldBlock(key="name", runs=[TextRun(text="")])])])
     ])
-    sec = resolve(doc, None, Customizations(), support).sections["p"]
+    renderer = FakeRenderer()
+    renderer.support = support
+    sec = resolve(doc, renderer, None, Customizations()).sections["p"]
     assert sec.layout.break_before is False
     assert sec.layout.keep_together is False
     assert sec.layout.heading_keeps_with_first is False
@@ -188,7 +211,7 @@ def test_support_full_preserves_layout_hints():
                 layout=LayoutHints(break_before=True),
                 entries=[Entry(id="e1", fields=[FieldBlock(key="name", runs=[TextRun(text="")])])])
     ])
-    sec = resolve(doc, None, Customizations(), RendererSupport()).sections["p"]
+    sec = resolve(doc, FakeRenderer(), None, Customizations()).sections["p"]
     assert sec.layout.break_before is True
 
 

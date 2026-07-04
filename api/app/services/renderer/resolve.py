@@ -36,6 +36,7 @@ from app.schema.models import (
     TemplateManifest,
     TextStyle,
 )
+from app.services.renderer.base import DocumentRenderer
 from app.services.renderer.support import RendererSupport, SupportLevel
 
 
@@ -293,15 +294,13 @@ def _check_manifest(manifest: TemplateManifest | dict | None) -> TemplateManifes
 
 def resolve(
     document: Document,
+    renderer: DocumentRenderer,
     manifest: TemplateManifest | dict | None = None,
     customizations: Customizations | dict | None = None,
-    support: RendererSupport | None = None,
 ) -> RenderModel:
     """Resolve a :class:`Document` into a fully resolved :class:`RenderModel`."""
 
-    if support is None:
-        from app.services.renderer.html import HTMLDocumentRenderer
-        support = HTMLDocumentRenderer.support
+    support = renderer.support
 
     manifest_model = _check_manifest(manifest)
 

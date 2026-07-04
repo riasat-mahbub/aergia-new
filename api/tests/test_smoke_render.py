@@ -87,7 +87,7 @@ def _manifest():
 @pytest.mark.asyncio
 async def test_full_pipeline_emits_a_real_pdf():
     document = build_document(_cv(), _manifest())
-    model = resolve(document, _manifest(), Customizations(), HTMLDocumentRenderer.support)
+    model = resolve(document, HTMLDocumentRenderer(), _manifest(), Customizations())
     html = HTMLDocumentRenderer().render(model)
     pdf_bytes = await html_to_pdf(html)
     assert pdf_bytes[:4] == b"%PDF"

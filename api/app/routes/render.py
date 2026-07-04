@@ -107,9 +107,9 @@ async def render_html(
     """Render to HTML using the new pipeline."""
 
     try:
-        document, manifest, customizations = _build_document_from_request(request)
-        model = resolve(document, manifest, customizations, HTMLDocumentRenderer.support)
-        html = HTMLDocumentRenderer().render(model)
+        renderer = HTMLDocumentRenderer()
+        model = resolve(document, renderer, manifest, customizations)
+        html = renderer.render(model)
         if request.preview:
             html = strip_anchor_hrefs(html)
     except ManifestVersionError as e:
@@ -127,9 +127,9 @@ async def render_pdf(
     """Render to PDF and return it base64-encoded."""
 
     try:
-        document, manifest, customizations = _build_document_from_request(request)
-        model = resolve(document, manifest, customizations, HTMLDocumentRenderer.support)
-        html = HTMLDocumentRenderer().render(model)
+        renderer = HTMLDocumentRenderer()
+        model = resolve(document, renderer, manifest, customizations)
+        html = renderer.render(model)
         pdf_bytes = await html_to_pdf(html)
     except ManifestVersionError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
