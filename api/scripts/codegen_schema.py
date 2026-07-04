@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import importlib
+import inspect
 import sys
 from pathlib import Path
 from typing import Any
@@ -36,39 +37,31 @@ SOURCE_PATH = REPO_ROOT / "api" / "app" / "schema" / "models.py"
 OUTPUT_PATH = REPO_ROOT / "web" / "src" / "generated" / "schema.ts"
 
 
-# Top-level models to emit (excludes HTTP wrappers like TemplateListItem
-# — the frontend doesn't import them, and including them risks drift).
-EMITTED_MODELS: tuple[str, ...] = (
-    "TextStyle",
-    "SubsectionStyle",
-    "LayoutHints",
-    "SectionPolicy",
-    "DateStyle",
-    "TextRun",
-    "FieldBlock",
-    "Entry",
-    "Section",
-    "Document",
-    "SectionInstanceStyle",
-    "SectionInstance",
-    "LayoutDefaults",
-    "PolicyOverrides",
-    "GlobalStyles",
-    "ZoneStyle",
-    "Zone",
-    "TemplateManifest",
-    "ResolvedZone",
-    "RenderModel",
-    "Customizations",
-)
+def _discovered_models() -> list[type[BaseModel]]:
+    """Return every BaseModel subclass defined in the schema module.
+
+    Order is alphabetical by class name for stable diffs. HTTP wrapper
+    models (TemplateListItem, TemplateDetail, UserTemplateCreate, CVRow)
+    are emitted alongside the wire shapes — they describe the same
+    schema source of truth and are cheap to keep in lockstep.
+    """
+    module = sys.modules[SOURCE_MODULE]
+    return sorted(
+        (
+            cls
+            for _, cls in inspect.getmembers(module)
+            if inspect.isclass(cls) and issubclass(cls, BaseModel) and cls is not BaseModel
+        ),
+        key=lambda cls: cls.__name__,
+    )
 
 
-def _load_models() -> dict[str, type[BaseModel]]:
-    """Import the schema module and return the named classes."""
+def _load_models() -> list[type[BaseModel]]:
+    """Import the schema module and return every discovered class."""
 
     sys.path.insert(0, str(REPO_ROOT / "api"))
-    module = importlib.import_module(SOURCE_MODULE)
-    return {name: getattr(module, name) for name in EMITTED_MODELS}
+    importlib.import_module(SOURCE_MODULE)
+    return _discovered_models()
 
 
 def _ref_name(schema: dict[str, Any]) -> str:
@@ -147,17 +140,17 @@ def _interface_for(name: str, model: type[BaseModel], refs: dict[str, str]) -> s
     return "\n".join(lines)
 
 
-def _ref_map() -> dict[str, str]:
-    """Build a mapping from JSON-Schema $ref name to our TS interface name."""
+def _ref_map(models: list[type[BaseModel]]) -> dict[str, str]:
+    """Build a mapping from JSON-Schema $ref names to TS interface names."""
 
-    return {name: name for name in EMITTED_MODELS}
+    return {model.__name__: model.__name__ for model in models}
 
 
 def generate() -> str:
     """Return the generated TS source as a string."""
 
     models = _load_models()
-    refs = _ref_map()
+    refs = _ref_map(models)
 
     src_bytes = SOURCE_PATH.read_bytes()
     digest = hashlib.sha256(src_bytes).hexdigest()[:16]
@@ -167,8 +160,8 @@ def generate() -> str:
         f"// Source: api/app/schema/models.py (sha256:{digest})",
         "",
     ]
-    for name in EMITTED_MODELS:
-        blocks.append(_interface_for(name, models[name], refs))
+    for model in models:
+        blocks.append(_interface_for(model.__name__, model, refs))
         blocks.append("")
     return "\n".join(blocks)
 
