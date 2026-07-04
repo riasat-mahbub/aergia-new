@@ -156,9 +156,9 @@ def _apply_user_customizations(section: Section, customizations: Customizations)
     layout_dict = section.layout.model_dump(exclude_none=True) if section.layout else {}
     sub_dict = section.subsection.model_dump(exclude_none=True) if section.subsection else {}
 
-    if customizations.body_font and not layout_dict.get("font_family"):
+    if customizations.body_font:
         layout_dict["font_family"] = FONT_TOKENS.get(customizations.body_font, customizations.body_font)
-    if customizations.accent_color and not sub_dict.get("section_color"):
+    if customizations.accent_color:
         sub_dict["section_color"] = resolve_color(customizations.accent_color)
     if customizations.default_text_align and not sub_dict.get("text_align"):
         sub_dict["text_align"] = customizations.default_text_align
