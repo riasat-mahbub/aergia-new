@@ -97,7 +97,7 @@ The new system (Phase 6) is HTML-first:
   - `TextStyle` — inline per-field appearance (bold, italic, color, font-size, link).
   - `SubsectionStyle` — block-level appearance per section/entry (text_align, spacing, background_color).
   - `LayoutHints` — page flow and structural intent (break_before, keep_together, orphans, widows, font_family, date_style).
-- **SectionPolicy is document semantics, not HTML-oriented.** The HTML renderer implements policy with HTML constructs; a future DOCX renderer would implement the same policy with DOCX constructs. The policy stays semantic.
+  - `SectionPolicy` is document semantics. The HTML renderer implements policy with HTML constructs.
 
 ## Renderer capabilities
 
@@ -208,20 +208,13 @@ palette.<name>)`. Raw CSS strings are no longer accepted at the
 schema boundary. The resolver is the only place tokens become CSS
 values; it imports renderer-defined token and palette tables from
 `app/services/renderer/palette.py` and `tokens.py`. The legacy
-`default_customizations` column is no longer written by the seed or
-routes. The HTML renderer reads from `RenderModel` only; the manifest's
 tokens are resolved at the resolver boundary, not in the template HTML.
-A future DOCX renderer ships its own `tokens_docx.py` and reuses the
-same `palette.py` and the same resolver.
 
 Out of scope (deferred to later phases):
 - Drag-drop zone authoring (the user-facing CV editor's interactive
   divider / zone-create / zone-resize surface).
-- Multi-template preview side-by-side (comparison UX, not editor richness).
 - Per-entry policy overrides (`SectionPolicy` is per-section-type; an
   instance-level `policy` override would let two "Skills" sections
   render differently).
-- DOCX renderer.
-- Asset upload UI.
 
 Full plan: `local://ast-pipeline-phase-4-plan-v2.md`.

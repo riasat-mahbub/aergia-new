@@ -41,7 +41,6 @@ from .models import (
     TemplateManifest,
     TextRun,
     TextStyle,
-    UserTemplateCreate,
     Zone,
     ZoneStyle,
 )
@@ -68,7 +67,6 @@ __all__ = [
     "TemplateManifest",
     "TextRun",
     "TextStyle",
-    "UserTemplateCreate",
     "Zone",
     "ZoneStyle",
 ]

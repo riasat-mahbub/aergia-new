@@ -23,4 +23,3 @@ class User(Base):
     CASCADE_ALL = "all, delete-orphan"
 
     cvs = relationship("CV", back_populates="user", cascade=CASCADE_ALL)
-    templates = relationship("Template", back_populates="user", cascade=CASCADE_ALL)

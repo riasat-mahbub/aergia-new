@@ -427,13 +427,6 @@ class TemplateListItem(BaseModel):
     name: str
     description: str | None
     preview_image_url: str | None
-    is_user_template: bool = False
-
-    @classmethod
-    def model_validate(cls, obj, *args, **kwargs):  # type: ignore[override]
-        data = super().model_validate(obj, *args, **kwargs)
-        data.is_user_template = not getattr(obj, "is_system", False)
-        return data
 
 
 class TemplateDetail(BaseModel):
@@ -451,18 +444,3 @@ class TemplateDetail(BaseModel):
     description: str | None
     preview_image_url: str | None
     manifest: dict | None = None
-    is_user_template: bool = False
-
-    @classmethod
-    def model_validate(cls, obj, *args, **kwargs):  # type: ignore[override]
-        data = super().model_validate(obj, *args, **kwargs)
-        data.is_user_template = not getattr(obj, "is_system", False)
-        return data
-
-
-class UserTemplateCreate(BaseModel):
-    """Create-a-template request body."""
-
-    name: str
-    description: str | None = None
-    manifest: TemplateManifest

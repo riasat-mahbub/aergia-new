@@ -8,7 +8,6 @@ interface TemplateOption {
   id: string;
   name: string;
   description: string | null;
-  is_user_template?: boolean;
 }
 
 interface Props {

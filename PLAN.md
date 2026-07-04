@@ -10,10 +10,9 @@
 
 Replace the current dual-pipeline template system (hard-coded system templates + HTML-only user templates) with a **single manifest-driven pipeline** where:
 
-1. **Every template** (system or user) is defined by the same 4 artefacts: `manifest.json`, `template.html`, `styles.css`, optional assets.
 2. **The visual editor is the source of truth** — it writes the manifest; HTML/CSS are *derived* artefacts.
-3. **One renderer** (IR → HTML / PDF) serves both preview and export, extensible to LaTeX/DOCX later.
-4. **System templates** are merely seeded manifest rows with `is_system=true` (delete-protected, grouped in UI).
+3. **One renderer** (IR → HTML / PDF) serves both preview and export.
+4. **System templates** are merely seeded manifest rows.
 
 ---
 
@@ -210,10 +209,8 @@ class RendererBackend(ABC):
     def finalize(self, out): ...    # optional hook
 ```
 
-Adding LaTeX/DOCX later = new subclass + `register_backend()`.
 
 ### 3.4 Tasks
-
 | # | Task | Status |
 |---|------|--------|
 | 3.1 | Create `renderer/` package skeleton | ✅ |
@@ -253,11 +250,7 @@ Adding LaTeX/DOCX later = new subclass + `register_backend()`.
 |------|--------------|------------------------|
 | **1 – Layout** | `ZoneLayoutBar` (rows, zones, drag-resize, placement) | `zones`, `placement`, `rowHeights` |
 | **2 – Global Styles** | `StyleEditor` **built from** `globalStyleSchema` (user can add/remove variables, pick type) | `globalStyleSchema`, `default_customizations` |
-| **3 – Assets (optional)** | Drag-drop zone for fonts / images → stored in `assets` map | `assets` |
-| **4 – Review** | Read-only generated HTML preview (calls `layoutConfigToHTML` + injects current `default_customizations`) | — |
-
-**Save** → `POST /api/v1/templates` multipart (manifest + generated HTML/CSS + assets). System templates stay read-only (`is_system` only used for UI grouping & delete protection).
-
+| **3 – Review** | Read-only generated HTML preview (calls `layoutConfigToHTML` + injects current `default_customizations`) | — |
 ### 5.2 Picker UI (`TemplateCreatorPage`)
 
 ```
@@ -292,7 +285,6 @@ Adding LaTeX/DOCX later = new subclass + `register_backend()`.
 ## Future / Out of Scope (Do Not Append as Phases)
 
 - Desktop Tauri 2.x wrapper (`desktop/`)
-- LaTeX / DOCX renderer back-ends (interface ready in Phase 3)
 - Per-section style override tests (T11.2–T11.5)
 - Migration of existing user templates (clean DB, re-upload)
 
@@ -420,7 +412,7 @@ Remove:
   - `TextStyle` — inline per-field appearance (bold, italic, underline, strike, color, link, font_size).
   - `SubsectionStyle` — block-level appearance (text_align, spacing_before, spacing_after, background_color).
   - `LayoutHints` — page flow + structural (break_before, keep_together, heading_keeps_with_first, orphans, widows, font_family, date_style).
-- **SectionPolicy is document semantics.** The HTML renderer implements it with HTML constructs; a future DOCX renderer implements it with DOCX constructs.
+- **SectionPolicy is document semantics.** The HTML renderer implements it with HTML constructs.
 
 ### Pipeline
 
@@ -485,8 +477,7 @@ The new branch merges into `master` via a regular merge commit (not squash). The
 | 7.6 | Phase 1: build_ast() + section builders | 🔲 |
 | 7.7 | Phase 1: Resolver + RenderModel + design tokens | 🔲 |
 | 7.8 | Phase 1: HTMLDocumentRenderer class | 🔲 |
-| 7.9 | Phase 1: section renderers (one per type) | 🔲 |
-| 7.10 | Phase 1: routes (POST /render/ast, POST /render/html, POST /render/{target}) | 🔲 |
+| 7.10 | Phase 1: routes (POST /render/ast, POST /render/html) | 🔲 |
 | 7.11 | Phase 1: services (cv.py, pdf.py) | 🔲 |
 | 7.12 | Phase 1: seed templates (minimal) | 🔲 |
 | 7.13 | Phase 1: tests | 🔲 |

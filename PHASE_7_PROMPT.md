@@ -32,7 +32,7 @@ The implementation follows a `AST → Resolver → Renderer` pipeline. The rende
 
 **The renderer is the source of truth for its capabilities.** `HTMLDocumentRenderer.support` returns a `RendererSupport` with per-field `SupportLevel` (FULL, BEST_EFFORT, NONE). The customize panel reads the renderer's support. The export endpoint reads the renderer's support. Capabilities are not a config dict; they're a property of the renderer.
 
-**SectionPolicy is document semantics.** The HTML renderer implements it with HTML constructs; a future DOCX renderer implements it with DOCX constructs. The policy stays semantic.
+**SectionPolicy is document semantics.** The HTML renderer implements it with HTML constructs. The policy stays semantic.
 
 **The editor is schematic.** The React tree visualizes the document structure (sections, fields, brackets). It does not promise to show the exact spacing, page breaks, or font fallbacks the PDF will produce. Visual cues (e.g., "page break" markers) indicate structural intent without literal page boundaries.
 
@@ -67,7 +67,6 @@ The Pydantic schema, the codegen, the Resolver, the renderer, the routes, the se
 11. Add routes in `api/app/routes/render.py`:
     - `POST /render/ast` — returns the AST as JSON.
     - `POST /render/html` — returns rendered HTML.
-    - `POST /render/{target}` — returns the rendered output for the target format (HTML, PDF, future DOCX).
 12. Update `api/app/services/cv.py` and `api/app/services/pdf.py` to use the new schema and renderer.
 13. Update `api/app/db/seed.py` with three minimal templates (Modern, Classic, Minimal) using `layout_defaults: { spacing: ... }` and `policy_overrides: {}`.
 14. Add Phase 1 tests.
@@ -117,7 +116,7 @@ Delete the old code, merge into master.
 
 1. **HTML-first.** The renderer is HTML. PDF is HTML rendered by Chromium. The React tree is the editor surface, not a renderer.
 2. **Three orthogonal axes.** `TextStyle` (per-field inline), `SubsectionStyle` (block-level), `LayoutHints` (page flow + structural). No fourth axis.
-3. **SectionPolicy is document semantics.** The HTML renderer implements it with HTML constructs; a future DOCX renderer implements it with DOCX constructs. The policy stays semantic.
+3. **SectionPolicy is document semantics.** The HTML renderer implements it with HTML constructs. The policy stays semantic.
 4. **Capabilities are properties of the renderer.** `HTMLDocumentRenderer.support` is the source of truth. The customize panel and export endpoint read the renderer.
 5. **Editor is schematic.** It visualizes structure, not the computed layout. Visual cues (e.g., "page break" markers) indicate structural intent.
 

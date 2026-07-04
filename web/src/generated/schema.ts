@@ -1,5 +1,5 @@
 // This file is generated. Do not edit by hand.
-// Source: api/app/schema/models.py (sha256:276a08d803da95f1)
+// Source: api/app/schema/models.py (sha256:788073c0720c4175)
 
 export interface CVRow {
   "zones": Array<string>;
@@ -118,7 +118,6 @@ export interface SubsectionStyle {
 export interface TemplateDetail {
   "description": (string) | null;
   "id": string;
-  "is_user_template"?: boolean;
   "manifest"?: (Record<string, unknown>) | null;
   "name": string;
   "preview_image_url": (string) | null;
@@ -127,7 +126,6 @@ export interface TemplateDetail {
 export interface TemplateListItem {
   "description": (string) | null;
   "id": string;
-  "is_user_template"?: boolean;
   "name": string;
   "preview_image_url": (string) | null;
 }
@@ -156,12 +154,6 @@ export interface TextStyle {
   "link"?: (string) | null;
   "strike"?: boolean;
   "underline"?: boolean;
-}
-
-export interface UserTemplateCreate {
-  "description"?: (string) | null;
-  "manifest": TemplateManifest;
-  "name": string;
 }
 
 export interface Zone {
