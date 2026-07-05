@@ -179,3 +179,46 @@ def test_unknown_section_type_raises_value_error():
     with pytest.raises(ValueError):
         build_document(cv)
 
+
+def test_build_section_style_uses_per_instance_policy_over_type_default():
+    """An explicit per-instance policy on the wire wins over the type default.
+
+    Two skills instances: one with no policy (default block), one with
+    skill_variant=inline. The build stage must attach the instance policy
+    to the AST node before the resolver applies capability gating.
+    """
+    from app.services.renderer.builders import build_section_style
+    from app.schema.models import SectionInstanceStyle, SectionPolicy
+
+    style_with, _ = build_section_style(
+        instance_type="skills",
+        instance_style=SectionInstanceStyle(
+            policy=SectionPolicy(skill_variant="inline"),
+        ),
+        manifest=None,
+    )
+    assert style_with.policy.skill_variant == "inline"
+
+    style_without, _ = build_section_style(
+        instance_type="skills",
+        instance_style=None,
+        manifest=None,
+    )
+    assert style_without.policy.skill_variant == "block"
+
+
+def test_build_section_style_uses_manifest_override_when_no_instance_policy():
+    """Without an instance policy, build_section_style applies the manifest override."""
+    from app.services.renderer.builders import build_section_style
+    from app.schema.models import TemplateManifest
+
+    manifest = TemplateManifest(
+        name="M",
+        policy_overrides={"by_type": {"skills": {"skill_variant": "inline"}}},
+    )
+    _, policy = build_section_style(
+        instance_type="skills",
+        instance_style=None,
+        manifest=manifest,
+    )
+    assert policy.skill_variant == "inline"

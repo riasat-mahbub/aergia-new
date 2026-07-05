@@ -181,6 +181,51 @@ def test_per_section_style_overlay_paints_onto_section():
     assert model.sections["p"].subsection.text_align == "right"
 
 
+def test_resolver_preserves_per_instance_policy():
+    """An explicit per-instance SectionPolicy on the AST survives resolve().
+
+    Two skills instances carry different skill_variant overrides; the
+    resolver honours them instead of falling back to the type default.
+    """
+    from app.schema.models import SectionPolicy
+
+    doc = Document(sections=[
+        Section(id="s_block", type="skills", title="Backend",
+                policy=SectionPolicy(skill_variant="block"),
+                entries=[Entry(id="e1", fields=[FieldBlock(key="category", runs=[TextRun(text="Backend")])])]),
+        Section(id="s_inline", type="skills", title="Frontend",
+                policy=SectionPolicy(skill_variant="inline"),
+                entries=[Entry(id="e1", fields=[FieldBlock(key="category", runs=[TextRun(text="Frontend")])])]),
+    ])
+    model = resolve(doc, HTMLDocumentRenderer(), _manifest(), Customizations())
+    assert model.sections["s_block"].policy.skill_variant == "block"
+    assert model.sections["s_inline"].policy.skill_variant == "inline"
+
+
+def test_resolver_preserves_per_instance_policy_when_fallback_type_default_differs():
+    """An explicit show_title override on an instance beats the type default."""
+    from app.schema.models import SectionPolicy
+
+    # profile has show_title=False by default; override to True on this instance.
+    doc = Document(sections=[
+        Section(id="p_named", type="profile", title="P",
+                policy=SectionPolicy(show_title=True),
+                entries=[Entry(id="e1", fields=[FieldBlock(key="name", runs=[TextRun(text="Ada")])])]),
+    ])
+    model = resolve(doc, HTMLDocumentRenderer(), _manifest(), Customizations())
+    assert model.sections["p_named"].policy.show_title is True
+
+
+def test_resolver_falls_back_to_type_default_when_no_per_instance_policy():
+    """Without an explicit instance policy, resolve applies the type default."""
+    doc = Document(sections=[
+        Section(id="p", type="profile", title="P", enabled=True,
+                entries=[Entry(id="e1", fields=[FieldBlock(key="name", runs=[TextRun(text="")])])]),
+    ])
+    model = resolve(doc, HTMLDocumentRenderer(), _manifest(), Customizations())
+    assert model.sections["p"].policy.show_title is False
+
+
 def test_support_with_skills_inline_none_forces_block_variant():
     support = RendererSupport(feature_skills_inline=SupportLevel.NONE)
     doc = Document(sections=[
