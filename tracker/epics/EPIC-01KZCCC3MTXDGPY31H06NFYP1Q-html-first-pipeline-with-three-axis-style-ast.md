@@ -79,7 +79,7 @@ Build a new system from scratch on a separate branch that:
 | 1.6 Add `resolve()` and `RenderModel` to `api/app/services/renderer/resolve.py` (template defaults, policy resolution, CSS variable computation, design tokens) | 🔲 |
 | 1.7 Add `HTMLDocumentRenderer` class to `api/app/services/renderer/html.py` (tree of small functions, `h()` escape helper) | 🔲 |
 | 1.8 Add section renderers (one per type) to `api/app/services/renderer/section_renderers/` | 🔲 |
-| 1.9 Add routes: `POST /render/ast`, `POST /render/html`, `POST /render/{target}` | 🔲 |
+| 1.9 Add routes: `POST /render/ast`, `POST /render/html` | 🔲 |
 | 1.10 Update `services/cv.py` and `services/pdf.py` to use the new schema and renderer | 🔲 |
 | 1.11 Update `db/seed.py` with three minimal templates (Modern, Classic, Minimal) using `layout_defaults: { spacing: ... }` and `policy_overrides: {}` | 🔲 |
 | 1.12 Add Phase 1 tests | 🔲 |
@@ -135,5 +135,4 @@ After Phase 3: `pytest`, `npm run lint`, `npm run test`, `npm run build` all pas
 ## Follow-up
 
 - LaTeX exporter (future): consumes AST, produces LaTeX.
-- DOCX exporter (future): consumes AST, produces DOCX.
 - Real-time collaboration (future): the AST is the natural document representation for sharing.

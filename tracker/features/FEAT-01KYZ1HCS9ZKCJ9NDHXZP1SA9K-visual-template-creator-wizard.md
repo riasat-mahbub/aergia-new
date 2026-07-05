@@ -4,23 +4,6 @@ FORMAT: project-tracker
 ID: FEAT-01KYZ1HCS9ZKCJ9NDHXZP1SA9K
 TYPE: feature
 STATUS: DONE
-SUMMARY: '4-step guided wizard for creating templates with zone layout, styles, assets, and review'
-PRIORITY: null
-SEVERITY: null
-EFFORT: null
-OWNER: null
-CONFIDENCE: Medium
-TAGS:
-- template-creator
-- wizard
-- phase-5
-RELATIONS: null
-AFFECTS: null
-LINKS: null
-CREATED_BY: null
-UPDATED_BY: null
-CREATED_AT: '2026-08-01T16:11:57.609271+00:00'
-UPDATED_AT: '2026-08-01T16:11:57.609271+00:00'
 ---
 
 # Visual template creator wizard
@@ -54,3 +37,4 @@ Guided wizard replacing the old two-tab template creator:
 Phase 5 complete. Task 5.7 (TEMPLATE_GUIDE.md rewrite) and 5.8 (E2E test) pending.
 
 ## Follow-up
+Closed 2026-08-08. Superseded by `FEAT-01KZPHASE6STEP1-phase-6-content-only-authoring`. The template-authoring surface is deleted entirely; templates are now a closed, typed vocabulary owned by Aergia. Users pick from the three seed templates (modern, classic, minimal) and never author one. See `local://phase-6-content-only-authoring-plan.md`.
