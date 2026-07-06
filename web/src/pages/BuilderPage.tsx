@@ -38,6 +38,7 @@ export default function BuilderPage() {
     if (!id) return;
     let cancelled = false;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- CV switch reset; see Phase 9 lint debt
     setLocalInstances([]);
     setLocalCustomizations({});
     setIsLoaded(false);
@@ -95,18 +96,28 @@ export default function BuilderPage() {
     []
   );
 
+  // Mirror state into refs inside effects so the latest values are
+  // available to async handlers without re-running them every render.
   const instancesRef = useRef(instances);
-  instancesRef.current = instances;
   const idRef = useRef(id);
-  idRef.current = id;
   const customizationsRef = useRef(customizations);
-  customizationsRef.current = customizations;
   const instancesForUnloadRef = useRef({ sections: localInstances, customizations: localCustomizations });
-  instancesForUnloadRef.current = { sections: localInstances, customizations: localCustomizations };
-
+  useEffect(() => { instancesRef.current = instances; }, [instances]);
+  useEffect(() => { idRef.current = id; }, [id]);
+  useEffect(() => { customizationsRef.current = customizations; }, [customizations]);
+  useEffect(() => {
+    instancesForUnloadRef.current = { sections: localInstances, customizations: localCustomizations };
+  }, [localInstances, localCustomizations]);
   useEffect(() => {
     if (!currentCV || !isLoaded) return;
 
+    // The "reset stale template state, then async refetch" pattern requires
+    // a synchronous setState inside the effect — it cannot move into the
+    // refetch IIFE because the UI must clear the previous template's zones
+    // before the new template's fetch resolves. The dependency array is
+    // tight (currentCV?.template_id, isLoaded, id) and the refetch is
+    // idempotent against the same key. Phase 9 lint debt sweep.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTemplateLayoutConfig(null);
     setTemplateDefaultCustomizations(null);
     setTemplateManifest(null);

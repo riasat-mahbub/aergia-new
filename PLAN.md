@@ -400,26 +400,14 @@ Remove:
 
 ## Phase 7 – Three-Axis Style Model + HTML-First Pipeline
 
-**Branch:** `feat/ast-pipeline` (cut from master, merged via regular merge commit, not squash)
+**Status:** DONE (closed 2026-08-08). The branch `feat/ast-pipeline` shipped incrementally across Phases 1–6 and was merged into `master` via a regular merge commit. Architecture promise, post-Phase-7 invariants, tracker dispositions, and deferred behaviors are recorded in `local://phase-7-ast-pipeline-closeout.md`. The original Phase 7 prompt is preserved in `PHASE_7_PROMPT.md` as historical record; the umbrella epic is `EPIC-01KZCCC3MTXDGPY31H06NFYP1Q` (closed through `EPIC-01KZHRBNQPZDMWFH7MQPAW5BBG`).
 
-**Scope:** Replace the legacy `SectionStyle` cascade and the string-blob IR with a typed three-axis AST and an HTML-first render pipeline. The new system is built from scratch on a separate branch; no migration code, no compatibility shims.
-
-### Architecture
-
-- **HTML-first.** The canonical rendering target is HTML + CSS. PDF is HTML rendered by Chromium. The React tree is the editor surface, not a renderer.
-- **Pydantic schemas are the AST.** Pydantic models in `api/app/schema/models.py` are both the wire shape and the runtime AST. Codegen produces TS types in `generated/schema.ts`; CI checks no diff.
-- **Three orthogonal axes:**
-  - `TextStyle` — inline per-field appearance (bold, italic, underline, strike, color, link, font_size).
-  - `SubsectionStyle` — block-level appearance (text_align, spacing_before, spacing_after, background_color).
-  - `LayoutHints` — page flow + structural (break_before, keep_together, heading_keeps_with_first, orphans, widows, font_family, date_style).
-- **SectionPolicy is document semantics.** The HTML renderer implements it with HTML constructs.
-
-### Pipeline
+The shipped pipeline is unchanged from the prior step-by-step plan:
 
 ```
 AST (Pydantic schemas)
   ↓
-Resolver (apply template defaults, resolve policies, compute CSS variables from design tokens)
+Resolver (apply template defaults, resolve policies, compute CSS variables)
   ↓
 RenderModel (fully resolved; no defaults remain)
   ↓
@@ -432,53 +420,20 @@ Chromium
 PDF
 ```
 
-The React tree mirrors the AST but doesn't render HTML. The Python HTML renderer is the document renderer. Both consume the same data; the rendering is different.
+The Phase 4 + Phase 5 + Phase 6 plan documents (`local://ast-pipeline-phase-4-plan-v2.md`, `local://phase-5-renderer-protocol-and-codegen-plan.md`, `local://phase-6-content-only-authoring-plan.md`, `local://phase-6-step-2-prompt.md`) remain as historical implementation records.
 
-### Renderer capabilities
+## Phase 8 – Hardening
 
-Every renderer declares its own `RendererSupport` (property of the renderer class). The customize panel reads the active renderer's support. The export endpoint reads the renderer's support. The renderer is the source of truth for what it can do.
+**Status:** DONE (closed 2026-08-08). The selected Phase 8 behavior is hardening rather than a new product feature. It is reachable from the developer surface as `./dev.sh --smoke`, which runs pytest + ruff + source-only Vitest + ESLint + production build, then an isolated live-render smoke against `generic-modern`, `generic-classic`, and `generic-minimal`. No Pydantic schema, generated TypeScript, manifest vocabulary, resolver contract, `RenderModel`, renderer, or customize-panel payload changes.
 
-Each capability field has a `SupportLevel`:
-- `FULL` — the renderer reliably satisfies this; control shown normally.
-- `BEST_EFFORT` — the renderer tries but can't guarantee; control shown with a warning icon.
-- `NONE` — the renderer can't satisfy this; control hidden.
-
-### Design tokens
-
-Templates declare `layout_defaults: { spacing: comfortable }`. The renderer emits CSS variables (`--spacing-section`). The stylesheet defines the values. Three layers, each independent.
-
-### Seed templates
-
-Three system templates, each minimal:
-- Modern: `layout_defaults: { spacing: comfortable }`, `policy_overrides: {}`
-- Classic: `layout_defaults: { spacing: compact }`, `policy_overrides: {}`
-- Minimal: `layout_defaults: { spacing: minimal }`, `policy_overrides: {}`
-
-Templates express taste; renderers express behavior.
-
-### Editor is schematic
-
-The editor visualizes the document structure (sections, fields, brackets). It does not promise to show the exact spacing, page breaks, or font fallbacks the PDF will produce. Visual cues (e.g., "page break" markers) indicate structural intent without literal page boundaries.
-
-### Merge
-
-The new branch merges into `master` via a regular merge commit (not squash). The branch's commit history is preserved on `master`. The merge is the cutover: the old code is gone in one step.
-
-### Tasks
+Tasks and acceptance:
 
 | # | Task | Status |
 |---|------|--------|
-| 7.0 | Phase 0: empty branch + plan docs (AGENTS.md, PLAN.md, TEMPLATE_GUIDE.md) | 🔲 |
-| 7.1 | Phase 1: codegen setup (pyproject.toml, package.json, dev.sh, .qlty/qlty.toml) | 🔲 |
-| 7.2 | Phase 1: schemas (TextStyle, SubsectionStyle, LayoutHints, SectionPolicy, DocumentLayoutHints, DocumentStyles; Document, Section, Entry, FieldBlock, TextRun) | 🔲 |
-| 7.3 | Phase 1: codegen output + CI check (running codegen produces no diff) | 🔲 |
-| 7.4 | Phase 1: support enum + RendererSupport class | 🔲 |
-| 7.5 | Phase 1: SECTION_POLICIES + resolve_policy() | 🔲 |
-| 7.6 | Phase 1: build_ast() + section builders | 🔲 |
-| 7.7 | Phase 1: Resolver + RenderModel + design tokens | 🔲 |
-| 7.8 | Phase 1: HTMLDocumentRenderer class | 🔲 |
-| 7.10 | Phase 1: routes (POST /render/ast, POST /render/html) | 🔲 |
-| 7.11 | Phase 1: services (cv.py, pdf.py) | 🔲 |
-| 7.12 | Phase 1: seed templates (minimal) | 🔲 |
-| 7.13 | Phase 1: tests | 🔲 |
-
+| 8.0 | Close the Phase 7 tracker docket with append-only SCHEMA-3 successors; migrate malformed lowercase-frontmatter and duplicate-ID records to `tracker-legacy/phase-7/`; rebuild and validate | ✅ |
+| 8.1 | Author `local://phase-7-ast-pipeline-closeout.md` capturing shipped architecture, post-Phase-7 invariants, tracker dispositions, and deferred behaviors | ✅ |
+| 8.2 | Annotate `PHASE_7_PROMPT.md` as superseded; replace `PLAN.md` Phase 7 with a closeout note; add Phase 7 / Phase 8 status sections to `AGENTS.md`; refresh tracker counts from `tracker stats` | ✅ |
+| 8.3 | Lock Vitest discovery to `web/src`; install `eslint-plugin-react-hooks` at `^7.1.1`; resolve the lint gap and keep rules enabled | ✅ |
+| 8.4 | Add `ExportPDFButton` behavior tests (T53 coverage) and confirm `CustomizePanel.test.tsx` is unchanged | ✅ |
+| 8.5 | Add `scripts/smoke.sh`, `--smoke` dispatcher in `dev.sh`, `api/scripts/smoke_live.py`; add `api/tests/test_devscript.py` and `api/tests/test_smoke_live.py` regression tests | ✅ |
+| 8.6 | Run `./dev.sh --smoke` end-to-end; close the Phase 8 task and the umbrella epic only after the gate passes | ✅ |

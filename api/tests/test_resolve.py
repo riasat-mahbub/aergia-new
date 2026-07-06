@@ -11,13 +11,12 @@ from app.schema.models import (
     FieldBlock,
     LayoutHints,
     Section,
-    SectionInstance,
     TemplateManifest,
     TextRun,
     Zone,
 )
 
-from app.services.renderer import build_document, resolve
+from app.services.renderer import resolve
 from app.services.renderer.base import DocumentRenderer
 from app.services.renderer.html import HTMLDocumentRenderer
 from app.services.renderer.support import RendererSupport, SupportLevel

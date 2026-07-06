@@ -13,7 +13,6 @@ from types import SimpleNamespace
 import pytest
 
 from app.services.renderer.builders import build_document
-from app.schema.models import Section
 
 
 def _cv(sections):

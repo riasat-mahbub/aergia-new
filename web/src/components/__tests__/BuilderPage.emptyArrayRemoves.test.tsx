@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi } from "vitest";
 import { act, render } from "@testing-library/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 vi.mock("react-router-dom", () => ({
   useNavigate: () => vi.fn(),
@@ -56,12 +56,15 @@ function TestHarness({ initialInstances }: { initialInstances: any[] }) {
       setInstances((prev) => prev.map((i) => (i.id === id ? { ...i, data } : i)));
     }
   };
-  // expose
-  (TestHarness as any).instances = instances;
-  (TestHarness as any).handleUpdateData = handleUpdateData;
+  // Expose the latest state and handler to the test assertions via
+  // a side effect (the `react-hooks/immutability` rule forbids assigning
+  // to the component function during render).
+  useEffect(() => {
+    (TestHarness as any).instances = instances;
+    (TestHarness as any).handleUpdateData = handleUpdateData;
+  });
   return <div data-testid="harness" />;
 }
-
 describe("BuilderPage.handleUpdateData empty-array semantically removes", () => {
   it("removes the instance when data is empty array", () => {
     const initial = [

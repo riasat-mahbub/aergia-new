@@ -8,11 +8,10 @@ from fastapi.responses import StreamingResponse
 from app.services.cv import CVService
 from app.services.pdf import PDFService
 from app.services.renderer import HTMLDocumentRenderer, build_document, resolve
-from app.services.renderer._pdf_runtime import html_to_pdf
 from app.routes.render import strip_anchor_hrefs
 from app.core.deps import get_current_user
 from app.models.user import User
-from app.services.cv import coerce_customizations, CVService
+from app.services.cv import coerce_customizations
 
 NOT_FOUND = "CV not found"
 
@@ -110,12 +109,8 @@ async def preview_cv(
     template_data = await service.get_template_data(cv.template_id)
 
     manifest = (template_data or {}).get("manifest", {})
-    layout_config = manifest.get("layout_config") if manifest else None
-    cv_layout = (cv.customizations or {}).get("layout")
-    if isinstance(cv_layout, dict) and cv_layout.get("zones"):
-        layout_config = cv_layout
 
-    from app.schema.models import Customizations, SectionInstance, TemplateManifest
+    from app.schema.models import TemplateManifest
 
     document = build_document(cv, None)
     try:

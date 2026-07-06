@@ -11,8 +11,6 @@ from app.schema.models import (
     Document,
     Entry,
     FieldBlock,
-    RenderModel,
-    ResolvedZone,
     Section,
     SectionPolicy,
     TemplateManifest,

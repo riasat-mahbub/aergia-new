@@ -25,6 +25,7 @@ export default function CreateCvModal({ open, onClose }: Props) {
 
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- modal open reset; see Phase 9 lint debt
       setTitle("");
       setTemplateId("generic-modern");
       fetchSystemTemplates().then(setSystemTemplates).catch(() => {});

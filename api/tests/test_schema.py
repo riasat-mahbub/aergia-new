@@ -7,7 +7,6 @@ is the right shape)."""
 
 from __future__ import annotations
 
-import json
 
 from app.schema.models import (
     Customizations,
@@ -21,8 +20,6 @@ from app.schema.models import (
     RenderModel,
     ResolvedZone,
     Section,
-    SectionInstance,
-    SectionInstanceStyle,
     SectionPolicy,
     SubsectionStyle,
     TemplateManifest,

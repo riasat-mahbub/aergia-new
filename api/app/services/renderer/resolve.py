@@ -34,15 +34,21 @@ from app.schema.models import (
     SectionInstanceStyle,
     SubsectionStyle,
     TemplateManifest,
-    TextStyle,
+    Zone,
 )
 from app.services.renderer.base import DocumentRenderer
+from app.services.renderer.palette import DEFAULT_PALETTE, resolve_palette_ref
 from app.services.renderer.support import RendererSupport, SupportLevel
-
-
+from app.services.renderer.tokens import (
+    FONT_TOKEN_VALUES as FONT_TOKENS,
+    PADDING_TOKEN_VALUES as PADDING_TOKENS,
+    SPACING_TOKEN_VALUES as _SPACING_TOKENS,
+    WIDTH_TOKEN_VALUES as WIDTH_TOKENS,
+)
 LINK_STYLES = "  a { color: var(--accent, #2563eb); text-decoration: underline; }\n"
 PLAIN_LINK_STYLES = "  a { color: inherit; text-decoration: none; }\n"
 
+_MANIFEST_VERSION_KEY = "manifest_version"
 PRINT_STYLES = """
   @page { size: A4; margin: 0; }
   @media print {
@@ -50,17 +56,6 @@ PRINT_STYLES = """
     img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 """
-# Default palette and token maps live in their own modules so the
-# resolver, the HTML renderer, and a future DOCX renderer all share
-# the same vocabulary. The schema declares the tokens; this layer
-# maps them to renderer-specific values.
-from app.services.renderer.palette import DEFAULT_PALETTE, resolve_palette_ref
-from app.services.renderer.tokens import (
-    FONT_TOKEN_VALUES as FONT_TOKENS,
-    PADDING_TOKEN_VALUES as PADDING_TOKENS,
-    SPACING_TOKEN_VALUES as _SPACING_TOKENS,
-    WIDTH_TOKEN_VALUES as WIDTH_TOKENS,
-)
 
 
 def resolve_color(value: str) -> str:

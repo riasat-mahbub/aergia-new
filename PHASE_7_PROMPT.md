@@ -1,4 +1,8 @@
 # Phase 7 Intent
+> **Superseded on 2026-08-08.** Phase 7 shipped across Phases 1–6. The completion record and post-cutover invariants are in `local://phase-7-ast-pipeline-closeout.md`; this file remains historical.
+
+**Phase 7 status:** DONE. **Phase 8 status:** DONE (hardening gate; see `TASK-01KZHR806TYQPTPEFG5JE8879C` and `local://phase-7-closeout-phase-8-hardening-plan.md`).
+
 
 You are implementing a new render pipeline for the Aergia CV Builder. The architecture is already committed to in writing. Read the docs first, then execute.
 
