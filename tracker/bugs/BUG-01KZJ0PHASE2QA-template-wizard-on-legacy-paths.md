@@ -3,8 +3,7 @@ SCHEMA: 3
 FORMAT: project-tracker
 ID: BUG-01KZJ0PHASE2QA
 TYPE: bug
-STATUS: PROPOSED
-PRIORITY: Medium
+STATUS: DONE
 SEVERITY: Medium
 EFFORT: M
 OWNER: riasat
@@ -97,8 +96,6 @@ cd web && grep -rn 'StyleEditor' web/src --include='*.tsx' --include='*.ts'    #
 cd web && grep -rn 'TemplateWizard' web/src --include='*.tsx' --include='*.ts'   # only the stub file
 cd web && npm run build                                                          # 0
 ```
+Closed 2026-08-08 by `FEAT-01KZPHASE6STEP1-phase-6-content-only-authoring`. The template-authoring surface is deleted entirely; the customize panel is the sole styling surface. The wizard, the multipart upload, the user-templates routes, and the user-templates section of `TemplateSelectorModal` are all gone. The closed-vocabulary manifests (modern, classic, minimal) remain as the only templates available to users.
 
-## Follow-up
-
-See TASK-01KZJ0PHASE2QA-phase-3-template-creator-and-global-customizations
-for the rewrite. The bug entry stays open until that task lands.
+See `local://phase-6-content-only-authoring-plan.md` for the cutover plan.
