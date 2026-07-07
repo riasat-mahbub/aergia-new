@@ -111,11 +111,18 @@ def _apply_section_overlay(section: Section, override: SectionInstanceStyle) -> 
     new_subsection = _overlay_subsection(section.subsection, override.subsection)
     new_layout = _overlay_layout(section.layout, override.layout)
     new_policy = _overlay_policy(section.policy, override.policy)
-    return section.model_copy(update={
+    section = section.model_copy(update={
         "subsection": new_subsection,
         "layout": new_layout,
         "policy": new_policy,
     })
+    # Per-field text styles ride in the override's `text` dict and must land
+    # on the runs, mirroring the per-instance path in build_document.
+    if override.text:
+        from app.services.renderer.builders import apply_field_text_styles
+
+        section = apply_field_text_styles(section, override.text)
+    return section
 
 
 def _apply_template_defaults(section: Section, manifest: TemplateManifest | None) -> Section:

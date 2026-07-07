@@ -8,19 +8,16 @@ files in `tracker/` (project-tracker SCHEMA 3, ULID IDs).  See
 
 | Folder | Type | Total |
 |--------|------|-------|
-| [bugs/](tracker/bugs/) | bug | 23 |
+| [bugs/](tracker/bugs/) | bug | 25 |
 | [features/](tracker/features/) | feature | 56 |
 | [decisions/](tracker/decisions/) | adr | 5 |
-| [tasks/](tracker/tasks/) | task | 118 |
+| [tasks/](tracker/tasks/) | task | 120 |
 | [docs/](tracker/docs/) | doc | 1 |
 | [epics/](tracker/epics/) | epic | 2 |
 
-**Status** (from `tracker stats`, 2026-08-09): DONE 110 · IN_PROGRESS 20 · PLANNED 50 · PROPOSED 25 · 205 entries total.
+**Status** (from `tracker stats`, 2026-08-09): DONE 112 · IN_PROGRESS 20 · PLANNED 50 · PROPOSED 27 · 209 entries total.
 
 **Last updated:** 2026-08-09 (from `tracker stats`)
-
-
-
 ## Required skill: project-tracker
 
 This project uses a file-based project knowledge graph in tracker/.

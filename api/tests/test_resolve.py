@@ -346,3 +346,20 @@ def test_resolve_placement_matches_instance_id_before_type():
     by_zone = {z.id: z.section_ids for z in model.zones}
     assert by_zone["side"] == ["p"]
     assert by_zone["main"] == ["x", "sk"]
+
+
+def test_per_section_text_overlay_applies_to_runs():
+    """``customizations.per_section[id].text[field]`` must land on the
+    section's runs, mirroring the per-instance field-style path."""
+    from app.schema.models import Customizations
+
+    doc = Document(sections=[
+        Section(id="p", type="profile", title="P", enabled=True,
+                entries=[Entry(id="e1", fields=[FieldBlock(key="name", runs=[TextRun(text="Ada")])])]),
+    ])
+    custom = Customizations(per_section={"p": {"text": {"name": {"italic": True, "color": "#00ff00"}}}})
+    model = resolve(doc, FakeRenderer(), None, custom)
+    run = model.sections["p"].entries[0].fields[0].runs[0]
+    assert run.style is not None
+    assert run.style.italic is True
+    assert run.style.color == "#00ff00"

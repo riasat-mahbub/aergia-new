@@ -70,7 +70,7 @@ def build_section_style(
     base = instance_style.model_dump() if instance_style else {}
     text: dict[str, TextStyle] = dict(base.get("text") or {})
     subsection_dict = base.get("subsection") or {}
-    subsection = SubsectionStyle.model_validate(subsection_dict) if subsection_dict else SubsectionStyle()
+    subsection = SubsectionStyle.model_validate(subsection_dict) if subsection_dict else _default_subsection(instance_type)
     layout_dict = base.get("layout") or {}
     layout = LayoutHints.model_validate(layout_dict) if layout_dict else LayoutHints()
     policy_dict = base.get("policy")
@@ -89,6 +89,46 @@ def build_section_style(
         policy=explicit_policy,
     )
     return style, explicit_policy
+
+
+def _default_subsection(instance_type: str) -> SubsectionStyle:
+    """Type-level block defaults, applied only when the instance declares
+    no subsection of its own.
+
+    Profile content is centered by default; every other section inherits
+    the document alignment. An explicit per-section ``text_align`` pick or
+    a per-CV ``default_text_align`` still wins over this default."""
+
+    if instance_type == "profile":
+        return SubsectionStyle(text_align="center")
+    return SubsectionStyle()
+
+
+def apply_field_text_styles(section: Section, text_styles: dict[str, TextStyle]) -> Section:
+    """Attach per-field :class:`TextStyle` entries onto the section's runs.
+
+    The wire carries per-field appearance in ``SectionInstanceStyle.text``
+    (field_key -> TextStyle); the renderer reads ``TextRun.style``. Without
+    this bridge, bold / italic / color / font-size edits never reach the
+    preview or the PDF.
+    """
+
+    if not text_styles:
+        return section
+
+    new_entries = []
+    for entry in section.entries:
+        new_fields = []
+        for field in entry.fields:
+            ts = text_styles.get(field.key)
+            if ts is None:
+                new_fields.append(field)
+                continue
+            new_fields.append(field.model_copy(update={
+                "runs": [r.model_copy(update={"style": ts}) for r in field.runs],
+            }))
+        new_entries.append(entry.model_copy(update={"fields": new_fields}))
+    return section.model_copy(update={"entries": new_entries})
 
 
 def build_document(
@@ -131,6 +171,10 @@ def build_document(
             "subsection": style.subsection,
             "layout": style.layout,
         })
+        # Per-field appearance (bold/italic/color/font-size) lands on the
+        # runs; the renderer reads TextRun.style.
+        if instance.style is not None:
+            section = apply_field_text_styles(section, instance.style.text)
         sections.append(section)
 
     return Document(sections=sections)
@@ -138,6 +182,7 @@ def build_document(
 
 __all__ = [
     "BUILDERS",
+    "apply_field_text_styles",
     "build_document",
     "build_section_style",
     "build_profile",
