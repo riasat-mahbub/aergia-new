@@ -296,6 +296,52 @@ describe("CustomizePanel", () => {
     );
   });
 
+  it("writes per-instance policy on two skills sections independently", () => {
+    const onUpdateStyle = vi.fn();
+    renderCustomizePanel({
+      onUpdateStyle,
+      instances: [
+        {
+          id: "s_block",
+          type: "skills",
+          title: "Backend",
+          enabled: true,
+          data: [{ id: "g1", category: "Languages", items: ["Python"] }],
+        },
+        {
+          id: "s_inline",
+          type: "skills",
+          title: "Frontend",
+          enabled: true,
+          data: [{ id: "g1", category: "Frameworks", items: ["React"] }],
+        },
+      ],
+    });
+
+    fireEvent.click(screen.getByTestId("zone-section-s_block"));
+    fireEvent.click(screen.getByText(/Section policy/));
+    fireEvent.change(getSelectByLabelText("Skills layout"), {
+      target: { value: "inline" },
+    });
+    expect(onUpdateStyle).toHaveBeenCalledWith(
+      "s_block",
+      expect.objectContaining({ policy: { skill_variant: "inline" } }),
+    );
+
+    fireEvent.click(screen.getByTestId("zone-section-s_inline"));
+    fireEvent.click(screen.getByText(/Section policy/));
+    fireEvent.change(getSelectByLabelText("Skills layout"), {
+      target: { value: "block" },
+    });
+    expect(onUpdateStyle).toHaveBeenCalledWith(
+      "s_inline",
+      expect.objectContaining({ policy: { skill_variant: "block" } }),
+    );
+
+    const calls = onUpdateStyle.mock.calls;
+    expect(calls.some((c) => c[0] === "s_block" && c[1]?.policy?.skill_variant === "inline")).toBe(true);
+    expect(calls.some((c) => c[0] === "s_inline" && c[1]?.policy?.skill_variant === "block")).toBe(true);
+  });
   it("Field styles panel lists profile fields", () => {
     renderCustomizePanel({
       instances: [{ id: "s1", type: "profile", title: "John", enabled: true, data: {} }],
