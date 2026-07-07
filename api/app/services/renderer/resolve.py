@@ -213,20 +213,38 @@ def _resolve_zone_styles(zone: Zone) -> dict[str, str]:
     return css
 
 
-def _resolve_zones(document: Document, manifest: TemplateManifest | None) -> list[ResolvedZone]:
-    if manifest is None or not manifest.zones:
+def _resolve_zones(
+    document: Document,
+    manifest: TemplateManifest | None,
+    customizations: Customizations | None = None,
+) -> list[ResolvedZone]:
+    """Resolve the document's zone layout.
+
+    Per-CV ``customizations.layout`` (the editor's zone authoring) wins over
+    the template manifest's zones; the manifest is the fallback; a single
+    ``main`` zone is the last resort so rendering never fails on layout.
+    """
+    layout = customizations.layout if customizations is not None else None
+    zones = layout.zones if layout is not None and layout.zones else (manifest.zones if manifest else [])
+    if not zones:
         return [ResolvedZone(
             id="main",
             styles={},
             section_ids=[s.id for s in document.sections],
         )]
 
-    placement = manifest.placement
-    fallback_zone = manifest.zones[0].id if manifest.zones else None
+    placement = (
+        layout.placement
+        if layout is not None and layout.placement
+        else (manifest.placement if manifest else {})
+    )
+    fallback_zone = zones[0].id
 
-    groups: dict[str, list[str]] = {zone.id: [] for zone in manifest.zones}
+    groups: dict[str, list[str]] = {zone.id: [] for zone in zones}
     for section in document.sections:
-        zone_id = placement.get(section.type, fallback_zone)
+        # The editor keys placement by section instance id; manifests key it
+        # by section type. Honor both, then fall back to the first zone.
+        zone_id = placement.get(section.id) or placement.get(section.type, fallback_zone)
         if zone_id is None:
             raise ManifestVersionError(
                 f"No zone defined for section type '{section.type}' and no fallback zone available"
@@ -235,7 +253,7 @@ def _resolve_zones(document: Document, manifest: TemplateManifest | None) -> lis
 
     return [
         ResolvedZone(id=zone.id, styles=_resolve_zone_styles(zone), section_ids=groups.get(zone.id, []))
-        for zone in manifest.zones
+        for zone in zones
     ]
 
 
@@ -350,6 +368,7 @@ def resolve(
     zones = _resolve_zones(
         Document(sections=list(resolved_sections.values())),
         manifest_model,
+        customizations_model,
     )
 
     model = RenderModel(

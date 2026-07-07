@@ -8,7 +8,6 @@ interface Props {
   customizations?: Record<string, any>;
   templateContent?: string;
   layoutConfig?: LayoutConfig;
-  defaultCustomizations?: Record<string, unknown>;
   manifest?: Record<string, any>;
 }
 
@@ -16,7 +15,7 @@ interface Props {
 // in api/app/services/renderer/ir.py, which is what Chromium's print engine cuts on.
 const PAGE_HEIGHT_PX = 1122;
 
-export default function UserTemplateRenderer({ instances, customizations, templateContent, layoutConfig, defaultCustomizations, manifest }: Props) {
+export default function UserTemplateRenderer({ instances, customizations, templateContent, layoutConfig, manifest }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [html, setHtml] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
@@ -27,31 +26,35 @@ export default function UserTemplateRenderer({ instances, customizations, templa
     const placement = (layoutConfig?.placement && Object.keys(layoutConfig.placement).length > 0) ? layoutConfig.placement : (manifest?.placement || {});
     if (!zones.length || !Object.keys(placement).length) return;
 
-    const renderManifest = {
-      ...manifest,
-      layout_config: { zones, placement },
+    // The CV layout rides in `customizations.layout` (the canonical wire
+    // shape the resolver merges over the manifest). Do NOT inject a legacy
+    // `layout_config` key into the manifest — the v2 schema ignores it and a
+    // manifest-less object fails TemplateManifest validation.
+    const customizationsPayload = {
+      ...(customizations || {}),
+      layout: { zones, placement },
     };
 
     async function renderTemplate() {
       try {
         setError(null);
         const response = await client.post("/render/html", {
-          manifest: renderManifest,
-          cv_data: { instances },
-          customizations: customizations || {},
+          manifest: manifest || null,
+          cv_sections: instances,
+          customizations: customizationsPayload,
           preview: true,
         });
         setHtml(response.data.html);
       } catch (err) {
-        const message = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+        const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
           || (err as Error)?.message
           || "Failed to render template";
-        setError(message);
+        setError(detail);
         setHtml("");
       }
     }
     renderTemplate();
-  }, [manifest, templateContent, instances, customizations, layoutConfig, defaultCustomizations]);
+  }, [manifest, templateContent, instances, customizations, layoutConfig]);
 
   useEffect(() => {
     if (!html || !iframeRef.current) return;

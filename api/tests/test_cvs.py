@@ -57,6 +57,24 @@ async def test_cv_crud_flow(client, auth_headers):
 
 
 @pytest.mark.asyncio
+async def test_cv_creation_installs_template_zones(client, auth_headers):
+    """A new CV inherits the template's zones into ``customizations.layout``.
+
+    The builder editor needs zones immediately after creation; without them
+    every new CV opens with an empty layout and an unassignable section.
+    """
+    create_resp = await client.post(
+        "/api/v1/cvs", json={"title": "Zones CV"}, headers=auth_headers
+    )
+    assert create_resp.status_code == 201
+    cv = create_resp.json()
+    layout = (cv.get("customizations") or {}).get("layout") or {}
+    assert layout.get("zones"), "new CV must install the template's zones into customizations.layout"
+    assert layout.get("placement"), "new CV must install the template's placement"
+    assert {z["id"] for z in layout["zones"]} == {"sidebar", "main"}
+
+
+@pytest.mark.asyncio
 async def test_cv_copy_independent(client, auth_headers):
     """T7: CV copy creates an independent clone"""
 

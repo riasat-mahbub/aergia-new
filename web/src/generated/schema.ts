@@ -1,5 +1,10 @@
 // This file is generated. Do not edit by hand.
-// Source: api/app/schema/models.py (sha256:788073c0720c4175)
+// Source: api/app/schema/models.py (sha256:5c6e84c9cc4585f3)
+
+export interface CVLayout {
+  "placement"?: Record<string, string>;
+  "zones"?: Array<Zone>;
+}
 
 export interface CVRow {
   "zones": Array<string>;
@@ -11,6 +16,7 @@ export interface Customizations {
   "default_text_align"?: (("left" | "right" | "center" | "justify")) | null;
   "flags"?: Record<string, boolean>;
   "heading_font"?: (("sans-serif" | "serif" | "mono" | "display")) | null;
+  "layout"?: (CVLayout) | null;
   "per_section"?: Record<string, SectionInstanceStyle>;
   "spacing"?: (("compact" | "comfortable" | "minimal")) | null;
 }

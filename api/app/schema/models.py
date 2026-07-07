@@ -326,6 +326,19 @@ class Zone(BaseModel):
     styles: ZoneStyle = Field(default_factory=ZoneStyle)
 
 
+class CVLayout(BaseModel):
+    """Per-CV zone layout written by the editor's layout authoring.
+
+    Carries the same shape as the manifest's zones/placement but is a per-CV
+    override: the resolver renders these zones when present, falling back to
+    the template manifest. ``placement`` is keyed by section instance id
+    (the editor's convention); the resolver also accepts section-type keys
+    (the manifest convention)."""
+
+    zones: list[Zone] = Field(default_factory=list)
+    placement: dict[str, str] = Field(default_factory=dict)
+
+
 class TemplateManifest(BaseModel):
     """Template manifest schema (version 2).
 
@@ -394,6 +407,7 @@ class Customizations(BaseModel):
     spacing: Literal["compact", "comfortable", "minimal"] | None = None
     flags: dict[str, bool] = Field(default_factory=dict)
     per_section: dict[str, SectionInstanceStyle] = Field(default_factory=dict)
+    layout: CVLayout | None = None
 
     @model_validator(mode="before")
     @classmethod

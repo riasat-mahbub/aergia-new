@@ -47,6 +47,15 @@ export function spacingTokenToCss(token: string | null | undefined): string {
   return token;
 }
 
+// Editor sliders work in pixels; the wire carries tokens. Quantize to the
+// nearest token value (none=0, tight=12, comfortable=24, loose=32).
+export function pxToSpacingToken(px: number): string {
+  if (px <= 6) return "none";
+  if (px <= 18) return "tight";
+  if (px <= 28) return "comfortable";
+  return "loose";
+}
+
 export function normalizeWidths(zones: Zone[]): Zone[] {
   if (zones.length === 0) return zones;
 

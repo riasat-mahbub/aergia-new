@@ -112,11 +112,14 @@ async def preview_cv(
 
     from app.schema.models import TemplateManifest
 
-    document = build_document(cv, None)
     try:
         manifest_model = TemplateManifest.model_validate(manifest)
     except Exception:
         manifest_model = None
+
+    # Pass the manifest through so template policy_overrides apply the same
+    # way they do in the live preview (/render/html).
+    document = build_document(cv, manifest_model)
     customizations_model = coerce_customizations(cv.customizations)
     renderer = HTMLDocumentRenderer()
     model = resolve(document, renderer, manifest_model, customizations_model)
