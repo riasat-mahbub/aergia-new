@@ -7,24 +7,36 @@ WEB_DIR="$ROOT_DIR/web"
 
 # Docker is no longer required for local dev (SQLite replaces PostgreSQL)
 
-# ── Parse flags ──────────────────────────────────────────────────
 PROD=false
 BUILD=false
+SMOKE=false
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --prod)  PROD=true;  shift ;;
     --build) BUILD=true; shift ;;
+    --smoke)
+      SMOKE=true
+      shift
+      ;;
     --help)
-      echo "Usage: ./dev.sh [--prod] [--build]"
+      echo "Usage: ./dev.sh [--prod] [--build] [--smoke]"
       echo ""
       echo "  --prod    Run uvicorn without --reload (production-like)"
       echo "  --build   Build frontend and serve via FastAPI (no Vite dev server)"
-      echo "  --help    Show this message"
+      echo "  --smoke   Run pytest, Ruff, source-only Vitest, ESLint, build, and an isolated live-render smoke test"
       exit 0
       ;;
     *) echo "Unknown flag: $1"; exit 1 ;;
   esac
 done
+
+if [[ "$SMOKE" == true ]]; then
+  if [[ "$PROD" == true || "$BUILD" == true ]]; then
+    echo "ERROR: --smoke cannot be combined with --prod or --build" >&2
+    exit 2
+  fi
+  exec "$ROOT_DIR/scripts/smoke.sh"
+fi
 
 # ── Load .env if present ──────────────────────────────────────────
 if [ -f "$ROOT_DIR/.env" ]; then

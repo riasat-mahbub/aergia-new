@@ -6,16 +6,18 @@ Bugs, features, decisions, tasks, and docs are tracked as individual markdown
 files in `tracker/` (project-tracker SCHEMA 3, ULID IDs).  See
 `tracker/README.md` for the dashboard and migration history.
 
-| Folder | DONE | OPEN | Total |
-|--------|------|------|-------|
-| [bugs/](tracker/bugs/) | 15 | 0 | 15 |
-| [features/](tracker/features/) | 46 | 0 | 46 |
-| [decisions/](tracker/decisions/) | 5 | 0 | 5 |
-| [tasks/](tracker/tasks/) | 93 | 0 | 93 |
-| [docs/](tracker/docs/) | 0 | 1 | 1 |
-| [epics/](tracker/epics/) | 0 | 1 | 1 |
+| Folder | Type | Total |
+|--------|------|-------|
+| [bugs/](tracker/bugs/) | bug | 17 |
+| [features/](tracker/features/) | feature | 56 |
+| [decisions/](tracker/decisions/) | adr | 5 |
+| [tasks/](tracker/tasks/) | task | 118 |
+| [docs/](tracker/docs/) | doc | 1 |
+| [epics/](tracker/epics/) | epic | 2 |
 
-**Last updated:** 2026-08-06 (from `tracker stats`)
+**Status** (from `tracker stats`, 2026-08-08): DONE 107 · IN_PROGRESS 20 · PLANNED 50 · PROPOSED 22 · 199 entries total.
+
+**Last updated:** 2026-08-08 (from `tracker stats`)
 
 
 
@@ -81,13 +83,13 @@ npm run lint         # ESLint
 - **Rate limiting**: slowapi with 100 req/min global, 10 req/min on auth routes.
 ## Architecture promise
 
-The new system (Phase 6) is HTML-first:
+The new system (Phase 7) is HTML-first:
 
 - **Canonical rendering target is HTML + CSS.** The preview iframe, the PDF export, and any future HTML-based output all go through the same Python HTML renderer.
 - **PDF export is HTML rendered by Chromium.** Not a separate engine.
 - **The React tree is the editor surface, not a renderer.** It does not produce HTML for the preview or PDF. The preview and PDF are produced by the Python HTML renderer.
 - **Editor is schematic, not rendered.** The editor visualizes the document structure (sections, fields, brackets); the PDF visualizes the computed layout. The editor does not promise to show the exact spacing, page breaks, or font fallbacks the PDF will produce. Visual cues (e.g., "page break" markers) indicate structural intent without literal page boundaries.
-- **Templates express taste; renderers express behavior.** Seed templates declare `layout_defaults: { spacing: comfortable }`. The renderer maps `comfortable` to CSS variables; the stylesheet defines the values. Templates don't override CSS values directly.
+- **Templates express taste; renderers express behavior.** Seed templates declare `layout_defaults: { spacing: comfortable }`. The renderer maps to CSS variables; the stylesheet defines the values. Templates don't override CSS values directly.
 
 ## Render model discipline
 
@@ -198,7 +200,7 @@ written.
 
 Full plan: see Phase 2 plan above.
 
-## Phase 4 status (2026-08-07)
+## Phase 4 status (2026-08-08)
 
 Phase 4 replaced the legacy `{colors, fonts, spacing, flags}` shape and
 the free-form CSS strings on `ZoneStyle` with a typed closed
@@ -207,14 +209,32 @@ vocabulary. The manifest exposes a constrained design vocabulary:
 palette.<name>)`. Raw CSS strings are no longer accepted at the
 schema boundary. The resolver is the only place tokens become CSS
 values; it imports renderer-defined token and palette tables from
-`app/services/renderer/palette.py` and `tokens.py`. The legacy
-tokens are resolved at the resolver boundary, not in the template HTML.
+`app/services/renderer/palette.py` and `tokens.py`.
 
-Out of scope (deferred to later phases):
-- Drag-drop zone authoring (the user-facing CV editor's interactive
-  divider / zone-create / zone-resize surface).
-- Per-entry policy overrides (`SectionPolicy` is per-section-type; an
-  instance-level `policy` override would let two "Skills" sections
-  render differently).
+Drag-drop zone authoring and per-instance policy overrides (which
+Phase 4 noted as deferred) are shipped in Phase 6.
 
 Full plan: `local://ast-pipeline-phase-4-plan-v2.md`.
+
+## Phase 5 status (2026-08-08)
+
+Phase 5 replaced the resolver's hard-coded `HTMLDocumentRenderer.support`
+fallback with a required `DocumentRenderer` parameter. `resolve(document, renderer, manifest, customizations) -> RenderModel` is now renderer-agnostic; `HTMLDocumentRenderer` is constructed once per request. The codegen script auto-discovers `BaseModel` subclasses via `inspect.getmembers`, removing the hand-maintained whitelist; `api/tests/test_codegen.py` asserts every `BaseModel` subclass is emitted. `api/tests/test_resolve.py` introduces the `FakeRenderer` test double proving the protocol is consumable. Phase 5 shipped the renderer protocol contract that the future DOCX renderer will plug into.
+
+Full plan: `local://phase-5-renderer-protocol-and-codegen-plan.md`.
+
+## Phase 6 status (2026-08-08)
+
+Phase 6 deleted the user-template authoring surface (`TemplateWizard`, `TemplateCreatorPage`, `BaseTemplateCard`, `TemplateLayoutView`, `userTemplateStore`, the `/api/v1/templates/user` routes, the multipart `/api/v1/templates` upload, and the user-templates section of `TemplateSelectorModal`). The `Template.is_system` and `Template.user_id` columns were dropped via Alembic migration. The customize panel is now the sole styling surface and writes only canonical `SectionInstanceStyle` plus canonical top-level `Customizations`. Phase 6 also closed drag-drop zone authoring end-to-end (`BuilderPage.handleLayoutConfigChange.test.tsx` round trip) and per-instance `SectionPolicy` overrides (`resolve.py` now respects an existing `section.policy` rather than clobbering it with the type default).
+
+Full plans: `local://phase-6-content-only-authoring-plan.md`, `local://phase-6-step-2-prompt.md`.
+
+## Phase 7 status (2026-08-08)
+
+Phase 7 is closed. The HTML-first pipeline with the three-axis style AST shipped across Phases 1–6. The umbrella epic `EPIC-01KZCCC3MTXDGPY31H06NFYP1Q-html-first-pipeline-with-three-axis-style-ast` is closed through `EPIC-01KZHRBNQPZDMWFH7MQPAW5BBG`. Post-Phase-7 invariants and the architecture promise are recorded in `local://phase-7-ast-pipeline-closeout.md`. The original prompt is preserved in `PHASE_7_PROMPT.md` as historical record. Every existing CV with `generic-modern` / `generic-classic` / `generic-minimal` continues to render through the customize panel; the customize panel tests are unchanged.
+
+## Phase 8 hardening status (2026-08-08)
+
+Phase 8 is closed. The selected Phase 8 behavior is hardening rather than a new product feature. The reachable developer behavior is `./dev.sh --smoke`, which runs pytest + Ruff + source-only Vitest + ESLint + production build, then an isolated live-render smoke against `generic-modern`, `generic-classic`, and `generic-minimal` using a fresh temporary SQLite database. Vitest discovery is locked to `web/src`; `eslint-plugin-react-hooks` is pinned in `web/package.json` so `npm run lint` no longer reports `ERR_MODULE_NOT_FOUND`. Hardening touched verification, documentation, and tracker wiring only — no Pydantic schema, generated TypeScript, manifest vocabulary, resolver contract, `RenderModel`, renderer, or customize-panel payload changed.
+
+Tracker: `TASK-01KZHR806TYQPTPEFG5JE8879C-phase-8-hardening-gate`. Plan: `local://phase-7-closeout-phase-8-hardening-plan.md`. Closeout: `local://phase-7-ast-pipeline-closeout.md`.

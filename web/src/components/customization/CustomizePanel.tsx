@@ -174,6 +174,7 @@ export default function CustomizePanel({
 
   useEffect(() => {
     if (selectedSectionId && !instances.some((i) => i.id === selectedSectionId)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- derived clear when selection vanished; see Phase 9 lint debt
       setSelectedSectionId(null);
     }
   }, [instances, selectedSectionId]);

@@ -14,6 +14,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   useEffect(() => {
     hydrate();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration marker, see Phase 9 lint debt
     setHydrated(true);
   }, [hydrate]);
 

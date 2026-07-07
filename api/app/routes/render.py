@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import base64
 import re
-from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -107,6 +106,7 @@ async def render_html(
     """Render to HTML using the new pipeline."""
 
     try:
+        document, manifest, customizations = _build_document_from_request(request)
         renderer = HTMLDocumentRenderer()
         model = resolve(document, renderer, manifest, customizations)
         html = renderer.render(model)
@@ -127,6 +127,7 @@ async def render_pdf(
     """Render to PDF and return it base64-encoded."""
 
     try:
+        document, manifest, customizations = _build_document_from_request(request)
         renderer = HTMLDocumentRenderer()
         model = resolve(document, renderer, manifest, customizations)
         html = renderer.render(model)

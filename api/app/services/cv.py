@@ -6,7 +6,7 @@ from sqlalchemy import select
 from app.models.cv import CV
 from app.models.template import Template
 from app.schema.models import Customizations
-
+from app.schemas.cv import CVCreate, CVUpdate
 
 def coerce_customizations(raw: dict | None) -> Customizations:
     """Validate raw DB customizations against the canonical Customizations
