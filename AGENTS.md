@@ -8,16 +8,16 @@ files in `tracker/` (project-tracker SCHEMA 3, ULID IDs).  See
 
 | Folder | Type | Total |
 |--------|------|-------|
-| [bugs/](tracker/bugs/) | bug | 17 |
+| [bugs/](tracker/bugs/) | bug | 23 |
 | [features/](tracker/features/) | feature | 56 |
 | [decisions/](tracker/decisions/) | adr | 5 |
 | [tasks/](tracker/tasks/) | task | 118 |
 | [docs/](tracker/docs/) | doc | 1 |
 | [epics/](tracker/epics/) | epic | 2 |
 
-**Status** (from `tracker stats`, 2026-08-08): DONE 107 · IN_PROGRESS 20 · PLANNED 50 · PROPOSED 22 · 199 entries total.
+**Status** (from `tracker stats`, 2026-08-09): DONE 110 · IN_PROGRESS 20 · PLANNED 50 · PROPOSED 25 · 205 entries total.
 
-**Last updated:** 2026-08-08 (from `tracker stats`)
+**Last updated:** 2026-08-09 (from `tracker stats`)
 
 
 

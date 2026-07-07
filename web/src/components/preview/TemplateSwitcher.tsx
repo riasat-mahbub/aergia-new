@@ -8,17 +8,15 @@ interface Props {
   customizations?: Record<string, any>;
   templateContent?: string;
   layoutConfig?: LayoutConfig;
-  defaultCustomizations?: Record<string, unknown>;
   manifest?: Record<string, any>;
 }
 
-export default function TemplateSwitcher({ templateId, instances, customizations, templateContent, layoutConfig, defaultCustomizations, manifest }: Props) {
+export default function TemplateSwitcher({ templateId, instances, customizations, templateContent, layoutConfig, manifest }: Props) {
   return <UserTemplateRenderer 
     templateId={templateId} 
     instances={instances} 
     templateContent={templateContent} 
     layoutConfig={layoutConfig} 
-    defaultCustomizations={defaultCustomizations}
     customizations={customizations}
     manifest={manifest}
   />;

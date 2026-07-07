@@ -25,8 +25,6 @@ export default function BuilderPage() {
   const [activeTab, setActiveTab] = useState<"content" | "customize">("content");
   const [localInstances, setLocalInstances] = useState<SectionInstance[]>([]);
   const [localCustomizations, setLocalCustomizations] = useState<Record<string, unknown>>({});
-  const [templateLayoutConfig, setTemplateLayoutConfig] = useState<LayoutConfig | null>(null);
-  const [templateDefaultCustomizations, setTemplateDefaultCustomizations] = useState<Record<string, unknown> | null>(null);
   const [templateManifest, setTemplateManifest] = useState<Record<string, any> | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -77,9 +75,8 @@ export default function BuilderPage() {
   const effectiveLayoutConfig = useMemo(() => {
     const cvLayout = localCustomizations.layout as LayoutConfig | undefined;
     if (cvLayout && cvLayout.zones?.length) return cvLayout;
-    if (templateLayoutConfig && templateLayoutConfig.zones?.length) return templateLayoutConfig;
     return null;
-  }, [localCustomizations.layout, templateLayoutConfig]);
+  }, [localCustomizations.layout]);
 
   // Normalize zone widths at the data level so preview templates always get valid widths
   // Zone-only layout: a single flat list, so normalize across the whole array.
@@ -118,25 +115,12 @@ export default function BuilderPage() {
     // tight (currentCV?.template_id, isLoaded, id) and the refetch is
     // idempotent against the same key. Phase 9 lint debt sweep.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setTemplateLayoutConfig(null);
-    setTemplateDefaultCustomizations(null);
     setTemplateManifest(null);
 
     (async () => {
       try {
         const template = await templatesApi.fetchTemplate(currentCV.template_id);
-        if (template.layout_template && !currentCV.template_content) {
-          useCVStore.getState().patchCurrentCV({ template_content: template.layout_template });
-        }
-        if (template.layout_config != null) {
-          setTemplateLayoutConfig(template.layout_config as LayoutConfig);
-        }
-        if (template.default_customizations != null) {
-          setTemplateDefaultCustomizations(template.default_customizations);
-        }
-        if (template.manifest != null) {
-          setTemplateManifest(template.manifest);
-        }
+        setTemplateManifest(template.manifest ?? null);
       } catch {
         // Template fetch failed
       }
@@ -256,9 +240,7 @@ export default function BuilderPage() {
         const hasValidLayout = existingLayout && existingLayout.zones?.length;
         const baseLayout: LayoutConfig = hasValidLayout
           ? existingLayout
-          : templateLayoutConfig?.zones?.length
-            ? (migratePlacement(templateLayoutConfig, instancesRef.current) as LayoutConfig)
-            : { zones: [], placement: {} };
+          : { zones: [], placement: {} };
         const targetZoneId = zoneId ?? getFirstZoneId(baseLayout);
         if (!targetZoneId) return prev;
         return {
@@ -267,7 +249,7 @@ export default function BuilderPage() {
         };
       });
     },
-    [templateLayoutConfig]
+    []
   );
   const handleRemoveInstance = useCallback(
     (sectionId: string) => {
@@ -502,7 +484,6 @@ export default function BuilderPage() {
                 customizations={customizations}
                 templateContent={currentCV.template_content || undefined}
                 layoutConfig={normalizedLayoutConfig || undefined}
-                defaultCustomizations={templateDefaultCustomizations || undefined}
                 manifest={templateManifest || undefined}
               />
             </div>

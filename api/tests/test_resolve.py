@@ -303,3 +303,46 @@ def test_resolver_falls_back_to_hex_literal():
     from app.schema.models import Zone
     zone = Zone(id="z", styles={"background": "#aabbcc"})
     assert _resolve_zone_styles(zone)["background-color"] == "#aabbcc"
+
+
+def test_resolve_uses_customizations_layout_over_manifest():
+    """Per-CV ``customizations.layout`` zones/placement win over the manifest.
+
+    This is the contract the editor's zone authoring (Add Zone / drag-drop)
+    depends on: the customize panel writes ``customizations.layout`` and the
+    resolver must render those zones, not the template's static ones.
+    """
+    manifest = TemplateManifest(
+        name="M",
+        zones=[Zone(id="template-zone")],
+        placement={"profile": "template-zone"},
+    )
+    custom = Customizations(
+        layout={
+            "zones": [Zone(id="cv-zone")],
+            "placement": {"p": "cv-zone"},
+        }
+    )
+    model = resolve(_document(), FakeRenderer(), manifest, custom)
+    assert [z.id for z in model.zones] == ["cv-zone"]
+    assert model.zones[0].section_ids == ["p", "x", "sk"]
+
+
+def test_resolve_placement_matches_instance_id_before_type():
+    """Per-CV layout placement is keyed by instance id; the resolver must
+    honor ``placement[section.id]`` as well as ``placement[section.type]``."""
+    manifest = TemplateManifest(
+        name="M",
+        zones=[Zone(id="main"), Zone(id="side")],
+        placement={"profile": "main", "experience": "main", "skills": "main"},
+    )
+    custom = Customizations(
+        layout={
+            "zones": [Zone(id="main"), Zone(id="side")],
+            "placement": {"p": "side"},  # instance id, not the type key
+        }
+    )
+    model = resolve(_document(), FakeRenderer(), manifest, custom)
+    by_zone = {z.id: z.section_ids for z in model.zones}
+    assert by_zone["side"] == ["p"]
+    assert by_zone["main"] == ["x", "sk"]

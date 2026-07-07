@@ -27,12 +27,14 @@ class PDFService:
         if not manifest_dict:
             raise ValueError("Template has no manifest")
 
-        # Build the AST straight from the wire shape on the CV row.
-        document = build_document(cv, None)
-
         # Resolve the manifest. v1 manifests are rejected.
         manifest = TemplateManifest.model_validate(manifest_dict)
         customizations = coerce_customizations(cv.customizations)
+
+        # Build the AST straight from the wire shape on the CV row. The
+        # manifest is passed through so template policy_overrides apply the
+        # same way they do in the live preview (/render/html).
+        document = build_document(cv, manifest)
 
         renderer = HTMLDocumentRenderer()
         model = resolve(document, renderer, manifest, customizations)

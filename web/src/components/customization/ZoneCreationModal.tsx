@@ -1,16 +1,7 @@
 import { useState } from "react";
 import Modal from "../common/Modal";
 import type { Zone } from "../../lib/sections/types";
-
-const FONT_OPTIONS = [
-  "",
-  "Inter, system-ui, sans-serif",
-  "Georgia, Crimson, serif",
-  "system-ui, sans-serif",
-  "Arial, Helvetica, sans-serif",
-  "Times New Roman, serif",
-  "Courier New, monospace",
-];
+import { percentToToken, pxToSpacingToken } from "../../lib/sections/zones";
 
 function generateZoneId(): string {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -33,19 +24,20 @@ export default function ZoneCreationModal({ open, onClose, onCreate, existingZon
   const [width, setWidth] = useState(50);
   const [padding, setPadding] = useState(24);
   const [backgroundColor, setBackgroundColor] = useState("#ffffff");
-  const [font, setFont] = useState("");
-  const [textColor, setTextColor] = useState("#374151");
 
   const availableWidth = 100;
   const maxWidth = Math.max(15, availableWidth - 15);
 
   const handleCreate = () => {
-    const styles: Record<string, string> = {};
-    styles.width = `${width}%`;
-    if (padding) styles.padding = `${padding}px`;
-    if (backgroundColor && backgroundColor !== "#ffffff") styles["background-color"] = backgroundColor;
-    if (font) styles.font = font;
-    if (textColor && textColor !== "#374151") styles.color = textColor;
+    // The closed design vocabulary: width/padding are tokens, background is
+    // a color ref. Raw CSS strings are rejected at the schema boundary.
+    const styles: Record<string, string> = {
+      width: percentToToken(width),
+      padding: pxToSpacingToken(padding),
+    };
+    if (backgroundColor && backgroundColor !== "#ffffff") {
+      styles.background = backgroundColor;
+    }
 
     const zone: Zone = {
       id: generateZoneId(),
@@ -113,37 +105,7 @@ export default function ZoneCreationModal({ open, onClose, onCreate, existingZon
             value={backgroundColor}
             onChange={(e) => setBackgroundColor(e.target.value)}
             className="flex-1 rounded border px-2 py-1 text-xs"
-          />
-        </div>
-
-        <div>
-          <label className="mb-1 block text-xs font-medium text-gray-600">Font</label>
-          <select
-            value={font}
-            onChange={(e) => setFont(e.target.value)}
-            className="w-full rounded border px-2 py-1.5 text-sm"
-          >
-            {FONT_OPTIONS.map((f) => (
-              <option key={f} value={f}>
-                {f ? f.split(",")[0] : "Inherit from template"}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <label className="w-24 text-xs font-medium text-gray-600">Text Color</label>
-          <input
-            type="color"
-            value={textColor}
-            onChange={(e) => setTextColor(e.target.value)}
-            className="h-7 w-10 cursor-pointer rounded border"
-          />
-          <input
-            type="text"
-            value={textColor}
-            onChange={(e) => setTextColor(e.target.value)}
-            className="flex-1 rounded border px-2 py-1 text-xs"
+            placeholder="#RRGGBB or palette.<name>"
           />
         </div>
       </div>

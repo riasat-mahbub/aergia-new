@@ -52,6 +52,17 @@ class CVService:
             else (data.customizations or {})
         )
 
+        # A new CV inherits the template's zone layout so the editor opens
+        # with zones and every section is assignable. The frontend migrates
+        # the type-keyed placement to instance ids on load.
+        if not customizations.get("layout"):
+            template_data = await self.get_template_data(data.template_id)
+            manifest = (template_data or {}).get("manifest") or {}
+            zones = manifest.get("zones") or []
+            placement = manifest.get("placement") or {}
+            if zones:
+                customizations["layout"] = {"zones": zones, "placement": placement}
+
         cv = CV(
             user_id=user_id,
             title=data.title,

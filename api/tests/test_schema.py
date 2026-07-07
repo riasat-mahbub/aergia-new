@@ -140,3 +140,18 @@ def test_customizations_accepts_canonical_shape():
     c = Customizations.model_validate({"accent_color": "#aabbcc", "body_font": "sans-serif"})
     assert c.accent_color == "#aabbcc"
     assert c.body_font == "sans-serif"
+def test_customizations_accepts_layout():
+    """Per-CV zone layout survives the model boundary.
+
+    The customize panel writes ``customizations.layout`` (zones + placement);
+    the schema must carry it or zone authoring is silently dropped on save.
+    """
+    c = Customizations.model_validate({
+        "layout": {
+            "zones": [{"id": "main", "styles": {"width": "full"}}],
+            "placement": {"p": "main"},
+        }
+    })
+    assert c.layout is not None
+    assert c.layout.zones[0].id == "main"
+    assert c.layout.placement == {"p": "main"}

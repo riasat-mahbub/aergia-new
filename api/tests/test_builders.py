@@ -221,3 +221,43 @@ def test_build_section_style_uses_manifest_override_when_no_instance_policy():
         manifest=manifest,
     )
     assert policy.skill_variant == "inline"
+
+
+def test_build_document_applies_manifest_policy_overrides():
+    """``build_document`` must apply the manifest's ``policy_overrides``.
+
+    The UI preview path passes the manifest to ``build_document``; the PDF
+    path must do the same or the template's per-type policy (e.g. skills
+    inline) is silently lost and the PDF renders the default policy while
+    the preview renders the override.
+    """
+    from app.schema.models import TemplateManifest
+
+    manifest = TemplateManifest(
+        name="M",
+        policy_overrides={"by_type": {"skills": {"skill_variant": "inline"}}},
+    )
+    cv = _cv([{
+        "id": "s1",
+        "type": "skills",
+        "title": "Skills",
+        "enabled": True,
+        "data": [],
+    }])
+    doc = build_document(cv, manifest)
+    assert doc.sections[0].policy.skill_variant == "inline"
+
+
+def test_build_document_without_manifest_uses_type_default():
+    """Without a manifest the type default applies — the divergence guard:
+    the PDF path must pass the manifest, otherwise ``build_document(cv, None)``
+    silently drops template policy overrides."""
+    cv = _cv([{
+        "id": "s1",
+        "type": "skills",
+        "title": "Skills",
+        "enabled": True,
+        "data": [],
+    }])
+    doc = build_document(cv, None)
+    assert doc.sections[0].policy.skill_variant != "inline"
