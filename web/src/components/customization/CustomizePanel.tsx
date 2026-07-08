@@ -88,45 +88,35 @@ function FieldStyleRow({
 }) {
   return (
     <div className="rounded border border-gray-100 p-2">
-      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">{label}</p>
-      <div className="space-y-1">
-        <div className="flex items-center gap-2">
-          <label className="w-16 text-[11px] text-gray-600">Bold</label>
+      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500">{label}</p>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-gray-700">
           <input
             type="checkbox"
+            className="h-3.5 w-3.5"
             checked={initial.bold === true}
             onChange={(e) => onChange({ ...initial, bold: e.target.checked || undefined })}
           />
-          <label className="w-16 text-[11px] text-gray-600">Italic</label>
+          Bold
+        </label>
+        <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-gray-700">
           <input
             type="checkbox"
+            className="h-3.5 w-3.5"
             checked={initial.italic === true}
             onChange={(e) => onChange({ ...initial, italic: e.target.checked || undefined })}
           />
-        </div>
-        <div className="flex items-center gap-2">
-          <label className="w-16 text-[11px] text-gray-600">Color</label>
-          <input
-            type="color"
-            value={initial.color ?? "#000000"}
-            onChange={(e) => onChange({ ...initial, color: e.target.value })}
-          />
-          <input
-            type="text"
-            value={initial.color ?? ""}
-            onChange={(e) => onChange({ ...initial, color: e.target.value || null })}
-            className="flex-1 rounded border px-2 py-1 text-xs"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <label className="w-16 text-[11px] text-gray-600">Size</label>
+          Italic
+        </label>
+        <label className="flex items-center gap-1.5 text-[11px] text-gray-700">
+          Size
           <select
             value={initial.font_size ?? ""}
             onChange={(e) => {
               const v = e.target.value;
               onChange({ ...initial, font_size: v ? (v as NonNullable<TextStyle["font_size"]>) : undefined });
             }}
-            className="rounded border px-2 py-1 text-xs"
+            className="rounded border px-1.5 py-0.5 text-[11px]"
           >
             <option value="">Default</option>
             {Object.keys(FONT_SIZE_CSS).map((k) => (
@@ -135,7 +125,22 @@ function FieldStyleRow({
               </option>
             ))}
           </select>
-        </div>
+        </label>
+        <label className="flex items-center gap-1.5 text-[11px] text-gray-700" title="Text color">
+          <input
+            type="color"
+            className="h-6 w-8 cursor-pointer rounded border"
+            value={initial.color ?? "#000000"}
+            onChange={(e) => onChange({ ...initial, color: e.target.value })}
+          />
+          <input
+            type="text"
+            value={initial.color ?? ""}
+            onChange={(e) => onChange({ ...initial, color: e.target.value || null })}
+            className="w-20 rounded border px-1.5 py-0.5 text-[11px]"
+            placeholder="#RRGGBB"
+          />
+        </label>
       </div>
     </div>
   );

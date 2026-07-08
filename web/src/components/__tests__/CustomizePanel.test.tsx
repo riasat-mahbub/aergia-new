@@ -532,3 +532,48 @@ describe("T48: customization panel switches via tab bar in BuilderPage", () => {
 afterEach(() => {
   useSupportStore.getState().reset();
 });
+
+  it("Field style toggles are paired with their own labels and write style.text", () => {
+    const onUpdateStyle = vi.fn();
+    renderCustomizePanel({
+      onUpdateStyle,
+      instances: [{ id: "s1", type: "profile", title: "John", enabled: true, data: {} }],
+    });
+
+    fireEvent.click(screen.getByTestId("zone-section-s1"));
+    fireEvent.click(screen.getByText(/Field styles/));
+
+    // Each checkbox is wrapped by its own label, so the label text sits
+    // next to its checkbox (the Italic label is not orphaned beside the
+    // Bold checkbox). Scope to the "Name" field row — every field row has
+    // its own toggles.
+    const nameRow = screen.getByText("Name").closest("div.rounded") as HTMLElement;
+    const boldCheckbox = nameRow.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    const italicCheckbox = nameRow.querySelectorAll('input[type="checkbox"]')[1] as HTMLInputElement;
+    expect(boldCheckbox.type).toBe("checkbox");
+    expect(italicCheckbox.type).toBe("checkbox");
+
+    fireEvent.click(boldCheckbox);
+    fireEvent.click(italicCheckbox);
+
+    expect(onUpdateStyle).toHaveBeenCalled();
+    const style = onUpdateStyle.mock.calls[0][1] as { text?: Record<string, { bold?: boolean; italic?: boolean }> };
+    expect(style.text).toBeDefined();
+  });
+
+  it("Field style color is a compact swatch+hex unit in one row", () => {
+    renderCustomizePanel({
+      instances: [{ id: "s1", type: "profile", title: "John", enabled: true, data: {} }],
+    });
+
+    fireEvent.click(screen.getByTestId("zone-section-s1"));
+    fireEvent.click(screen.getByText(/Field styles/));
+
+    const nameRow = screen.getByText("Name").closest("div.rounded") as HTMLElement;
+    const hexInput = nameRow.querySelector('input[type="text"]') as HTMLInputElement;
+    const colorInput = nameRow.querySelector('input[type="color"]') as HTMLInputElement;
+    // Swatch and hex sit in the same label row (flex), not a full-width row.
+    const label = hexInput.closest("label");
+    expect(label).not.toBeNull();
+    expect(label!.contains(colorInput)).toBe(true);
+  });

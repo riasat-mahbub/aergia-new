@@ -261,3 +261,68 @@ def test_build_document_without_manifest_uses_type_default():
     }])
     doc = build_document(cv, None)
     assert doc.sections[0].policy.skill_variant != "inline"
+
+
+def test_build_document_attaches_per_field_styles_to_runs():
+    """Per-field ``style.text[field_key]`` (bold/italic/color/font-size)
+    must land on the AST runs — the renderer reads ``TextRun.style``.
+
+    Without this, field-style edits from the customize panel never reach
+    the preview or the PDF.
+    """
+    cv = _cv([{
+        "id": "s1",
+        "type": "profile",
+        "title": "Profile",
+        "enabled": True,
+        "data": {"name": "Ada", "title": "Engineer", "summary": "Pioneer"},
+        "style": {
+            "text": {
+                "name": {"bold": True, "color": "#ff0000", "font_size": "xl"},
+                "title": {"italic": True},
+            }
+        },
+    }])
+    doc = build_document(cv)
+    section = doc.sections[0]
+    fields = {f.key: f for f in section.entries[0].fields}
+
+    name_run = fields["name"].runs[0]
+    assert name_run.style is not None
+    assert name_run.style.bold is True
+    assert name_run.style.color == "#ff0000"
+    assert name_run.style.font_size == "xl"
+
+    title_run = fields["title"].runs[0]
+    assert title_run.style is not None
+    assert title_run.style.italic is True
+    # Fields without a declared style keep a plain run.
+    assert fields["summary"].runs[0].style is None
+
+
+def test_profile_section_defaults_to_centered_text():
+    """Profile content is centered by default (type-level default, not a
+    user override)."""
+    cv = _cv([{
+        "id": "s1",
+        "type": "profile",
+        "title": "Profile",
+        "enabled": True,
+        "data": {"name": "Ada"},
+    }])
+    doc = build_document(cv)
+    assert doc.sections[0].subsection.text_align == "center"
+
+
+def test_profile_section_respects_explicit_text_align():
+    """A per-section text_align pick overrides the center default."""
+    cv = _cv([{
+        "id": "s1",
+        "type": "profile",
+        "title": "Profile",
+        "enabled": True,
+        "data": {"name": "Ada"},
+        "style": {"subsection": {"text_align": "left"}},
+    }])
+    doc = build_document(cv)
+    assert doc.sections[0].subsection.text_align == "left"
