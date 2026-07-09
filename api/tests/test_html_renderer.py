@@ -6,6 +6,8 @@ variables, escapes user-provided text, and respects the policy's
 
 from __future__ import annotations
 
+import re
+
 from app.schema.models import (
     Customizations,
     Document,
@@ -114,3 +116,61 @@ def test_html_renderer_uses_resolved_css_not_manifest_css():
     assert "Inter, system-ui, sans-serif" in html
     # The accent color resolved through the manifest's hex literal.
     assert "#aabbcc" in html
+
+
+def test_same_group_fields_render_in_one_row():
+    """Fields sharing a group render inside a single .field-row div."""
+    manifest = TemplateManifest(
+        name="M", zones=[Zone(id="main", styles={})], placement={"profile": "main"},
+    )
+    doc = Document(sections=[
+        Section(id="p", type="profile", title="Profile", entries=[Entry(id="e", fields=[
+            FieldBlock(key="name", group="main", runs=[TextRun(text="Ada")]),
+            FieldBlock(key="email", group="contact", runs=[TextRun(text="a@b.com")]),
+            FieldBlock(key="phone", group="contact", runs=[TextRun(text="123")]),
+            FieldBlock(key="summary", group="summary", runs=[TextRun(text="Pioneer")]),
+        ])]),
+    ])
+    model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
+    html = HTMLDocumentRenderer().render(model)
+
+    rows = re.findall(r'<div class="field-row"[^>]*>((?:<div class="f-[^"]*"[^>]*>.*?</div>)+)</div>', html, re.S)
+    assert len(rows) == 3  # main, contact, summary
+    contact_row = next(r for r in rows if "a@b.com" in r)
+    assert "123" in contact_row
+    assert "Ada" not in contact_row  # name is in its own row
+
+
+def test_social_field_renders_icon_when_known():
+    manifest = TemplateManifest(
+        name="M", zones=[Zone(id="main", styles={})], placement={"profile": "main"},
+    )
+    doc = Document(sections=[
+        Section(id="p", type="profile", title="Profile", entries=[Entry(id="e", fields=[
+            FieldBlock(key="social_links.0", group="social", icon="x",
+                       runs=[TextRun(text="X")]),
+        ])]),
+    ])
+    model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
+    html = HTMLDocumentRenderer().render(model)
+
+    assert '<span class="f-icon"' in html
+    assert "<svg" in html
+    assert "X" in html
+
+
+def test_social_field_with_unknown_icon_renders_text_only():
+    manifest = TemplateManifest(
+        name="M", zones=[Zone(id="main", styles={})], placement={"profile": "main"},
+    )
+    doc = Document(sections=[
+        Section(id="p", type="profile", title="Profile", entries=[Entry(id="e", fields=[
+            FieldBlock(key="social_links.0", group="social", icon="mastodon",
+                       runs=[TextRun(text="Fedi")]),
+        ])]),
+    ])
+    model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
+    html = HTMLDocumentRenderer().render(model)
+
+    assert "<svg" not in html
+    assert "Fedi" in html
