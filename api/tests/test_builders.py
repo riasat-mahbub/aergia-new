@@ -326,3 +326,60 @@ def test_profile_section_respects_explicit_text_align():
     }])
     doc = build_document(cv)
     assert doc.sections[0].subsection.text_align == "left"
+
+
+def test_profile_fields_carry_row_groups_and_icons():
+    """Profile fields are grouped into semantic rows: main (name), subtitle
+    (title), contact (email/phone/location/site), social (links + icons),
+    summary. This restores the sophisticated profile layout."""
+    cv = _cv([{
+        "id": "s1",
+        "type": "profile",
+        "title": "Profile",
+        "enabled": True,
+        "data": {
+            "name": "Ada",
+            "title": "Engineer",
+            "email": "a@b.com",
+            "phone": "123",
+            "location": "London",
+            "site_text": "ada.dev",
+            "summary": "Pioneer",
+            "social_links": [
+                {"label": "X", "url": "https://x.com/ada", "icon": "x"},
+                {"label": "GitHub", "url": "https://github.com/ada", "icon": "github"},
+            ],
+        },
+    }])
+    doc = build_document(cv)
+    fields = {f.key: f for f in doc.sections[0].entries[0].fields}
+
+    assert fields["name"].group == "main"
+    assert fields["title"].group == "subtitle"
+    assert fields["email"].group == "contact"
+    assert fields["phone"].group == "contact"
+    assert fields["location"].group == "contact"
+    assert fields["site_text"].group == "contact"
+    assert fields["summary"].group == "summary"
+
+    assert fields["social_links.0"].group == "social"
+    assert fields["social_links.0"].icon == "x"
+    assert fields["social_links.1"].group == "social"
+    assert fields["social_links.1"].icon == "github"
+
+
+def test_profile_social_links_without_icon_name_get_no_icon():
+    cv = _cv([{
+        "id": "s1",
+        "type": "profile",
+        "title": "Profile",
+        "enabled": True,
+        "data": {
+            "name": "Ada",
+            "social_links": [{"label": "Site", "url": "https://ada.dev"}],
+        },
+    }])
+    doc = build_document(cv)
+    fields = {f.key: f for f in doc.sections[0].entries[0].fields}
+    assert fields["social_links.0"].group == "social"
+    assert fields["social_links.0"].icon is None
