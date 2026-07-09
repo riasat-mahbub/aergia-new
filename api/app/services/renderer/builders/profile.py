@@ -18,15 +18,15 @@ def build_profile(instance: SectionInstance) -> Section:
     data = instance.data if isinstance(instance.data, dict) else {}
 
     fields: list[FieldBlock] = []
-    fields.append(FieldBlock(key="name", runs=[TextRun(text=str(data.get("name", "") or ""))]))
+    fields.append(FieldBlock(key="name", group="main", runs=[TextRun(text=str(data.get("name", "") or ""))]))
     if data.get("title"):
-        fields.append(FieldBlock(key="title", runs=[TextRun(text=str(data["title"]))]))
+        fields.append(FieldBlock(key="title", group="subtitle", runs=[TextRun(text=str(data["title"]))]))
     if data.get("email"):
-        fields.append(FieldBlock(key="email", runs=[TextRun(text=str(data["email"]))]))
+        fields.append(FieldBlock(key="email", group="contact", runs=[TextRun(text=str(data["email"]))]))
     if data.get("phone"):
-        fields.append(FieldBlock(key="phone", runs=[TextRun(text=str(data["phone"]))]))
+        fields.append(FieldBlock(key="phone", group="contact", runs=[TextRun(text=str(data["phone"]))]))
     if data.get("location"):
-        fields.append(FieldBlock(key="location", runs=[TextRun(text=str(data["location"]))]))
+        fields.append(FieldBlock(key="location", group="contact", runs=[TextRun(text=str(data["location"]))]))
 
     site_url = str(data.get("site_url") or "").strip()
     site_text = str(data.get("site_text") or "").strip()
@@ -34,15 +34,16 @@ def build_profile(instance: SectionInstance) -> Section:
         fields.append(
             FieldBlock(
                 key="site",
+                group="contact",
                 runs=[TextRun(text=site_text or site_url)],
             )
         )
     elif site_text:
         # Free-floating site text without a URL is just a text label.
-        fields.append(FieldBlock(key="site_text", runs=[TextRun(text=site_text)]))
+        fields.append(FieldBlock(key="site_text", group="contact", runs=[TextRun(text=site_text)]))
 
     if data.get("summary"):
-        fields.append(FieldBlock(key="summary", runs=[TextRun(text=str(data["summary"]))]))
+        fields.append(FieldBlock(key="summary", group="summary", runs=[TextRun(text=str(data["summary"]))]))
 
     social_links = data.get("social_links") or []
     for i, link in enumerate(social_links):
@@ -52,9 +53,12 @@ def build_profile(instance: SectionInstance) -> Section:
         if not url:
             continue
         label = str(link.get("label") or url)
+        icon = str(link.get("icon") or "") or None
         fields.append(
             FieldBlock(
                 key=f"social_links.{i}",
+                group="social",
+                icon=icon,
                 runs=[TextRun(text=label)],
             )
         )
