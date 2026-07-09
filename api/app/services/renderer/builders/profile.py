@@ -42,9 +42,6 @@ def build_profile(instance: SectionInstance) -> Section:
         # Free-floating site text without a URL is just a text label.
         fields.append(FieldBlock(key="site_text", group="contact", runs=[TextRun(text=site_text)]))
 
-    if data.get("summary"):
-        fields.append(FieldBlock(key="summary", group="summary", runs=[TextRun(text=str(data["summary"]))]))
-
     social_links = data.get("social_links") or []
     for i, link in enumerate(social_links):
         if not isinstance(link, dict):
@@ -62,6 +59,9 @@ def build_profile(instance: SectionInstance) -> Section:
                 runs=[TextRun(text=label)],
             )
         )
+
+    if data.get("summary"):
+        fields.append(FieldBlock(key="summary", group="summary", runs=[TextRun(text=str(data["summary"]))]))
 
     entry = Entry(id=f"{instance.id}__main", fields=fields)
     return Section(
