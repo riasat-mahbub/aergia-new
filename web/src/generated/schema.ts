@@ -1,5 +1,5 @@
 // This file is generated. Do not edit by hand.
-// Source: api/app/schema/models.py (sha256:5c6e84c9cc4585f3)
+// Source: api/app/schema/models.py (sha256:f2c02a9532d9c544)
 
 export interface CVLayout {
   "placement"?: Record<string, string>;
@@ -36,6 +36,8 @@ export interface Entry {
 }
 
 export interface FieldBlock {
+  "group"?: (string) | null;
+  "icon"?: (string) | null;
   "key": string;
   "runs": Array<TextRun>;
 }

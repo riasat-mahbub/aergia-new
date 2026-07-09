@@ -163,10 +163,17 @@ class TextRun(BaseModel):
 
 class FieldBlock(BaseModel):
     """A named field (e.g. ``"company"``, ``"title"``) containing one or more
-    text runs. The renderer emits a ``<div class="f-{key}">`` wrapper."""
+    text runs. The renderer emits a ``<div class="f-{key}">`` wrapper.
+
+    ``group`` names the semantic row the field belongs to (``"header"``,
+    ``"contact"``, ``"social"``, ``"body"``, ...); consecutive same-group
+    fields render inline in one row. ``icon`` names a social icon for the
+    field; the renderer draws it from its icon table when known."""
 
     key: str
     runs: list[TextRun]
+    group: str | None = None
+    icon: str | None = None
 
 
 class Entry(BaseModel):

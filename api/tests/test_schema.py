@@ -155,3 +155,14 @@ def test_customizations_accepts_layout():
     assert c.layout is not None
     assert c.layout.zones[0].id == "main"
     assert c.layout.placement == {"p": "main"}
+
+
+def test_field_block_accepts_group_and_icon():
+    """FieldBlock carries the row-group and social-icon metadata that the
+    builders emit and the renderer consumes (Option A row layouts)."""
+    from app.schema.models import FieldBlock, TextRun
+
+    fb = FieldBlock(key="social_links.0", runs=[TextRun(text="X")], group="social", icon="x")
+    assert fb.group == "social"
+    assert fb.icon == "x"
+    assert FieldBlock(key="name", runs=[TextRun(text="Ada")]).group is None
