@@ -21,13 +21,13 @@ def build_skills(instance: SectionInstance) -> Section:
         fields: list[FieldBlock] = []
 
         if row.get("category"):
-            fields.append(FieldBlock(key="category", runs=[TextRun(text=str(row["category"]))]))
+            fields.append(FieldBlock(key="category", group="header", runs=[TextRun(text=str(row["category"]))]))
 
         items = row.get("items") or []
         for i, item in enumerate(items):
             if not item:
                 continue
-            fields.append(FieldBlock(key=f"tag.{i}", runs=[TextRun(text=str(item))]))
+            fields.append(FieldBlock(key=f"tag.{i}", group="body", runs=[TextRun(text=str(item))]))
 
         if fields:
             entries.append(Entry(id=entry_id, fields=fields))

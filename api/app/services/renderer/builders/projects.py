@@ -21,12 +21,12 @@ def build_projects(instance: SectionInstance) -> Section:
         fields: list[FieldBlock] = []
 
         if row.get("name"):
-            fields.append(FieldBlock(key="name", runs=[TextRun(text=str(row["name"]))]))
+            fields.append(FieldBlock(key="name", group="header", runs=[TextRun(text=str(row["name"]))]))
 
         url = str(row.get("url") or "")
         link_text = str(row.get("link_text") or url)
         if url:
-            fields.append(FieldBlock(key="link", runs=[TextRun(text=link_text)]))
+            fields.append(FieldBlock(key="link", group="header", runs=[TextRun(text=link_text)]))
 
         date = format_date_range(
             str(row.get("start_date") or ""),
@@ -34,16 +34,16 @@ def build_projects(instance: SectionInstance) -> Section:
             False,
         )
         if date:
-            fields.append(FieldBlock(key="date", runs=[TextRun(text=date)]))
+            fields.append(FieldBlock(key="date", group="meta", runs=[TextRun(text=date)]))
 
         if row.get("description"):
-            fields.append(FieldBlock(key="description", runs=[TextRun(text=str(row["description"]))]))
+            fields.append(FieldBlock(key="description", group="body", runs=[TextRun(text=str(row["description"]))]))
 
         tech = row.get("tech_stack") or []
         for i, t in enumerate(tech):
             if not t:
                 continue
-            fields.append(FieldBlock(key=f"tech.{i}", runs=[TextRun(text=str(t))]))
+            fields.append(FieldBlock(key=f"tech.{i}", group="body", runs=[TextRun(text=str(t))]))
 
         if fields:
             entries.append(Entry(id=entry_id, fields=fields))

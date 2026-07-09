@@ -20,17 +20,17 @@ def build_certifications(instance: SectionInstance) -> Section:
         fields: list[FieldBlock] = []
 
         if row.get("name"):
-            fields.append(FieldBlock(key="name", runs=[TextRun(text=str(row["name"]))]))
+            fields.append(FieldBlock(key="name", group="header", runs=[TextRun(text=str(row["name"]))]))
 
         issuer = str(row.get("issuer") or "").strip()
         raw_date = str(row.get("date") or "")
         meta_parts = [p for p in (issuer, format_single_date(raw_date) if raw_date else "") if p]
         if meta_parts:
-            fields.append(FieldBlock(key="meta", runs=[TextRun(text=" · ".join(meta_parts))]))
+            fields.append(FieldBlock(key="meta", group="header", runs=[TextRun(text=" · ".join(meta_parts))]))
 
         url = str(row.get("credential_url") or "")
         if url:
-            fields.append(FieldBlock(key="link", runs=[TextRun(text=url)]))
+            fields.append(FieldBlock(key="link", group="body", runs=[TextRun(text=url)]))
 
         if fields:
             entries.append(Entry(id=entry_id, fields=fields))
