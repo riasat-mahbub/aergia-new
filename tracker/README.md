@@ -10,13 +10,13 @@ checks schema integrity.
 | Folder | Type | Total |
 |--------|------|-------|
 | [bugs/](bugs/) | bug | 25 |
-| [features/](features/) | feature | 56 |
+| [features/](features/) | feature | 58 |
 | [decisions/](decisions/) | adr | 5 |
-| [tasks/](tasks/) | task | 120 |
+| [tasks/](tasks/) | task | 123 |
 | [docs/](docs/) | doc | 1 |
 | [epics/](epics/) | epic | 2 |
 
-**Status** (from `tracker stats`, 2026-08-09): DONE 112 · IN_PROGRESS 20 · PLANNED 50 · PROPOSED 27 · 209 entries total.
+**Status** (from `tracker stats`, 2026-08-09): DONE 116 · IN_PROGRESS 20 · PLANNED 50 · PROPOSED 28 · 214 entries total.
 
 ## Usage
 
