@@ -168,11 +168,14 @@ class FieldBlock(BaseModel):
     ``group`` names the semantic row the field belongs to (``"header"``,
     ``"contact"``, ``"social"``, ``"body"``, ...); consecutive same-group
     fields render inline in one row. ``icon`` names a social icon for the
-    field; the renderer draws it from its icon table when known."""
+    field; the renderer draws it from its icon table when known. ``align``
+    names a right-rail field — the first right-aligned field in a row is
+    pushed to the row's right edge via margin-left:auto."""
 
     key: str
     runs: list[TextRun]
     group: str | None = None
+    align: Literal["right"] | None = None
     icon: str | None = None
 
 
