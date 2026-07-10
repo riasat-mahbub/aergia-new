@@ -26,7 +26,7 @@ def build_certifications(instance: SectionInstance) -> Section:
         raw_date = str(row.get("date") or "")
         meta_parts = [p for p in (issuer, format_single_date(raw_date) if raw_date else "") if p]
         if meta_parts:
-            fields.append(FieldBlock(key="meta", group="header", runs=[TextRun(text=" · ".join(meta_parts))]))
+            fields.append(FieldBlock(key="meta", group="secondary", runs=[TextRun(text=" · ".join(meta_parts))]))
 
         url = str(row.get("credential_url") or "")
         if url:

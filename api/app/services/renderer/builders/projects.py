@@ -23,18 +23,18 @@ def build_projects(instance: SectionInstance) -> Section:
         if row.get("name"):
             fields.append(FieldBlock(key="name", group="header", runs=[TextRun(text=str(row["name"]))]))
 
-        url = str(row.get("url") or "")
-        link_text = str(row.get("link_text") or url)
-        if url:
-            fields.append(FieldBlock(key="link", group="header", runs=[TextRun(text=link_text)]))
-
         date = format_date_range(
             str(row.get("start_date") or ""),
             row.get("end_date"),
             False,
         )
         if date:
-            fields.append(FieldBlock(key="date", group="meta", runs=[TextRun(text=date)]))
+            fields.append(FieldBlock(key="date", group="header", align="right", runs=[TextRun(text=date)]))
+
+        url = str(row.get("url") or "")
+        link_text = str(row.get("link_text") or url)
+        if url:
+            fields.append(FieldBlock(key="link", group="secondary", runs=[TextRun(text=link_text)]))
 
         if row.get("description"):
             fields.append(FieldBlock(key="description", group="body", runs=[TextRun(text=str(row["description"]))]))

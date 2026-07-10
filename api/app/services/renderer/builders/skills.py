@@ -21,7 +21,7 @@ def build_skills(instance: SectionInstance) -> Section:
         fields: list[FieldBlock] = []
 
         if row.get("category"):
-            fields.append(FieldBlock(key="category", group="header", runs=[TextRun(text=str(row["category"]))]))
+            fields.append(FieldBlock(key="category", group="body", runs=[TextRun(text=str(row["category"]))]))
 
         items = row.get("items") or []
         for i, item in enumerate(items):
