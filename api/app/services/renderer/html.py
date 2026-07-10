@@ -160,7 +160,7 @@ def _render_entry(entry: Entry, section_subsection: SubsectionStyle | None) -> s
     current_group: str | None = None
     bucket: list[FieldBlock] = []
     for field in entry.fields:
-        if field.group != current_group and bucket:
+        if bucket and (field.group is None or field.group != current_group):
             rows.append(_render_field_row(bucket))
             bucket = []
         current_group = field.group

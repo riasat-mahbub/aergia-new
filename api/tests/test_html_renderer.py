@@ -174,3 +174,22 @@ def test_social_field_with_unknown_icon_renders_text_only():
 
     assert "<svg" not in html
     assert "Fedi" in html
+
+
+def test_ungrouped_fields_render_each_in_their_own_row():
+    """group=None fields keep the pre-rows stacked look — each field gets
+    its own .field-row wrapper, consecutive None fields are NOT merged."""
+    manifest = TemplateManifest(
+        name="M", zones=[Zone(id="main", styles={})], placement={"experience": "main"},
+    )
+    doc = Document(sections=[
+        Section(id="x", type="experience", title="Work", entries=[Entry(id="e", fields=[
+            FieldBlock(key="position", runs=[TextRun(text="Dev")]),
+            FieldBlock(key="company", runs=[TextRun(text="Co")]),
+        ])]),
+    ])
+    model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
+    html = HTMLDocumentRenderer().render(model)
+    rows = re.findall(r'<div class="field-row"[^>]*>.*?</div>', html, re.S)
+    assert len(rows) == 2
+    assert "Dev" in rows[0] and "Co" in rows[1]
