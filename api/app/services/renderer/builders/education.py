@@ -20,9 +20,9 @@ def build_education(instance: SectionInstance) -> Section:
         fields: list[FieldBlock] = []
 
         if row.get("degree"):
-            fields.append(FieldBlock(key="degree", runs=[TextRun(text=str(row["degree"]))]))
+            fields.append(FieldBlock(key="degree", group="header", runs=[TextRun(text=str(row["degree"]))]))
         if row.get("institution"):
-            fields.append(FieldBlock(key="institution", runs=[TextRun(text=str(row["institution"]))]))
+            fields.append(FieldBlock(key="institution", group="header", runs=[TextRun(text=str(row["institution"]))]))
 
         date = format_date_range(
             str(row.get("start_date") or ""),
@@ -30,12 +30,12 @@ def build_education(instance: SectionInstance) -> Section:
             bool(row.get("current")),
         )
         if date:
-            fields.append(FieldBlock(key="date", runs=[TextRun(text=date)]))
+            fields.append(FieldBlock(key="date", group="meta", runs=[TextRun(text=date)]))
 
         if row.get("gpa"):
-            fields.append(FieldBlock(key="gpa", runs=[TextRun(text=str(row["gpa"]))]))
+            fields.append(FieldBlock(key="gpa", group="body", runs=[TextRun(text=str(row["gpa"]))]))
         if row.get("summary"):
-            fields.append(FieldBlock(key="summary", runs=[TextRun(text=str(row["summary"]))]))
+            fields.append(FieldBlock(key="summary", group="body", runs=[TextRun(text=str(row["summary"]))]))
 
         if fields:
             entries.append(Entry(id=entry_id, fields=fields))

@@ -383,3 +383,101 @@ def test_profile_social_links_without_icon_name_get_no_icon():
     fields = {f.key: f for f in doc.sections[0].entries[0].fields}
     assert fields["social_links.0"].group == "social"
     assert fields["social_links.0"].icon is None
+
+
+def test_experience_fields_carry_row_groups():
+    cv = _cv([{
+        "id": "s1", "type": "experience", "title": "Work", "enabled": True,
+        "data": [{
+            "id": "e1", "company": "BS23", "position": "Dev", "location": "Dhaka",
+            "start_date": "2026-01", "end_date": None, "current": True,
+            "description": "Built things",
+        }],
+    }])
+    fields = {f.key: f for f in build_document(cv).sections[0].entries[0].fields}
+    assert fields["position"].group == "header"
+    assert fields["company"].group == "header"
+    assert fields["location"].group == "meta"
+    assert fields["date"].group == "meta"
+    assert fields["description"].group == "body"
+
+
+def test_education_fields_carry_row_groups():
+    cv = _cv([{
+        "id": "s1", "type": "education", "title": "Ed", "enabled": True,
+        "data": [{
+            "id": "e1", "degree": "BSc", "institution": "U", "start_date": "2020-01",
+            "end_date": "2024-01", "gpa": "3.9", "summary": "Studied",
+        }],
+    }])
+    fields = {f.key: f for f in build_document(cv).sections[0].entries[0].fields}
+    assert fields["degree"].group == "header"
+    assert fields["institution"].group == "header"
+    assert fields["date"].group == "meta"
+    assert fields["gpa"].group == "body"
+    assert fields["summary"].group == "body"
+
+
+def test_skills_fields_carry_row_groups():
+    cv = _cv([{
+        "id": "s1", "type": "skills", "title": "Skills", "enabled": True,
+        "data": [{"id": "g1", "category": "Lang", "items": ["Python", "SQL"]}],
+    }])
+    fields = {f.key: f for f in build_document(cv).sections[0].entries[0].fields}
+    assert fields["category"].group == "header"
+    assert fields["tag.0"].group == "body"
+    assert fields["tag.1"].group == "body"
+
+
+def test_projects_fields_carry_row_groups():
+    cv = _cv([{
+        "id": "s1", "type": "projects", "title": "P", "enabled": True,
+        "data": [{
+            "id": "e1", "name": "Aergia", "url": "https://aergia.dev", "link_text": "site",
+            "start_date": "2026-01", "end_date": None, "description": "CV builder",
+            "tech_stack": ["Python", "React"],
+        }],
+    }])
+    fields = {f.key: f for f in build_document(cv).sections[0].entries[0].fields}
+    assert fields["name"].group == "header"
+    assert fields["link"].group == "header"
+    assert fields["date"].group == "meta"
+    assert fields["description"].group == "body"
+    assert fields["tech.0"].group == "body"
+    assert fields["tech.1"].group == "body"
+
+
+def test_languages_fields_carry_row_groups():
+    cv = _cv([{
+        "id": "s1", "type": "languages", "title": "L", "enabled": True,
+        "data": [{"id": "e1", "language": "English", "proficiency": "Native"}],
+    }])
+    fields = {f.key: f for f in build_document(cv).sections[0].entries[0].fields}
+    assert fields["language"].group == "header"
+    assert fields["proficiency"].group == "header"
+
+
+def test_certifications_fields_carry_row_groups():
+    cv = _cv([{
+        "id": "s1", "type": "certifications", "title": "C", "enabled": True,
+        "data": [{"id": "e1", "name": "AWS", "issuer": "Amazon", "date": "2026-01", "credential_url": "https://x"}],
+    }])
+    fields = {f.key: f for f in build_document(cv).sections[0].entries[0].fields}
+    assert fields["name"].group == "header"
+    assert fields["meta"].group == "header"
+    assert fields["link"].group == "body"
+
+
+def test_research_fields_carry_row_groups():
+    cv = _cv([{
+        "id": "s1", "type": "research", "title": "R", "enabled": True,
+        "data": [{
+            "id": "e1", "title": "Paper", "paper_url": "https://x", "paper_link_text": "pdf",
+            "description": "Work", "publication_date": "2026-09", "publication_value": "Conf",
+        }],
+    }])
+    fields = {f.key: f for f in build_document(cv).sections[0].entries[0].fields}
+    assert fields["title"].group == "header"
+    assert fields["link"].group == "header"
+    assert fields["date"].group == "meta"
+    assert fields["description"].group == "body"

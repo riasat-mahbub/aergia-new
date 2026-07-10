@@ -19,9 +19,9 @@ def build_languages(instance: SectionInstance) -> Section:
         fields: list[FieldBlock] = []
 
         if row.get("language"):
-            fields.append(FieldBlock(key="language", runs=[TextRun(text=str(row["language"]))]))
+            fields.append(FieldBlock(key="language", group="header", runs=[TextRun(text=str(row["language"]))]))
         if row.get("proficiency"):
-            fields.append(FieldBlock(key="proficiency", runs=[TextRun(text=str(row["proficiency"]))]))
+            fields.append(FieldBlock(key="proficiency", group="header", runs=[TextRun(text=str(row["proficiency"]))]))
 
         if fields:
             entries.append(Entry(id=entry_id, fields=fields))

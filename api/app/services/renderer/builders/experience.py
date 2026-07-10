@@ -26,14 +26,14 @@ def build_experience(instance: SectionInstance) -> Section:
         fields: list[FieldBlock] = []
 
         if row.get("position"):
-            fields.append(FieldBlock(key="position", runs=[TextRun(text=str(row["position"]))]))
+            fields.append(FieldBlock(key="position", group="header", runs=[TextRun(text=str(row["position"]))]))
         if row.get("company") or row.get("location"):
             # The renderer joins company + location with a comma when
             # location is present; here they are independent fields.
             if row.get("company"):
-                fields.append(FieldBlock(key="company", runs=[TextRun(text=str(row["company"]))]))
+                fields.append(FieldBlock(key="company", group="header", runs=[TextRun(text=str(row["company"]))]))
             if row.get("location"):
-                fields.append(FieldBlock(key="location", runs=[TextRun(text=str(row["location"]))]))
+                fields.append(FieldBlock(key="location", group="meta", runs=[TextRun(text=str(row["location"]))]))
 
         date = format_date_range(
             str(row.get("start_date") or ""),
@@ -41,10 +41,10 @@ def build_experience(instance: SectionInstance) -> Section:
             bool(row.get("current")),
         )
         if date:
-            fields.append(FieldBlock(key="date", runs=[TextRun(text=date)]))
+            fields.append(FieldBlock(key="date", group="meta", runs=[TextRun(text=date)]))
 
         if row.get("description"):
-            fields.append(FieldBlock(key="description", runs=[TextRun(text=str(row["description"]))]))
+            fields.append(FieldBlock(key="description", group="body", runs=[TextRun(text=str(row["description"]))]))
 
         if fields:
             entries.append(Entry(id=entry_id, fields=fields))

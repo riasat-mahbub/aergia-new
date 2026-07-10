@@ -21,20 +21,20 @@ def build_research(instance: SectionInstance) -> Section:
         fields: list[FieldBlock] = []
 
         if row.get("title"):
-            fields.append(FieldBlock(key="title", runs=[TextRun(text=str(row["title"]))]))
+            fields.append(FieldBlock(key="title", group="header", runs=[TextRun(text=str(row["title"]))]))
 
         url = str(row.get("paper_url") or "")
         if url:
             link_text = str(row.get("paper_link_text") or "Paper")
-            fields.append(FieldBlock(key="link", runs=[TextRun(text=link_text)]))
+            fields.append(FieldBlock(key="link", group="header", runs=[TextRun(text=link_text)]))
 
         raw_date = str(row.get("publication_date") or "")
         if raw_date:
             formatted = format_single_date(raw_date)
-            fields.append(FieldBlock(key="date", runs=[TextRun(text=formatted)]))
+            fields.append(FieldBlock(key="date", group="meta", runs=[TextRun(text=formatted)]))
 
         if row.get("description"):
-            fields.append(FieldBlock(key="description", runs=[TextRun(text=str(row["description"]))]))
+            fields.append(FieldBlock(key="description", group="body", runs=[TextRun(text=str(row["description"]))]))
 
         if fields:
             entries.append(Entry(id=entry_id, fields=fields))
