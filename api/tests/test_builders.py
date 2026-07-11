@@ -38,7 +38,7 @@ def test_profile_emits_name_title_summary_and_social_fields():
     section = doc.sections[0]
     assert section.type == "profile"
     keys = [f.key for f in section.entries[0].fields]
-    assert keys == ["name", "title", "email", "summary", "social_links.0"]
+    assert keys == ["name", "title", "email", "social_links.0", "summary"]
     assert section.entries[0].fields[0].runs[0].text == "Ada"
 
 
@@ -481,3 +481,22 @@ def test_research_fields_carry_row_groups():
     assert fields["link"].group == "header"
     assert fields["date"].group == "meta"
     assert fields["description"].group == "body"
+
+
+def test_profile_renders_social_links_before_summary():
+    """Document order: name, contact, social links, THEN summary — the
+    profile summary must not appear above the social row."""
+    cv = _cv([{
+        "id": "s1",
+        "type": "profile",
+        "title": "Profile",
+        "enabled": True,
+        "data": {
+            "name": "Ada",
+            "email": "a@b.com",
+            "summary": "Pioneer",
+            "social_links": [{"label": "X", "url": "https://x.com", "icon": "x"}],
+        },
+    }])
+    keys = [f.key for f in build_document(cv).sections[0].entries[0].fields]
+    assert keys.index("social_links.0") < keys.index("summary")
