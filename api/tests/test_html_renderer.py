@@ -15,6 +15,7 @@ from app.schema.models import (
     FieldBlock,
     Section,
     SectionPolicy,
+    SubsectionStyle,
     TemplateManifest,
     TextRun,
     Zone,
@@ -193,3 +194,57 @@ def test_ungrouped_fields_render_each_in_their_own_row():
     rows = re.findall(r'<div class="field-row"[^>]*>.*?</div>', html, re.S)
     assert len(rows) == 2
     assert "Dev" in rows[0] and "Co" in rows[1]
+
+
+def test_right_rail_date_gets_margin_left_auto():
+    """A field with align=right is pushed to the row's right edge."""
+    manifest = TemplateManifest(name="M", zones=[Zone(id="main", styles={})], placement={"experience": "main"})
+    doc = Document(sections=[Section(id="x", type="experience", title="Work", entries=[Entry(id="e", fields=[
+        FieldBlock(key="position", group="header", runs=[TextRun(text="Engineer")]),
+        FieldBlock(key="date", group="header", align="right", runs=[TextRun(text="2026")]),
+    ])])])
+    model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
+    html = HTMLDocumentRenderer().render(model)
+    assert 'margin-left:auto' in html
+    # the rail field sits in the same row as the header field
+    row = re.search(r'<div class="field-row"[^>]*>((?:<div class="f-[^"]*"[^>]*>.*?</div>)+)</div>', html, re.S).group(0)
+    assert 'Engineer' in row and '2026' in row
+
+
+def test_centered_section_justifies_rows_center():
+    """No rail: row justify-content mirrors the section's text_align."""
+    manifest = TemplateManifest(name="M", zones=[Zone(id="main", styles={})], placement={"profile": "main"})
+    doc = Document(sections=[Section(id="p", type="profile", title="Profile",
+        subsection=SubsectionStyle(text_align="center"),
+        entries=[Entry(id="e", fields=[
+            FieldBlock(key="name", group="main", runs=[TextRun(text="Ada")]),
+        ])])])
+    model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
+    html = HTMLDocumentRenderer().render(model)
+    assert 'justify-content:center' in html
+
+
+def test_rail_row_ignores_section_text_align():
+    """Rail wins: a right rail stays right even if the section is centered."""
+    manifest = TemplateManifest(name="M", zones=[Zone(id="main", styles={})], placement={"experience": "main"})
+    doc = Document(sections=[Section(id="x", type="experience", title="Work",
+        subsection=SubsectionStyle(text_align="center"),
+        entries=[Entry(id="e", fields=[
+            FieldBlock(key="position", group="header", runs=[TextRun(text="Engineer")]),
+            FieldBlock(key="date", group="header", align="right", runs=[TextRun(text="2026")]),
+        ])])])
+    model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
+    html = HTMLDocumentRenderer().render(model)
+    assert 'margin-left:auto' in html  # rail present
+    assert 'justify-content:center' not in html  # not applied to the rail row
+
+
+def test_default_rows_use_flex_start():
+    """No text_align, no rail: flex-start (the previous behavior)."""
+    manifest = TemplateManifest(name="M", zones=[Zone(id="main", styles={})], placement={"experience": "main"})
+    doc = Document(sections=[Section(id="x", type="experience", title="Work", entries=[Entry(id="e", fields=[
+        FieldBlock(key="company", group="secondary", runs=[TextRun(text="Co")]),
+    ])])])
+    model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
+    html = HTMLDocumentRenderer().render(model)
+    assert 'justify-content:flex-start' in html
