@@ -516,24 +516,27 @@ export default function CustomizePanel({
                 Block style (subsection)
               </summary>
               <div className="mt-2 space-y-2">
-                <div>
-                  <label className="block text-[11px] text-gray-600">Text align</label>
-                  <select
-                    value={selectedStyle.subsection?.text_align ?? ""}
-                    onChange={(e) =>
-                      updateSelectedSubsection({
-                        text_align: (e.target.value || null) as SubsectionStyle["text_align"],
-                      })
-                    }
-                    className="mt-1 w-full rounded border px-2 py-1 text-sm"
-                  >
+                {["profile", "skills", "certifications"].includes(selectedInstance.type) && (
+                  <div>
+                    <label className="block text-[11px] text-gray-600">Text align</label>
+                    <select
+                      data-testid="section-text-align"
+                      value={selectedStyle.subsection?.text_align ?? ""}
+                      onChange={(e) =>
+                        updateSelectedSubsection({
+                          text_align: (e.target.value || null) as SubsectionStyle["text_align"],
+                        })
+                      }
+                      className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                    >
                     <option value="">Default</option>
                     <option value="left">Left</option>
                     <option value="center">Center</option>
                     <option value="right">Right</option>
                     <option value="justify">Justify</option>
                   </select>
-                </div>
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
                   <label className="w-28 text-[11px] text-gray-600">Spacing before</label>
                   <input
