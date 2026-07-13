@@ -166,3 +166,12 @@ def test_field_block_accepts_group_and_icon():
     assert fb.group == "social"
     assert fb.icon == "x"
     assert FieldBlock(key="name", runs=[TextRun(text="Ada")]).group is None
+
+
+def test_field_block_accepts_right_align():
+    """FieldBlock.align marks a right-rail field (dates, proficiency)."""
+    from app.schema.models import FieldBlock, TextRun
+
+    fb = FieldBlock(key="date", runs=[TextRun(text="2026")], group="header", align="right")
+    assert fb.align == "right"
+    assert FieldBlock(key="name", runs=[TextRun(text="Ada")]).align is None
