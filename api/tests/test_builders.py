@@ -74,7 +74,7 @@ def test_education_emits_degree_institution_date_gpa_summary():
     }])
     doc = build_document(cv)
     keys = [f.key for f in doc.sections[0].entries[0].fields]
-    assert keys == ["degree", "institution", "date", "gpa", "summary"]
+    assert keys == ["degree", "date", "institution", "gpa", "summary"]
 
 
 def test_skills_emits_category_plus_tag_per_item():
@@ -115,7 +115,7 @@ def test_projects_emits_name_link_date_description_tech():
     }])
     doc = build_document(cv)
     keys = [f.key for f in doc.sections[0].entries[0].fields]
-    assert keys == ["name", "link", "date", "description", "tech.0", "tech.1"]
+    assert keys == ["name", "date", "link", "description", "tech.0", "tech.1"]
 
 
 def test_languages_emits_language_and_proficiency():
@@ -160,7 +160,7 @@ def test_research_emits_title_link_date_description():
     }])
     doc = build_document(cv)
     keys = [f.key for f in doc.sections[0].entries[0].fields]
-    assert keys == ["title", "link", "date", "description"]
+    assert keys == ["title", "date", "link", "description"]
 
 
 def test_disabled_section_is_dropped():
@@ -394,11 +394,14 @@ def test_experience_fields_carry_row_groups():
             "description": "Built things",
         }],
     }])
-    fields = {f.key: f for f in build_document(cv).sections[0].entries[0].fields}
+    entry = build_document(cv).sections[0].entries[0]
+    fields = {f.key: f for f in entry.fields}
+    assert [f.key for f in entry.fields] == ["position", "date", "company", "location", "description"]
     assert fields["position"].group == "header"
-    assert fields["company"].group == "header"
-    assert fields["location"].group == "meta"
-    assert fields["date"].group == "meta"
+    assert fields["date"].group == "header"
+    assert fields["date"].align == "right"
+    assert fields["company"].group == "secondary"
+    assert fields["location"].group == "secondary"
     assert fields["description"].group == "body"
 
 
@@ -410,12 +413,15 @@ def test_education_fields_carry_row_groups():
             "end_date": "2024-01", "gpa": "3.9", "summary": "Studied",
         }],
     }])
-    fields = {f.key: f for f in build_document(cv).sections[0].entries[0].fields}
+    entry = build_document(cv).sections[0].entries[0]
+    fields = {f.key: f for f in entry.fields}
+    assert [f.key for f in entry.fields] == ["degree", "date", "institution", "gpa", "summary"]
     assert fields["degree"].group == "header"
-    assert fields["institution"].group == "header"
-    assert fields["date"].group == "meta"
-    assert fields["gpa"].group == "body"
-    assert fields["summary"].group == "body"
+    assert fields["date"].group == "header"
+    assert fields["date"].align == "right"
+    assert fields["institution"].group == "secondary"
+    assert fields["gpa"].group == "meta"
+    assert fields["summary"].group == "summary"
 
 
 def test_skills_fields_carry_row_groups():
@@ -424,9 +430,9 @@ def test_skills_fields_carry_row_groups():
         "data": [{"id": "g1", "category": "Lang", "items": ["Python", "SQL"]}],
     }])
     fields = {f.key: f for f in build_document(cv).sections[0].entries[0].fields}
-    assert fields["category"].group == "header"
-    assert fields["tag.0"].group == "body"
-    assert fields["tag.1"].group == "body"
+    assert fields["category"].group == "body"
+    assert fields["tag.0"].group == fields["category"].group
+    assert fields["tag.1"].group == fields["category"].group
 
 
 def test_projects_fields_carry_row_groups():
@@ -438,10 +444,13 @@ def test_projects_fields_carry_row_groups():
             "tech_stack": ["Python", "React"],
         }],
     }])
-    fields = {f.key: f for f in build_document(cv).sections[0].entries[0].fields}
+    entry = build_document(cv).sections[0].entries[0]
+    fields = {f.key: f for f in entry.fields}
+    assert [f.key for f in entry.fields] == ["name", "date", "link", "description", "tech.0", "tech.1"]
     assert fields["name"].group == "header"
-    assert fields["link"].group == "header"
-    assert fields["date"].group == "meta"
+    assert fields["date"].group == "header"
+    assert fields["date"].align == "right"
+    assert fields["link"].group == "secondary"
     assert fields["description"].group == "body"
     assert fields["tech.0"].group == "body"
     assert fields["tech.1"].group == "body"
@@ -455,6 +464,7 @@ def test_languages_fields_carry_row_groups():
     fields = {f.key: f for f in build_document(cv).sections[0].entries[0].fields}
     assert fields["language"].group == "header"
     assert fields["proficiency"].group == "header"
+    assert fields["proficiency"].align == "right"
 
 
 def test_certifications_fields_carry_row_groups():
@@ -464,7 +474,7 @@ def test_certifications_fields_carry_row_groups():
     }])
     fields = {f.key: f for f in build_document(cv).sections[0].entries[0].fields}
     assert fields["name"].group == "header"
-    assert fields["meta"].group == "header"
+    assert fields["meta"].group == "secondary"
     assert fields["link"].group == "body"
 
 
@@ -476,10 +486,13 @@ def test_research_fields_carry_row_groups():
             "description": "Work", "publication_date": "2026-09", "publication_value": "Conf",
         }],
     }])
-    fields = {f.key: f for f in build_document(cv).sections[0].entries[0].fields}
+    entry = build_document(cv).sections[0].entries[0]
+    fields = {f.key: f for f in entry.fields}
+    assert [f.key for f in entry.fields] == ["title", "date", "link", "description"]
     assert fields["title"].group == "header"
-    assert fields["link"].group == "header"
-    assert fields["date"].group == "meta"
+    assert fields["date"].group == "header"
+    assert fields["date"].align == "right"
+    assert fields["link"].group == "secondary"
     assert fields["description"].group == "body"
 
 

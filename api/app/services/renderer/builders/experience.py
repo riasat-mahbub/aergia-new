@@ -1,7 +1,7 @@
 """AST builder for the ``experience`` section.
 
-Emits one ``Entry`` per data row with fields: ``position``, ``company``,
-``location``, ``date``, ``description``.
+Emits one ``Entry`` per data row with fields: ``position``, ``date``,
+``company``, ``location``, ``description``.
 
 The ``date`` field is a single ``TextRun`` formatted via
 :func:`format_date_range` so the resolver doesn't have to know about
@@ -27,13 +27,6 @@ def build_experience(instance: SectionInstance) -> Section:
 
         if row.get("position"):
             fields.append(FieldBlock(key="position", group="header", runs=[TextRun(text=str(row["position"]))]))
-        if row.get("company") or row.get("location"):
-            # The renderer joins company + location with a comma when
-            # location is present; here they are independent fields.
-            if row.get("company"):
-                fields.append(FieldBlock(key="company", group="header", runs=[TextRun(text=str(row["company"]))]))
-            if row.get("location"):
-                fields.append(FieldBlock(key="location", group="meta", runs=[TextRun(text=str(row["location"]))]))
 
         date = format_date_range(
             str(row.get("start_date") or ""),
@@ -41,7 +34,15 @@ def build_experience(instance: SectionInstance) -> Section:
             bool(row.get("current")),
         )
         if date:
-            fields.append(FieldBlock(key="date", group="meta", runs=[TextRun(text=date)]))
+            fields.append(FieldBlock(key="date", group="header", align="right", runs=[TextRun(text=date)]))
+
+        if row.get("company") or row.get("location"):
+            # The renderer joins company + location with a comma when
+            # location is present; here they are independent fields.
+            if row.get("company"):
+                fields.append(FieldBlock(key="company", group="secondary", runs=[TextRun(text=str(row["company"]))]))
+            if row.get("location"):
+                fields.append(FieldBlock(key="location", group="secondary", runs=[TextRun(text=str(row["location"]))]))
 
         if row.get("description"):
             fields.append(FieldBlock(key="description", group="body", runs=[TextRun(text=str(row["description"]))]))
