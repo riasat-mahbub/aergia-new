@@ -143,17 +143,32 @@ def _render_text_run(run: TextRun) -> str:
     return text
 
 
-def _render_field_block(block: FieldBlock) -> str:
+def _render_field_block(block: FieldBlock, extra_style: str | None = None) -> str:
     inner = "".join(_render_text_run(r) for r in block.runs)
     icon_svg = _SOCIAL_ICONS.get(block.icon) if block.icon else None
     if icon_svg:
         icon_html = f'<span class="f-icon" aria-hidden="true">{icon_svg}</span>'
         inner = f'{icon_html}<span class="f-icon-label">{inner}</span>'
-    return f'<div class="f-{attr(block.key)}">{inner}</div>'
+    style = f' style="{extra_style}"' if extra_style else ""
+    return f'<div class="f-{attr(block.key)}"{style}>{inner}</div>'
+
+
+def _resolve_row_justify(subsection: SubsectionStyle | None) -> str:
+    """Map a section's ``text_align`` to the flex ``justify-content`` value
+    used for its field rows. ``None``/``"left"`` keep the default
+    ``flex-start``; the renderer never emits an explicit left."""
+
+    align = subsection.text_align if subsection else None
+    if align == "center":
+        return "center"
+    if align == "right":
+        return "right"
+    return "flex-start"
 
 
 def _render_entry(entry: Entry, section_subsection: SubsectionStyle | None) -> str:
     gap = (section_subsection.spacing_after if section_subsection else None) or "var(--spacing-subsection, 16px)"
+    justify = _resolve_row_justify(section_subsection)
 
     # Group consecutive fields that share a group name into one row.
     rows: list[str] = []
@@ -161,20 +176,35 @@ def _render_entry(entry: Entry, section_subsection: SubsectionStyle | None) -> s
     bucket: list[FieldBlock] = []
     for field in entry.fields:
         if bucket and (field.group is None or field.group != current_group):
-            rows.append(_render_field_row(bucket))
+            rows.append(_render_field_row(bucket, justify))
             bucket = []
         current_group = field.group
         bucket.append(field)
     if bucket:
-        rows.append(_render_field_row(bucket))
+        rows.append(_render_field_row(bucket, justify))
 
     fields_html = "".join(rows)
     return f'<div class="entry" style="display:flex;flex-direction:column;gap:{gap};">{fields_html}</div>'
 
 
-def _render_field_row(fields: list[FieldBlock]) -> str:
+def _render_field_row(fields: list[FieldBlock], justify: str) -> str:
+    """Render consecutive same-group fields as one flex row.
+
+    A right-aligned field (``align="right"``) becomes the row's right rail:
+    the first such field is pushed to the right edge via ``margin-left:auto``
+    and the section's text alignment is ignored for that row. Otherwise the
+    row's ``justify-content`` mirrors the section's ``text_align``."""
+
+    rail_field = next((f for f in fields if f.align == "right"), None)
+    base_style = "display:flex;flex-wrap:wrap;align-items:baseline;column-gap:1rem;row-gap:0.25rem"
+    if rail_field is not None:
+        inner = "".join(
+            _render_field_block(f, extra_style="margin-left:auto" if f is rail_field else None)
+            for f in fields
+        )
+        return f'<div class="field-row" style="{base_style}">{inner}</div>'
     inner = "".join(_render_field_block(f) for f in fields)
-    return f'<div class="field-row" style="display:flex;flex-wrap:wrap;align-items:baseline;column-gap:1rem;row-gap:0.25rem;">{inner}</div>'
+    return f'<div class="field-row" style="{base_style};justify-content:{justify}">{inner}</div>'
 
 
 def _render_heading(section: Section, policy: SectionPolicy | None) -> str:
