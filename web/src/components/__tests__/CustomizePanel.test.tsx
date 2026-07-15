@@ -267,6 +267,43 @@ describe("CustomizePanel", () => {
     );
   });
 
+  it("shows the text align control only for profile, skills, and certifications", () => {
+    const cases: Array<[string, boolean]> = [
+      ["profile", true],
+      ["skills", true],
+      ["certifications", true],
+      ["experience", false],
+      ["education", false],
+      ["projects", false],
+      ["research", false],
+      ["languages", false],
+    ];
+    for (const [type, visible] of cases) {
+      const { unmount } = renderCustomizePanel({
+        instances: [
+          {
+            id: "s1",
+            type,
+            title: "T",
+            enabled: true,
+            data:
+              type === "skills" ||
+              type === "languages" ||
+              type === "certifications" ||
+              type === "projects"
+                ? []
+                : {},
+          },
+        ],
+      });
+      fireEvent.click(screen.getByTestId("zone-section-s1"));
+      fireEvent.click(screen.getByText(/Block style/));
+      const alignSelect = document.querySelector('[data-testid="section-text-align"]');
+      expect(!!alignSelect).toBe(visible);
+      unmount();
+    }
+  });
+
   it("renders a Skills layout select for the skills section that writes policy.skill_variant", () => {
     const onUpdateStyle = vi.fn();
     renderCustomizePanel({
