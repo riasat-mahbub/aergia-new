@@ -11,11 +11,11 @@ files in `tracker/` (project-tracker SCHEMA 3, ULID IDs).  See
 | [bugs/](tracker/bugs/) | bug | 25 |
 | [features/](tracker/features/) | feature | 58 |
 | [decisions/](tracker/decisions/) | adr | 5 |
-| [tasks/](tracker/tasks/) | task | 123 |
+| [tasks/](tracker/tasks/) | task | 124 |
 | [docs/](tracker/docs/) | doc | 1 |
 | [epics/](tracker/epics/) | epic | 2 |
 
-**Status** (from `tracker stats`, 2026-08-09): DONE 116 · IN_PROGRESS 20 · PLANNED 50 · PROPOSED 28 · 214 entries total.
+**Status** (from `tracker stats`, 2026-08-09): DONE 117 · IN_PROGRESS 20 · PLANNED 50 · PROPOSED 28 · 215 entries total.
 
 **Last updated:** 2026-08-09 (from `tracker stats`)
 ## Required skill: project-tracker
