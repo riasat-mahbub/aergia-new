@@ -779,3 +779,33 @@ With a CV carrying a profile with social links, `GET /api/v1/cvs/{id}/preview` m
 - Per-field styling (`style.text[key]` → run styles) untouched: `apply_field_text_styles` walks `field.key`, unaffected by `group`/`icon`. ✓ (no task changes it)
 - Tracker records + git commits: Tasks 5; commits at every task boundary. ✓
 - PDF parity: same HTML render path; Task 6 verifies. ✓
+
+---
+
+## Revision 2 — alignment concept (accepted 2026-08-09)
+
+Extends Option A. Adds one attribute and three renderer rules; no new model.
+
+**1. Schema.** `FieldBlock` gains `align: Literal["right"] | None = None` (right-rail only; left/center come from the section's `text_align`).
+
+**2. Revised group + align table** (replaces the Task 3 table):
+
+| Section | Row 1 (left) | rail (`align="right"`) | Row 2 | Row 3 | Row 4 |
+|---|---|---|---|---|---|
+| experience | position | date | company | description | — |
+| education | degree | date | institution | gpa | summary |
+| projects | name | date | link | description, tech | — |
+| research | title | date | link | description | — |
+| certifications | name | — | meta | link | — |
+| skills | category + tags (ONE row) | — | — | — | — |
+| languages | language | proficiency | — | — | — |
+| profile | name / subtitle / contact / social / summary (unchanged, centered) | — | — | — | — |
+
+**3. Renderer rules** (`_render_field_row` / `_render_entry`):
+- A row containing a field with `align="right"`: the first right-aligned field gets `margin-left:auto` (rail). Rail wins over section `text_align`.
+- A row with no rail: `justify-content` mirrors `subsection.text_align` (center → center, right → right, else flex-start). This fixes the centering regression.
+- `_render_entry` receives `section.subsection` (already does) and passes the resolved justify value down.
+
+**4. Manual alignment gating (panel).** The per-section `text_align` select in CustomizePanel ("Block style (subsection)" disclosure) is rendered ONLY for `profile`, `skills`, `certifications`. All other sections use the default (left + date rail). Existing stored `text_align` on rail sections still renders (renderer emits it), but the rail's `margin-left:auto` wins — no conflict.
+
+**5. Verification:** builder tests assert the new group/align assignments; renderer tests assert `margin-left:auto` on rail fields, centered rows for centered sections, skills single-row; panel test asserts the text_align select visibility per section type; full gates + `./dev.sh --smoke`.
