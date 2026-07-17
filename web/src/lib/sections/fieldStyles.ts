@@ -10,7 +10,7 @@ export const FIELD_DEFS: Record<string, FieldDef[]> = {
   projects: [{ key: "name", label: "Name" }, { key: "url", label: "Link" }, { key: "date", label: "Date" }, { key: "description", label: "Description" }, { key: "tech", label: "Tech" }],
   skills: [{ key: "category", label: "Category" }, { key: "tag", label: "Skill tag" }],
   certifications: [{ key: "name", label: "Name" }, { key: "meta", label: "Issuer / date" }, { key: "url", label: "Credential link" }],
-  research: [{ key: "title", label: "Paper title" }, { key: "url", label: "Paper link" }, { key: "date", label: "Publication date" }, { key: "description", label: "Description" }],
+  research: [{ key: "title", label: "Paper title" }, { key: "venue", label: "Venue" }, { key: "url", label: "Paper link" }, { key: "date", label: "Publication date" }, { key: "description", label: "Description" }],
 };
 
 export function getFieldDefs(sectionType: string): FieldDef[] {
