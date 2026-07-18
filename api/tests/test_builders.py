@@ -436,7 +436,8 @@ def test_education_fields_carry_row_groups():
     assert fields["date"].group == "header"
     assert fields["date"].align == "right"
     assert fields["institution"].group == "secondary"
-    assert fields["gpa"].group == "meta"
+    assert fields["gpa"].group == "secondary"
+    assert fields["gpa"].align == "right"
     assert fields["summary"].group == "summary"
 
 
