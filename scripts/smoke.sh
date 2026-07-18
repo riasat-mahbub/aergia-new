@@ -45,12 +45,19 @@ SERVER_LOG="$TMP_DIR/server.log"
 SERVER_PID=""
 PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}"
 
+if ss -tln 2>/dev/null | grep -qE "[:.]${SMOKE_PORT}[[:space:]]"; then
+  echo "ERROR: smoke port ${SMOKE_PORT} is already in use; set AERGIA_SMOKE_PORT to a free port" >&2
+  exit 2
+fi
+
 cleanup() {
   local exit_code=$?
   if [[ -n "$SERVER_PID" ]] && kill -0 "$SERVER_PID" 2>/dev/null; then
     kill "$SERVER_PID" 2>/dev/null || true
+    pkill -P "$SERVER_PID" 2>/dev/null || true
     wait "$SERVER_PID" 2>/dev/null || true
   fi
+  sleep 0.3
   rm -rf "$TMP_DIR"
   exit "$exit_code"
 }
@@ -90,7 +97,7 @@ cp -r "$WEB_DIR/dist/." "$SERVER_DIR/static/"
 
 (cd "$SERVER_DIR" \
   && PYTHONPATH="$API_DIR" \
-     "$VENV/bin/uvicorn" app.main:app \
+     exec "$VENV/bin/uvicorn" app.main:app \
        --host 127.0.0.1 --port "$SMOKE_PORT" \
        > "$SERVER_LOG" 2>&1) &
 SERVER_PID=$!
