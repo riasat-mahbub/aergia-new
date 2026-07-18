@@ -15,6 +15,7 @@ export default function CertificationsEditor({ data = [], onChange }: Props) {
     issuer: "",
     date: "",
     credential_url: "",
+    link_text: "",
   }));
 
   return (
@@ -43,6 +44,10 @@ export default function CertificationsEditor({ data = [], onChange }: Props) {
             <div>
               <label className="block text-xs text-gray-500">Credential URL</label>
               <input type="text" value={entry.credential_url} onChange={(e: any) => update(i, "credential_url", e.target.value)} className="mt-0.5 w-full rounded border px-2 py-1 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500">Link Text</label>
+              <input type="text" value={entry.link_text ?? ""} placeholder="Certificate" onChange={(e: any) => update(i, "link_text", e.target.value)} className="mt-0.5 w-full rounded border px-2 py-1 text-sm" />
             </div>
           </div>
         )}

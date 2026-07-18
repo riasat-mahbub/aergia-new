@@ -150,6 +150,7 @@ export interface CertificationEntry {
   issuer?: string;
   date?: string;
   credential_url?: string;
+  link_text?: string;
 }
 
 export interface ResearchEntry {

@@ -5,7 +5,7 @@ Fields per entry: ``name``, ``meta`` (issuer + date), ``link``.
 
 from __future__ import annotations
 
-from app.schema.models import Entry, FieldBlock, Section, SectionInstance, TextRun
+from app.schema.models import Entry, FieldBlock, Section, SectionInstance, TextStyle, TextRun
 from ._utils import format_single_date
 
 
@@ -30,7 +30,11 @@ def build_certifications(instance: SectionInstance) -> Section:
 
         url = str(row.get("credential_url") or "")
         if url:
-            fields.append(FieldBlock(key="link", group="body", runs=[TextRun(text=url)]))
+            link_text = str(row.get("link_text") or "Certificate")
+            fields.append(FieldBlock(
+                key="link", group="body", align="right",
+                runs=[TextRun(text=link_text, style=TextStyle(link=url))],
+            ))
 
         if fields:
             entries.append(Entry(id=entry_id, fields=fields))

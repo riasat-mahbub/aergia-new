@@ -468,6 +468,8 @@ def test_projects_fields_carry_row_groups():
     assert fields["date"].group == "header"
     assert fields["date"].align == "right"
     assert fields["link"].group == "secondary"
+    assert fields["link"].align == "right"
+    assert fields["link"].runs[0].style.link == "https://aergia.dev"
     assert fields["description"].group == "body"
     assert fields["tech.0"].group == "body"
     assert fields["tech.1"].group == "body"
@@ -493,6 +495,45 @@ def test_certifications_fields_carry_row_groups():
     assert fields["name"].group == "header"
     assert fields["meta"].group == "secondary"
     assert fields["link"].group == "body"
+    assert fields["link"].align == "right"
+    assert fields["link"].runs[0].style.link == "https://x"
+
+
+def test_certifications_link_text_defaults_to_certificate():
+    """A credential URL without link_text renders 'Certificate' as the link."""
+    cv = _cv([{
+        "id": "s1", "type": "certifications", "title": "C", "enabled": True,
+        "data": [{"id": "e1", "name": "AWS", "issuer": "Amazon", "date": "2026-01", "credential_url": "https://x"}],
+    }])
+    fields = {f.key: f for f in build_document(cv).sections[0].entries[0].fields}
+    assert fields["link"].runs[0].text == "Certificate"
+    assert fields["link"].runs[0].style.link == "https://x"
+
+
+def test_certifications_uses_link_text_when_provided():
+    cv = _cv([{
+        "id": "s1", "type": "certifications", "title": "C", "enabled": True,
+        "data": [{"id": "e1", "name": "AWS", "issuer": "Amazon", "date": "2026-01", "credential_url": "https://x", "link_text": "Verify"}],
+    }])
+    fields = {f.key: f for f in build_document(cv).sections[0].entries[0].fields}
+    assert fields["link"].runs[0].text == "Verify"
+
+
+def test_apply_field_text_styles_preserves_builder_link_href():
+    """A user TextStyle on a link field must merge, not replace: the
+    builder-set href survives styling (bold/size/color edits)."""
+    cv = _cv([{
+        "id": "s1", "type": "projects", "title": "P", "enabled": True,
+        "data": [{
+            "id": "e1", "name": "Aergia", "url": "https://aergia.dev", "link_text": "site",
+            "start_date": "2026-01", "end_date": None, "description": "CV builder", "tech_stack": [],
+        }],
+        "style": {"text": {"link": {"bold": True}}},
+    }])
+    fields = {f.key: f for f in build_document(cv).sections[0].entries[0].fields}
+    link_run = fields["link"].runs[0]
+    assert link_run.style.bold is True
+    assert link_run.style.link == "https://aergia.dev"
 
 
 def test_research_fields_carry_row_groups():
@@ -511,6 +552,8 @@ def test_research_fields_carry_row_groups():
     assert fields["date"].align == "right"
     assert fields["venue"].group == "secondary"
     assert fields["link"].group == "secondary"
+    assert fields["link"].align == "right"
+    assert fields["link"].runs[0].style.link == "https://x"
     assert fields["description"].group == "body"
 
 

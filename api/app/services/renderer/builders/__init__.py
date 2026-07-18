@@ -25,6 +25,7 @@ from app.schema.models import (
     SubsectionStyle,
     TemplateManifest,
     TextStyle,
+    TextRun,
 )
 
 from .certifications import build_certifications
@@ -111,6 +112,10 @@ def apply_field_text_styles(section: Section, text_styles: dict[str, TextStyle])
     (field_key -> TextStyle); the renderer reads ``TextRun.style``. Without
     this bridge, bold / italic / color / font-size edits never reach the
     preview or the PDF.
+
+    A builder-set ``link`` href on a run is preserved: the builders attach
+    real anchors to link fields, and a plain replacement would silently
+    drop the href whenever the user styles the link field.
     """
 
     if not text_styles:
@@ -125,10 +130,18 @@ def apply_field_text_styles(section: Section, text_styles: dict[str, TextStyle])
                 new_fields.append(field)
                 continue
             new_fields.append(field.model_copy(update={
-                "runs": [r.model_copy(update={"style": ts}) for r in field.runs],
+                "runs": [_merge_field_style(r, ts) for r in field.runs],
             }))
         new_entries.append(entry.model_copy(update={"fields": new_fields}))
     return section.model_copy(update={"entries": new_entries})
+
+
+def _merge_field_style(run: TextRun, ts: TextStyle) -> TextRun:
+    """Apply a user :class:`TextStyle` to a run, keeping a builder-set link."""
+
+    href = run.style.link if run.style else None
+    merged = ts if href is None else ts.model_copy(update={"link": href})
+    return run.model_copy(update={"style": merged})
 
 
 def build_document(

@@ -132,6 +132,12 @@ describe("certificationEntrySchema.credential_url", () => {
       certificationEntrySchema.safeParse({ ...baseCert, credential_url: "https://aws.amazon.com/cert" }).success,
     ).toBe(true);
   });
+
+  it("accepts an optional link_text", () => {
+    expect(
+      certificationEntrySchema.safeParse({ ...baseCert, credential_url: "https://aws.amazon.com/cert", link_text: "Verify" }).success,
+    ).toBe(true);
+  });
 });
 
 describe("researchEntrySchema", () => {
