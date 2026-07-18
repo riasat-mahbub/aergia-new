@@ -33,7 +33,7 @@ def build_education(instance: SectionInstance) -> Section:
         if row.get("institution"):
             fields.append(FieldBlock(key="institution", group="secondary", runs=[TextRun(text=str(row["institution"]))]))
         if row.get("gpa"):
-            fields.append(FieldBlock(key="gpa", group="meta", runs=[TextRun(text=str(row["gpa"]))]))
+            fields.append(FieldBlock(key="gpa", group="secondary", align="right", runs=[TextRun(text=str(row["gpa"]))]))
         if row.get("summary"):
             fields.append(FieldBlock(key="summary", group="summary", runs=[TextRun(text=str(row["summary"]))]))
 
