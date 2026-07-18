@@ -417,6 +417,7 @@ def test_experience_fields_carry_row_groups():
     assert fields["date"].align == "right"
     assert fields["company"].group == "secondary"
     assert fields["location"].group == "secondary"
+    assert fields["location"].align == "right"
     assert fields["description"].group == "body"
 
 
