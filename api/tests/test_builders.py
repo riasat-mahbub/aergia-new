@@ -155,7 +155,22 @@ def test_research_emits_title_link_date_description():
         "title": "Research",
         "enabled": True,
         "data": [
-            {"id": "r1", "title": "Paper", "paper_url": "https://arxiv.org/abs/1", "paper_link_text": "PDF", "publication_date": "2023-01", "description": "Abstract"},
+            {"id": "r1", "title": "Paper", "paper_url": "https://arxiv.org/abs/1", "paper_link_text": "PDF", "publication_date": "2023-01", "publication_value": "NeurIPS 2024", "description": "Abstract"},
+        ],
+    }])
+    doc = build_document(cv)
+    keys = [f.key for f in doc.sections[0].entries[0].fields]
+    assert keys == ["title", "date", "venue", "link", "description"]
+
+
+def test_research_omits_venue_when_publication_value_is_empty():
+    cv = _cv([{
+        "id": "res",
+        "type": "research",
+        "title": "Research",
+        "enabled": True,
+        "data": [
+            {"id": "r1", "title": "Paper", "paper_url": "https://arxiv.org/abs/1", "publication_date": "2023-01", "description": "Abstract"},
         ],
     }])
     doc = build_document(cv)
@@ -488,10 +503,11 @@ def test_research_fields_carry_row_groups():
     }])
     entry = build_document(cv).sections[0].entries[0]
     fields = {f.key: f for f in entry.fields}
-    assert [f.key for f in entry.fields] == ["title", "date", "link", "description"]
+    assert [f.key for f in entry.fields] == ["title", "date", "venue", "link", "description"]
     assert fields["title"].group == "header"
     assert fields["date"].group == "header"
     assert fields["date"].align == "right"
+    assert fields["venue"].group == "secondary"
     assert fields["link"].group == "secondary"
     assert fields["description"].group == "body"
 

@@ -1,7 +1,7 @@
 """AST builder for the ``research`` section.
 
-Fields per entry: ``title``, ``link`` (paper URL), ``date`` (publication),
-``description``.
+Fields per entry: ``title``, ``venue`` (publication venue), ``link``
+(paper URL), ``date`` (publication), ``description``.
 """
 
 from __future__ import annotations
@@ -27,6 +27,10 @@ def build_research(instance: SectionInstance) -> Section:
         if raw_date:
             formatted = format_single_date(raw_date)
             fields.append(FieldBlock(key="date", group="header", align="right", runs=[TextRun(text=formatted)]))
+
+        venue = str(row.get("publication_value") or "").strip()
+        if venue:
+            fields.append(FieldBlock(key="venue", group="secondary", runs=[TextRun(text=venue)]))
 
         url = str(row.get("paper_url") or "")
         if url:

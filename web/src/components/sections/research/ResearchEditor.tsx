@@ -39,7 +39,7 @@ export default function ResearchEditor({ data = [], onChange }: Props) {
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-500">Publication Value</label>
+              <label className="block text-xs text-gray-500">Publication Venue</label>
               <input
                 type="text"
                 placeholder="e.g. Nature, 2024 or NeurIPS 2024"
