@@ -145,7 +145,7 @@ def test_certifications_emits_name_meta_link():
     }])
     doc = build_document(cv)
     keys = [f.key for f in doc.sections[0].entries[0].fields]
-    assert keys == ["name", "meta", "link"]
+    assert keys == ["name", "issuer", "date", "link"]
 
 
 def test_research_emits_title_link_date_description():
@@ -493,7 +493,9 @@ def test_certifications_fields_carry_row_groups():
     }])
     fields = {f.key: f for f in build_document(cv).sections[0].entries[0].fields}
     assert fields["name"].group == "header"
-    assert fields["meta"].group == "secondary"
+    assert fields["issuer"].group == "secondary"
+    assert fields["date"].group == "secondary"
+    assert fields["date"].align == "right"
     assert fields["link"].group == "body"
     assert fields["link"].align == "right"
     assert fields["link"].runs[0].style.link == "https://x"
@@ -517,6 +519,16 @@ def test_certifications_uses_link_text_when_provided():
     }])
     fields = {f.key: f for f in build_document(cv).sections[0].entries[0].fields}
     assert fields["link"].runs[0].text == "Verify"
+
+
+def test_certifications_omit_issuer_and_date_when_empty():
+    """issuer and date are independent optional fields after the meta split."""
+    cv = _cv([{
+        "id": "s1", "type": "certifications", "title": "C", "enabled": True,
+        "data": [{"id": "e1", "name": "AWS", "credential_url": "https://x"}],
+    }])
+    keys = [f.key for f in build_document(cv).sections[0].entries[0].fields]
+    assert keys == ["name", "link"]
 
 
 def test_apply_field_text_styles_preserves_builder_link_href():

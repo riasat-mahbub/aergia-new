@@ -1,6 +1,7 @@
 """AST builder for the ``certifications`` section.
 
-Fields per entry: ``name``, ``meta`` (issuer + date), ``link``.
+Fields per entry: ``name``, ``issuer``, ``date``, ``link`` (credential
+URL, optional ``link_text``).
 """
 
 from __future__ import annotations
@@ -23,10 +24,13 @@ def build_certifications(instance: SectionInstance) -> Section:
             fields.append(FieldBlock(key="name", group="header", runs=[TextRun(text=str(row["name"]))]))
 
         issuer = str(row.get("issuer") or "").strip()
+        if issuer:
+            fields.append(FieldBlock(key="issuer", group="secondary", runs=[TextRun(text=issuer)]))
+
         raw_date = str(row.get("date") or "")
-        meta_parts = [p for p in (issuer, format_single_date(raw_date) if raw_date else "") if p]
-        if meta_parts:
-            fields.append(FieldBlock(key="meta", group="secondary", runs=[TextRun(text=" · ".join(meta_parts))]))
+        if raw_date:
+            formatted = format_single_date(raw_date)
+            fields.append(FieldBlock(key="date", group="secondary", align="right", runs=[TextRun(text=formatted)]))
 
         url = str(row.get("credential_url") or "")
         if url:
