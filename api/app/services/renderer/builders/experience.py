@@ -7,6 +7,12 @@ The ``date`` field is a single ``TextRun`` formatted via
 :func:`format_date_range` so the resolver doesn't have to know about
 date formatting. The format choice itself is a layout concern and lives
 in :class:`LayoutHints.date_style`.
+
+Row model: ``position`` + ``date`` (right rail) on the header row;
+``company`` (left) + ``location`` (right rail) on the secondary row;
+``description`` on the body row. The renderer turns the rail into
+``margin-left:auto``; no comma joining happens between company and
+location — they are independent fields on opposite ends of one row.
 """
 
 from __future__ import annotations
@@ -37,12 +43,10 @@ def build_experience(instance: SectionInstance) -> Section:
             fields.append(FieldBlock(key="date", group="header", align="right", runs=[TextRun(text=date)]))
 
         if row.get("company") or row.get("location"):
-            # The renderer joins company + location with a comma when
-            # location is present; here they are independent fields.
             if row.get("company"):
                 fields.append(FieldBlock(key="company", group="secondary", runs=[TextRun(text=str(row["company"]))]))
             if row.get("location"):
-                fields.append(FieldBlock(key="location", group="secondary", runs=[TextRun(text=str(row["location"]))]))
+                fields.append(FieldBlock(key="location", group="secondary", align="right", runs=[TextRun(text=str(row["location"]))]))
 
         if row.get("description"):
             fields.append(FieldBlock(key="description", group="body", runs=[TextRun(text=str(row["description"]))]))
