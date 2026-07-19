@@ -138,6 +138,7 @@ export const certificationEntrySchema = z.object({
   issuer: z.string().min(1, "Issuer is required"),
   date: z.string(),
   credential_url: urlSchema,
+  link_text: z.string().optional(),
 });
 
 export const researchEntrySchema = z.object({

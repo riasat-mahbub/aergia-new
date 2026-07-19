@@ -6,7 +6,7 @@ Fields per entry: ``name``, ``link`` (the URL), ``date``, ``description``,
 
 from __future__ import annotations
 
-from app.schema.models import Entry, FieldBlock, Section, SectionInstance, TextRun
+from app.schema.models import Entry, FieldBlock, Section, SectionInstance, TextStyle, TextRun
 from ._utils import format_date_range
 
 
@@ -34,7 +34,10 @@ def build_projects(instance: SectionInstance) -> Section:
         url = str(row.get("url") or "")
         link_text = str(row.get("link_text") or url)
         if url:
-            fields.append(FieldBlock(key="link", group="secondary", runs=[TextRun(text=link_text)]))
+            fields.append(FieldBlock(
+                key="link", group="secondary", align="right",
+                runs=[TextRun(text=link_text, style=TextStyle(link=url))],
+            ))
 
         if row.get("description"):
             fields.append(FieldBlock(key="description", group="body", runs=[TextRun(text=str(row["description"]))]))

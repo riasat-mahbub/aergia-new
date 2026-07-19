@@ -6,7 +6,7 @@ Fields per entry: ``title``, ``venue`` (publication venue), ``link``
 
 from __future__ import annotations
 
-from app.schema.models import Entry, FieldBlock, Section, SectionInstance, TextRun
+from app.schema.models import Entry, FieldBlock, Section, SectionInstance, TextStyle, TextRun
 from ._utils import format_single_date
 
 
@@ -35,7 +35,10 @@ def build_research(instance: SectionInstance) -> Section:
         url = str(row.get("paper_url") or "")
         if url:
             link_text = str(row.get("paper_link_text") or "Paper")
-            fields.append(FieldBlock(key="link", group="secondary", runs=[TextRun(text=link_text)]))
+            fields.append(FieldBlock(
+                key="link", group="secondary", align="right",
+                runs=[TextRun(text=link_text, style=TextStyle(link=url))],
+            ))
 
         if row.get("description"):
             fields.append(FieldBlock(key="description", group="body", runs=[TextRun(text=str(row["description"]))]))

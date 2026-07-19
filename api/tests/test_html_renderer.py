@@ -17,6 +17,7 @@ from app.schema.models import (
     SectionPolicy,
     SubsectionStyle,
     TemplateManifest,
+    TextStyle,
     TextRun,
     Zone,
 )
@@ -248,3 +249,22 @@ def test_default_rows_use_flex_start():
     model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
     html = HTMLDocumentRenderer().render(model)
     assert 'justify-content:flex-start' in html
+
+
+def test_link_field_renders_anchor_with_right_rail_and_arrow():
+    """Link fields render as real anchors on the right rail with the
+    .f-link arrow — the 'link text' pattern for projects/research/certs."""
+    manifest = TemplateManifest(name="M", zones=[Zone(id="main", styles={})], placement={"projects": "main"})
+    doc = Document(sections=[Section(id="pr", type="projects", title="Projects", entries=[Entry(id="e", fields=[
+        FieldBlock(key="project", group="header", runs=[TextRun(text="Aergia")]),
+        FieldBlock(key="link", group="secondary", align="right",
+                   runs=[TextRun(text="Repo", style=TextStyle(link="https://aergia.dev"))]),
+    ])])])
+    model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
+    html = HTMLDocumentRenderer().render(model)
+
+    assert 'href="https://aergia.dev"' in html
+    assert 'class="f-link"' in html
+    assert "margin-left:auto" in html
+    assert ".f-link::after" in html
+    assert "content: \" \u2192\"" in html

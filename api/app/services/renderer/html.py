@@ -327,8 +327,9 @@ def _render_document(model: RenderModel, support: RendererSupport) -> str:
     }}
     .f-name {{ font-size: 1.5rem; font-weight: 700; }}
     .f-title, .f-summary, .f-company, .f-description, .f-institution, .f-category {{ font-size: 0.875rem; }}
-    .f-contact, .f-contact-sep, .f-email, .f-phone, .f-location, .f-site, .f-social-links, .f-date, .f-gpa, .f-url, .f-tech, .f-tag, .f-proficiency, .f-meta {{ font-size: 0.75rem; }}
+    .f-contact, .f-contact-sep, .f-email, .f-phone, .f-location, .f-site, .f-social-links, .f-date, .f-gpa, .f-link, .f-url, .f-tech, .f-tag, .f-proficiency, .f-meta {{ font-size: 0.75rem; }}
     .f-position, .f-degree {{ font-weight: 600; }}
+    .f-link::after {{ content: " →"; }}
     .f-icon {{ display:inline-flex; width:0.9em; height:0.9em; margin-right:0.3em; vertical-align:-0.125em; }}
     .f-icon svg {{ width:100%; height:100%; }}
     .field-row {{ display:flex; flex-wrap:wrap; align-items:baseline; column-gap:1rem; row-gap:0.25rem; }}
