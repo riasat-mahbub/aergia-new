@@ -1,6 +1,6 @@
 """AST builder for the ``research`` section.
 
-Fields per entry: ``title``, ``venue`` (publication venue), ``link``
+Fields per entry: ``paper``, ``venue`` (publication venue), ``link``
 (paper URL), ``date`` (publication), ``description``.
 """
 
@@ -21,7 +21,7 @@ def build_research(instance: SectionInstance) -> Section:
         fields: list[FieldBlock] = []
 
         if row.get("title"):
-            fields.append(FieldBlock(key="title", group="header", runs=[TextRun(text=str(row["title"]))]))
+            fields.append(FieldBlock(key="paper", group="header", runs=[TextRun(text=str(row["title"]))]))
 
         raw_date = str(row.get("publication_date") or "")
         if raw_date:

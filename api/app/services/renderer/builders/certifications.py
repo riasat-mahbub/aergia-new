@@ -1,7 +1,7 @@
 """AST builder for the ``certifications`` section.
 
-Fields per entry: ``name``, ``issuer``, ``date``, ``link`` (credential
-URL, optional ``link_text``).
+Fields per entry: ``certification``, ``issuer``, ``date``, ``link``
+(credential URL, optional ``link_text``).
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ def build_certifications(instance: SectionInstance) -> Section:
         fields: list[FieldBlock] = []
 
         if row.get("name"):
-            fields.append(FieldBlock(key="name", group="header", runs=[TextRun(text=str(row["name"]))]))
+            fields.append(FieldBlock(key="certification", group="header", runs=[TextRun(text=str(row["name"]))]))
 
         issuer = str(row.get("issuer") or "").strip()
         if issuer:

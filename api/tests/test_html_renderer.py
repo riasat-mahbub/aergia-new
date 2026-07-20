@@ -268,3 +268,19 @@ def test_link_field_renders_anchor_with_right_rail_and_arrow():
     assert "margin-left:auto" in html
     assert ".f-link::after" in html
     assert "content: \" \u2192\"" in html
+
+
+def test_field_typography_groups_match_section_grammar():
+    """Header titles share the 600-weight rule; venue/issuer join the
+    secondary line; link joins the small-meta group — the experience/
+    education grammar applied to projects/certifications/research."""
+    html = HTMLDocumentRenderer().render(_model())
+
+    # Weight-600 header rule now covers the renamed section titles.
+    assert ".f-degree, .f-project, .f-certification, .f-paper { font-weight: 600;" in html
+    # venue/issuer render at the secondary (0.875rem) size.
+    assert ".f-category, .f-venue, .f-issuer { font-size: 0.875rem;" in html
+    # link renders at the small-meta (0.75rem) size, matching dates.
+    assert ", .f-gpa, .f-link, .f-tech" in html
+    # The dead .f-url class is gone (no builder emits key='url').
+    assert ".f-url" not in html
