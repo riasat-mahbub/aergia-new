@@ -77,9 +77,9 @@ Per-field styling is already isolated per section instance (`apply_field_text_st
 
 **Files:** `api/app/services/renderer/builders/research.py`, `web/src/components/sections/research/ResearchEditor.tsx`, `web/src/lib/sections/fieldStyles.ts`, `api/tests/test_builders.py`.
 
-- [ ] **Step 1: Fix the editor label.** In `web/src/components/sections/research/ResearchEditor.tsx:42` change `Publication Value` → `Publication Venue`. Keep the wire key `publication_value` (renaming it would orphan saved CV data; the key is internal and only the label was wrong).
+- [x] **Step 1: Fix the editor label.** In `web/src/components/sections/research/ResearchEditor.tsx:42` change `Publication Value` → `Publication Venue`. Keep the wire key `publication_value` (renaming it would orphan saved CV data; the key is internal and only the label was wrong).
 
-- [ ] **Step 2: Emit the venue field.** In `build_research`, after the `date` field and before `link`:
+- [x] **Step 2: Emit the venue field.** In `build_research`, after the `date` field and before `link`:
 
 ```python
 venue = str(row.get("publication_value") or "").strip()
@@ -87,7 +87,7 @@ if venue:
     fields.append(FieldBlock(key="venue", group="secondary", runs=[TextRun(text=venue)]))
 ```
 
-- [ ] **Step 3: Add the field def.** In `web/src/lib/sections/fieldStyles.ts`, research becomes:
+- [x] **Step 3: Add the field def.** In `web/src/lib/sections/fieldStyles.ts`, research becomes:
 
 ```ts
 research: [{ key: "paper", label: "Paper title" }, { key: "venue", label: "Venue" }, { key: "link", label: "Paper link" }, { key: "date", label: "Publication date" }, { key: "description", label: "Description" }],
@@ -95,9 +95,9 @@ research: [{ key: "paper", label: "Paper title" }, { key: "venue", label: "Venue
 
 (`paper` replaces `title` per Task 6; both land in the same edit.)
 
-- [ ] **Step 4: Update builder tests.** `test_research_emits_title_link_date_description` asserts `keys == ["title", "date", "link", "description"]`. With a fixture row carrying `publication_value`, expect `["paper", "date", "venue", "link", "description"]`. Add a companion assertion that a row **without** `publication_value` emits no `venue` field.
+- [x] **Step 4: Update builder tests.** `test_research_emits_title_link_date_description` asserts `keys == ["title", "date", "link", "description"]`. With a fixture row carrying `publication_value`, expect `["paper", "date", "venue", "link", "description"]`. Add a companion assertion that a row **without** `publication_value` emits no `venue` field.
 
-- [ ] **Step 5: Verify.** `cd api && .venv/bin/pytest -q tests/test_builders.py -k research` and a live check: render a CV with a research entry via `/render/html` (or the smoke live render) and confirm the venue text appears in the HTML.
+- [x] **Step 5: Verify.** `cd api && .venv/bin/pytest -q tests/test_builders.py -k research` and a live check: render a CV with a research entry via `/render/html` (or the smoke live render) and confirm the venue text appears in the HTML.
 
 ---
 
@@ -107,7 +107,7 @@ research: [{ key: "paper", label: "Paper title" }, { key: "venue", label: "Venue
 
 **Files:** `api/app/services/renderer/builders/experience.py`, `api/tests/test_builders.py`.
 
-- [ ] **Step 1: Right-align location.**
+- [x] **Step 1: Right-align location.**
 
 ```python
 if row.get("location"):
@@ -116,11 +116,11 @@ if row.get("location"):
 
 The renderer already puts `company` (left) and `location` (right rail) in one flex row — the row directly under the header row that holds the date.
 
-- [ ] **Step 2: Fix the stale docstring.** The module docstring says "The renderer joins company + location with a comma when location is present" — no comma logic exists in `html.py`; location is now a right rail. Rewrite the sentence to describe the row model (`company` left, `location` right rail).
+- [x] **Step 2: Fix the stale docstring.** The module docstring says "The renderer joins company + location with a comma when location is present" — no comma logic exists in `html.py`; location is now a right rail. Rewrite the sentence to describe the row model (`company` left, `location` right rail).
 
-- [ ] **Step 3: Test.** Extend `test_experience_fields_carry_row_groups` (or add a new test): `fields["location"].align == "right"` and `fields["location"].group == "secondary"`.
+- [x] **Step 3: Test.** Extend `test_experience_fields_carry_row_groups` (or add a new test): `fields["location"].align == "right"` and `fields["location"].group == "secondary"`.
 
-- [ ] **Step 4: Verify.** `cd api && .venv/bin/pytest -q tests/test_builders.py -k experience`; renderer smoke: the `f-location` div carries `margin-left:auto` in its row.
+- [x] **Step 4: Verify.** `cd api && .venv/bin/pytest -q tests/test_builders.py -k experience`; renderer smoke: the `f-location` div carries `margin-left:auto` in its row.
 
 ---
 
@@ -130,7 +130,7 @@ The renderer already puts `company` (left) and `location` (right rail) in one fl
 
 **Files:** `api/app/services/renderer/builders/education.py`, `api/tests/test_builders.py`.
 
-- [ ] **Step 1: Move gpa onto the secondary row as a rail.**
+- [x] **Step 1: Move gpa onto the secondary row as a rail.**
 
 ```python
 if row.get("gpa"):
@@ -139,9 +139,9 @@ if row.get("gpa"):
 
 `institution` + `gpa` now share one row (institution left, GPA right), directly under the `degree`/`date` header row.
 
-- [ ] **Step 2: Test.** Assert `fields["gpa"].group == "secondary"` and `fields["gpa"].align == "right"` (update any assertion that expects `group == "meta"`; the `meta` group disappears from education).
+- [x] **Step 2: Test.** Assert `fields["gpa"].group == "secondary"` and `fields["gpa"].align == "right"` (update any assertion that expects `group == "meta"`; the `meta` group disappears from education).
 
-- [ ] **Step 3: Verify.** `cd api && .venv/bin/pytest -q tests/test_builders.py -k education`.
+- [x] **Step 3: Verify.** `cd api && .venv/bin/pytest -q tests/test_builders.py -k education`.
 
 ---
 
@@ -151,7 +151,7 @@ if row.get("gpa"):
 
 **Files:** `api/app/services/renderer/builders/projects.py`, `.../research.py`, `.../certifications.py`, `.../__init__.py`, `api/app/services/renderer/html.py`, `web/src/components/sections/certifications/CertificationsEditor.tsx`, `web/src/lib/sections/types.ts`, `web/src/lib/validators/sections.ts`, `api/tests/test_builders.py`, `api/tests/test_html_renderer.py`.
 
-- [ ] **Step 1: Builders — right rail + href.** In all three builders, emit the link field with `align="right"` and a link style so `_render_text_run` produces a real `<a href="…">` (the preview iframe neutralizes hrefs via `strip_anchor_hrefs`, the PDF keeps them):
+- [x] **Step 1: Builders — right rail + href.** In all three builders, emit the link field with `align="right"` and a link style so `_render_text_run` produces a real `<a href="…">` (the preview iframe neutralizes hrefs via `strip_anchor_hrefs`, the PDF keeps them):
 
 ```python
 # projects.py
@@ -165,7 +165,7 @@ if url:
 # certifications.py — same shape, group="body" (stays its own row), link_text default "Certificate"
 ```
 
-- [ ] **Step 2: Preserve hrefs through field styling.** `apply_field_text_styles` in `builders/__init__.py` currently **replaces** `run.style` with the user's `TextStyle` — which would drop the `link` href whenever the user styles the link field. Merge instead:
+- [x] **Step 2: Preserve hrefs through field styling.** `apply_field_text_styles` in `builders/__init__.py` currently **replaces** `run.style` with the user's `TextStyle` — which would drop the `link` href whenever the user styles the link field. Merge instead:
 
 ```python
 new_fields.append(field.model_copy(update={
@@ -178,14 +178,14 @@ new_fields.append(field.model_copy(update={
 
 where `_with_link(run, ts)` returns `ts` when the run has no href, else `ts.model_copy(update={"link": run.style.link})`. Add a unit test: a link field with a user `text["link"]` style keeps `run.style.link`.
 
-- [ ] **Step 3: Certification link text.** Add `link_text` end to end:
+- [x] **Step 3: Certification link text.** Add `link_text` end to end:
   - `web/src/lib/sections/types.ts`: `CertificationEntry` gains `link_text?: string;`
   - `web/src/lib/validators/sections.ts`: `certificationEntrySchema` gains `link_text: z.string(),`
   - `web/src/components/sections/certifications/CertificationsEditor.tsx`: default entry factory gains `link_text: ""`; add a "Link Text" input (placeholder `Certificate`) next to the Credential URL input
   - `build_certifications`: `link_text = str(row.get("link_text") or "Certificate")` used as the run text
   - `web/src/lib/validators/__tests__/sections.test.ts`: certification fixture with `link_text` validates
 
-- [ ] **Step 4: Arrow + size in renderer CSS.** In `html.py` `_render_document`:
+- [x] **Step 4: Arrow + size in renderer CSS.** In `html.py` `_render_document`:
   - add `.f-link` to the `0.75rem` size group (matches `.f-date`/`.f-gpa` — the "base" small-meta size)
   - add the arrow:
 
@@ -195,11 +195,11 @@ where `_with_link(run, ts)` returns `ts` when the run has no href, else `ts.mode
 
   (U+2192 renders in Chromium and in PDF print. The arrow inherits the field color/font-size.)
 
-- [ ] **Step 5: Tests.**
+- [x] **Step 5: Tests.**
   - `test_builders.py`: link fields carry `align == "right"` and `runs[0].style.link == url` for projects/research/certifications; cert link run text equals `link_text` (and falls back to `"Certificate"`).
   - `test_html_renderer.py`: a model with a project/research/cert link renders `<a href="…">`, the `f-link` div sits in a row with `margin-left:auto`, and the stylesheet contains `.f-link::after`.
 
-- [ ] **Step 6: Verify.** `cd api && .venv/bin/pytest -q tests/test_builders.py tests/test_html_renderer.py`.
+- [x] **Step 6: Verify.** `cd api && .venv/bin/pytest -q tests/test_builders.py tests/test_html_renderer.py`.
 
 ---
 
@@ -209,7 +209,7 @@ where `_with_link(run, ts)` returns `ts` when the run has no href, else `ts.mode
 
 **Files:** `api/app/services/renderer/builders/certifications.py`, `web/src/lib/sections/fieldStyles.ts`, `api/tests/test_builders.py`.
 
-- [ ] **Step 1: Split `meta` into `issuer` + `date`.**
+- [x] **Step 1: Split `meta` into `issuer` + `date`.**
 
 ```python
 issuer = str(row.get("issuer") or "").strip()
@@ -224,7 +224,7 @@ if raw_date:
 
 Row: `issuer` left, `date` right rail, under the certification name — same grammar as experience (`company`/`location`) and education (`institution`/`gpa`).
 
-- [ ] **Step 2: Update field defs.** `fieldStyles.ts` certifications becomes:
+- [x] **Step 2: Update field defs.** `fieldStyles.ts` certifications becomes:
 
 ```ts
 certifications: [{ key: "certification", label: "Name" }, { key: "issuer", label: "Issuer" }, { key: "date", label: "Date" }, { key: "link", label: "Credential link" }],
@@ -232,9 +232,9 @@ certifications: [{ key: "certification", label: "Name" }, { key: "issuer", label
 
 (`certification` replaces `name` per Task 6; `meta` and the mis-keyed `url` are gone — see risk register.)
 
-- [ ] **Step 3: Tests.** `test_certifications_emits_name_meta_link` becomes `keys == ["certification", "issuer", "date", "link"]`; assert `date.align == "right"`; a row with no `date` emits no date field.
+- [x] **Step 3: Tests.** `test_certifications_emits_name_meta_link` becomes `keys == ["certification", "issuer", "date", "link"]`; assert `date.align == "right"`; a row with no `date` emits no date field.
 
-- [ ] **Step 4: Verify.** `cd api && .venv/bin/pytest -q tests/test_builders.py -k cert`.
+- [x] **Step 4: Verify.** `cd api && .venv/bin/pytest -q tests/test_builders.py -k cert`.
 
 ---
 
@@ -246,16 +246,16 @@ certifications: [{ key: "certification", label: "Name" }, { key: "issuer", label
 
 **Files:** all five builders, `api/app/services/renderer/html.py`, `web/src/lib/sections/fieldStyles.ts`, `api/tests/test_builders.py`.
 
-- [ ] **Step 1: Section-specific header keys** (already applied in Tasks 1–5):
+- [x] **Step 1: Section-specific header keys** (already applied in Tasks 1–5):
   - projects: `name` → `project`
   - certifications: `name` → `certification`
   - research: `title` → `paper`
 
   Data keys on the wire stay `name`/`title`; only the AST field key changes.
 
-- [ ] **Step 2: Tech keys.** In `build_projects`, emit every tech chip as `FieldBlock(key="tech", group="body", …)` instead of `tech.<i>`. `apply_field_text_styles` then applies one `text["tech"]` style to all chips (that is the panel's existing intent — `FIELD_DEFS.projects` already lists `tech`).
+- [x] **Step 2: Tech keys.** In `build_projects`, emit every tech chip as `FieldBlock(key="tech", group="body", …)` instead of `tech.<i>`. `apply_field_text_styles` then applies one `text["tech"]` style to all chips (that is the panel's existing intent — `FIELD_DEFS.projects` already lists `tech`).
 
-- [ ] **Step 3: CSS.** In `html.py` `_render_document`:
+- [x] **Step 3: CSS.** In `html.py` `_render_document`:
 
 ```css
 /* secondary line (0.875rem group): */
@@ -268,11 +268,11 @@ certifications: [{ key: "certification", label: "Name" }, { key: "issuer", label
 
   Remove the now-dead `.f-url` from the 0.75rem group (no builder emits `key="url"`).
 
-- [ ] **Step 4: Update builder key assertions** (`test_builders.py`): projects `["project", "date", "link", "description", "tech", "tech"]` (two tech chips, same key — the list may contain duplicates; assert membership/order instead if that is cleaner), certifications `["certification", "issuer", "date", "link"]`, research `["paper", "date", "venue", "link", "description"]`.
+- [x] **Step 4: Update builder key assertions** (`test_builders.py`): projects `["project", "date", "link", "description", "tech", "tech"]` (two tech chips, same key — the list may contain duplicates; assert membership/order instead if that is cleaner), certifications `["certification", "issuer", "date", "link"]`, research `["paper", "date", "venue", "link", "description"]`.
 
-- [ ] **Step 5: Renderer test.** Assert the stylesheet contains `.f-project`/`.f-certification`/`.f-paper` in the weight-600 rule and `.f-link` in the 0.75rem rule (a `test_*_consistency` test that greps the rendered `<style>` block).
+- [x] **Step 5: Renderer test.** Assert the stylesheet contains `.f-project`/`.f-certification`/`.f-paper` in the weight-600 rule and `.f-link` in the 0.75rem rule (a `test_*_consistency` test that greps the rendered `<style>` block).
 
-- [ ] **Step 6: Verify.** `cd api && .venv/bin/pytest -q tests/test_builders.py tests/test_html_renderer.py && cd ../web && npm run test -- --run`.
+- [x] **Step 6: Verify.** `cd api && .venv/bin/pytest -q tests/test_builders.py tests/test_html_renderer.py && cd ../web && npm run test -- --run`.
 
 ---
 
@@ -282,7 +282,7 @@ certifications: [{ key: "certification", label: "Name" }, { key: "issuer", label
 
 **Files:** `web/src/components/builder/ContentSectionList.tsx`, `web/src/components/__tests__/ContentSectionList.test.tsx`.
 
-- [ ] **Step 1: Single open section.**
+- [x] **Step 1: Single open section.**
 
 ```tsx
 const [expandedSectionId, setExpandedSectionId] = useState<string | null>(null);
@@ -294,9 +294,9 @@ const toggleSectionExpand = (id: string) => {
 
 `SortableRow` gets `isExpanded={expandedSectionId === instance.id}`.
 
-- [ ] **Step 2: Test.** Extend `ContentSectionList.test.tsx` with an exclusivity case: expand section 1, then section 2 → `getAllByTitle("Collapse").length === 1` and it belongs to section 2's row.
+- [x] **Step 2: Test.** Extend `ContentSectionList.test.tsx` with an exclusivity case: expand section 1, then section 2 → `getAllByTitle("Collapse").length === 1` and it belongs to section 2's row.
 
-- [ ] **Step 3: Verify.** `cd web && npm run test -- --run ContentSectionList`.
+- [x] **Step 3: Verify.** `cd web && npm run test -- --run ContentSectionList`.
 
 **Scope note (flag):** the *entry-level* accordions inside each section (`AccordionPanel` in `SortableAccordionList`, per-entry local `open` state) stay independently toggleable — multiple entries within one section can still be open. Making those exclusive requires lifting state through `SortableAccordionList`; not included unless requested.
 
@@ -304,13 +304,13 @@ const toggleSectionExpand = (id: string) => {
 
 ## Task 8: Full verification gate
 
-- [ ] `cd api && .venv/bin/pytest -q`
-- [ ] `cd api && .venv/bin/ruff check .`
-- [ ] `cd web && npm run test -- --run`
-- [ ] `cd web && npm run lint` (or `eslint --config web/eslint.config.smoke.js .` as in smoke)
-- [ ] `cd web && npm run build`
-- [ ] `./dev.sh --smoke` (runs all of the above + live preview/PDF smoke against the three seed templates)
-- [ ] Manual spot check: research entry with `publication_value` renders the venue in preview; project/research/cert links show `Link →` right-aligned under the date and are clickable in the exported PDF; cert dates right-aligned; one content section open at a time.
+- [x] `cd api && .venv/bin/pytest -q`
+- [x] `cd api && .venv/bin/ruff check .`
+- [x] `cd web && npm run test -- --run`
+- [x] `cd web && npm run lint` (or `eslint --config web/eslint.config.smoke.js .` as in smoke)
+- [x] `cd web && npm run build`
+- [x] `./dev.sh --smoke` (runs all of the above + live preview/PDF smoke against the three seed templates)
+- [x] Manual spot check: research entry with `publication_value` renders the venue in preview; project/research/cert links show `Link →` right-aligned under the date and are clickable in the exported PDF; cert dates right-aligned; one content section open at a time.
 
 ---
 
