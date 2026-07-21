@@ -137,6 +137,26 @@ describe("ContentSectionList", () => {
     expect(screen.getAllByTitle("Collapse").length).toBe(1);
   });
 
+  it("keeps only one section expanded at a time", () => {
+    render(
+      <ContentSectionList
+        instances={SAMPLE}
+        onToggle={vi.fn()}
+        onUpdateData={vi.fn()}
+        onAddSection={vi.fn()}
+        onRemoveInstance={vi.fn()}
+        onRenameInstance={vi.fn()}
+        onReorderInstances={vi.fn()}
+      />,
+    );
+
+    const expandButtons = screen.getAllByTitle("Expand");
+    fireEvent.click(expandButtons[0]);
+    fireEvent.click(screen.getAllByTitle("Expand")[0]);
+    // Opening a second section collapses the first — exactly one stays open.
+    expect(screen.getAllByTitle("Collapse").length).toBe(1);
+  });
+
   it("opens the AddSectionModal when Add section is clicked and calls onAddSection on pick", () => {
     const onAddSection = vi.fn();
     render(

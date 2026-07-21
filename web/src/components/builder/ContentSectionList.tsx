@@ -223,7 +223,7 @@ export default function ContentSectionList({
   onRenameInstance,
   onReorderInstances,
 }: Props) {
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const [expandedSectionId, setExpandedSectionId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -231,12 +231,9 @@ export default function ContentSectionList({
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const toggleSectionExpand = (id: string) => {
-    setExpandedSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    // Only one content accordion open at a time: opening a section closes
+    // whichever section was expanded before.
+    setExpandedSectionId((prev) => (prev === id ? null : id));
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -270,7 +267,7 @@ export default function ContentSectionList({
               <SortableRow
                 key={instance.id}
                 instance={instance}
-                isExpanded={expandedSections.has(instance.id)}
+                isExpanded={expandedSectionId === instance.id}
                 editingTitle={editingTitle}
                 onToggle={onToggle}
                 onUpdateData={onUpdateData}
