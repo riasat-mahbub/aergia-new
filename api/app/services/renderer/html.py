@@ -329,7 +329,7 @@ def _render_document(model: RenderModel, support: RendererSupport) -> str:
     .f-title, .f-summary, .f-company, .f-description, .f-institution, .f-category, .f-venue, .f-issuer {{ font-size: 0.875rem; }}
     .f-contact, .f-contact-sep, .f-email, .f-phone, .f-location, .f-site, .f-social-links, .f-date, .f-gpa, .f-link, .f-tech, .f-tag, .f-proficiency, .f-meta {{ font-size: 0.75rem; }}
     .f-position, .f-degree, .f-project, .f-certification, .f-paper {{ font-weight: 600; }}
-    .f-link::after {{ content: " →"; }}
+    .f-link::after {{ content: " ↗"; }}
     .f-icon {{ display:inline-flex; width:0.9em; height:0.9em; margin-right:0.3em; vertical-align:-0.125em; }}
     .f-icon svg {{ width:100%; height:100%; }}
     .field-row {{ display:flex; flex-wrap:wrap; align-items:baseline; column-gap:1rem; row-gap:0.25rem; }}

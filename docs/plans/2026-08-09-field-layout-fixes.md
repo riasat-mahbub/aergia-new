@@ -6,6 +6,16 @@
 
 **Execution contract:** one commit per task, in order; each commit is self-contained (code + tests green for that task's scope) and carries its tracker update (`tracker new`/`tracker close` + `tracker rebuild && tracker validate`) so the tracker never drifts from the branch. Commit messages follow the repo's conventional style (`feat(…): …` / `fix(…): …` / `tracker: …`).
 
+## Change request (2026-08-09, post-implementation)
+
+Inverts the preview/PDF link contract and swaps the arrow:
+
+1. **Link arrow is now up-right diagonal** — `.f-link::after { content: " ↗"; }` (U+2197) instead of `→`.
+2. **Preview: working links.** The preview iframe keeps real `href`s and every anchor gains `target="_blank" rel="noopener noreferrer"` (`make_anchors_open_in_new_tab` in `api/app/routes/render.py`, applied by both `/render/html?preview=true` and `/cvs/{id}/preview`). The iframe sandbox (`web/src/components/preview/UserTemplateRenderer.tsx`) gains `allow-popups` so the new-tab navigation is permitted. The old `strip_anchor_hrefs` (which made preview links dead `href="#"`) is deleted.
+3. **PDF: no links.** `html_to_pdf` in `api/app/services/renderer/_pdf_runtime.py` converts anchors to plain spans (`strip_anchor_markup`) before Chromium prints, so the exported PDF carries no link annotations (Chromium turns real `<a href>` into clickable annotations). Text, inline style, and the arrow are preserved. This covers both PDF paths (`/render/pdf` and `/cvs/{id}/export/pdf`).
+
+Tests: `api/tests/test_render_links.py` guards both transforms; the renderer arrow test asserts U+2197.
+
 **Architecture:** All placement/typography changes are *builder-emitted AST data* (`FieldBlock.group` / `.align` / `.key`, `TextRun.style`) plus renderer CSS. No Pydantic schema change, no manifest vocabulary change, no resolver change, no DB migration. The wire data keys (`name`, `title`, `publication_value`, `issuer`, `date`, `credential_url`, `paper_url`, `paper_link_text`, `url`, `link_text`) are untouched — only the internal AST field keys and the panel's `FIELD_DEFS` change, in lockstep.
 
 **Tech Stack:** Python 3.12 + Pydantic v2 + FastAPI, HTMLDocumentRenderer (inline-styled HTML5), React 19 + Vitest, project-tracker SCHEMA 3, pytest, Ruff, `./dev.sh --smoke`.

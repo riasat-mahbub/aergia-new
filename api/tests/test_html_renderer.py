@@ -267,7 +267,7 @@ def test_link_field_renders_anchor_with_right_rail_and_arrow():
     assert 'class="f-link"' in html
     assert "margin-left:auto" in html
     assert ".f-link::after" in html
-    assert "content: \" \u2192\"" in html
+    assert "content: \" \u2197\"" in html
 
 
 def test_field_typography_groups_match_section_grammar():
