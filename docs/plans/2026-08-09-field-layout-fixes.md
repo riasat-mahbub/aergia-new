@@ -8,13 +8,13 @@
 
 ## Change request (2026-08-09, post-implementation)
 
-Inverts the preview/PDF link contract and swaps the arrow:
+Final link contract (after two direction corrections — see tracker chain):
 
-1. **Link arrow is now up-right diagonal** — `.f-link::after { content: " ↗"; }` (U+2197) instead of `→`.
-2. **Preview: working links.** The preview iframe keeps real `href`s and every anchor gains `target="_blank" rel="noopener noreferrer"` (`make_anchors_open_in_new_tab` in `api/app/routes/render.py`, applied by both `/render/html?preview=true` and `/cvs/{id}/preview`). The iframe sandbox (`web/src/components/preview/UserTemplateRenderer.tsx`) gains `allow-popups` so the new-tab navigation is permitted. The old `strip_anchor_hrefs` (which made preview links dead `href="#"`) is deleted.
-3. **PDF: links clickable (revised).** The exported PDF keeps the same real anchors — Chromium's print engine turns them into clickable annotations (`/Subtype /Link` + `/URI`), which is the expected CV-deliverable behavior. The earlier "PDF link-free" variant (anchor→span stripping in `_pdf_runtime`) was rejected by the user and reverted; `html_to_pdf` passes the rendered HTML through unchanged. Verified by generating a real PDF and confirming link annotations + `pdftotext` output (`Repo ↗`, `PDF ↗`).
+1. **Link arrow is up-right diagonal** — `.f-link::after { content: " ↗"; }` (U+2197) instead of `→`.
+2. **Live preview: NO working links.** `strip_anchor_hrefs` (in `api/app/routes/render.py`) neutralizes every anchor's href to `"#"` in both preview endpoints (`/render/html?preview=true` and `/cvs/{id}/preview`), so the sandboxed iframe never navigates away while editing. The anchor markup, inline styling, and the `.f-link` arrow are preserved — links are visible but dead. The iframe sandbox stays `allow-scripts allow-same-origin` (no `allow-popups`).
+3. **PDF: clickable links.** The PDF paths (`/render/pdf` and `/cvs/{id}/export/pdf`) use the raw renderer output — the same document without the preview strip — so Chromium's print engine creates real link annotations (`/Subtype /Link` + `/URI`). Verified by generating a real PDF: annotations present for project/research/cert URLs, `pdftotext` shows `Repo ↗` / `PDF ↗`.
 
-Tests: `api/tests/test_render_links.py` guards the preview new-tab transform (hrefs preserved for the PDF path too); the renderer arrow test asserts U+2197.
+The original request text ("preview should have working links, but the pdf should not") was inverted relative to intent; the final contract is: preview dead, PDF alive. Tests: `api/tests/test_render_links.py` guards the preview strip (href→"#", markup preserved) and that the raw renderer output keeps real hrefs; the renderer arrow test asserts U+2197.
 
 **Architecture:** All placement/typography changes are *builder-emitted AST data* (`FieldBlock.group` / `.align` / `.key`, `TextRun.style`) plus renderer CSS. No Pydantic schema change, no manifest vocabulary change, no resolver change, no DB migration. The wire data keys (`name`, `title`, `publication_value`, `issuer`, `date`, `credential_url`, `paper_url`, `paper_link_text`, `url`, `link_text`) are untouched — only the internal AST field keys and the panel's `FIELD_DEFS` change, in lockstep.
 

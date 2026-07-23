@@ -40,21 +40,19 @@ from app.services.renderer.resolve import ManifestVersionError
 router = APIRouter(prefix="/render", tags=["render"])
 
 
-# Matches every <a> tag that does not already carry a target attribute.
-# The live preview must keep real hrefs (working links) but open them in a
-# new tab so the sandboxed iframe never navigates away from the CV.
-_ANCHOR_TARGET_RE = re.compile(r'<a\b(?![^>]*\btarget=)', re.IGNORECASE)
+# Matches ``href="..."`` on every <a> tag without disturbing other attributes
+# or the surrounding markup. The live preview iframe must NOT have working
+# links: hrefs are neutralized to "#" so anchors stay visually styled (and
+# keep the .f-link arrow) but clicking never navigates the iframe away from
+# the CV while editing. The exported PDF uses the raw renderer output, which
+# keeps the real hrefs.
+_HREF_RE = re.compile(r'(<a\b[^>]*?\bhref=")[^"]*(")', re.IGNORECASE)
 
 
-def make_anchors_open_in_new_tab(html: str) -> str:
-    """Keep real ``href`` values in the live preview and make every anchor
-    open in a new tab (``target="_blank"`` + ``rel="noopener noreferrer"``).
-
-    The preview iframe is sandboxed with ``allow-popups``; without this,
-    clicking a project / credential / site link would either navigate the
-    iframe away from the CV preview or be silently blocked.
-    """
-    return _ANCHOR_TARGET_RE.sub('<a target="_blank" rel="noopener noreferrer"', html)
+def strip_anchor_hrefs(html: str) -> str:
+    """Replace ``href="..."`` values with ``href="#"`` so preview anchors
+    remain visually styled but don't navigate the live preview iframe."""
+    return _HREF_RE.sub(r"\1#\2", html)
 
 
 class RenderRequest(BaseModel):
@@ -115,7 +113,7 @@ async def render_html(
         model = resolve(document, renderer, manifest, customizations)
         html = renderer.render(model)
         if request.preview:
-            html = make_anchors_open_in_new_tab(html)
+            html = strip_anchor_hrefs(html)
     except ManifestVersionError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:  # noqa: BLE001
@@ -156,4 +154,4 @@ async def render_support(
     }
 
 
-__all__ = ["router", "make_anchors_open_in_new_tab"]
+__all__ = ["router", "strip_anchor_hrefs"]
