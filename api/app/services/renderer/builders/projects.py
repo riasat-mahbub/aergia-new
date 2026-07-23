@@ -1,7 +1,7 @@
 """AST builder for the ``projects`` section.
 
-Fields per entry: ``name``, ``link`` (the URL), ``date``, ``description``,
-``tech.<i>`` (one per tech-stack item).
+Fields per entry: ``project``, ``link`` (the URL), ``date``,
+``description``, ``tech`` (one per tech-stack item).
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ def build_projects(instance: SectionInstance) -> Section:
         fields: list[FieldBlock] = []
 
         if row.get("name"):
-            fields.append(FieldBlock(key="name", group="header", runs=[TextRun(text=str(row["name"]))]))
+            fields.append(FieldBlock(key="project", group="header", runs=[TextRun(text=str(row["name"]))]))
 
         date = format_date_range(
             str(row.get("start_date") or ""),
@@ -43,10 +43,10 @@ def build_projects(instance: SectionInstance) -> Section:
             fields.append(FieldBlock(key="description", group="body", runs=[TextRun(text=str(row["description"]))]))
 
         tech = row.get("tech_stack") or []
-        for i, t in enumerate(tech):
+        for t in tech:
             if not t:
                 continue
-            fields.append(FieldBlock(key=f"tech.{i}", group="body", runs=[TextRun(text=str(t))]))
+            fields.append(FieldBlock(key="tech", group="body", runs=[TextRun(text=str(t))]))
 
         if fields:
             entries.append(Entry(id=entry_id, fields=fields))

@@ -115,7 +115,7 @@ def test_projects_emits_name_link_date_description_tech():
     }])
     doc = build_document(cv)
     keys = [f.key for f in doc.sections[0].entries[0].fields]
-    assert keys == ["name", "date", "link", "description", "tech.0", "tech.1"]
+    assert keys == ["project", "date", "link", "description", "tech", "tech"]
 
 
 def test_languages_emits_language_and_proficiency():
@@ -145,7 +145,7 @@ def test_certifications_emits_name_meta_link():
     }])
     doc = build_document(cv)
     keys = [f.key for f in doc.sections[0].entries[0].fields]
-    assert keys == ["name", "issuer", "date", "link"]
+    assert keys == ["certification", "issuer", "date", "link"]
 
 
 def test_research_emits_title_link_date_description():
@@ -160,7 +160,7 @@ def test_research_emits_title_link_date_description():
     }])
     doc = build_document(cv)
     keys = [f.key for f in doc.sections[0].entries[0].fields]
-    assert keys == ["title", "date", "venue", "link", "description"]
+    assert keys == ["paper", "date", "venue", "link", "description"]
 
 
 def test_research_omits_venue_when_publication_value_is_empty():
@@ -175,7 +175,7 @@ def test_research_omits_venue_when_publication_value_is_empty():
     }])
     doc = build_document(cv)
     keys = [f.key for f in doc.sections[0].entries[0].fields]
-    assert keys == ["title", "date", "link", "description"]
+    assert keys == ["paper", "date", "link", "description"]
 
 
 def test_disabled_section_is_dropped():
@@ -463,16 +463,16 @@ def test_projects_fields_carry_row_groups():
     }])
     entry = build_document(cv).sections[0].entries[0]
     fields = {f.key: f for f in entry.fields}
-    assert [f.key for f in entry.fields] == ["name", "date", "link", "description", "tech.0", "tech.1"]
-    assert fields["name"].group == "header"
+    assert [f.key for f in entry.fields] == ["project", "date", "link", "description", "tech", "tech"]
+    assert fields["project"].group == "header"
     assert fields["date"].group == "header"
     assert fields["date"].align == "right"
     assert fields["link"].group == "secondary"
     assert fields["link"].align == "right"
     assert fields["link"].runs[0].style.link == "https://aergia.dev"
     assert fields["description"].group == "body"
-    assert fields["tech.0"].group == "body"
-    assert fields["tech.1"].group == "body"
+    # Tech chips share the uniform 'tech' key; both land in the body row.
+    assert [f.group for f in entry.fields if f.key == "tech"] == ["body", "body"]
 
 
 def test_languages_fields_carry_row_groups():
@@ -492,7 +492,7 @@ def test_certifications_fields_carry_row_groups():
         "data": [{"id": "e1", "name": "AWS", "issuer": "Amazon", "date": "2026-01", "credential_url": "https://x"}],
     }])
     fields = {f.key: f for f in build_document(cv).sections[0].entries[0].fields}
-    assert fields["name"].group == "header"
+    assert fields["certification"].group == "header"
     assert fields["issuer"].group == "secondary"
     assert fields["date"].group == "secondary"
     assert fields["date"].align == "right"
@@ -528,7 +528,7 @@ def test_certifications_omit_issuer_and_date_when_empty():
         "data": [{"id": "e1", "name": "AWS", "credential_url": "https://x"}],
     }])
     keys = [f.key for f in build_document(cv).sections[0].entries[0].fields]
-    assert keys == ["name", "link"]
+    assert keys == ["certification", "link"]
 
 
 def test_apply_field_text_styles_preserves_builder_link_href():
@@ -558,8 +558,8 @@ def test_research_fields_carry_row_groups():
     }])
     entry = build_document(cv).sections[0].entries[0]
     fields = {f.key: f for f in entry.fields}
-    assert [f.key for f in entry.fields] == ["title", "date", "venue", "link", "description"]
-    assert fields["title"].group == "header"
+    assert [f.key for f in entry.fields] == ["paper", "date", "venue", "link", "description"]
+    assert fields["paper"].group == "header"
     assert fields["date"].group == "header"
     assert fields["date"].align == "right"
     assert fields["venue"].group == "secondary"
