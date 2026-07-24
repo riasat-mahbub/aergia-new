@@ -7,7 +7,7 @@ Fields per entry: ``project``, ``link`` (the URL), ``date``,
 from __future__ import annotations
 
 from app.schema.models import Entry, FieldBlock, Section, SectionInstance, TextStyle, TextRun
-from ._utils import format_date_range
+from ._utils import format_date_range, normalize_url_scheme
 
 
 def build_projects(instance: SectionInstance) -> Section:
@@ -31,7 +31,9 @@ def build_projects(instance: SectionInstance) -> Section:
         if date:
             fields.append(FieldBlock(key="date", group="header", align="right", runs=[TextRun(text=date)]))
 
-        url = str(row.get("url") or "")
+        # Chromium silently drops <a href> annotations without a scheme;
+        # normalize so legacy/loose data still exports clickable links.
+        url = normalize_url_scheme(row.get("url"))
         link_text = str(row.get("link_text") or url)
         if url:
             fields.append(FieldBlock(
