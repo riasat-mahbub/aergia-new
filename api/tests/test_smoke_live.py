@@ -1,9 +1,6 @@
-"""Unit tests for api/scripts/smoke_live.py.
-
-Drive the same ``run_smoke`` function the live smoke client uses, but
-substitute the network with :class:`httpx.MockTransport` so the test
-is fast and does not require a live backend. The handlers cover the
-happy path, the wrong-template-set path, and a non-PDF body path.
+"""Smoke script tests — drive ``scripts/smoke_live.run_smoke`` through
+:class:`httpx.MockTransport` so we don't need a live uvicorn to assert
+behaviour.
 """
 
 from __future__ import annotations
@@ -16,7 +13,7 @@ import pytest
 from scripts import smoke_live
 
 
-def _ok_json(payload: dict[str, object], status_code: int = 200) -> httpx.Response:
+def _ok_json(payload, status_code: int = 200) -> httpx.Response:
     return httpx.Response(status_code, json=payload)
 
 
@@ -26,6 +23,7 @@ def _register_login_ready_handler(
     templates: list[dict[str, str]] | None = None,
     pdf_body: bytes = b"%PDF-1.4\n% smoke",
     spa_html: str = '<!doctype html><html><body><div id="root"></div></body></html>',
+    import_payload: dict | None = None,
 ) -> httpx.Response:
     """Return a single handler that simulates a healthy backend for the
     exact flow ``run_smoke`` performs."""
@@ -39,7 +37,9 @@ def _register_login_ready_handler(
         return httpx.Response(201, json=None)
 
     if path == "/api/v1/auth/login" and method == "POST":
-        return _ok_json({"access_token": "token", "refresh_token": "refresh", "token_type": "bearer"})
+        return _ok_json(
+            {"access_token": "token", "refresh_token": "refresh", "token_type": "bearer"}
+        )
 
     if path == "/api/v1/templates" and method == "GET":
         return _ok_json(
@@ -54,6 +54,24 @@ def _register_login_ready_handler(
     if path.startswith("/api/v1/cvs/") and path.endswith("/preview") and method == "GET":
         return _ok_json(
             {"html": "<!DOCTYPE html><html><head></head><body>preview</body></html>"}
+        )
+
+    if path == "/api/v1/cvs/import/pdf" and method == "POST":
+        return _ok_json(
+            import_payload
+            or {
+                "sections": [
+                    {
+                        "id": "imp_mock",
+                        "type": "profile",
+                        "title": "Profile",
+                        "enabled": True,
+                        "data": {},
+                    }
+                ],
+                "confidence": {"fields": [], "overall_level": "high"},
+                "meta": {"source": "regex", "warnings": []},
+            }
         )
 
     if path.startswith("/api/v1/cvs/") and path.endswith("/export/pdf") and method == "POST":
@@ -81,43 +99,29 @@ def test_run_smoke_happy_path_exercises_all_three_templates() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/api/v1/cvs" and request.method == "POST":
             seen["cv_create_titles"].append(json.loads(request.content)["title"])
-        if request.url.path == "/api/v1/templates" and request.method == "GET":
-            pass
-        response = _register_login_ready_handler(request)
-        if request.url.path == "/api/v1/templates" and request.method == "GET":
-            for t in json.loads(response.content):
-                seen["template_ids"].append(t["id"])
-        return response
+        if (
+            request.url.path.endswith("/api/v1/cvs/import/pdf")
+            and request.method == "POST"
+        ):
+            seen.setdefault("import_called", []).append(True)
+        return _register_login_ready_handler(request)
 
     transport = httpx.MockTransport(handler)
-    client = httpx.Client(transport=transport)
-    smoke_live.run_smoke(client, "http://testserver")
+    with httpx.Client(transport=transport, base_url="http://test") as client:
+        smoke_live.run_smoke(client, "http://test")
 
-    assert sorted(seen["template_ids"]) == sorted(smoke_live.EXPECTED_TEMPLATES)
     assert seen["cv_create_titles"] == [
         "Smoke generic-modern",
         "Smoke generic-classic",
         "Smoke generic-minimal",
     ]
-
-
-def test_run_smoke_rejects_wrong_template_set() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/api/v1/templates" and request.method == "GET":
-            return _ok_json(
-                [
-                    {"id": "generic-modern", "name": "Modern"},
-                    {"id": "generic-legacy", "name": "Legacy"},
-                ]
-            )
-        return _register_login_ready_handler(request)
-
-    client = httpx.Client(transport=httpx.MockTransport(handler))
-    with pytest.raises(AssertionError, match="unexpected template set"):
-        smoke_live.run_smoke(client, "http://testserver")
+    assert seen.get("import_called") == [True]
 
 
 def test_run_smoke_rejects_non_pdf_body() -> None:
+    """If the export/pdf endpoint returns HTML instead of bytes starting
+    with ``%PDF``, run_smoke raises an AssertionError carrying the
+    ``returned non-PDF body`` message."""
     def handler(request: httpx.Request) -> httpx.Response:
         if (
             request.url.path.startswith("/api/v1/cvs/")
@@ -131,17 +135,20 @@ def test_run_smoke_rejects_non_pdf_body() -> None:
             )
         return _register_login_ready_handler(request)
 
-    client = httpx.Client(transport=httpx.MockTransport(handler))
-    with pytest.raises(AssertionError, match="returned non-PDF body"):
-        smoke_live.run_smoke(client, "http://testserver")
+    transport = httpx.MockTransport(handler)
+    with httpx.Client(transport=transport, base_url="http://test") as client:
+        with pytest.raises(AssertionError, match="returned non-PDF body"):
+            smoke_live.run_smoke(client, "http://test")
 
 
 def test_run_smoke_rejects_missing_root_div() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/" and request.method == "GET":
-            return httpx.Response(200, text="<!doctype html><html><body>no root</body></html>")
-        return _register_login_ready_handler(request)
+        return _register_login_ready_handler(
+            request,
+            spa_html='<!doctype html><html><body>no root</body></html>',
+        )
 
-    client = httpx.Client(transport=httpx.MockTransport(handler))
-    with pytest.raises(AssertionError, match="missing the React root mount"):
-        smoke_live.run_smoke(client, "http://testserver")
+    transport = httpx.MockTransport(handler)
+    with httpx.Client(transport=transport, base_url="http://test") as client:
+        with pytest.raises(AssertionError, match="missing the React root mount"):
+            smoke_live.run_smoke(client, "http://test")

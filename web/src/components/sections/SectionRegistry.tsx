@@ -7,6 +7,7 @@ import SkillsEditor from "./skills/SkillsEditor";
 import ProjectsEditor from "./projects/ProjectsEditor";
 import LanguagesEditor from "./languages/LanguagesEditor";
 import CertificationsEditor from "./certifications/CertificationsEditor";
+import ExtrasEditor from "./extras/ExtrasEditor";
 import ResearchEditor from "./research/ResearchEditor";
 
 type EditorProps = { data: any; onChange: (data: any) => void };
@@ -22,6 +23,7 @@ const sectionMap: Record<string, SectionEditorComponent> = {
   skills: { Editor: SkillsEditor },
   projects: { Editor: ProjectsEditor },
   languages: { Editor: LanguagesEditor },
+  extras: { Editor: ExtrasEditor },
   certifications: { Editor: CertificationsEditor },
   research: { Editor: ResearchEditor },
 };

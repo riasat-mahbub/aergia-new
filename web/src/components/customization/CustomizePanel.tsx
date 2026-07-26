@@ -516,7 +516,7 @@ export default function CustomizePanel({
                 Block style (subsection)
               </summary>
               <div className="mt-2 space-y-2">
-                {["profile", "skills", "certifications"].includes(selectedInstance.type) && (
+                {["profile", "skills", "certifications", "extras"].includes(selectedInstance.type) && (
                   <div>
                     <label className="block text-[11px] text-gray-600">Text align</label>
                     <select

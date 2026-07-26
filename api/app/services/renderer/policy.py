@@ -23,6 +23,7 @@ SECTION_POLICIES: dict[str, SectionPolicy] = {
     "languages": SectionPolicy(show_title=True),
     "certifications": SectionPolicy(show_title=True),
     "research": SectionPolicy(show_title=True),
+    "extras": SectionPolicy(show_title=True),
 }
 
 
