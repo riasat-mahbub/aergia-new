@@ -2,9 +2,7 @@ import { useEffect, useCallback, useState, useRef, useMemo } from "react";
 import { useLocation, useNavigate, useBlocker } from "react-router-dom";
 import { motion } from "motion/react";
 
-
 import ExportPDFButton from "../components/builder/ExportPDFButton";
-import ImportPDFButton from "../components/builder/ImportPDFButton";
 import ContentSectionList from "../components/builder/ContentSectionList";
 import { useCVStore } from "../lib/store/cvStore";
 import TemplateSwitcher from "../components/preview/TemplateSwitcher";
@@ -411,7 +409,6 @@ export default function BuilderPage() {
             >
               {isSaving ? "Saving..." : showSavedFeedback ? "Saved!" : "Save"}
             </button>
-            {id && <ImportPDFButton enabled={Boolean(id)} />}
 
             {id && <ExportPDFButton cvId={id} cvTitle={currentCV.title} onBeforeExport={handleSave} />}
           </div>

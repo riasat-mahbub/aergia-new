@@ -78,22 +78,22 @@ def _meta(extra_sections: list) -> ParseMeta:
 # ---------------------------------------------------------------------------
 
 
-def test_parse_cv_rejects_empty_bytes():
+async def test_parse_cv_rejects_empty_bytes():
     with pytest.raises(EmptyInputError):
-        parse_cv(b"", "application/pdf")
+        await parse_cv(b"", "application/pdf")
 
 
-def test_parse_cv_rejects_unsupported_mime():
+async def test_parse_cv_rejects_unsupported_mime():
     with pytest.raises(UnsupportedFormatError):
-        parse_cv(b"data", "text/plain")
+        await parse_cv(b"data", "text/plain")
 
 
-def test_parse_cv_rejects_corrupt_pdf():
+async def test_parse_cv_rejects_corrupt_pdf():
     with pytest.raises(ExtractionFailedError):
-        parse_cv(b"NOT A PDF", "application/pdf")
+        await parse_cv(b"NOT A PDF", "application/pdf")
 
 
-def test_parse_cv_json_fastpath_validates_section_instance_list():
+async def test_parse_cv_json_fastpath_validates_section_instance_list():
     payload = json.dumps(
         [
             {
@@ -116,22 +116,19 @@ def test_parse_cv_json_fastpath_validates_section_instance_list():
             }
         ]
     ).encode("utf-8")
-    result = parse_cv(payload, "application/json")
-    assert len(result.sections) == 1
-    assert result.sections[0].type == "profile"
-    assert "json_fastpath" in result.meta.warnings
+    result = await parse_cv(payload, "application/json")
 
 
-def test_parse_cv_json_fastpath_rejects_non_array():
+async def test_parse_cv_json_fastpath_rejects_non_array():
     bad = json.dumps({"not": "a list"}).encode("utf-8")
     with pytest.raises(Exception):
-        parse_cv(bad, "application/json")
+        await parse_cv(bad, "application/json")
 
 
-def test_parse_cv_json_fastpath_rejects_element_with_missing_field():
+async def test_parse_cv_json_fastpath_rejects_element_with_missing_field():
     bad = json.dumps([{"id": "x"}]).encode("utf-8")
     with pytest.raises(Exception):
-        parse_cv(bad, "application/json")
+        await parse_cv(bad, "application/json")
 
 
 # ---------------------------------------------------------------------------

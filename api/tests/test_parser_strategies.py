@@ -39,15 +39,36 @@ def test_regex_strategy_named_regex():
     assert RegexStrategy.name == "regex"
 
 
-def test_llm_strategy_raises_not_implemented():
-    s = LLMStrategy()
-    with pytest.raises(NotImplementedError) as exc_info:
-        s.structure(_empty_extracted())
-    assert "LLM" in str(exc_info.value)
-
-
 def test_llm_strategy_named_llm():
     assert LLMStrategy.name == "llm"
+
+
+def test_llm_strategy_construction_succeeds_with_provider_and_key():
+    from app.services.parser.keys import LLMProvider
+
+    s = LLMStrategy(LLMProvider.OPENAI, "sk-test")
+    assert s.name == "llm"
+
+
+async def test_llm_strategy_without_bound_adapter_raises_clear_error():
+    import asyncio
+    from app.services.parser.schemas import ExtractedDocument
+    from app.services.parser.keys import LLMProvider
+
+    s = LLMStrategy(LLMProvider.OPENAI, "sk-test")
+    extracted = ExtractedDocument(blocks=[], plain_text="", columns=[], source_format="pdf")
+    with pytest.raises(RuntimeError, match="bound adapter"):
+        await s.structure_async(extracted)
+
+
+def test_llm_strategy_sync_structure_raises_typeerror():
+    from app.services.parser.keys import LLMProvider
+    from app.services.parser.schemas import ExtractedDocument
+
+    s = LLMStrategy(LLMProvider.OPENAI, "sk-test")
+    extracted = ExtractedDocument(blocks=[], plain_text="", columns=[], source_format="pdf")
+    with pytest.raises(TypeError, match="async-only"):
+        s.structure(extracted)
 
 
 def test_both_strategies_have_structure_method():
