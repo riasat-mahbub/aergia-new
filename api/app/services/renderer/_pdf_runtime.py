@@ -11,7 +11,6 @@ launch a second browser.
 from __future__ import annotations
 
 import asyncio
-import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -21,28 +20,6 @@ if TYPE_CHECKING:
 _browser: "Browser | None" = None
 _playwright: "object | None" = None
 _lock: asyncio.Lock | None = None
-
-
-# Chromium's print engine turns real <a href> elements into clickable PDF
-# link annotations. The PDF is a static document: links are replaced with
-# non-clickable spans so the exported file carries no link annotations.
-# The inline style (if any) is preserved; the text and the .f-link arrow
-# are unchanged. The href attribute is dropped with the anchor tag.
-_ANCHOR_OPEN_RE = re.compile(r"<a\b", re.IGNORECASE)
-_ANCHOR_CLOSE_RE = re.compile(r"</a\b", re.IGNORECASE)
-_HREF_ATTR_RE = re.compile(r'\s*href\s*=\s*"[^"]*"', re.IGNORECASE)
-
-
-def strip_anchor_markup(html: str) -> str:
-    """Replace every anchor with a plain span, killing PDF link annotations.
-
-    The renderer emits only anchors with an ``href``; after the conversion
-    no ``href`` attribute remains anywhere in the document.
-    """
-
-    html = _ANCHOR_OPEN_RE.sub("<span", html)
-    html = _ANCHOR_CLOSE_RE.sub("</span", html)
-    return _HREF_ATTR_RE.sub("", html)
 
 
 async def _get_browser() -> "Browser":
@@ -87,7 +64,7 @@ async def html_to_pdf(html: str) -> bytes:
     browser = await _get_browser()
     page = await browser.new_page()
     try:
-        await page.set_content(strip_anchor_markup(html), wait_until="networkidle")
+        await page.set_content(html, wait_until="networkidle")
         return await page.pdf(
             format="A4",
             margin={"top": "0", "bottom": "0", "left": "0", "right": "0"},
