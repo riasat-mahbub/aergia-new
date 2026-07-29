@@ -98,7 +98,7 @@ export default function UserTemplateRenderer({ instances, customizations, templa
         title="User Template Preview"
         className="w-full"
         style={{ height: `${iframeHeight}px` }}
-        sandbox="allow-scripts allow-same-origin allow-popups"
+        sandbox="allow-scripts allow-same-origin"
       />
       {breakRules.map((n) => (
         <div
