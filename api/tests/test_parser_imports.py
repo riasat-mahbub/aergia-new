@@ -223,3 +223,45 @@ def test_pipeline_drops_extras_when_only_header_line_present():
     # No extras section: profile has content, experience has content,
     # no extras blocks → no extras instance.
     assert all(s.type != "extras" for s in result.sections)
+
+
+# ---------------------------------------------------------------------------
+# Section-header matching regressions (Task 1: font-based bold inference)
+# ---------------------------------------------------------------------------
+
+
+def test_section_title_single_word_requires_exact_match():
+    """Job titles that prefix-match a section name must NOT open a section.
+
+    "Research Assistant" is a role inside an Experience section, not a
+    "Research" header. Single-word aliases match exactly; only multi-word
+    aliases prefix-match. Without this, the benchmark CV's first
+    experience entry (a Research Assistant role) swallowed the whole
+    section into a bogus "research" span.
+    """
+    from app.services.parser.classify import _match_section_title
+
+    assert _match_section_title("Research")[0] == "research"
+    assert _match_section_title("Research Assistant")[0] is None
+    assert _match_section_title("Skills")[0] == "skills"
+    assert _match_section_title("Master of Computer Science")[0] is None
+
+
+def test_pipeline_keeps_research_assistant_in_experience():
+    """The benchmark-shaped layout: Experience header, then a bold
+    "Research Assistant" role line — the role stays in experience, no
+    research section is invented."""
+    blocks = [
+        _tb("Jane Doe", bold=True, size=18, y=0),
+        _tb("jane@example.com", y=1),
+        _tb("Experience", bold=True, size=14, y=2),
+        _tb("Research Assistant", bold=True, size=12, y=3),
+        _tb("Dalhousie University", y=4),
+        _tb("Jan 2020 - Dec 2022", y=5),
+    ]
+    result = _run_pipeline(blocks)
+    types = [s.type for s in result.sections]
+    assert "experience" in types
+    assert "research" not in types
+    exp = next(s for s in result.sections if s.type == "experience")
+    assert exp.data[0]["position"] == "Research Assistant"

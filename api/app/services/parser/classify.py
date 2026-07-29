@@ -145,9 +145,19 @@ def _header_threshold_for(page_blocks: list[TextBlock]) -> float:
 
 
 def _is_candidate_header(block: TextBlock, threshold: float) -> bool:
-    """A bold/large line is a candidate header only if it looks like one —
-    short, mostly uppercase, no terminal punctuation. Mixed-case bold text
-    is treated as a name or emphasised body line, not a section header."""
+    """A bold/large line is a candidate section header if it looks like one.
+
+    Two checks:
+    - The bold flag is set OR the font size is above the page threshold.
+    - The text is header-shaped: short (<=64 chars), and either
+      ALL-CAPS-ish (>= 60% uppercase letters) OR matches a known
+      section/title alias.
+
+    The bold flag is now reliable (font-family-based inference in
+    ``extract._infer_font``), but bold alone admits too much — names,
+    job titles, and emphasised body lines are all bold. The shape
+    check keeps the false-positive rate down.
+    """
     if not (block.is_bold or block.font_size >= threshold):
         return False
     text = block.text.strip()
@@ -156,19 +166,43 @@ def _is_candidate_header(block: TextBlock, threshold: float) -> bool:
     letters = [c for c in text if c.isalpha()]
     if not letters:
         return False
+    # ALL-CAPS lines (legacy heuristic) remain accepted.
     upper = sum(1 for c in letters if c.isupper())
-    return upper / len(letters) >= 0.6
+    if upper / len(letters) >= 0.6:
+        return True
+    # Mixed-case lines: only accept when the text matches a known
+    # section or title alias. This catches "Experience", "Research",
+    # "Education", "Projects", "Skills" and their synonyms without
+    # admitting bold names like "Jane Doe" or "Riasat Mahbub".
+    section, is_profile = _match_section_title(text)
+    return section is not None or is_profile
 
 
 def _match_section_title(line: str) -> tuple[str | None, bool]:
-    """Return ``(section_name_or_None, is_profile_summary_alias)``."""
+    """Return ``(section_name_or_None, is_profile_summary_alias)``.
+
+    Single-word aliases (``research``, ``skills``, …) match EXACTLY.
+    Multi-word aliases (``research experience``, ``professional
+    summary``, …) additionally prefix-match so headings like
+    "Research Experience at Dalhousie" still classify. The single-word
+    restriction is what stops job titles like "Research Assistant"
+    (which would prefix-match ``research`` + space) from opening a
+    bogus section — a real bug on the benchmark CV where the first
+    experience entry is a Research Assistant role.
+    """
     norm = _normalize_title(line)
     for section, aliases in SECTION_ALIASES.items():
         for alias in aliases:
-            if norm == alias or norm.startswith(alias + " ") or norm.startswith(alias + "&"):
+            if norm == alias:
+                return section, False
+            if len(alias.split()) > 1 and (
+                norm.startswith(alias + " ") or norm.startswith(alias + "&")
+            ):
                 return section, False
     for alias in _PROFILE_SUMMARY_ALIASES:
-        if norm == alias or norm.startswith(alias + " "):
+        if norm == alias:
+            return PROFILE, True
+        if len(alias.split()) > 1 and norm.startswith(alias + " "):
             return PROFILE, True
     return None, False
 
