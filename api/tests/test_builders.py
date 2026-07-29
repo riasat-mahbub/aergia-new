@@ -548,6 +548,38 @@ def test_apply_field_text_styles_preserves_builder_link_href():
     assert link_run.style.link == "https://aergia.dev"
 
 
+def test_project_link_url_gets_a_scheme_when_missing():
+    """A bare domain must become https:// — Chromium silently drops PDF
+    link annotations for scheme-less hrefs (the user-facing link bug)."""
+    cv = _cv([{
+        "id": "s1", "type": "projects", "title": "P", "enabled": True,
+        "data": [{
+            "id": "e1", "name": "Aergia", "url": "github.com/aergia", "link_text": "site",
+            "start_date": "2026-01", "end_date": None, "description": "CV builder", "tech_stack": [],
+        }],
+    }])
+    fields = {f.key: f for f in build_document(cv).sections[0].entries[0].fields}
+    assert fields["link"].runs[0].style.link == "https://github.com/aergia"
+
+
+def test_research_and_cert_link_urls_get_a_scheme_when_missing():
+    cv = _cv([
+        {
+            "id": "s1", "type": "research", "title": "R", "enabled": True,
+            "data": [{"id": "e1", "title": "Paper", "paper_url": "arxiv.org/abs/1", "description": "Work"}],
+        },
+        {
+            "id": "s2", "type": "certifications", "title": "C", "enabled": True,
+            "data": [{"id": "e2", "name": "AWS", "issuer": "Amazon", "credential_url": "aws.amazon.com/cert"}],
+        },
+    ])
+    sections = {s.id: s for s in build_document(cv).sections}
+    res_link = {f.key: f for f in sections["s1"].entries[0].fields}["link"]
+    cert_link = {f.key: f for f in sections["s2"].entries[0].fields}["link"]
+    assert res_link.runs[0].style.link == "https://arxiv.org/abs/1"
+    assert cert_link.runs[0].style.link == "https://aws.amazon.com/cert"
+
+
 def test_research_fields_carry_row_groups():
     cv = _cv([{
         "id": "s1", "type": "research", "title": "R", "enabled": True,

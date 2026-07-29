@@ -16,6 +16,14 @@ Final link contract (after two direction corrections — see tracker chain):
 
 The original request text ("preview should have working links, but the pdf should not") was inverted relative to intent; the final contract is: preview dead, PDF alive. Tests: `api/tests/test_render_links.py` guards the preview strip (href→"#", markup preserved) and that the raw renderer output keeps real hrefs; the renderer arrow test asserts U+2197.
 
+## Bug fix (2026-08-09): scheme-less hrefs drop PDF link annotations
+
+**Symptom:** user's exported PDF showed link text (`github ↗`, `Certificate ↗`, `paper.com ↗`) but no clickable links — zero `/Subtype /Link` annotations.
+
+**Root cause:** Chromium's print pipeline silently drops `<a href>` annotations when the href has no scheme (treated as a relative path against `about:blank`). The user's CV data stored scheme-less values (`github.com`, `asdgasdg…`, `paper`) — legacy/loose data that bypassed the frontend `urlSchema` (which rejects bare domains at form time). The backend already had `normalize_url_scheme` in `builders/_utils.py` documenting this exact quirk, but it was dead code — never wired into the link-emitting builders.
+
+**Fix:** the three link builders (`projects`, `research`, `certifications`) now run `normalize_url_scheme` over the URL before emitting the anchor (`github.com` → `https://github.com`). Verified by re-exporting the exact CV: `/Subtype /Link` + `/URI` annotations present for all three links. Regression tests in `test_builders.py`.
+
 **Architecture:** All placement/typography changes are *builder-emitted AST data* (`FieldBlock.group` / `.align` / `.key`, `TextRun.style`) plus renderer CSS. No Pydantic schema change, no manifest vocabulary change, no resolver change, no DB migration. The wire data keys (`name`, `title`, `publication_value`, `issuer`, `date`, `credential_url`, `paper_url`, `paper_link_text`, `url`, `link_text`) are untouched — only the internal AST field keys and the panel's `FIELD_DEFS` change, in lockstep.
 
 **Tech Stack:** Python 3.12 + Pydantic v2 + FastAPI, HTMLDocumentRenderer (inline-styled HTML5), React 19 + Vitest, project-tracker SCHEMA 3, pytest, Ruff, `./dev.sh --smoke`.

@@ -7,7 +7,7 @@ Fields per entry: ``certification``, ``issuer``, ``date``, ``link``
 from __future__ import annotations
 
 from app.schema.models import Entry, FieldBlock, Section, SectionInstance, TextStyle, TextRun
-from ._utils import format_single_date
+from ._utils import format_single_date, normalize_url_scheme
 
 
 def build_certifications(instance: SectionInstance) -> Section:
@@ -32,7 +32,9 @@ def build_certifications(instance: SectionInstance) -> Section:
             formatted = format_single_date(raw_date)
             fields.append(FieldBlock(key="date", group="secondary", align="right", runs=[TextRun(text=formatted)]))
 
-        url = str(row.get("credential_url") or "")
+        # Chromium silently drops <a href> annotations without a scheme;
+        # normalize so legacy/loose data still exports clickable links.
+        url = normalize_url_scheme(row.get("credential_url"))
         if url:
             link_text = str(row.get("link_text") or "Certificate")
             fields.append(FieldBlock(

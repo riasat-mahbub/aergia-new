@@ -7,7 +7,7 @@ Fields per entry: ``paper``, ``venue`` (publication venue), ``link``
 from __future__ import annotations
 
 from app.schema.models import Entry, FieldBlock, Section, SectionInstance, TextStyle, TextRun
-from ._utils import format_single_date
+from ._utils import format_single_date, normalize_url_scheme
 
 
 def build_research(instance: SectionInstance) -> Section:
@@ -32,7 +32,9 @@ def build_research(instance: SectionInstance) -> Section:
         if venue:
             fields.append(FieldBlock(key="venue", group="secondary", runs=[TextRun(text=venue)]))
 
-        url = str(row.get("paper_url") or "")
+        # Chromium silently drops <a href> annotations without a scheme;
+        # normalize so legacy/loose data still exports clickable links.
+        url = normalize_url_scheme(row.get("paper_url"))
         if url:
             link_text = str(row.get("paper_link_text") or "Paper")
             fields.append(FieldBlock(
