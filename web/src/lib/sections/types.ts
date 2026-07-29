@@ -185,6 +185,7 @@ export const SECTION_LABELS: Record<string, string> = {
   languages: "Languages",
   certifications: "Certifications",
   research: "Research",
+  extras: "Extras",
 };
 
 export const SECTION_TYPES = [
@@ -196,6 +197,7 @@ export const SECTION_TYPES = [
   "languages",
   "certifications",
   "research",
+  "extras",
 ] as const;
 
 export type SectionType = (typeof SECTION_TYPES)[number];
@@ -291,7 +293,15 @@ export function createDefaultSectionData(type: string): unknown {
           publication_value: "",
         },
       ];
-    default:
+    case "extras":
+      return [
+        {
+          id: generateInstanceId(),
+          title: "New Section",
+          fields: [],
+        },
+      ];
+     default:
       return {};
   }
 }

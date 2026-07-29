@@ -36,6 +36,7 @@ from .profile import build_profile
 from .projects import build_projects
 from .research import build_research
 from .skills import build_skills
+from .extras import build_extras
 
 
 BUILDERS = {
@@ -47,6 +48,7 @@ BUILDERS = {
     "languages": build_languages,
     "certifications": build_certifications,
     "research": build_research,
+    "extras": build_extras,
 }
 
 
@@ -206,4 +208,5 @@ __all__ = [
     "build_languages",
     "build_certifications",
     "build_research",
+    "build_extras",
 ]
