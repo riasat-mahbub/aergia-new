@@ -223,3 +223,198 @@ def test_pipeline_drops_extras_when_only_header_line_present():
     # No extras section: profile has content, experience has content,
     # no extras blocks → no extras instance.
     assert all(s.type != "extras" for s in result.sections)
+
+
+# ---------------------------------------------------------------------------
+# Section-header matching regressions (Task 1: font-based bold inference)
+# ---------------------------------------------------------------------------
+
+
+def test_section_title_single_word_requires_exact_match():
+    """Job titles that prefix-match a section name must NOT open a section.
+
+    "Research Assistant" is a role inside an Experience section, not a
+    "Research" header. Single-word aliases match exactly; only multi-word
+    aliases prefix-match. Without this, the benchmark CV's first
+    experience entry (a Research Assistant role) swallowed the whole
+    section into a bogus "research" span.
+    """
+    from app.services.parser.classify import _match_section_title
+
+    assert _match_section_title("Research")[0] == "research"
+    assert _match_section_title("Research Assistant")[0] is None
+    assert _match_section_title("Skills")[0] == "skills"
+    assert _match_section_title("Master of Computer Science")[0] is None
+
+
+def test_pipeline_keeps_research_assistant_in_experience():
+    """The benchmark-shaped layout: Experience header, then a bold
+    "Research Assistant" role line — the role stays in experience, no
+    research section is invented."""
+    blocks = [
+        _tb("Jane Doe", bold=True, size=18, y=0),
+        _tb("jane@example.com", y=1),
+        _tb("Experience", bold=True, size=14, y=2),
+        _tb("Research Assistant", bold=True, size=12, y=3),
+        _tb("Dalhousie University", y=4),
+        _tb("Jan 2020 - Dec 2022", y=5),
+    ]
+    result = _run_pipeline(blocks)
+    types = [s.type for s in result.sections]
+    assert "experience" in types
+    assert "research" not in types
+    exp = next(s for s in result.sections if s.type == "experience")
+    assert exp.data[0]["position"] == "Research Assistant"
+
+
+# ---------------------------------------------------------------------------
+# Downstream extractor regressions (Tasks 2-5)
+# ---------------------------------------------------------------------------
+
+
+def test_profile_extracts_bare_domain_as_site_url():
+    """Contact lines omit the scheme: 'rmahbub.com' becomes
+    https://rmahbub.com. The email host must NOT leak into site_url."""
+    blocks = [
+        _tb("Jane Doe", bold=True, size=18, y=0),
+        _tb("jane@example.com · +1 555 123 4567 · Jane · jane-doe · janedoe.com", y=1),
+    ]
+    result = _run_pipeline(blocks)
+    profile = next(s for s in result.sections if s.type == "profile")
+    assert profile.data["email"] == "jane@example.com"
+    assert profile.data["phone"] == "+1 555 123 4567"
+    assert profile.data["site_url"] == "https://janedoe.com"
+
+
+def test_profile_does_not_leak_email_host_into_site_url():
+    """'example.com' inside jane@example.com is preceded by '@', not
+    whitespace/middot, so it must not become the site URL."""
+    blocks = [
+        _tb("Jane Doe", bold=True, size=18, y=0),
+        _tb("jane@example.com", y=1),
+    ]
+    result = _run_pipeline(blocks)
+    profile = next(s for s in result.sections if s.type == "profile")
+    assert profile.data["site_url"] == ""
+
+
+def test_experience_splits_entries_without_blank_lines():
+    """Two experience entries joined without blank lines still split on
+    the title/company/date pattern."""
+    blocks = [
+        _tb("EXPERIENCE", bold=True, size=12, y=0),
+        _tb("Research Assistant", bold=True, size=11, y=1),
+        _tb("Dalhousie University", y=2),
+        _tb("September 2023 – October 2025", y=3),
+        _tb("Worked with civil engineers on simulation systems.", y=4),
+        _tb("Associate Software Engineer", bold=True, size=11, y=5),
+        _tb("Brain Station 23", y=6),
+        _tb("July 2022 – August 2023", y=7),
+        _tb("Delivered features across client projects.", y=8),
+    ]
+    result = _run_pipeline(blocks)
+    exp = next(s for s in result.sections if s.type == "experience")
+    entries = exp.data
+    assert len(entries) == 2
+    assert entries[0]["position"] == "Research Assistant"
+    assert entries[0]["company"] == "Dalhousie University"
+    assert entries[0]["start_date"] == "2023-09"
+    assert entries[0]["end_date"] == "2025-10"
+    assert entries[0]["description"] == "Worked with civil engineers on simulation systems."
+    assert entries[1]["position"] == "Associate Software Engineer"
+    assert entries[1]["company"] == "Brain Station 23"
+    assert entries[1]["start_date"] == "2022-07"
+    assert entries[1]["description"] == "Delivered features across client projects."
+
+
+def test_experience_recovers_paragraph_descriptions():
+    """Running-paragraph descriptions (no bullets) survive the split."""
+    blocks = [
+        _tb("EXPERIENCE", bold=True, size=12, y=0),
+        _tb("Research Assistant", bold=True, size=11, y=1),
+        _tb("Dalhousie University", y=2),
+        _tb("September 2023 – October 2025", y=3),
+        _tb("Worked with civil engineers and planners.", y=4),
+        _tb("Used SonarQube to identify code smells.", y=5),
+    ]
+    result = _run_pipeline(blocks)
+    exp = next(s for s in result.sections if s.type == "experience")
+    assert exp.data[0]["description"] == (
+        "Worked with civil engineers and planners.\nUsed SonarQube to identify code smells."
+    )
+
+
+def test_education_splits_two_degrees_without_blank_lines():
+    """Two degree/institution/date triples joined without blank lines
+    each become their own education entry."""
+    blocks = [
+        _tb("EDUCATION", bold=True, size=12, y=0),
+        _tb("Master of Computer Science", bold=True, size=11, y=1),
+        _tb("Dalhousie University", y=2),
+        _tb("September 2023 – October 2025", y=3),
+        _tb("Bachelor of Computer Science and Engineering", bold=True, size=11, y=4),
+        _tb("BRAC University", y=5),
+        _tb("January 2018 – January 2022", y=6),
+    ]
+    result = _run_pipeline(blocks)
+    edu = next(s for s in result.sections if s.type == "education")
+    entries = edu.data
+    assert len(entries) == 2
+    assert entries[0]["degree"] == "Master of Computer Science"
+    assert entries[0]["institution"] == "Dalhousie University"
+    assert entries[0]["start_date"] == "2023-09"
+    assert entries[1]["degree"] == "Bachelor of Computer Science and Engineering"
+    assert entries[1]["institution"] == "BRAC University"
+    assert entries[1]["start_date"] == "2018-01"
+
+
+def test_skills_groups_by_category_prefix():
+    """'Category: a, b' lines produce per-category groups; unlabelled
+    items without a category still land in a group."""
+    blocks = [
+        _tb("SKILLS", bold=True, size=12, y=0),
+        _tb("Programming Languages: TypeScript, JavaScript, Python", y=1),
+        _tb("Frontend: React Js, Angular", y=2),
+    ]
+    result = _run_pipeline(blocks)
+    skills = next(s for s in result.sections if s.type == "skills")
+    groups = skills.data
+    assert len(groups) == 2
+    assert groups[0]["category"] == "Programming Languages"
+    assert groups[0]["items"] == ["TypeScript", "JavaScript", "Python"]
+    assert groups[1]["category"] == "Frontend"
+    assert groups[1]["items"] == ["React Js", "Angular"]
+
+
+def test_skills_filters_letterspaced_junk():
+    """Chromium letter-spaced date labels ('A u g u s t  2 0 2 6')
+    never become skill tokens."""
+    blocks = [
+        _tb("SKILLS", bold=True, size=12, y=0),
+        _tb("Python, Go, Rust", y=1),
+        _tb("A u g u s t  2 0 2 6", y=2),
+    ]
+    result = _run_pipeline(blocks)
+    skills = next(s for s in result.sections if s.type == "skills")
+    items = skills.data[0]["items"]
+    assert items == ["Python", "Go", "Rust"]
+    assert all("A u g u s t" not in i for i in items)
+
+
+def test_projects_splits_entries_on_bold_titles():
+    """Project titles are bold; each title opens its own entry even when
+    the link line ('GitHub ↗') is interleaved."""
+    blocks = [
+        _tb("PROJECTS", bold=True, size=12, y=0),
+        _tb("MBuddy", bold=True, size=11, y=1),
+        _tb("A recommendation engine.", y=2),
+        _tb("GitHub ↗", y=3),
+        _tb("Project Tracker Extension", bold=True, size=11, y=4),
+        _tb("A knowledge graph tool.", y=5),
+    ]
+    result = _run_pipeline(blocks)
+    proj = next(s for s in result.sections if s.type == "projects")
+    entries = proj.data
+    assert len(entries) == 2
+    assert entries[0]["title"] == "MBuddy"
+    assert entries[1]["title"] == "Project Tracker Extension"
