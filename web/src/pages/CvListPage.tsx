@@ -4,6 +4,7 @@ import { useCVStore } from "../lib/store/cvStore";
 import CvCard from "../components/cv-list/CvCard";
 import CreateCvModal from "../components/cv-list/CreateCvModal";
 import DeleteCvModal from "../components/cv-list/DeleteCvModal";
+import ImportCvButton from "../components/cv-list/ImportCvButton";
 import LoadingSkeleton from "../components/common/LoadingSkeleton";
 import EmptyState from "../components/common/EmptyState";
 import { motion } from "motion/react";
@@ -26,12 +27,15 @@ export default function CvListPage() {
         className="mb-6 flex items-center justify-between"
       >
         <h1 className="text-2xl font-bold text-gray-900">My CVs</h1>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
-        >
-          + New CV
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowCreate(true)}
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+          >
+            + New CV
+          </button>
+          <ImportCvButton />
+        </div>
       </motion.div>
 
       <CreateCvModal open={showCreate} onClose={() => setShowCreate(false)} />

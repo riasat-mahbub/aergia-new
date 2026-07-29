@@ -85,7 +85,7 @@ class ParseMeta(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    source: Literal["regex"]
+    source: Literal["regex", "llm"]
     warnings: list[str]
 
 
