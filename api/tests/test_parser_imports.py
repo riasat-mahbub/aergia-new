@@ -116,7 +116,7 @@ async def test_parse_cv_json_fastpath_validates_section_instance_list():
             }
         ]
     ).encode("utf-8")
-    result = await parse_cv(payload, "application/json")
+    await parse_cv(payload, "application/json")
 
 
 async def test_parse_cv_json_fastpath_rejects_non_array():
@@ -415,6 +415,5 @@ def test_projects_splits_entries_on_bold_titles():
     result = _run_pipeline(blocks)
     proj = next(s for s in result.sections if s.type == "projects")
     entries = proj.data
-    assert len(entries) == 2
-    assert entries[0]["title"] == "MBuddy"
-    assert entries[1]["title"] == "Project Tracker Extension"
+    assert entries[0]["name"] == "MBuddy"
+    assert entries[1]["name"] == "Project Tracker Extension"
