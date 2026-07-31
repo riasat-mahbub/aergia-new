@@ -108,7 +108,7 @@ def test_benchmark_skills_categories_clean(benchmark_result):
 def test_benchmark_projects_three_entries(benchmark_result):
     proj = _by_type(benchmark_result, "projects")
     assert proj is not None
-    titles = [p["title"] for p in proj.data]
+    titles = [p["name"] for p in proj.data]
     assert titles == ["MBuddy", "Project Tracker Extension", "Aergia CV Builder"]
     assert "189,000 entries" in proj.data[0]["description"]
 
@@ -120,3 +120,26 @@ def test_benchmark_research_four_entries(benchmark_result):
     assert len(titles) == 4
     assert titles[0].startswith("Understanding code smells")
     assert "City Recommender System" in titles[3]
+
+
+def test_benchmark_projects_have_links(benchmark_result):
+    """Every project row carries the GitHub URL from PDF /Annots."""
+    proj = _by_type(benchmark_result, "projects")
+    assert proj is not None
+    urls = [p.get("url", "") for p in proj.data]
+    assert any("github.com/riasat-mahbub" in u for u in urls), urls
+    # All three project rows should have URLs.
+    assert all(p.get("url") for p in proj.data), [p.keys() for p in proj.data]
+    # Description should not include a trailing link indicator.
+    assert "Github↗" not in proj.data[0]["description"]
+    assert "Github↗" not in proj.data[1]["description"]
+    assert "Github↗" not in proj.data[2]["description"]
+
+
+def test_benchmark_research_has_paper_url(benchmark_result):
+    """Most research rows carry the paper URL from PDF /Annots."""
+    res = _by_type(benchmark_result, "research")
+    urls = [r.get("paper_url", "") for r in res.data]
+    # At least three of four entries have an attached paper_url.
+    annotated = [u for u in urls if u]
+    assert len(annotated) >= 3, urls

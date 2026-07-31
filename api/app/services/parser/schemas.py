@@ -34,6 +34,9 @@ class TextBlock(BaseModel):
     font_size: float
     is_bold: bool
     page: int
+    # URIs attached to this block's bbox via /Annots [/A /URI]; default empty
+    # so callers that don't care about link extraction can ignore it.
+    links: list[str] = []
 
 
 class ExtractedDocument(BaseModel):

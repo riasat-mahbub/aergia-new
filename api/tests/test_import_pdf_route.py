@@ -22,7 +22,6 @@ from app.services.parser import imports as orch
 from app.services.parser.keys import (
     InvalidAPIKeyError,
     LLMProvider,
-    ProviderTransportError,
     RateLimitError,
 )
 
