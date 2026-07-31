@@ -135,7 +135,7 @@ export interface ProjectEntry {
   start_date?: string;
   end_date?: string | null;
   description?: string;
-  tech_stack: string[];
+  tech_stack?: string[];
 }
 
 export interface LanguageEntry {

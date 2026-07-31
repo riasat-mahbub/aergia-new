@@ -20,8 +20,10 @@ import uuid
 
 from app.schema.models import SectionInstance
 from pydantic import ValidationError
-
 from .classify import (
+    DATE_RANGE_RE,
+    GITHUB_RE,
+    LINKEDIN_RE,
     LabeledBlock,
     PROFILE,
     UNCLASSIFIED,
@@ -108,6 +110,40 @@ def _coerce_year(value: str) -> str:
     return f"{year}-{month}"
 
 
+_TITLE_TAIL_RE = re.compile(
+    r"\s*(?:Paper|Certificate|GitHub|Repo|Link|Project)\s*↗\s*$",
+    re.IGNORECASE,
+)
+
+
+def _strip_title_tail(title: str) -> str:
+    """Drop a trailing ``Paper↗`` / ``Certificate↗`` style marker.
+
+    Chromium exports often glue the link label onto the title text
+    (``"… systems Paper↗"``); the renderer wants the bare title and
+    the link label in a separate field. Only the recognised tail
+    words get stripped, so foreign tails pass through unchanged.
+    """
+    return _TITLE_TAIL_RE.sub("", title).strip()
+
+
+def _find_title_block(
+    cleaned: list[LabeledBlock], title_text: str, start: int
+) -> LabeledBlock | None:
+    """Locate the title block for an entry in the cleaned section.
+
+    The classifier explodes the section body into (title, description)
+    pairs but doesn't tell the mapper which :class:`LabeledBlock`
+    produced which pair. Match on the (stripped) title text starting
+    from the cursor; return ``None`` when no match is found so the
+    caller falls back to the body-wide link scan.
+    """
+    for i in range(start, len(cleaned)):
+        if cleaned[i].text.strip().startswith(title_text):
+            return cleaned[i]
+    return None
+
+
 def _short_label(text: str) -> str:
     """First ~24 chars of the first line, collapsed."""
     first_line = (text or "").splitlines()[0].strip()
@@ -118,18 +154,17 @@ def _short_label(text: str) -> str:
     return first_line[:24].rstrip()
 
 
-# ---------------------------------------------------------------------------
-# Per-section data builders
-# ---------------------------------------------------------------------------
-
-
 def _build_profile_data(blocks: list[LabeledBlock], heading: str | None) -> dict:
-    """Profile is a single dict. The largest mixed-case line is the name."""
+    """Profile is a single dict. The largest mixed-case line is the name.
+
+    When the page carries PDF ``/Annots`` URI links attached to the
+    profile blocks (mailto:, linkedin, github, website), those
+    supersede the regex-based extraction in
+    :func:`_extract_profile_fields`. The regex fallback stays as a
+    defensive layer for PDFs without annotations.
+    """
     cleaned = _skip_header(blocks, heading)
     text = "\n".join(b.text for b in cleaned)
-    if not text.strip():
-        return {}
-
     extracted = _extract_profile_fields(text)
     name_candidate = next(
         (
@@ -139,17 +174,43 @@ def _build_profile_data(blocks: list[LabeledBlock], heading: str | None) -> dict
         ),
         "",
     )
+    social_links: list[dict[str, str]] = list(
+        extracted.get("social_links", []) or []
+    )
+    site_url = extracted.get("site_url", "") or ""
+    email = extracted.get("email", "") or ""
+    seen_uris: set[str] = {s["url"] for s in social_links if s.get("url")}
+    for blk in cleaned:
+        for uri in blk.links:
+            if uri in seen_uris:
+                continue
+            if uri.startswith("mailto:"):
+                email = uri[len("mailto:"):]
+            elif LINKEDIN_RE.search(uri):
+                if not any(s.get("label") == "LinkedIn" for s in social_links):
+                    social_links.append(
+                        {"url": uri, "label": "LinkedIn", "icon": ""}
+                    )
+                    seen_uris.add(uri)
+            elif GITHUB_RE.search(uri):
+                if not any(s.get("label") == "GitHub" for s in social_links):
+                    social_links.append(
+                        {"url": uri, "label": "GitHub", "icon": ""}
+                    )
+                    seen_uris.add(uri)
+            elif not site_url:
+                site_url = uri
     return {
         "name": name_candidate,
         "title": "",
-        "email": extracted.get("email", "") or "",
+        "email": email,
         "phone": extracted.get("phone", "") or "",
         "location": "",
         "site_text": "",
-        "site_url": extracted.get("site_url", "") or "",
+        "site_url": site_url,
         "summary": "",
         "photo_url": "",
-        "social_links": extracted.get("social_links", []) or [],
+        "social_links": social_links,
     }
 
 
@@ -221,19 +282,70 @@ def _build_simple_entries(
     prefix: str = "row",
     extra: dict | None = None,
     title_field: str = "title",
+    link_field: str = "url",
+    link_text_field: str = "link_text",
+    date_field: str | None = None,
 ) -> list[dict]:
     cleaned = _skip_header(blocks, heading)
     rows = _extract_simple_entries(cleaned)
+    block_index_by_label = {id(b): i for i, b in enumerate(cleaned)}
     out: list[dict] = []
+    cursor = 0
     for row in rows:
         entry: dict = {"id": _new_id(prefix)}
-        entry[title_field] = row.get("title", "") or ""
+        title_text_raw = (row.get("title", "") or "").strip()
+        title_text = _strip_title_tail(title_text_raw)
+        entry[title_field] = title_text
         if extra:
             entry.update(extra)
         entry["description"] = row.get("description", "") or ""
+        title_block = _find_title_block(cleaned, title_text, cursor)
+        collected_links: list[str] = []
+        collected_date = ""
+        if title_block is not None:
+            title_idx = block_index_by_label[id(title_block)]
+            cursor = title_idx + 1
+            # Walk forward through cleaned[] until the next bold
+            # (entry-title) block, gathering every link URI on the
+            # way. The bold heuristic mirrors
+            # ``_extract_simple_entries``'s entry boundaries.
+            while cursor < len(cleaned):
+                blk = cleaned[cursor]
+                if blk.is_bold:
+                    break
+                for uri in blk.links:
+                    if uri not in collected_links:
+                        collected_links.append(uri)
+                if date_field and not collected_date:
+                    m = DATE_RANGE_RE.search(blk.text)
+                    if m:
+                        collected_date = m.group(0)
+                cursor += 1
+        if title_block is not None and title_block.links:
+            entry[link_field] = title_block.links[0]
+            link_text = "↗"
+        elif collected_links:
+            entry[link_field] = collected_links[0]
+            link_text = "↗"
+        else:
+            link_text = ""
+        if len(collected_links) > 1 and entry.get(link_field) in collected_links:
+            entry["extra_links"] = [
+                u for u in collected_links if u != entry.get(link_field)
+            ]
+        if not entry.get(link_text_field):
+            entry[link_text_field] = link_text or "↗"
+        # Strip a trailing link indicator
+        # Strip a trailing link indicator (``GitHub↗`` etc.) from the
+        # description when it was glued onto the title's wrapped line.
+        desc = entry["description"]
+        desc_clean = _TITLE_TAIL_RE.sub("", desc)
+        if desc_clean != desc:
+            entry["description"] = desc_clean.strip()
+        if date_field and collected_date:
+            entry[date_field] = collected_date
         out.append(entry)
     return out
-
 
 def _build_extras_data(
     blocks: list[LabeledBlock], heading: str | None
@@ -341,7 +453,14 @@ def map_to_sections(
                 type="projects",
                 title=SECTION_LABELS_BY_TYPE["projects"],
                 enabled=True,
-                data=_build_simple_entries(blocks, heading, "proj"),
+                data=_build_simple_entries(
+                    blocks,
+                    heading,
+                    "proj",
+                    title_field="name",
+                    link_field="url",
+                    link_text_field="link_text",
+                ),
             )
         elif section_label == "certifications":
             instance = SectionInstance(
@@ -349,7 +468,14 @@ def map_to_sections(
                 type="certifications",
                 title=SECTION_LABELS_BY_TYPE["certifications"],
                 enabled=True,
-                data=_build_simple_entries(blocks, heading, "cert"),
+                data=_build_simple_entries(
+                    blocks,
+                    heading,
+                    "cert",
+                    title_field="title",
+                    link_field="url",
+                    link_text_field="link_text",
+                ),
             )
         elif section_label == "languages":
             cleaned = _skip_header(blocks, heading)
@@ -371,7 +497,15 @@ def map_to_sections(
                 type="research",
                 title=SECTION_LABELS_BY_TYPE["research"],
                 enabled=True,
-                data=_build_simple_entries(blocks, heading, "res"),
+                data=_build_simple_entries(
+                    blocks,
+                    heading,
+                    "res",
+                    title_field="title",
+                    link_field="paper_url",
+                    link_text_field="paper_link_text",
+                    date_field="publication_date",
+                ),
             )
         else:  # UNCLASSIFIED / extras
             data = _build_extras_data(blocks, heading)

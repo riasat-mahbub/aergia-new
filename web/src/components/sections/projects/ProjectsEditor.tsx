@@ -22,12 +22,12 @@ export default function ProjectsEditor({ data = [], onChange }: Props) {
 
   const addTech = (index: number, tech: string) => {
     const entry = entries[index];
-    update(index, "tech_stack", [...(entry?.tech_stack || []), tech]);
+    update(index, "tech_stack", [...(entry?.tech_stack ?? []), tech]);
   };
 
   const removeTech = (entryIndex: number, techIndex: number) => {
     const entry = entries[entryIndex];
-    update(entryIndex, "tech_stack", entry.tech_stack.filter((_, i) => i !== techIndex));
+    update(entryIndex, "tech_stack", (entry.tech_stack ?? []).filter((_, i) => i !== techIndex));
   };
 
   return (
@@ -68,7 +68,7 @@ export default function ProjectsEditor({ data = [], onChange }: Props) {
             <div className="mt-2">
               <label className="block text-xs text-gray-500">Tech Stack</label>
               <div className="flex flex-wrap gap-1">
-                {entry.tech_stack.map((tech: string, j: number) => (
+                {(entry.tech_stack ?? []).map((tech: string, j: number) => (
                   <span key={j} className="inline-flex items-center gap-1 rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-700">
                     {tech}
                     <button onClick={() => removeTech(i, j)} className="text-blue-400 hover:text-red-500">&times;</button>

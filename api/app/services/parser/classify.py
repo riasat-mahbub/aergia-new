@@ -140,6 +140,11 @@ class LabeledBlock(BaseModel):
     section: str
     confidence: Confidence
     source_heading: str | None = None
+    # URIs attached to the underlying :class:`TextBlock` via PDF
+    # ``/Annots`` link annotations. Mirrors the same field on
+    # :class:`TextBlock` so classifier→mapper boundary stays
+    # lossless.
+    links: list[str] = []
 
 
 def _normalize_title(text: str) -> str:
@@ -621,6 +626,7 @@ def classify(
                     section=section,
                     confidence="medium",
                     source_heading=heading,
+                    links=list(block.links),
                 )
             )
             continue
@@ -638,6 +644,7 @@ def classify(
                     section=PROFILE,
                     confidence="high",
                     source_heading=None,
+                    links=list(block.links),
                 )
             )
             continue
@@ -654,8 +661,10 @@ def classify(
                 section=UNCLASSIFIED,
                 confidence="low",
                 source_heading=None,
+                links=list(block.links),
             )
         )
+
 
     for start, end_idx, section_name, _heading in sections:
         # Skip the heading block itself (it would otherwise be parsed

@@ -51,7 +51,7 @@ def test_llm_strategy_construction_succeeds_with_provider_and_key():
 
 
 async def test_llm_strategy_without_bound_adapter_raises_clear_error():
-    import asyncio
+
     from app.services.parser.schemas import ExtractedDocument
     from app.services.parser.keys import LLMProvider
 
