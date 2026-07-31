@@ -32,8 +32,50 @@ from pypdf.errors import PdfReadError
 
 from app.schema.models import SectionInstance
 
+from ._extract_pdfplumber import extract_with_pdfplumber
 from .schemas import ExtractedDocument, TextBlock
 
+
+try:
+    import pdfplumber
+    from pdfplumber.utils.exceptions import PdfminerException
+
+    _PDFPLUMBER_EXCEPTIONS: tuple[type[BaseException], ...] = (
+        PdfminerException,
+        ValueError,  # pdfminer raises ValueError on certain truncation cases
+        OSError,     # pdfminer opens a real file handle; IO errors propagate
+    )
+except Exception:  # noqa: BLE001 - pdfplumber may be uninstalled during tests
+    _PDFPLUMBER_EXCEPTIONS = (Exception,)
+
+
+# ---------------------------------------------------------------------------
+# Backend selection (cached at module load)
+# ---------------------------------------------------------------------------
+
+
+_VALID_BACKENDS = ("pypdf", "pdfplumber")
+_DEFAULT_BACKEND = "pdfplumber"
+
+
+def _select_backend() -> str:
+    """Return the active PDF extraction backend, cached at module load.
+
+    Reads ``Settings.parser_backend`` once; any later change to the
+    setting requires re-importing this module. Unknown values fall
+    back to the default rather than raising so a stale env var never
+    blocks the parser.
+    """
+    try:
+        from app.config import get_settings
+
+        backend = get_settings().parser_backend
+    except Exception:
+        backend = _DEFAULT_BACKEND
+    return backend if backend in _VALID_BACKENDS else _DEFAULT_BACKEND
+
+
+_BACKEND = _select_backend()
 
 # ---------------------------------------------------------------------------
 # Public errors
@@ -80,6 +122,11 @@ def extract(file_bytes: bytes, mime_type: str) -> ExtractedDocument:
         raise EmptyInputError()
 
     if mime_type == "application/pdf":
+        if _BACKEND == "pdfplumber":
+            try:
+                return extract_with_pdfplumber(file_bytes)
+            except _PDFPLUMBER_EXCEPTIONS as exc:  # noqa: BLE001
+                raise ExtractionFailedError(f"Could not read PDF: {exc}") from exc
         return _extract_pdf(file_bytes)
 
     if mime_type == "application/json":

@@ -21,11 +21,13 @@ from pathlib import Path
 
 import pytest
 
+from app.services.parser._fonts import (
+    _font_family_from_basefont,
+    _infer_font,
+)
 from app.services.parser.extract import (
     _extract_font_dict,
     _extract_pdf,
-    _infer_font,
-    _font_family_from_basefont,
 )
 
 
