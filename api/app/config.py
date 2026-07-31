@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 7
     uploads_path: str = "./uploads"
     environment: str = "development"
+    parser_backend: str = "pdfplumber"
 
     model_config = {"env_file": ".env", "extra": "allow"}
 

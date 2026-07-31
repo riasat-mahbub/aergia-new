@@ -14,8 +14,7 @@ Public surface:
   :class:`ExtractionFailedError` — error mapping keys.
 """
 
-from __future__ import annotations
-
+from app.services.parser._extract_pdfplumber import extract_with_pdfplumber
 from app.services.parser.extract import (
     EmptyInputError,
     ExtractionFailedError,
@@ -42,6 +41,7 @@ from app.services.parser.strategies import LLMStrategy, RegexStrategy
 
 __all__ = [
     "parse_cv",
+    "extract_with_pdfplumber",
     "ParseResult",
     "ParseMeta",
     "ConfidenceReport",
