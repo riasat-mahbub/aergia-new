@@ -94,6 +94,16 @@ DATE_RANGE_RE = re.compile(
 )
 DEGREE_KEYWORDS = ("Bachelor", "Master", "B.Sc", "M.Sc", "PhD", "Diploma", "Associate")
 
+# Bare domain in a contact line: "rmahbub.com" between middots/space.
+# Must be preceded by whitespace/middot (not "@") so email hosts don't match.
+_BARE_DOMAIN_RE = re.compile(
+    r"(?:^|[\s·])([a-z0-9-]+\.(?:com|io|dev|me|net|org|co|ai|app))(?:[\s·]|$)",
+    re.IGNORECASE,
+)
+
+# "Programming Languages: TypeScript, JavaScript" -> ("Programming Languages", …)
+_SKILL_CATEGORY_RE = re.compile(r"^([A-Z][A-Za-z0-9 &/+-]+):\s*(.*)$")
+
 HEADER_RATIO_THRESHOLD = 1.15
 SKILL_TOKEN_MAX_LEN = 40
 
@@ -145,9 +155,19 @@ def _header_threshold_for(page_blocks: list[TextBlock]) -> float:
 
 
 def _is_candidate_header(block: TextBlock, threshold: float) -> bool:
-    """A bold/large line is a candidate header only if it looks like one —
-    short, mostly uppercase, no terminal punctuation. Mixed-case bold text
-    is treated as a name or emphasised body line, not a section header."""
+    """A bold/large line is a candidate section header if it looks like one.
+
+    Two checks:
+    - The bold flag is set OR the font size is above the page threshold.
+    - The text is header-shaped: short (<=64 chars), and either
+      ALL-CAPS-ish (>= 60% uppercase letters) OR matches a known
+      section/title alias.
+
+    The bold flag is now reliable (font-family-based inference in
+    ``extract._infer_font``), but bold alone admits too much — names,
+    job titles, and emphasised body lines are all bold. The shape
+    check keeps the false-positive rate down.
+    """
     if not (block.is_bold or block.font_size >= threshold):
         return False
     text = block.text.strip()
@@ -156,19 +176,43 @@ def _is_candidate_header(block: TextBlock, threshold: float) -> bool:
     letters = [c for c in text if c.isalpha()]
     if not letters:
         return False
+    # ALL-CAPS lines (legacy heuristic) remain accepted.
     upper = sum(1 for c in letters if c.isupper())
-    return upper / len(letters) >= 0.6
+    if upper / len(letters) >= 0.6:
+        return True
+    # Mixed-case lines: only accept when the text matches a known
+    # section or title alias. This catches "Experience", "Research",
+    # "Education", "Projects", "Skills" and their synonyms without
+    # admitting bold names like "Jane Doe" or "Riasat Mahbub".
+    section, is_profile = _match_section_title(text)
+    return section is not None or is_profile
 
 
 def _match_section_title(line: str) -> tuple[str | None, bool]:
-    """Return ``(section_name_or_None, is_profile_summary_alias)``."""
+    """Return ``(section_name_or_None, is_profile_summary_alias)``.
+
+    Single-word aliases (``research``, ``skills``, …) match EXACTLY.
+    Multi-word aliases (``research experience``, ``professional
+    summary``, …) additionally prefix-match so headings like
+    "Research Experience at Dalhousie" still classify. The single-word
+    restriction is what stops job titles like "Research Assistant"
+    (which would prefix-match ``research`` + space) from opening a
+    bogus section — a real bug on the benchmark CV where the first
+    experience entry is a Research Assistant role.
+    """
     norm = _normalize_title(line)
     for section, aliases in SECTION_ALIASES.items():
         for alias in aliases:
-            if norm == alias or norm.startswith(alias + " ") or norm.startswith(alias + "&"):
+            if norm == alias:
+                return section, False
+            if len(alias.split()) > 1 and (
+                norm.startswith(alias + " ") or norm.startswith(alias + "&")
+            ):
                 return section, False
     for alias in _PROFILE_SUMMARY_ALIASES:
-        if norm == alias or norm.startswith(alias + " "):
+        if norm == alias:
+            return PROFILE, True
+        if len(alias.split()) > 1 and norm.startswith(alias + " "):
             return PROFILE, True
     return None, False
 
@@ -242,7 +286,39 @@ def _split_entries(text: str) -> list[list[str]]:
     return [[line.strip() for line in chunk.splitlines() if line.strip()] for chunk in raw]
 
 
+def _looks_like_position_title(line: str) -> bool:
+    """A line that could open a new experience entry.
+
+    A title is short (<= 6 words), contains no internal punctuation
+    (period / comma / colon / semicolon), and is not a date range.
+    Description paragraphs are long sentences or contain punctuation,
+    so they don't qualify — this is what keeps paragraph wraps like
+    "patterns across 482 large-scale repositories. Leveraged" (has a
+    period) out of the title role on the benchmark CV.
+    """
+    if DATE_RANGE_RE.search(line):
+        return False
+    if any(ch in line for ch in (".", ",", ":", ";")):
+        return False
+    words = line.split()
+    return 0 < len(words) <= 6
+
+
 def _extract_experience_fields(text: str) -> list[dict[str, str]]:
+    """Split an experience section into entries.
+
+    The old implementation split on blank lines only; modern resumes
+    omit blank lines between entries, so every entry collapsed into
+    one. The new splitter walks lines in order and opens a new entry
+    when a title-shaped line appears AFTER the current entry already
+    has a date (i.e. the position line of the next entry). Within an
+    entry, the second title-shaped line before any date is the company.
+
+    Description lines — the ones that fail the title shape (long or
+    punctuated) — accumulate into the current entry's description,
+    bullets stripped. This recovers running-paragraph descriptions
+    that the old bullet-only gate dropped entirely.
+    """
     entries: list[dict[str, str]] = []
     bullet_re = re.compile(r"^\s*[•\-*]\s+")
     for lines in _split_entries(text):
@@ -252,7 +328,17 @@ def _extract_experience_fields(text: str) -> list[dict[str, str]]:
         company = ""
         date_text = ""
         description_lines: list[str] = []
-        non_meta: list[str] = []
+
+        def _flush() -> None:
+            entries.append(
+                {
+                    "position": position,
+                    "company": company,
+                    "date_text": date_text,
+                    "description": "\n".join(description_lines).strip(),
+                }
+            )
+
         for line in lines:
             if bullet_re.match(line):
                 description_lines.append(bullet_re.sub("", line))
@@ -260,31 +346,42 @@ def _extract_experience_fields(text: str) -> list[dict[str, str]]:
             if DATE_RANGE_RE.search(line):
                 date_text = line
                 continue
-            non_meta.append(line)
+            if _looks_like_position_title(line):
+                # A title-shaped line after the current entry has a date
+                # opens the NEXT entry; a title-shaped line with no date
+                # yet is this entry's company (title/company pair).
+                if date_text and (position or description_lines):
+                    _flush()
+                    position = ""
+                    company = ""
+                    date_text = ""
+                    description_lines = []
+                if not position:
+                    for sep in (" — ", " – ", " - ", " at ", " @ "):
+                        if sep in line:
+                            position, company = line.split(sep, 1)
+                            break
+                    else:
+                        position = line
+                elif not company:
+                    company = line
+                continue
+            description_lines.append(line)
 
-        if non_meta:
-            for sep in (" — ", " – ", " - ", " at ", " @ "):
-                if sep in non_meta[0]:
-                    position, company = non_meta[0].split(sep, 1)
-                    break
-            else:
-                position = non_meta[0]
-                # Ambiguous: a second non-meta line is a candidate company.
-                if len(non_meta) >= 2:
-                    company = non_meta[1]
-
-        entries.append(
-            {
-                "position": position,
-                "company": company,
-                "date_text": date_text,
-                "description": "\n".join(description_lines).strip(),
-            }
-        )
+        _flush()
     return entries
 
 
 def _extract_education_fields(text: str) -> list[dict[str, str]]:
+    """Split an education section into entries.
+
+    The old implementation split on blank lines only; resumes that join
+    entries without blank lines (degree, institution, date, next
+    degree, …) collapsed into a single entry with the last date winning.
+    The new splitter walks lines in order and closes the current entry
+    when a second degree-keyword line appears, so each
+    degree / institution / date triple becomes its own entry.
+    """
     entries: list[dict[str, str]] = []
     for lines in _split_entries(text):
         if not lines:
@@ -293,12 +390,27 @@ def _extract_education_fields(text: str) -> list[dict[str, str]]:
         institution = ""
         date_text = ""
         summary = ""
+
+        def _flush() -> None:
+            if degree or institution:
+                entries.append(
+                    {
+                        "degree": degree,
+                        "institution": institution,
+                        "date_text": date_text,
+                        "summary": summary,
+                    }
+                )
+
         for line in lines:
             if any(k.lower() in line.lower() for k in DEGREE_KEYWORDS):
-                if not degree:
-                    degree = line
-                else:
-                    summary = line
+                if degree:
+                    _flush()
+                    degree = ""
+                    institution = ""
+                    date_text = ""
+                    summary = ""
+                degree = line
                 continue
             if DATE_RANGE_RE.search(line):
                 date_text = line
@@ -307,35 +419,119 @@ def _extract_education_fields(text: str) -> list[dict[str, str]]:
                 institution = line
             else:
                 summary = (summary + "\n" + line).strip() if summary else line
-        entries.append(
-            {
-                "degree": degree,
-                "institution": institution,
-                "date_text": date_text,
-                "summary": summary,
-            }
-        )
+        _flush()
     return entries
 
 
-def _extract_skills_fields(text: str) -> list[str]:
+def _is_letterspaced_junk(token: str) -> bool:
+    """True when the token is letter-spaced filler (``A u g u s t``).
+
+    Chromium letter-spaces right-rail date labels, and pypdf extracts
+    each letter with a space between. Legit skill tokens like "GitHub
+    Actions" have one space in a long token; letter-spaced junk has a
+    space after nearly every character (> 1/3 of the token is spaces).
+    """
+    if not token or " " not in token:
+        return False
+    return token.count(" ") > len(token) / 3
+
+
+def _extract_skills_fields(text: str) -> list[dict[str, list[str]]]:
+    """Split a skills section into ``{"category", "items"}`` groups.
+
+    Lines starting with ``Category: item1, item2`` peel the category
+    prefix; subsequent lines without a prefix accumulate into the most
+    recent category. Unprefixed input (``Python, Go, Rust``) becomes a
+    single group with an empty category, matching the mapper's
+    existing contract.
+
+    Letter-spaced junk (Chromium date labels) is dropped so skills
+    stay clean on real-world exports.
+    """
+    groups: list[dict[str, list[str]]] = []
+    category = ""
     items: list[str] = []
-    for t in re.split(r"[,\n;•]+", text):
-        cleaned = t.strip()
-        if not cleaned or len(cleaned) > SKILL_TOKEN_MAX_LEN:
+
+    def _flush() -> None:
+        if items:
+            groups.append({"category": category, "items": list(items)})
+            items.clear()
+
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
             continue
-        items.append(cleaned)
-    return items
+        m = _SKILL_CATEGORY_RE.match(line)
+        if m:
+            _flush()
+            category = m.group(1)
+            rest = m.group(2)
+        else:
+            rest = line
+        for token in re.split(r"[,\n;•]+", rest):
+            cleaned = token.strip()
+            if not cleaned or len(cleaned) > SKILL_TOKEN_MAX_LEN:
+                continue
+            if _is_letterspaced_junk(cleaned):
+                continue
+            items.append(cleaned)
+    _flush()
+    return groups
 
 
-def _extract_simple_entries(text: str) -> list[dict[str, str]]:
+def _extract_simple_entries(
+    blocks: list[TextBlock],
+) -> list[dict[str, str]]:
+    """Split a title + description section (projects, research, …) into entries.
+
+    Titles are the bold lines of the section when any body line is bold
+    (the reliable signal from the font-family extractor); otherwise the
+    title-shaped text heuristic applies. Description lines accumulate
+    until the next title. This handles real resumes where entries are
+    joined without blank lines and titles are long (paper titles),
+    which the old blank-line splitter collapsed into one entry.
+    """
+    texts = [b.text for b in blocks]
+    if not texts:
+        return []
+
+    bold_idx = [i for i, b in enumerate(blocks) if b.is_bold]
+    # First bold line is the section heading (already skipped by the
+    # mapper, but the confidence path passes the raw span).
+    if bold_idx and len(bold_idx) >= 1:
+        title_indices = {i for i in bold_idx}
+        # If the very first bold line is the heading, drop it — the
+        # caller passes the section body without the heading when it
+        # can, so this only guards the classify() confidence path.
+        first_text = texts[0]
+        if bold_idx[0] == 0 and len(bold_idx) > 1 and _normalize_title(first_text) in (
+            alias
+            for aliases in SECTION_ALIASES.values()
+            for alias in aliases
+        ):
+            title_indices.discard(0)
+    else:
+        title_indices = {
+            i for i, t in enumerate(texts) if _looks_like_position_title(t)
+        }
+
     entries: list[dict[str, str]] = []
-    for lines in _split_entries(text):
-        if not lines:
-            continue
-        title = lines[0]
-        description = "\n".join(lines[1:]).strip()
-        entries.append({"title": title, "description": description})
+    current_title = ""
+    desc_lines: list[str] = []
+    for i, text in enumerate(texts):
+        if i in title_indices:
+            if current_title:
+                entries.append(
+                    {"title": current_title, "description": "\n".join(desc_lines).strip()}
+                )
+            current_title = text
+            desc_lines = []
+        else:
+            desc_lines.append(text)
+    if current_title:
+        entries.append(
+            {"title": current_title, "description": "\n".join(desc_lines).strip()}
+        )
     return entries
 
 
@@ -366,6 +562,14 @@ def _extract_profile_fields(text: str) -> dict[str, object]:
     site_url = ""
     if url_match and not linkedin_match and not github_match:
         site_url = url_match.group(0)
+    if not site_url:
+        # Real-world contact lines omit the scheme: "rmahbub.com".
+        # Only accept the domain when it's delimited by whitespace or
+        # a middot, so an email host ("gmail.com" inside an address)
+        # never leaks into site_url.
+        bare = _BARE_DOMAIN_RE.search(text)
+        if bare:
+            site_url = "https://" + bare.group(1)
     return {
         "email": email_match.group(0) if email_match else "",
         "phone": phone_match.group(0).strip() if phone_match else "",
@@ -454,7 +658,10 @@ def classify(
         )
 
     for start, end_idx, section_name, _heading in sections:
-        body = "\n".join(b.text for b in blocks[start : end_idx + 1])
+        # Skip the heading block itself (it would otherwise be parsed
+        # as the first entry's title by the text-based extractors).
+        body_blocks = blocks[start + 1 : end_idx + 1]
+        body = "\n".join(b.text for b in body_blocks)
         if not body.strip():
             continue
         if section_name == "experience":
@@ -492,12 +699,12 @@ def classify(
                     )
         elif section_name == "skills":
             plan = _extract_skills_fields(body)
-            for j in range(len(plan)):
+            for j in range(sum(len(g.get("items", [])) for g in plan)):
                 confidences.append(
                     FieldConfidenceEntry(path=("skills", "items", j), level="high")
                 )
         elif section_name in ("projects", "certifications", "languages", "research"):
-            plan = _extract_simple_entries(body)
+            plan = _extract_simple_entries(body_blocks)
             for i, entry in enumerate(plan):
                 if entry.get("title"):
                     confidences.append(

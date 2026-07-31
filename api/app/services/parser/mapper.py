@@ -206,10 +206,13 @@ def _build_skills_data(
 ) -> list[dict]:
     cleaned = _skip_header(blocks, heading)
     text = "\n".join(b.text for b in cleaned)
-    items = _extract_skills_fields(text)
-    if not items:
+    groups = _extract_skills_fields(text)
+    if not groups:
         return []
-    return [{"id": _new_id("skg"), "category": "", "items": items}]
+    return [
+        {"id": _new_id("skg"), "category": g.get("category", ""), "items": g.get("items", [])}
+        for g in groups
+    ]
 
 
 def _build_simple_entries(
@@ -220,8 +223,7 @@ def _build_simple_entries(
     title_field: str = "title",
 ) -> list[dict]:
     cleaned = _skip_header(blocks, heading)
-    text = "\n".join(b.text for b in cleaned)
-    rows = _extract_simple_entries(text)
+    rows = _extract_simple_entries(cleaned)
     out: list[dict] = []
     for row in rows:
         entry: dict = {"id": _new_id(prefix)}
@@ -351,8 +353,7 @@ def map_to_sections(
             )
         elif section_label == "languages":
             cleaned = _skip_header(blocks, heading)
-            text = "\n".join(b.text for b in cleaned)
-            entries = _extract_simple_entries(text)
+            entries = _extract_simple_entries(cleaned)
             data = [
                 {"id": _new_id("lang"), "language": e.get("title", ""), "proficiency": ""}
                 for e in entries
