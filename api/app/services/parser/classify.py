@@ -290,6 +290,49 @@ def _split_entries(text: str) -> list[list[str]]:
     raw = [chunk.strip() for chunk in re.split(r"\n\s*\n", text) if chunk.strip()]
     return [[line.strip() for line in chunk.splitlines() if line.strip()] for chunk in raw]
 
+def _split_rail_lines(text: str) -> list[str]:
+    """Pre-normalize text where a date range shares a line with a title.
+
+    pdfplumber's ``extract_text_lines()`` groups words on the same
+    visual line into one block, including right-rail date text:
+
+        ``Research Assistant                September 2023 – October 2025``
+
+    becomes a single line. The per-line splitters downstream
+    (``_extract_experience_fields``, ``_extract_education_fields``)
+    expect title and date on separate lines, so this helper peels the
+    date off whenever it appears AFTER other content on the same line.
+
+    Behaviour:
+
+    - Line has only a date range (or starts at column 0 with one) →
+      emitted unchanged.
+    - Line has text BEFORE a date range → split into two lines: the
+      pre-date text (title/degree), then the date range alone. Whitespace
+      and common separator glyphs (``· – — -``) are stripped from the
+      title-side tail.
+    - Line has no date range → emitted unchanged.
+
+    Operates on per-line input (callers split by newline first). The
+    helper is pure and side-effect-free.
+    """
+    out: list[str] = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        m = DATE_RANGE_RE.search(line)
+        if not m or m.start() == 0:
+            out.append(line)
+            continue
+        title_part = line[: m.start()].strip(" \t·–—-")
+        date_part = m.group(0)
+        if title_part:
+            out.append(title_part)
+        out.append(date_part)
+    return out
+
+
 
 def _looks_like_position_title(line: str) -> bool:
     """A line that could open a new experience entry.
@@ -327,6 +370,7 @@ def _extract_experience_fields(text: str) -> list[dict[str, str]]:
     entries: list[dict[str, str]] = []
     bullet_re = re.compile(r"^\s*[•\-*]\s+")
     for lines in _split_entries(text):
+        lines = _split_rail_lines("\n".join(lines))
         if not lines:
             continue
         position = ""
@@ -352,9 +396,15 @@ def _extract_experience_fields(text: str) -> list[dict[str, str]]:
                 date_text = line
                 continue
             if _looks_like_position_title(line):
-                # A title-shaped line after the current entry has a date
-                # opens the NEXT entry; a title-shaped line with no date
-                # yet is this entry's company (title/company pair).
+                # A title-shaped line opens the NEXT entry unless we're
+                # still missing the company/institution. With
+                # ``_split_rail_lines`` applied upstream, a
+                # title-rail layout (position, date, then institution
+                # on its own line) puts the institution here — and we
+                # must absorb it before opening a new entry.
+                if date_text and position and not company:
+                    company = line
+                    continue
                 if date_text and (position or description_lines):
                     _flush()
                     position = ""
@@ -389,6 +439,7 @@ def _extract_education_fields(text: str) -> list[dict[str, str]]:
     """
     entries: list[dict[str, str]] = []
     for lines in _split_entries(text):
+        lines = _split_rail_lines("\n".join(lines))
         if not lines:
             continue
         degree = ""
