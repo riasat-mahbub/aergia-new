@@ -24,6 +24,7 @@ knowledge — the manifest only carries values).
 from __future__ import annotations
 
 import html as _stdlib_html
+import re
 
 from app.schema.models import (
     Entry,
@@ -264,6 +265,32 @@ def _heading_keeps_with_first_decl(section: Section) -> str:
     return "break-before:avoid"
 
 
+_ENTRY_OPEN_RE = re.compile(r'(<div class="entry")( style="([^"]*)")?()')
+
+
+def _merge_entry_break_before(entry_html: str, decl: str) -> str:
+    """Merge ``decl`` (e.g. ``"break-before:avoid"``) into the entry's
+    existing ``style`` attribute so we never emit two ``style=`` on one
+    tag — browsers pick the first and drop the second, which used to
+    strip the entry's own flex layout declarations.
+    """
+
+    match = _ENTRY_OPEN_RE.match(entry_html)
+    if not match:
+        return entry_html
+    prefix, _existing_attr, existing_value, _empty = match.groups()
+    if existing_value:
+        declarations = [d for d in existing_value.split(";") if d]
+    else:
+        declarations = []
+    if decl and decl not in declarations:
+        declarations.append(decl)
+    merged = _format_inline_style(declarations)
+    if merged:
+        return f'{prefix} style="{merged}"{entry_html[match.end():]}'
+    return f'{prefix}{entry_html[match.end():]}'
+
+
 def _render_section(section: Section) -> str:
     policy = section.policy or SectionPolicy()
     sub_decl = _subsection_style_decl(section)
@@ -278,12 +305,11 @@ def _render_section(section: Section) -> str:
     for i, entry in enumerate(section.entries):
         entry_html = _render_entry(entry, section.subsection)
         if i == 0 and keep_first:
-            # Inject break-before:avoid on the first entry.
-            entry_html = entry_html.replace(
-                '<div class="entry"',
-                f'<div class="entry" style="{keep_first};',
-                1,
-            )
+            # Merge ``break-before:avoid`` into the existing ``style``
+            # attribute instead of prepending a second ``style=`` — the
+            # HTML parser ignores all but the first attribute, which used
+            # to drop the entry's own flex layout declarations.
+            entry_html = _merge_entry_break_before(entry_html, keep_first)
         entries_html_parts.append(entry_html)
     entries_html = "".join(entries_html_parts)
 
