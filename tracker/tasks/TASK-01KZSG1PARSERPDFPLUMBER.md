@@ -146,3 +146,14 @@ Benchmark suite: 9/9 smoke tests green; profile.email +
 profile.site_url + profile.social_links (LinkedIn + GitHub) all
 populated; experience and education entries show the right
 position / degree / company / institution pairs.
+
+### 2026-08-12 — Task 4 done (commit 09d7e24)
+
+- Added `test_benchmark_profile_social_links_attached` in
+  `tests/test_parser_smoke.py` — asserts the corpus ParseResult
+  profile has a non-empty social_links list containing both
+  LinkedIn and GitHub.
+- Added `test_attach_hyperlinks_to_block_attaches_contact_line_links`
+  and `test_attach_hyperlinks_to_block_skips_non_overlapping_links`
+  in `tests/test_parsers.py` — unit-level coverage for the
+  pdfplumber hyperlink-attach rule.
