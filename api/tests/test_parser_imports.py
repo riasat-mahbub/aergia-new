@@ -417,3 +417,44 @@ def test_projects_splits_entries_on_bold_titles():
     entries = proj.data
     assert entries[0]["name"] == "MBuddy"
     assert entries[1]["name"] == "Project Tracker Extension"
+
+def test_experience_splits_title_rail_date():
+    """pdfplumber (and some Word exports) put the date range on the same
+    line as the position title:
+        ``Research Assistant  September 2023 – October 2025``.
+    The rail-split normalizer must peel the date off so the entry's
+    institution line on the next row is captured as the company, not
+    as the next entry's position."""
+    blocks = [
+        _tb("EXPERIENCE", bold=True, size=12, y=0),
+        _tb("Research Assistant  September 2023 – October 2025", bold=True, size=11, y=1),
+        _tb("Dalhousie University", y=2),
+        _tb("Worked with civil engineers.", y=3),
+    ]
+    result = _run_pipeline(blocks)
+    exp = next(s for s in result.sections if s.type == "experience")
+    entries = exp.data
+    assert len(entries) == 1
+    assert entries[0]["position"] == "Research Assistant"
+    assert entries[0]["company"] == "Dalhousie University"
+    assert entries[0]["start_date"] == "2023-09"
+    assert entries[0]["end_date"] == "2025-10"
+
+
+def test_education_splits_degree_rail_date():
+    """Same rail-split semantics for education: the degree line carries
+    the date on the same row, and the institution is one line below."""
+    blocks = [
+        _tb("EDUCATION", bold=True, size=12, y=0),
+        _tb("Master of Computer Science  September 2023 – October 2025", bold=True, size=11, y=1),
+        _tb("Dalhousie University", y=2),
+    ]
+    result = _run_pipeline(blocks)
+    edu = next(s for s in result.sections if s.type == "education")
+    entries = edu.data
+    assert len(entries) == 1
+    assert entries[0]["degree"] == "Master of Computer Science"
+    assert entries[0]["institution"] == "Dalhousie University"
+    assert entries[0]["start_date"] == "2023-09"
+    assert entries[0]["end_date"] == "2025-10"
+
