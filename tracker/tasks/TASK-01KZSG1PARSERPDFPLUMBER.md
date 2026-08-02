@@ -126,3 +126,23 @@ fallback in `_attach_hyperlinks`.
 Tests: 105 parser-suite tests pass on the pypdf backend; switching
 the dispatch to pdfplumber closes Bug 1 (profile social_links now
 contains LinkedIn + GitHub on the benchmark corpus).
+
+### 2026-08-12 — Task 3 done (commit 85fcaa4)
+
+- Added `_split_rail_lines(text) -> list[str]` normalizer in
+  `classify.py`. When a line carries both a date range and other text,
+  peel the date off as its own line so per-line splitters see the
+  shape they expect.
+- Wired it into `_extract_experience_fields` and
+  `_extract_education_fields`.
+- Patched the experience title-shape branch so a title-shaped line
+  arriving after date+position is captured as the institution/company
+  when the current entry has none, instead of opening a new entry.
+- Added `test_experience_splits_title_rail_date` and
+  `test_education_splits_degree_rail_date` in
+  `tests/test_parser_imports.py`.
+
+Benchmark suite: 9/9 smoke tests green; profile.email +
+profile.site_url + profile.social_links (LinkedIn + GitHub) all
+populated; experience and education entries show the right
+position / degree / company / institution pairs.
