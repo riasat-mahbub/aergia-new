@@ -76,22 +76,22 @@ def test_css_vars_include_spacing_section_body_font_heading_font_accent():
     assert model.css_vars["--accent"] == "#aabbcc"
 
 
-def test_compact_spacing_maps_to_smaller_vars():
+def test_compact_spacing_maps_to_legacy_vars():
     model = resolve(_document(), HTMLDocumentRenderer(), _manifest("compact"), Customizations())
-    assert model.css_vars["--spacing-section"] == "16px"
+    assert model.css_vars["--spacing-section"] == "20px"
     assert model.css_vars["--spacing-subsection"] == "12px"
 
 
-def test_minimal_spacing_maps_to_smallest_vars():
+def test_minimal_spacing_maps_to_legacy_vars():
     model = resolve(_document(), HTMLDocumentRenderer(), _manifest("minimal"), Customizations())
-    assert model.css_vars["--spacing-section"] == "8px"
+    assert model.css_vars["--spacing-section"] == "16px"
     assert model.css_vars["--spacing-subsection"] == "8px"
 
 
 def test_user_customizations_spacing_overrides_manifest():
     custom = Customizations(spacing="compact")
     model = resolve(_document(), HTMLDocumentRenderer(), _manifest(), custom)
-    assert model.css_vars["--spacing-section"] == "16px"
+    assert model.css_vars["--spacing-section"] == "20px"
 
 
 def test_user_customizations_body_font_overrides_manifest_global_styles():

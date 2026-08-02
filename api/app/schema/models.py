@@ -47,7 +47,7 @@ WidthToken = Literal["narrow", "half", "full", "auto"]
 # Spacing and padding presets. The resolver maps these to design-token
 # CSS variables (``--spacing-section`` etc.). The values are renderer-
 # defined; the schema only carries the names.
-SpacingToken = Literal["none", "tight", "comfortable", "loose"]
+SpacingToken = Literal["none", "tight", "comfortable", "loose", "spacious"]
 
 # Font families exposed to template authors. Each renderer maps a token
 # to its native font stack (CSS, DOCX font reference, etc.).
