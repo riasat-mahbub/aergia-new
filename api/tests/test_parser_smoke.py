@@ -143,3 +143,21 @@ def test_benchmark_research_has_paper_url(benchmark_result):
     # At least three of four entries have an attached paper_url.
     annotated = [u for u in urls if u]
     assert len(annotated) >= 3, urls
+
+def test_benchmark_profile_social_links_attached(benchmark_result):
+    """Bug 1 from the post-resilience investigation: the regex parser's
+    CTM-scale bbox math leaves a gap between the contact line and its
+    /Annots /Link rects, so LinkedIn / GitHub annotations drop and
+    profile.social_links comes back empty. The pdfplumber backend
+    resolves the CTM and the link attacher matches in the same
+    coordinate space, so the social_links list now contains both.
+    Locked in here so a future revert cannot silently re-break it."""
+    profile = _by_type(benchmark_result, "profile")
+    assert profile is not None
+    social_links = profile.data.get("social_links", [])
+    assert isinstance(social_links, list)
+    assert social_links, f"profile.social_links is empty; expected LinkedIn + GitHub: {profile.data}"
+    labels = {entry.get("label") for entry in social_links}
+    assert "LinkedIn" in labels, social_links
+    assert "GitHub" in labels, social_links
+

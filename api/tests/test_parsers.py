@@ -16,10 +16,11 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from app.services.parser._extract_pdfplumber import _attach_hyperlinks_to_block
 from app.services.parser.classify import LabeledBlock, PROFILE
 from app.services.parser.extract import _collect_page_annotations
 from app.services.parser.mapper import _build_simple_entries, _strip_title_tail
-
+from app.services.parser.schemas import TextBlock
 
 class _FakeArray:
     def __init__(self, items):
@@ -100,6 +101,56 @@ def test_collect_page_annotations_handles_walker_failure():
 
     # Should swallow the error and return [], not raise.
     assert _collect_page_annotations(_Boom()) == []
+
+def test_attach_hyperlinks_to_block_attaches_contact_line_links():
+    """Bug 1 regression: pdfplumber's hyperlink rects and TextBlock
+    bboxes share the same top-down coordinate space, so a block whose
+    y-range covers a link rect should pick the URI up. The block
+    constructed here mimics a contact-line block at y=50..60 carrying
+    a single line, with three link rects at the same y-range. All
+    three URIs must land on the block."""
+    block = TextBlock(
+        text="riasat-mahbub Riasat Mahbub rmahbub.com",
+        x=100.0,
+        y=50.0,
+        width=400.0,
+        height=10.0,
+        font_size=12.0,
+        is_bold=False,
+        page=0,
+    )
+    hyperlinks = [
+        {"uri": "https://github.com/riasat-mahbub", "x0": 100.0, "top": 50.5, "x1": 200.0, "bottom": 58.0},
+        {"uri": "https://www.linkedin.com/in/riasat-m-70682b115/", "x0": 200.0, "top": 50.5, "x1": 300.0, "bottom": 58.0},
+        {"uri": "https://www.rmahbub.com/", "x0": 300.0, "top": 50.5, "x1": 400.0, "bottom": 58.0},
+    ]
+    _attach_hyperlinks_to_block(block, hyperlinks)
+    assert block.links == [
+        "https://github.com/riasat-mahbub",
+        "https://www.linkedin.com/in/riasat-m-70682b115/",
+        "https://www.rmahbub.com/",
+    ]
+
+def test_attach_hyperlinks_to_block_skips_non_overlapping_links():
+    """A link rect whose y-range falls outside the block's y-range is
+    not attached — the rect-overlap rule keeps distant annotations
+    from leaking onto unrelated lines."""
+    block = TextBlock(
+        text="Contact line",
+        x=0.0,
+        y=50.0,
+        width=400.0,
+        height=10.0,
+        font_size=12.0,
+        is_bold=False,
+        page=0,
+    )
+    hyperlinks = [
+        {"uri": "https://unrelated.com", "x0": 0.0, "top": 200.0, "x1": 100.0, "bottom": 210.0},
+    ]
+    _attach_hyperlinks_to_block(block, hyperlinks)
+    assert block.links == []
+
 
 
 def _labeled(text, *, links=None, is_bold=False, font_size=10.0):
