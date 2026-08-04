@@ -151,7 +151,7 @@ class SectionPolicy(BaseModel):
     show_title: bool = True
     heading_divider: bool = False
     skill_variant: Literal["block", "inline"] | None = None
-
+    entry_layout: Literal["stack", "two-column"] = "stack"
 # ---------------------------------------------------------------------------
 # AST nodes
 # ---------------------------------------------------------------------------

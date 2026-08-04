@@ -41,6 +41,20 @@ def test_minimal_seed_overrides_skills_to_inline():
         assert _manifest(template_id).policy_overrides.by_type == {}
 
 
+def test_section_policies_default_entry_layout_by_type():
+    """Per-type SECTION_POLICIES defaults set entry_layout='two-column'
+    for projects, research, and certifications — the three sections whose
+    body content and date/link benefit from a two-column grid (left =
+    title/description/etc., right = date+link right-justified). Other
+    types keep the stack layout (the existing rail pattern is correct
+    for them)."""
+    from app.services.renderer.policy import SECTION_POLICIES
+    assert SECTION_POLICIES["research"].entry_layout == "two-column"
+    assert SECTION_POLICIES["projects"].entry_layout == "two-column"
+    assert SECTION_POLICIES["certifications"].entry_layout == "two-column"
+    for type_ in ("experience", "education", "profile", "skills", "languages", "extras"):
+        assert SECTION_POLICIES[type_].entry_layout == "stack", f"{type_} should be stack"
+
 def test_seed_manifests_are_v2():
     for template_id in (MODERN_ID, CLASSIC_ID, MINIMAL_ID):
         assert _manifest(template_id).manifest_version == 2

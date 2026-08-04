@@ -363,3 +363,50 @@ def test_per_section_text_overlay_applies_to_runs():
     assert run.style is not None
     assert run.style.italic is True
     assert run.style.color == "#00ff00"
+
+
+def test_entry_layout_cascades_from_manifest_override():
+    """A manifest's policy_overrides.by_type[type].entry_layout wins over
+    the SECTION_POLICIES default."""
+    from app.services.renderer.policy import resolve_policy
+    from app.schema.models import PolicyOverrides, SectionPolicy
+    manifest = _manifest().model_copy(update={
+        "policy_overrides": PolicyOverrides(by_type={
+            "research": SectionPolicy(entry_layout="stack"),
+            "projects": SectionPolicy(entry_layout="stack"),
+        })
+    })
+    assert resolve_policy("research", manifest).entry_layout == "stack"
+    assert resolve_policy("projects", manifest).entry_layout == "stack"
+    # certifications has no manifest override — uses SECTION_POLICIES default
+    assert resolve_policy("certifications", manifest).entry_layout == "two-column"
+
+
+def test_entry_layout_cascades_from_section_policy_default():
+    """When neither the manifest nor the instance sets entry_layout, the
+    SECTION_POLICIES per-type default applies. Projects, research, and
+    certifications default to two-column; other types default to stack."""
+    from app.services.renderer.policy import resolve_policy
+    manifest = _manifest()
+    assert resolve_policy("research", manifest).entry_layout == "two-column"
+    assert resolve_policy("projects", manifest).entry_layout == "two-column"
+    assert resolve_policy("certifications", manifest).entry_layout == "two-column"
+    assert resolve_policy("experience", manifest).entry_layout == "stack"
+    assert resolve_policy("education", manifest).entry_layout == "stack"
+
+
+def test_entry_layout_overlay_from_per_instance_policy():
+    """A per-instance SectionInstanceStyle.policy.entry_layout wins over
+    the resolved section policy via _overlay_policy."""
+    from app.schema.models import SectionInstanceStyle, SectionPolicy
+    from app.services.renderer.resolve import _overlay_policy
+    base = SectionPolicy(entry_layout="two-column", show_title=True)
+    override = SectionInstanceStyle(policy=SectionPolicy(entry_layout="stack"))
+    merged = _overlay_policy(base, override.policy)
+    assert merged.entry_layout == "stack"
+    # show_title cascades too (regression)
+    assert merged.show_title is True
+    # No override: base preserved
+    no_override = SectionInstanceStyle()
+    merged_none = _overlay_policy(base, no_override.policy)
+    assert merged_none.entry_layout == "two-column"

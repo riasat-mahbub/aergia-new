@@ -1,5 +1,5 @@
 // This file is generated. Do not edit by hand.
-// Source: api/app/schema/models.py (sha256:ab630f91ab4b6f35)
+// Source: api/app/schema/models.py (sha256:1d38f4e7b76fafb3)
 
 export interface CVLayout {
   "placement"?: Record<string, string>;
@@ -113,6 +113,7 @@ export interface SectionInstanceStyle {
 }
 
 export interface SectionPolicy {
+  "entry_layout"?: ("stack" | "two-column");
   "heading_divider"?: boolean;
   "show_title"?: boolean;
   "skill_variant"?: (("block" | "inline")) | null;
