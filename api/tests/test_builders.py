@@ -115,7 +115,7 @@ def test_projects_emits_name_link_date_description_tech():
     }])
     doc = build_document(cv)
     keys = [f.key for f in doc.sections[0].entries[0].fields]
-    assert keys == ["project", "date", "link", "description", "tech", "tech"]
+    assert keys == ["project", "link", "date", "description", "tech", "tech"]
 
 
 def test_languages_emits_language_and_proficiency():
@@ -145,7 +145,7 @@ def test_certifications_emits_name_meta_link():
     }])
     doc = build_document(cv)
     keys = [f.key for f in doc.sections[0].entries[0].fields]
-    assert keys == ["certification", "issuer", "date", "link"]
+    assert keys == ["certification", "date", "issuer", "link"]
 
 
 def test_research_emits_title_link_date_description():
@@ -463,11 +463,11 @@ def test_projects_fields_carry_row_groups():
     }])
     entry = build_document(cv).sections[0].entries[0]
     fields = {f.key: f for f in entry.fields}
-    assert [f.key for f in entry.fields] == ["project", "date", "link", "description", "tech", "tech"]
+    assert [f.key for f in entry.fields] == ["project", "link", "date", "description", "tech", "tech"]
     assert fields["project"].group == "header"
-    assert fields["date"].group == "header"
+    assert fields["date"].group == "secondary"
     assert fields["date"].align == "right"
-    assert fields["link"].group == "secondary"
+    assert fields["link"].group == "header"
     assert fields["link"].align == "right"
     assert fields["link"].runs[0].style.link == "https://aergia.dev"
     assert fields["description"].group == "body"
@@ -491,12 +491,15 @@ def test_certifications_fields_carry_row_groups():
         "id": "s1", "type": "certifications", "title": "C", "enabled": True,
         "data": [{"id": "e1", "name": "AWS", "issuer": "Amazon", "date": "2026-01", "credential_url": "https://x"}],
     }])
-    fields = {f.key: f for f in build_document(cv).sections[0].entries[0].fields}
+    entry = build_document(cv).sections[0].entries[0]
+    fields = {f.key: f for f in entry.fields}
+    # Field order mirrors the research pattern: header (cert+date) → secondary (issuer+link).
+    assert [f.key for f in entry.fields] == ["certification", "date", "issuer", "link"]
     assert fields["certification"].group == "header"
-    assert fields["issuer"].group == "secondary"
-    assert fields["date"].group == "secondary"
+    assert fields["date"].group == "header"
     assert fields["date"].align == "right"
-    assert fields["link"].group == "body"
+    assert fields["issuer"].group == "secondary"
+    assert fields["link"].group == "secondary"
     assert fields["link"].align == "right"
     assert fields["link"].runs[0].style.link == "https://x"
 

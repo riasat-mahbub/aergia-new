@@ -23,23 +23,24 @@ def build_projects(instance: SectionInstance) -> Section:
         if row.get("name"):
             fields.append(FieldBlock(key="project", group="header", runs=[TextRun(text=str(row["name"]))]))
 
+        # Chromium silently drops <a href> annotations without a scheme;
+        # normalize so legacy/loose data still exports clickable links.
+        # Emit `link` before `date` so both header fields share row 0.
+        url = normalize_url_scheme(row.get("url"))
+        link_text = str(row.get("link_text") or url)
+        if url:
+            fields.append(FieldBlock(
+                key="link", group="header", align="right",
+                runs=[TextRun(text=link_text, style=TextStyle(link=url))],
+            ))
+
         date = format_date_range(
             str(row.get("start_date") or ""),
             row.get("end_date"),
             False,
         )
         if date:
-            fields.append(FieldBlock(key="date", group="header", align="right", runs=[TextRun(text=date)]))
-
-        # Chromium silently drops <a href> annotations without a scheme;
-        # normalize so legacy/loose data still exports clickable links.
-        url = normalize_url_scheme(row.get("url"))
-        link_text = str(row.get("link_text") or url)
-        if url:
-            fields.append(FieldBlock(
-                key="link", group="secondary", align="right",
-                runs=[TextRun(text=link_text, style=TextStyle(link=url))],
-            ))
+            fields.append(FieldBlock(key="date", group="secondary", align="right", runs=[TextRun(text=date)]))
 
         if row.get("description"):
             fields.append(FieldBlock(key="description", group="body", runs=[TextRun(text=str(row["description"]))]))

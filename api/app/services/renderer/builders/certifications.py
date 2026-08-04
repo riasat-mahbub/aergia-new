@@ -1,6 +1,6 @@
 """AST builder for the ``certifications`` section.
 
-Fields per entry: ``certification``, ``issuer``, ``date``, ``link``
+Fields per entry: ``certification``, ``date``, ``issuer``, ``link``
 (credential URL, optional ``link_text``).
 """
 
@@ -23,14 +23,16 @@ def build_certifications(instance: SectionInstance) -> Section:
         if row.get("name"):
             fields.append(FieldBlock(key="certification", group="header", runs=[TextRun(text=str(row["name"]))]))
 
-        issuer = str(row.get("issuer") or "").strip()
-        if issuer:
-            fields.append(FieldBlock(key="issuer", group="secondary", runs=[TextRun(text=issuer)]))
-
+        # `date` joins the header row alongside `certification`, matching the
+        # research pattern (paper+date in row 0, venue+link in row 1).
         raw_date = str(row.get("date") or "")
         if raw_date:
             formatted = format_single_date(raw_date)
-            fields.append(FieldBlock(key="date", group="secondary", align="right", runs=[TextRun(text=formatted)]))
+            fields.append(FieldBlock(key="date", group="header", align="right", runs=[TextRun(text=formatted)]))
+
+        issuer = str(row.get("issuer") or "").strip()
+        if issuer:
+            fields.append(FieldBlock(key="issuer", group="secondary", runs=[TextRun(text=issuer)]))
 
         # Chromium silently drops <a href> annotations without a scheme;
         # normalize so legacy/loose data still exports clickable links.
@@ -38,7 +40,7 @@ def build_certifications(instance: SectionInstance) -> Section:
         if url:
             link_text = str(row.get("link_text") or "Certificate")
             fields.append(FieldBlock(
-                key="link", group="body", align="right",
+                key="link", group="secondary", align="right",
                 runs=[TextRun(text=link_text, style=TextStyle(link=url))],
             ))
 

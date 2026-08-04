@@ -147,7 +147,7 @@ SEED_TEMPLATES = [
                 "research": "main",
             },
             "layout_defaults": {"spacing": "minimal"},
-            "policy_overrides": {"by_type": {}},
+            "policy_overrides": {"by_type": {"skills": {"skill_variant": "inline"}}},
             "global_styles": {
                 "accent_color": "#111827",
                 "body_font": "sans-serif",
