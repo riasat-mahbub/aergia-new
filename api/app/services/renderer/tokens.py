@@ -38,7 +38,7 @@ PADDING_TOKEN_VALUES: dict[str, str] = {
 SpacingToken = Literal["compact", "comfortable", "minimal"]
 SPACING_TOKEN_VALUES: dict[str, tuple[str, str]] = {
     # layout_defaults.spacing -> (--spacing-section, --spacing-subsection)
-    "compact": ("20px", "12px"),
+    "compact": ("20px", "0px"),
     "comfortable": ("24px", "16px"),
     # minimal: section gap stays at 16px (visible separation between
     # section blocks), but the per-field gap inside entries is 0 — the

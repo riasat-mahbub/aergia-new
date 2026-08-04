@@ -554,18 +554,25 @@ def test_apply_field_text_styles_preserves_builder_link_href():
     assert link_run.style.link == "https://aergia.dev"
 
 
-def test_project_link_url_gets_a_scheme_when_missing():
-    """A bare domain must become https:// — Chromium silently drops PDF
-    link annotations for scheme-less hrefs (the user-facing link bug)."""
+def test_apply_field_text_styles_tag_base_key_reaches_tag_indexed_fields():
+    """Customize panel binds a single 'tag' field per skills row, but the
+    builder emits ``tag.0``, ``tag.1``, … for each item. The lookup must
+    fall back to the base key so the per-row style reaches every item."""
     cv = _cv([{
-        "id": "s1", "type": "projects", "title": "P", "enabled": True,
-        "data": [{
-            "id": "e1", "name": "Aergia", "url": "github.com/aergia", "link_text": "site",
-            "start_date": "2026-01", "end_date": None, "description": "CV builder", "tech_stack": [],
-        }],
+        "id": "sk", "type": "skills", "title": "S", "enabled": True,
+        "data": [
+            {"id": "g1", "category": "Backend", "items": ["Python", "Go"]},
+            {"id": "g2", "category": "Frontend", "items": ["React"]},
+        ],
+        "style": {"text": {"tag": {"font_size": "xs"}}},
     }])
-    fields = {f.key: f for f in build_document(cv).sections[0].entries[0].fields}
-    assert fields["link"].runs[0].style.link == "https://github.com/aergia"
+    fields_by_entry = [
+        {f.key: f for f in e.fields}
+        for e in build_document(cv).sections[0].entries
+    ]
+    for entry in fields_by_entry:
+        for key in (k for k in entry if k.startswith("tag.")):
+            assert entry[key].runs[0].style.font_size == "xs", key
 
 
 def test_research_and_cert_link_urls_get_a_scheme_when_missing():

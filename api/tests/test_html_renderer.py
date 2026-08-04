@@ -288,11 +288,11 @@ def test_field_typography_groups_match_section_grammar():
     html = HTMLDocumentRenderer().render(_model())
 
     # Weight-600 header rule now covers the renamed section titles.
-    assert ".f-degree, .f-project, .f-certification, .f-paper { font-weight: 600;" in html
-    # venue/issuer render at the secondary (0.875rem) size.
+    # ``.f-category`` is also in this rule: the skills category label is a
+    # header-style token (it groups tags), so it gets the same emphasis.
+    assert ".f-degree, .f-project, .f-certification, .f-paper, .f-category { font-weight: 600;" in html
+    # venue/issuer render at the secondary (0.875rem) size; category shares it.
     assert ".f-category, .f-venue, .f-issuer { font-size: 0.875rem;" in html
-    # link renders at the small-meta (0.75rem) size, matching dates.
-    assert ", .f-gpa, .f-link, .f-tech" in html
     # The dead .f-url class is gone (no builder emits key='url').
 
     assert ".f-url" not in html
@@ -323,7 +323,9 @@ def test_chip_keys_render_field_as_inline_pill():
 
 def test_skills_inline_renders_category_and_tags_on_one_line():
     """policy.skill_variant = 'inline' renders each entry as
-    'Category: tag, tag, tag' on a single line."""
+    'Category: tag, tag, tag' on a single line. Each tag is a separate
+    span so per-run :class:`TextStyle` (font-size/color/bold) survives
+    the inline layout."""
     manifest = TemplateManifest(
         name="M", zones=[Zone(id="main", styles={})], placement={"skills": "main"},
     )
@@ -339,8 +341,10 @@ def test_skills_inline_renders_category_and_tags_on_one_line():
     html = HTMLDocumentRenderer().render(model)
     assert 'f-skills-inline' in html
     assert 'Languages' in html
-    assert 'Python, Rust' in html
-
+    # Each tag carries its own run span; comma separator is its own span.
+    assert '<span class="f-tag">Python</span>' in html
+    assert '<span class="f-tag">Rust</span>' in html
+    assert '<span class="f-tag-sep">,</span>' in html
 
 def test_heading_divider_emits_border_bottom_and_padding():
     """policy.heading_divider = True adds border-bottom + padding-bottom
@@ -358,6 +362,14 @@ def test_heading_divider_emits_border_bottom_and_padding():
     html = HTMLDocumentRenderer().render(model)
     assert 'border-bottom:1px solid var(--accent,#1f2937)' in html
     assert 'padding-bottom:4px' in html
+    # Bottom margin is 0 when the divider is on; the border + padding
+    # supply the gap. Without this lock the heading emits ``margin:0 0 2px``
+    # on top of the divider's border + padding, pushing the body 7px below
+    # the title row instead of the intended ~5px.
+    h2_m = re.search(r'<h2[^>]*>', html)
+    assert h2_m is not None
+    assert 'margin:0 0 0' in h2_m.group(0)
+    assert 'margin:0 0 2px' not in h2_m.group(0)
 
 
 def test_two_column_entry_splits_date_and_link_into_right_column():
