@@ -41,10 +41,12 @@ SPACING_TOKEN_VALUES: dict[str, tuple[str, str]] = {
     "compact": ("20px", "12px"),
     "comfortable": ("24px", "16px"),
     # minimal: section gap stays at 16px (visible separation between
-    # section blocks), but the per-field gap inside entries is dropped
-    # to 2px for a tight, compact look. The user explicitly asked for
-    # "almost none" on the per-field gap while keeping section separation.
-    "minimal": ("16px", "2px"),
+    # section blocks), but the per-field gap inside entries is 0 — the
+    # user explicitly asked for tightest possible. Adjacent lines are
+    # still distinguishable via font-size, color, and grid structure
+    # (the right column's date+link are right-justified on separate
+    # rows, not stacked on the same baseline).
+    "minimal": ("16px", "0px"),
 }
 
 # Font tokens: renderer-defined font stacks.

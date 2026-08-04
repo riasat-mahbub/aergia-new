@@ -85,7 +85,7 @@ def test_compact_spacing_maps_to_legacy_vars():
 def test_minimal_spacing_maps_to_legacy_vars():
     model = resolve(_document(), HTMLDocumentRenderer(), _manifest("minimal"), Customizations())
     assert model.css_vars["--spacing-section"] == "16px"
-    assert model.css_vars["--spacing-subsection"] == "2px"
+    assert model.css_vars["--spacing-subsection"] == "0px"
 
 
 def test_user_customizations_spacing_overrides_manifest():
