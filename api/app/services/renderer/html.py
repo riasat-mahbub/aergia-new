@@ -251,8 +251,7 @@ def _render_field_block(
         style = f' style="{extra_style}"' if extra_style else ""
         body = f'<span class="f-social"{style}>{inner}</span>'
         if href:
-            arrow = '<span aria-hidden="true"> ↗</span>' if show_external_marker else ''
-            return f'<a href="{attr(href)}">{body}{arrow}</a>'
+            return f'<a href="{attr(href)}">{body}</a>'
         return body
     style = f' style="{extra_style}"' if extra_style else ""
     return f'<div class="f-{attr(block.key)}"{style}>{inner}</div>'
