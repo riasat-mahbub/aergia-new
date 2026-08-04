@@ -251,7 +251,7 @@ def _render_field_block(
         style = f' style="{extra_style}"' if extra_style else ""
         body = f'<span class="f-social"{style}>{inner}</span>'
         if href:
-            return f'<a href="{attr(href)}">{body}</a>'
+            return f'<a class="f-social-link" href="{attr(href)}">{body}</a>'
         return body
     style = f' style="{extra_style}"' if extra_style else ""
     return f'<div class="f-{attr(block.key)}"{style}>{inner}</div>'
@@ -761,12 +761,12 @@ def _render_document(model: RenderModel, support: RendererSupport) -> str:
     .f-contact, .f-contact-sep, .f-email, .f-phone, .f-location, .f-site, .f-date, .f-gpa, .f-link, .f-tech, .f-tag, .f-proficiency, .f-meta {{ font-size: 0.75rem; }}
     /* Social row: smaller than the other contact fields so the icon+label
        pairs read as fine metadata next to the email/phone row. */
-    .f-social {{ display:inline-block; font-size: 0.83rem; margin-right: 1rem; }}
+    .f-social {{ display:inline-block; font-size: 0.83rem; }}
     .f-social:last-child {{ margin-right: 0; }}
+    .f-social-link {{ margin-right: 1.5rem; }}
+    .f-social-link:last-child {{ margin-right: 0; }}
     .f-position, .f-degree, .f-project, .f-certification, .f-paper, .f-category {{ font-weight: 600; }}
     /* Rich text blocks: paragraphs and lists inside description/summary fields */
-    .f-description p, .f-summary p {{ margin: 0.25rem 0; }}
-    .f-description p:first-child, .f-summary p:first-child {{ margin-top: 0; }}
     .f-description p:last-child, .f-summary p:last-child {{ margin-bottom: 0; }}
     .f-description ul, .f-description ol, .f-summary ul, .f-summary ol {{ margin: 0.25rem 0; padding-left: 1.5rem; }}
     .f-description ul, .f-summary ul {{ list-style-type: disc; }}

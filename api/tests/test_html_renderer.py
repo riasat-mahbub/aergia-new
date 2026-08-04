@@ -165,9 +165,9 @@ def test_social_field_with_link_wraps_icon_and_label_in_anchor():
     model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
     html = HTMLDocumentRenderer().render(model)
 
-    assert '<a href="https://x.com/me">' in html
+    assert 'href="https://x.com/me"' in html
     # Icon and label live inside the anchor; the glyph is intentionally absent.
-    anchor = re.search(r'<a href="https://x\.com/me">(.+?)</a>', html, re.S)
+    anchor = re.search(r'<a class=\"f-social-link\" href=\"https://x\.com/me\">(.+?)</a>', html, re.S)
     assert anchor is not None
     body = anchor.group(1)
     assert '<span class="f-icon"' in body
