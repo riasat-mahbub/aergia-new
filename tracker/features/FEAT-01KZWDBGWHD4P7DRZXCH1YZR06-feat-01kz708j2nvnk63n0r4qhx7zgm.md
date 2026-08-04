@@ -1,0 +1,42 @@
+---
+SCHEMA: 3
+FORMAT: project-tracker
+ID: FEAT-01KZWDBGWHD4P7DRZXCH1YZR06
+TYPE: feature
+STATUS: DONE
+PRIORITY: Medium
+SEVERITY: null
+EFFORT: S
+OWNER: null
+CONFIDENCE: Medium
+TAGS: null
+RELATIONS:
+  supersedes:
+  - FEAT-01KZ708J2NVNK63N0R4QHX7ZGM
+AFFECTS: null
+LINKS: null
+CREATED_BY: null
+UPDATED_BY: null
+CREATED_AT: '2026-08-13T01:56:26.641315+00:00'
+UPDATED_AT: '2026-08-13T01:56:26.641315+00:00'
+---
+
+# FEAT-01KZ708J2NVNK63N0R4QHX7ZGM
+
+## Background
+
+Superseded by FEAT-01KZWCX2ZSPSHKWD5E0TB0EFXM
+
+## Investigation
+
+
+## Decision
+
+
+## Implementation
+
+
+## Verification
+
+
+## Follow-up
