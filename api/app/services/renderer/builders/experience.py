@@ -18,7 +18,7 @@ location — they are independent fields on opposite ends of one row.
 from __future__ import annotations
 
 from app.schema.models import Entry, FieldBlock, Section, SectionInstance, TextRun
-from ._utils import format_date_range
+from ._utils import format_date_range, rich_text_to_field_block
 
 
 def build_experience(instance: SectionInstance) -> Section:
@@ -48,8 +48,9 @@ def build_experience(instance: SectionInstance) -> Section:
             if row.get("location"):
                 fields.append(FieldBlock(key="location", group="secondary", align="right", runs=[TextRun(text=str(row["location"]))]))
 
-        if row.get("description"):
-            fields.append(FieldBlock(key="description", group="body", runs=[TextRun(text=str(row["description"]))]))
+        desc_block = rich_text_to_field_block("description", row.get("description"))
+        if desc_block:
+            fields.append(desc_block)
 
         if fields:
             entries.append(Entry(id=entry_id, fields=fields))

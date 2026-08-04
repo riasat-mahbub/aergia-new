@@ -469,3 +469,82 @@ def test_stack_layout_is_default_for_experience():
     assert entry_m is not None
     assert "display:flex" in entry_m.group(0)
     assert "flex-direction:column" in entry_m.group(0)
+
+
+# ---------------------------------------------------------------------------
+# Rich text block rendering tests
+# ---------------------------------------------------------------------------
+
+
+def _render_field_html(field: FieldBlock) -> str:
+    """Render a single FieldBlock through the full pipeline and return the HTML."""
+    manifest = TemplateManifest(
+        name="M", zones=[Zone(id="main", styles={})], placement={"experience": "main"},
+    )
+    doc = Document(sections=[Section(
+        id="x", type="experience", title="Experience",
+        entries=[Entry(id="e", fields=[field])],
+    )])
+    model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
+    return HTMLDocumentRenderer().render(model)
+
+
+def test_rich_text_paragraph_renders_p_tag():
+    field = FieldBlock(
+        key="description", group="body", runs=[], rich_text=True,
+        blocks=[{"type": "paragraph", "items": [{"text": "Hello "}, {"text": "world", "style": {"bold": True}}]}],
+    )
+    html = _render_field_html(field)
+    assert "<p>" in html
+    assert "</p>" in html
+    assert "Hello " in html
+    assert "world" in html
+
+
+def test_rich_text_bullet_list_renders_ul_li():
+    field = FieldBlock(
+        key="description", group="body", runs=[], rich_text=True,
+        blocks=[{"type": "bullet_list", "items": [{"text": "Item 1"}, {"text": "Item 2"}]}],
+    )
+    html = _render_field_html(field)
+    assert "<ul><li>Item 1</li><li>Item 2</li></ul>" in html
+
+
+def test_rich_text_numbered_list_renders_ol_li():
+    field = FieldBlock(
+        key="description", group="body", runs=[], rich_text=True,
+        blocks=[{"type": "numbered_list", "items": [{"text": "First"}, {"text": "Second"}]}],
+    )
+    html = _render_field_html(field)
+    assert "<ol><li>First</li><li>Second</li></ol>" in html
+
+
+def test_rich_text_mixed_blocks_renders_sequentially():
+    field = FieldBlock(
+        key="description", group="body", runs=[], rich_text=True,
+        blocks=[
+            {"type": "paragraph", "items": [{"text": "Summary text"}]},
+            {"type": "bullet_list", "items": [{"text": "Bullet item"}]},
+        ],
+    )
+    html = _render_field_html(field)
+    assert "<p>Summary text</p>" in html
+    assert "<ul><li>Bullet item</li></ul>" in html
+
+
+def test_rich_text_bold_inline_renders_span():
+    field = FieldBlock(
+        key="description", group="body", runs=[], rich_text=True,
+        blocks=[{"type": "paragraph", "items": [{"text": "normal "}, {"text": "bold", "style": {"bold": True}}]}],
+    )
+    html = _render_field_html(field)
+    assert "font-weight:700" in html
+    assert "bold" in html
+
+
+def test_legacy_string_description_renders_unchanged():
+    """Legacy string descriptions still render as before."""
+    field = FieldBlock(key="description", group="body", runs=[TextRun(text="Legacy text")])
+    html = _render_field_html(field)
+    assert "Legacy text" in html
+    assert "f-description" in html

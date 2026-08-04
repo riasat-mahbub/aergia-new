@@ -18,6 +18,7 @@ import type {
   PolicyOverrides,
   RenderModel,
   ResolvedZone,
+  RichTextBlock,
   Section,
   SectionInstance,
   SectionInstanceStyle as GeneratedSectionInstanceStyle,
@@ -50,6 +51,7 @@ export type {
   PolicyOverrides,
   RenderModel,
   ResolvedZone,
+  RichTextBlock,
   Section,
   SectionInstance,
   SectionPolicy,
@@ -107,7 +109,7 @@ export interface ExperienceEntry {
   end_date?: string | null;
   current?: boolean;
   location?: string;
-  description?: string;
+  description?: string | RichTextBlock[];
 }
 
 export interface EducationEntry {
@@ -118,7 +120,7 @@ export interface EducationEntry {
   end_date?: string | null;
   current?: boolean;
   gpa?: string;
-  summary?: string;
+  summary?: string | RichTextBlock[];
 }
 
 export interface SkillGroup {
@@ -134,7 +136,7 @@ export interface ProjectEntry {
   link_text?: string;
   start_date?: string;
   end_date?: string | null;
-  description?: string;
+  description?: string | RichTextBlock[];
   tech_stack?: string[];
 }
 
@@ -158,7 +160,7 @@ export interface ResearchEntry {
   title?: string;
   paper_url?: string;
   paper_link_text?: string;
-  description?: string;
+  description?: string | RichTextBlock[];
   publication_date?: string;
   publication_value?: string;
 }
@@ -218,7 +220,7 @@ export function createDefaultSectionData(type: string): unknown {
         location: "",
         site_text: "",
         site_url: "",
-        summary: "",
+        summary: [],
         photo_url: "",
         social_links: [],
       };
@@ -232,7 +234,7 @@ export function createDefaultSectionData(type: string): unknown {
           end_date: null,
           current: false,
           location: "",
-          description: "",
+          description: [],
         },
       ];
     case "education":
@@ -245,7 +247,7 @@ export function createDefaultSectionData(type: string): unknown {
           end_date: null,
           current: false,
           gpa: "",
-          summary: "",
+          summary: [],
         },
       ];
     case "skills":
@@ -259,7 +261,7 @@ export function createDefaultSectionData(type: string): unknown {
           link_text: "",
           start_date: "",
           end_date: null,
-          description: "",
+          description: [],
           tech_stack: [],
         },
       ];

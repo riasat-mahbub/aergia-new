@@ -147,6 +147,11 @@ def apply_field_text_styles(section: Section, text_styles: dict[str, TextStyle])
     for entry in section.entries:
         new_fields = []
         for field in entry.fields:
+            # Rich text fields carry per-run styles from the content itself;
+            # the customize panel does not override them.
+            if field.rich_text:
+                new_fields.append(field)
+                continue
             ts = _lookup(field.key)
             if ts is None:
                 new_fields.append(field)

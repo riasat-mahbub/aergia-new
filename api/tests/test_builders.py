@@ -631,3 +631,124 @@ def test_profile_renders_social_links_before_summary():
     }])
     keys = [f.key for f in build_document(cv).sections[0].entries[0].fields]
     assert keys.index("social") < keys.index("summary")
+
+
+# ---------------------------------------------------------------------------
+# Rich text description tests
+# ---------------------------------------------------------------------------
+
+
+def test_experience_rich_text_description_produces_blocks():
+    """RichTextBlock[] input produces a FieldBlock with blocks populated."""
+    cv = _cv([{
+        "id": "x",
+        "type": "experience",
+        "title": "Experience",
+        "enabled": True,
+        "data": [
+            {
+                "id": "e1",
+                "position": "Dev",
+                "company": "Co",
+                "start_date": "2020-01",
+                "description": [
+                    {"type": "paragraph", "items": [{"text": "Led team of "}, {"text": "5 engineers", "style": {"bold": True}}]},
+                    {"type": "bullet_list", "items": [{"text": "Reduced latency"}, {"text": "Built CI/CD"}]},
+                ],
+            },
+        ],
+    }])
+    doc = build_document(cv)
+    desc = [f for f in doc.sections[0].entries[0].fields if f.key == "description"][0]
+    assert desc.rich_text is True
+    assert len(desc.blocks) == 2
+    assert desc.blocks[0].type == "paragraph"
+    assert desc.blocks[0].items[1].style.bold is True
+    assert desc.blocks[1].type == "bullet_list"
+    assert len(desc.blocks[1].items) == 2
+
+
+def test_experience_legacy_string_description_still_works():
+    """Legacy plain string description still produces a valid FieldBlock."""
+    cv = _cv([{
+        "id": "x",
+        "type": "experience",
+        "title": "Experience",
+        "enabled": True,
+        "data": [
+            {"id": "e1", "position": "Dev", "company": "Co", "start_date": "2020-01", "description": "did stuff"},
+        ],
+    }])
+    doc = build_document(cv)
+    desc = [f for f in doc.sections[0].entries[0].fields if f.key == "description"][0]
+    assert desc.rich_text is True
+    assert len(desc.blocks) == 1
+    assert desc.blocks[0].type == "paragraph"
+    assert desc.blocks[0].items[0].text == "did stuff"
+    assert desc.runs[0].text == "did stuff"
+
+
+def test_empty_rich_text_description_produces_no_field():
+    """Empty RichTextBlock[] produces no description FieldBlock."""
+    cv = _cv([{
+        "id": "x",
+        "type": "experience",
+        "title": "Experience",
+        "enabled": True,
+        "data": [
+            {"id": "e1", "position": "Dev", "company": "Co", "start_date": "2020-01", "description": []},
+        ],
+    }])
+    doc = build_document(cv)
+    desc_keys = [f.key for f in doc.sections[0].entries[0].fields if f.key == "description"]
+    assert len(desc_keys) == 0
+
+
+def test_projects_rich_text_description():
+    """Projects builder handles rich text description."""
+    cv = _cv([{
+        "id": "p",
+        "type": "projects",
+        "title": "Projects",
+        "enabled": True,
+        "data": [
+            {
+                "id": "proj1",
+                "name": "My Project",
+                "start_date": "2023-01",
+                "description": [
+                    {"type": "paragraph", "items": [{"text": "Built "}, {"text": "cool thing", "style": {"italic": True}}]},
+                ],
+            },
+        ],
+    }])
+    doc = build_document(cv)
+    desc = [f for f in doc.sections[0].entries[0].fields if f.key == "description"][0]
+    assert desc.rich_text is True
+    assert desc.blocks[0].items[1].style.italic is True
+
+
+def test_research_rich_text_description():
+    """Research builder handles rich text description."""
+    cv = _cv([{
+        "id": "r",
+        "type": "research",
+        "title": "Research",
+        "enabled": True,
+        "data": [
+            {
+                "id": "paper1",
+                "title": "My Paper",
+                "publication_date": "2024-01",
+                "description": [
+                    {"type": "paragraph", "items": [{"text": "Abstract text"}]},
+                    {"type": "numbered_list", "items": [{"text": "Finding 1"}, {"text": "Finding 2"}]},
+                ],
+            },
+        ],
+    }])
+    doc = build_document(cv)
+    desc = [f for f in doc.sections[0].entries[0].fields if f.key == "description"][0]
+    assert desc.rich_text is True
+    assert len(desc.blocks) == 2
+    assert desc.blocks[1].type == "numbered_list"
