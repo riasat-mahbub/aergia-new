@@ -40,7 +40,11 @@ SPACING_TOKEN_VALUES: dict[str, tuple[str, str]] = {
     # layout_defaults.spacing -> (--spacing-section, --spacing-subsection)
     "compact": ("20px", "12px"),
     "comfortable": ("24px", "16px"),
-    "minimal": ("16px", "8px"),
+    # minimal: section gap stays at 16px (visible separation between
+    # section blocks), but the per-field gap inside entries is dropped
+    # to 2px for a tight, compact look. The user explicitly asked for
+    # "almost none" on the per-field gap while keeping section separation.
+    "minimal": ("16px", "2px"),
 }
 
 # Font tokens: renderer-defined font stacks.
