@@ -167,9 +167,10 @@ def test_social_field_with_unknown_icon_renders_text_only():
     )
     doc = Document(sections=[
         Section(id="p", type="profile", title="Profile", entries=[Entry(id="e", fields=[
-            FieldBlock(key="social_links.0", group="social", icon="mastodon",
-                       runs=[TextRun(text="Fedi")]),
+            FieldBlock(key="social_links.0", group="social", icon="nonexistent-icon-key",
+                           runs=[TextRun(text="Fedi")]),
         ])]),
+
     ])
     model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
     html = HTMLDocumentRenderer().render(model)
