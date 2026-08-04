@@ -165,12 +165,22 @@ def _render_text_run(run: TextRun) -> str:
     return text
 
 
-def _render_field_block(block: FieldBlock, extra_style: str | None = None) -> str:
+def _render_field_block(
+    block: FieldBlock,
+    extra_style: str | None = None,
+    chip_keys: list[str] | None = None,
+) -> str:
     inner = "".join(_render_text_run(r) for r in block.runs)
     icon_svg = _SOCIAL_ICONS.get(block.icon) if block.icon else None
     if icon_svg:
         icon_html = f'<span class="f-icon" aria-hidden="true">{icon_svg}</span>'
         inner = f'{icon_html}<span class="f-icon-label">{inner}</span>'
+    # When this field key is in the section's chip_keys list, render as an
+    # inline pill span instead of a block-level div. The pill style is
+    # defined as a CSS rule in the renderer's <style> block.
+    if chip_keys and block.key in chip_keys:
+        style = f' style="{extra_style}"' if extra_style else ""
+        return f'<span class="f-chip"{style}>{inner}</span>'
     style = f' style="{extra_style}"' if extra_style else ""
     return f'<div class="f-{attr(block.key)}"{style}>{inner}</div>'
 
@@ -188,7 +198,11 @@ def _resolve_row_justify(subsection: SubsectionStyle | None) -> str:
     return "flex-start"
 
 
-def _render_entry(entry: Entry, section_subsection: SubsectionStyle | None) -> str:
+def _render_entry(
+    entry: Entry,
+    section_subsection: SubsectionStyle | None,
+    chip_keys: list[str] | None = None,
+) -> str:
     gap = (section_subsection.spacing_after if section_subsection else None) or "var(--spacing-subsection, 16px)"
     justify = _resolve_row_justify(section_subsection)
 
@@ -198,18 +212,22 @@ def _render_entry(entry: Entry, section_subsection: SubsectionStyle | None) -> s
     bucket: list[FieldBlock] = []
     for field in entry.fields:
         if bucket and (field.group is None or field.group != current_group):
-            rows.append(_render_field_row(bucket, justify))
+            rows.append(_render_field_row(bucket, justify, chip_keys))
             bucket = []
         current_group = field.group
         bucket.append(field)
     if bucket:
-        rows.append(_render_field_row(bucket, justify))
+        rows.append(_render_field_row(bucket, justify, chip_keys))
 
     fields_html = "".join(rows)
     return f'<div class="entry" style="display:flex;flex-direction:column;gap:{gap};">{fields_html}</div>'
 
 
-def _render_field_row(fields: list[FieldBlock], justify: str) -> str:
+def _render_field_row(
+    fields: list[FieldBlock],
+    justify: str,
+    chip_keys: list[str] | None = None,
+) -> str:
     """Render consecutive same-group fields as one flex row.
 
     A right-aligned field (``align="right"``) becomes the row's right rail:
@@ -221,12 +239,13 @@ def _render_field_row(fields: list[FieldBlock], justify: str) -> str:
     base_style = "display:flex;flex-wrap:wrap;align-items:baseline;column-gap:1rem;row-gap:0.25rem"
     if rail_field is not None:
         inner = "".join(
-            _render_field_block(f, extra_style="margin-left:auto" if f is rail_field else None)
+            _render_field_block(f, extra_style="margin-left:auto" if f is rail_field else None, chip_keys=chip_keys)
             for f in fields
         )
         return f'<div class="field-row" style="{base_style}">{inner}</div>'
-    inner = "".join(_render_field_block(f) for f in fields)
+    inner = "".join(_render_field_block(f, chip_keys=chip_keys) for f in fields)
     return f'<div class="field-row" style="{base_style};justify-content:{justify}">{inner}</div>'
+
 
 
 def _render_heading(section: Section, policy: SectionPolicy | None) -> str:
@@ -312,6 +331,34 @@ def _merge_entry_break_before(entry_html: str, decl: str) -> str:
     return f'{prefix}{entry_html[match.end():]}'
 
 
+def _render_skills_inline_entry(entry: Entry) -> str:
+    """Render one skills entry as ``Category: tag, tag, tag`` inline text.
+
+    Field keys follow the skills builder convention: ``category`` for the
+    group label and ``tag.<i>`` for the items. Empty category or no tags
+    returns an empty entry so the spacing keeps parity with the block path.
+    """
+
+    category = ""
+    tags: list[str] = []
+    for field in entry.fields:
+        if field.key == "category":
+            category = "".join(h(r.text) for r in field.runs)
+        elif field.key.startswith("tag."):
+            tags.append("".join(h(r.text) for r in field.runs))
+    parts: list[str] = []
+    if category:
+        parts.append(f'<span class="f-category">{h(category)}</span>')
+    if tags:
+        joined = ", ".join(tags)
+        if category:
+            joined = ": " + joined
+        parts.append(f'<span class="f-tag">{h(joined)}</span>')
+    if not parts:
+        return ""
+    return f'<div class="entry f-skills-inline">{"".join(parts)}</div>'
+
+
 def _render_section(section: Section) -> str:
     policy = section.policy or SectionPolicy()
     sub_decl = _subsection_style_decl(section)
@@ -322,17 +369,30 @@ def _render_section(section: Section) -> str:
     wrapper_style = _format_inline_style(wrapper_decl_parts)
     heading_html = _render_heading(section, policy)
 
+    chip_keys = (section.layout.chip_keys if section.layout else None)
     entries_html_parts: list[str] = []
-    for i, entry in enumerate(section.entries):
-        entry_html = _render_entry(entry, section.subsection)
-        if i == 0 and keep_first:
-            # Merge ``break-before:avoid`` into the existing ``style``
-            # attribute instead of prepending a second ``style=`` — the
-            # HTML parser ignores all but the first attribute, which used
-            # to drop the entry's own flex layout declarations.
-            entry_html = _merge_entry_break_before(entry_html, keep_first)
-        entries_html_parts.append(entry_html)
-    entries_html = "".join(entries_html_parts)
+    # Skills ``inline`` variant: render each entry as one line of
+    # ``Category: tag, tag, tag`` instead of the default flex rows. The
+    # default (block) keeps the existing per-entry flex layout with chips.
+    skill_inline = (
+        section.type == "skills"
+        and (policy.skill_variant or "block") == "inline"
+    )
+    if skill_inline:
+        for entry in section.entries:
+            entries_html_parts.append(_render_skills_inline_entry(entry))
+        entries_html = "".join(entries_html_parts)
+    else:
+        for i, entry in enumerate(section.entries):
+            entry_html = _render_entry(entry, section.subsection, chip_keys)
+            if i == 0 and keep_first:
+                # Merge ``break-before:avoid`` into the existing ``style``
+                # attribute instead of prepending a second ``style=`` — the
+                # HTML parser ignores all but the first attribute, which used
+                # to drop the entry's own flex layout declarations.
+                entry_html = _merge_entry_break_before(entry_html, keep_first)
+            entries_html_parts.append(entry_html)
+        entries_html = "".join(entries_html_parts)
 
     return (
         f'<section id="{attr(section.id)}" style="{wrapper_style}">'
@@ -381,6 +441,7 @@ def _render_document(model: RenderModel, support: RendererSupport) -> str:
     .f-icon svg {{ width:100%; height:100%; }}
     .field-row {{ display:flex; flex-wrap:wrap; align-items:baseline; column-gap:1rem; row-gap:0.25rem; }}
     .f-category {{ font-weight: 600; }}
+    .f-chip {{ display:inline-block; background:#eff6ff; padding:2px 6px; border-radius:4px; color:#1d4ed8; font-size:0.75rem; }}
 {model.link_styles}    {model.print_styles}
   </style>
 {best_effort}
