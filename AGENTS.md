@@ -131,7 +131,8 @@ npm run codegen:check             # drift guard (must stay green)
 | `web/vite.config.ts` | Dev proxy (`/api` → `:8000`, lines 9-13), Vitest jsdom config. |
 | `api/alembic/env.py` | `DATABASE_URL` override (lines 22-24). `alembic.ini` hardcodes a SQLite URL that is overridden at runtime. |
 | `dev.sh` / `scripts/smoke.sh` | Dev orchestrator / hardening gate. |
-| `PLAN.md`, `TEMPLATE_GUIDE.md`, `DEPLOY.md`, `PHASE_7_PROMPT.md` | Architecture promise, template authoring guide, deployment guide, historical record. |
+| `README.md` | Project entry point: what it is, quick start, architecture, templates, dev commands, doc map | First read for any new contributor |
+| `DEPLOY.md` | Docker deployment, `.env`, `SECRET_KEY` | Deploying |
 
 ## Runtime/Tooling Preferences
 
