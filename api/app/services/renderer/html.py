@@ -761,10 +761,9 @@ def _render_document(model: RenderModel, support: RendererSupport) -> str:
     .f-contact, .f-contact-sep, .f-email, .f-phone, .f-location, .f-site, .f-date, .f-gpa, .f-link, .f-tech, .f-tag, .f-proficiency, .f-meta {{ font-size: 0.75rem; }}
     /* Social row: smaller than the other contact fields so the icon+label
        pairs read as fine metadata next to the email/phone row. */
-    .f-social {{ display:inline-block; font-size: 0.83rem; margin-right: 0.5rem; }}
+    .f-social {{ display:inline-block; font-size: 0.83rem; margin-right: 1rem; }}
     .f-social:last-child {{ margin-right: 0; }}
     .f-position, .f-degree, .f-project, .f-certification, .f-paper, .f-category {{ font-weight: 600; }}
-
     /* Rich text blocks: paragraphs and lists inside description/summary fields */
     .f-description p, .f-summary p {{ margin: 0.25rem 0; }}
     .f-description p:first-child, .f-summary p:first-child {{ margin-top: 0; }}
