@@ -1,61 +1,181 @@
 # Aergia CV Builder
 
-A single-user CV builder. FastAPI + React, HTML-first rendering.
-The Python HTML renderer produces both the live preview and the PDF;
-the React tree is the editor surface, never the renderer.
+A single-user CV builder. You sign in, edit a CV in a schematic
+editor, pick a template, customize the look, and export to PDF. The
+whole app is one FastAPI process serving a React SPA; the same
+HTML-first renderer drives both the live preview and the PDF.
 
-## What it does
+## What you get
 
-Sign in, edit a CV in a schematic editor (sections, fields, no
-direct HTML), pick a template, customize per-CV, export to PDF.
-Three system templates ship: **modern** (two-column with sidebar),
-**classic** (compact single-column), **minimal** (loose single-column).
-All three render through the same HTML-first pipeline; the
-difference is the manifest, not a separate renderer.
+- **Schematic editor.** A panel-based editor where you add sections
+  (Experience, Education, Projects, Research, Skills, Languages,
+  Certifications) and fill in fields. No raw HTML, no formatting
+  toolbar — the editor mirrors the data model.
+- **Three system templates** that share the same renderer:
+  - **Modern** — two-column with a narrow sidebar (profile + skills)
+    and a wide main column for everything else.
+  - **Classic** — single-column, compact spacing.
+  - **Minimal** — single-column, loose spacing.
+- **Customize panel** for per-CV adjustments: accent color, fonts,
+  heading divider, per-section spacing. Edits are live in the
+  preview.
+- **PDF export** via Chromium print, with real clickable link
+  annotations on the URLs you provide.
 
-## Quick start (dev)
-
-```bash
-git clone <repo>
-cd aergia
-./dev.sh                # SQLite + uvicorn :8000 --reload + Vite :5173
-# open http://localhost:5173
-```
-
-For a prod-like run (no Vite, frontend served by FastAPI):
-`./dev.sh --build`. For the full hardening gate: `./dev.sh --smoke`.
-
-## Architecture
+## How it works (the user-facing flow)
 
 ```
-cv.sections (JSONB wire AST, Pydantic)            # api/app/schema/models.py
-  → build_document(cv, manifest)                  # services/renderer/builders/ dispatch by type
-  → Document
-  → resolve(document, renderer, manifest, customizations)  # pure; no I/O
-  → RenderModel                                   # fully resolved; no defaults remain
-  → HTMLDocumentRenderer.render(model)            # almost stupid; emits HTML
-  → HTML5 + CSS
-  → html_to_pdf() via Playwright Chromium        # /render/pdf, /cvs/{id}/export/pdf
+                  ┌──────────────────────────────────────────────┐
+                  │                                              │
+   sign in ──────►│  Dashboard (list of CVs)                    │
+                  │                                              │
+                  └────────────────┬─────────────────────────────┘
+                                   │  open / new
+                                   ▼
+                  ┌──────────────────────────────────────────────┐
+                  │                                              │
+                  │  Builder page                                │
+                  │  ┌──────────────┐  ┌──────────────────────┐  │
+                  │  │ Section list │  │  Live preview        │  │
+                  │  │ • Experience │  │  ┌────────────────┐  │  │
+                  │  │ • Education  │  │  │  Same HTML the  │  │  │
+                  │  │ • Projects   │  │  │  PDF uses       │  │  │
+                  │  │ • Research   │  │  └────────────────┘  │  │
+                  │  │ • Skills     │  │  (sandboxed iframe)   │  │
+                  │  └──────────────┘  └──────────────────────┘  │
+                  │  ┌──────────────┐                            │
+                  │  │ Customize    │  ← accent color, fonts,   │
+                  │  │ panel        │    per-section spacing     │
+                  │  └──────────────┘                            │
+                  └────────────────┬─────────────────────────────┘
+                                   │  click "Export PDF"
+                                   ▼
+                  ┌──────────────────────────────────────────────┐
+                  │                                              │
+                  │  PDF download                                │
+                  │  • Page-sized HTML rendered by Chromium     │
+                  │  • Real clickable URLs as link annotations   │
+                  │  • Same content as the preview               │
+                  │                                              │
+                  └──────────────────────────────────────────────┘
 ```
 
-The renderer is HTML. PDF is HTML rendered by Chromium. The React
-tree mirrors the AST but never generates HTML — it is a *schematic*
-editor; visual cues (e.g. page-break markers) indicate structural
-intent, not literal layout. Templates express taste; renderers
-express behavior. Both surfaces (live preview and PDF) call the
-same renderer; the only divergence is `strip_anchor_hrefs` on the
-preview path, which neutralizes `<a href>` so the sandboxed iframe
-can't navigate away while editing.
+The preview and the PDF are **the same render** — what you see is
+what you get. No "export will look slightly different" surprises.
+
+## The data flow (what happens when you save)
+
+When you change a field, here's the round trip:
+
+```
+   ┌──────────┐    save     ┌──────────────────┐
+   │  React   │────────────►│  POST /cvs/{id}   │
+   │  editor  │             │  (FastAPI)        │
+   └──────────┘             └────────┬─────────┘
+       ▲                            │
+       │  GET /cvs/{id} (re-render)  │
+       │  or PATCH                   ▼
+       │                  ┌──────────────────┐
+       │                  │  Validate via     │
+       │                  │  Pydantic schema  │
+       │                  └────────┬─────────┘
+       │                           │
+       │                           ▼
+       │                  ┌──────────────────┐
+       │                  │  Save to          │
+       │                  │  SQLite (JSONB)   │
+       │                  └────────┬─────────┘
+       │                           │
+       │   preview / export         ▼
+       │                  ┌──────────────────┐
+       └──────────────────│  Re-render via    │
+                          │  the renderer     │
+                          └──────────────────┘
+```
+
+The CV is stored as JSON in SQLite. Each save round-trips through
+Pydantic validation, so invalid data (missing required fields,
+wrong types) is rejected at the boundary.
+
+## How a CV becomes a PDF
+
+This is the part the rest of the system hangs off:
+
+```
+   CV (JSONB)                                    Template (manifest)
+       │                                                │
+       │   ┌─────────────────────┐                    │
+       └─►│  build_document(cv)   │                    │
+          │  (one builder per      │                    │
+          │   section type)        │                    │
+          └──────────┬────────────┘                    │
+                     │                                 │
+                     ▼                                 │
+          ┌─────────────────────┐                    │
+          │  Document (typed     │                    │
+          │  AST)                │                    │
+          └──────────┬──────────┘                    │
+                     │                                 │
+                     │     ┌──────────────────────────┘
+                     │     │
+                     ▼     ▼
+          ┌─────────────────────┐
+          │  resolve(document,   │
+          │  renderer,           │
+          │  manifest,           │
+          │  customizations)     │
+          │                      │
+          │  Apply:              │
+          │  • manifest defaults │
+          │  • user customizations│
+          │  • per-section       │
+          │    overrides         │
+          └──────────┬──────────┘
+                     │
+                     ▼
+          ┌─────────────────────┐
+          │  RenderModel         │
+          │  (fully resolved;    │
+          │   no defaults left)  │
+          └──────────┬──────────┘
+                     │
+                     ▼
+          ┌─────────────────────┐
+          │  HTMLDocumentRenderer│
+          │  .render(model)      │
+          │  → HTML5 + CSS       │
+          └──────────┬──────────┘
+                     │
+                     ├──────────────┐
+                     │              │
+                     ▼              ▼
+          ┌──────────────┐  ┌────────────────────┐
+          │  Live preview│  │  html_to_pdf()      │
+          │  (sandboxed  │  │  via Playwright     │
+          │   iframe)    │  │  Chromium           │
+          └──────────────┘  └─────────┬──────────┘
+                                        │
+                                        ▼
+                                  ┌──────────┐
+                                  │  PDF     │
+                                  └──────────┘
+```
+
+The renderer is **almost stupid** — it reads the resolved model and
+emits HTML. No decisions, no defaults, no "what does the user want".
+Every choice is made upstream, in the resolver. This is what keeps
+the preview and the PDF identical.
+
+The live preview and the PDF share everything **except one step**: the
+preview neutralizes `<a href>` to `#` so the sandboxed iframe can't
+navigate away while you edit. The PDF keeps the real hrefs, so
+Chromium's print engine produces clickable link annotations.
 
 ## Templates
 
-Templates are JSON manifests. The renderer reads a manifest and
-emits HTML; the CSS is applied via variables defined in the
-renderer's stylesheet. The user customizes the CV through the
-customize panel; the customizations cascade with the template
-defaults.
-
-### Manifest schema (v2)
+A template is a JSON manifest — a small file that declares the
+template's taste. The renderer reads it; the CSS values it produces
+are the manifest's choices.
 
 ```json
 {
@@ -63,7 +183,7 @@ defaults.
   "name": "Modern",
   "description": "Two-column layout with accent color header and light sidebar",
   "zones": [
-    {"id": "sidebar", "styles": {"width": "narrow", "padding": "comfortable", "background": "#f8fafc"}},
+    {"id": "sidebar", "styles": {"width": "narrow", "padding": "comfortable"}},
     {"id": "main",    "styles": {"width": "full",    "padding": "comfortable"}}
   ],
   "placement": {
@@ -81,81 +201,128 @@ defaults.
   "global_styles": {
     "accent_color": "#2563eb",
     "body_font": "Inter, system-ui, sans-serif",
-    "heading_font": "Inter, system-ui, sans-serif",
-    "default_text_align": "left"
+    "heading_font": "Inter, system-ui, sans-serif"
   }
 }
 ```
 
-### Top-level keys
+### What each key means
 
-- **`zones`** — list of layout regions. Each has an `id` (referenced by `placement`) and `styles` (CSS properties applied to the zone wrapper). Width and padding use closed-tokens: `narrow | half | full | auto` for width; `none | tight | comfortable | loose | spacious` for padding.
-- **`placement`** — map from section type (or instance ID) to zone ID. The resolver places sections into zones via this map.
-- **`layout_defaults`** — template's taste. `spacing` is one of `compact | comfortable | minimal`; the resolver maps it to CSS variables (`--spacing-section`, `--spacing-subsection`).
-- **`policy_overrides.by_type`** — per-type structural rules layered over the renderer defaults. Examples: `{"skills": {"skill_variant": "inline"}}` (render Skills as inline text instead of chips), `{"research": {"entry_layout": "two-column"}}` (split research entries into a 2-col grid with date+link on the right).
-- **`global_styles`** — defaults for global styles, overridden by the user in the customize panel: `accent_color`, `body_font`, `heading_font`, `default_text_align`.
+- **`zones`** — layout regions with their width/padding. `narrow`
+  is about a third, `half` is half, `full` is the rest.
+- **`placement`** — which section types go in which zone. The
+  "modern" template puts profile + skills in the sidebar, everything
+  else in main.
+- **`layout_defaults.spacing`** — `compact | comfortable | minimal`.
+  Sets the gap between sections and between fields.
+- **`policy_overrides.by_type`** — per-section overrides of
+  renderer defaults. Example: `{"skills": {"skill_variant": "inline"}}`
+  renders the skills section as one line of text instead of chips.
+- **`global_styles`** — accent color, body and heading fonts.
+  These are the defaults; the customize panel lets you override
+  them per CV.
 
-### Renderer cascade
+The resolver layers everything in this order: **renderer defaults →
+manifest defaults → user customizations → per-section overrides**.
+The renderer never has to think.
 
-The resolver layers in this order: **renderer defaults → manifest
-defaults → user customizations → per-section overrides**. The
-renderer receives a fully resolved `RenderModel` and emits HTML
-without further decision logic.
+## Customizing a CV
+
+The customize panel sits alongside the editor. It exposes three
+groups, one per style axis:
+
+```
+   ┌─────────────────────────────┐
+   │  Section policy              │
+   │  ◻ Show title               │
+   │  ◻ Heading divider           │
+   │  Skills layout: [Default ▼]  │  ← per-type override
+   │                              │
+   │  Subsection                  │
+   │  Text align: [left ▼]        │
+   │                              │
+   │  Layout                      │
+   │  Font family: [sans ▼]       │
+   └─────────────────────────────┘
+```
+
+Each control writes to the CV's customization object, which the
+resolver merges with the template defaults. Edits are live — the
+preview re-renders on every change.
+
+## Getting started
+
+### Run it locally (development)
+
+```bash
+git clone <repo>
+cd aergia
+./dev.sh                # SQLite + uvicorn :8000 --reload + Vite :5173
+# open http://localhost:5173
+```
+
+`./dev.sh` brings up:
+- A SQLite database at `data/aergia.db` (auto-created, no setup)
+- The FastAPI backend on `:8000` with auto-reload
+- The Vite dev server on `:5173` (proxies `/api` → `:8000`)
+
+Open `http://localhost:5173` and the app is running.
+
+For a production-like run (no Vite dev server, frontend served by
+FastAPI from `web/dist`):
+
+```bash
+./dev.sh --build
+```
+
+For the full hardening gate (tests + lint + smoke + production build
++ live render check):
+
+```bash
+./dev.sh --smoke
+```
+
+### Deploy
+
+See [`DEPLOY.md`](DEPLOY.md) for the Docker + `.env` + domain setup.
 
 ## Project structure
 
 ```
-api/        FastAPI backend (Python ≥ 3.12, Pydantic 2, SQLAlchemy 2 async, aiosqlite, Alembic)
-web/        React 19 + Vite 6 + Tailwind + Zustand frontend (strict TypeScript)
-scripts/    smoke.sh hardening gate; codegen helpers
-tracker/    project knowledge graph (file-based, ULID, managed by the `tracker` CLI)
-docs/       this README's companions (per-feature implementation plans, visual diffs)
+api/         FastAPI backend (Python ≥ 3.12, Pydantic, SQLAlchemy 2 async, aiosqlite, Alembic)
+web/         React 19 + Vite 6 + Tailwind + Zustand frontend
+docs/        Per-feature plans, visual diffs against the golden CV
+tracker/     Project knowledge graph (what's done, planned, proposed)
+dev.sh       Single command to bring the whole stack up
 ```
 
-## Dev commands
+## Common dev commands
 
 | Command | What it does |
 |---|---|
-| `./dev.sh` | SQLite + uvicorn :8000 --reload + Vite :5173 |
-| `./dev.sh --build` | prod-like: build frontend, serve via FastAPI |
-| `./dev.sh --prod --build` | no --reload, no Vite dev server |
-| `./dev.sh --smoke` | full hardening gate (tests + lint + smoke + build) |
-| `cd api && .venv/bin/python -m pytest` | backend tests |
-| `cd web && npm run test` | frontend tests (Vitest) |
-| `cd web && npm run codegen` | regenerate `web/src/generated/schema.ts` from the Pydantic models |
-| `cd web && npm run codegen:check` | drift guard (must stay green) |
-| `cd api && .venv/bin/python -m ruff check .` | backend lint |
-| `cd web && npm run lint` | frontend lint |
+| `./dev.sh` | SQLite + backend (`:8000`, reload) + Vite (`:5173`) |
+| `./dev.sh --build` | Production-like: built frontend served by FastAPI |
+| `./dev.sh --smoke` | Full hardening gate (tests + lint + smoke + build) |
+| `cd api && .venv/bin/python -m pytest` | Backend tests |
+| `cd web && npm run test` | Frontend tests |
+| `cd web && npm run codegen` | Regenerate `web/src/generated/schema.ts` from the Pydantic models |
+| `cd web && npm run codegen:check` | Drift guard — must stay green in CI |
+| `cd api && .venv/bin/python -m ruff check .` | Backend lint |
 
-## Documentation map
+## Where to go next
 
-| Doc | What it is | When to read |
-|---|---|---|
-| `AGENTS.md` | Agent guideline, architecture summary, project conventions | First read; reference for any edit |
-| `DEPLOY.md` | Docker deployment, `.env`, `SECRET_KEY` | Deploying |
-| `docs/plans/<date>-*.md` | Per-feature implementation plans (each one is the work that landed in a specific commit chain) | Understanding a specific shipped feature |
-| `docs/profile-vs-golden.md` | Side-by-side visual diff vs `~/Downloads/CV.pdf` | Visual-diff work; flags known regressions |
-| `docs/doc-audit-and-readme-plan.md` | The audit that produced this README's structure; lists which docs were removed and why | Doc maintenance |
-| `tracker/README.md` | Project knowledge graph CLI | Tracking work |
-
-## Tracking
-
-The project uses a file-based knowledge graph in `tracker/`. The CLI
-is the source of truth for what's done, in progress, planned, and
-proposed. Before editing: `tracker search <topic>`. After editing:
-`tracker update <id> --note "..."` and `tracker rebuild && tracker validate`.
-
-| Folder | Type | Count |
-|---|---|---|
-| `tracker/bugs/` | bug | 25 |
-| `tracker/features/` | feature | 58 |
-| `tracker/decisions/` | adr | 5 |
-| `tracker/tasks/` | task | 124 |
-| `tracker/docs/` | doc | 1 |
-| `tracker/epics/` | epic | 2 |
-
-## Tracking conventions
-
-- One commit per task; commit message follows `feat(…): …` / `fix(…): …` / `tracker: …` style.
-- Every commit carries a tracker update (`tracker new` / `tracker update` + `tracker rebuild && tracker validate`) so the tracker never drifts from the branch.
-- Feature work merges into `master` via a regular merge commit (not squash); the merge is the cutover.
+- **Deploying?** Read [`DEPLOY.md`](DEPLOY.md).
+- **Want to add a new section type?** The Pydantic models in
+  `api/app/schema/models.py` are the source of truth. Add the
+  field shape, write a builder in `api/app/services/renderer/builders/`,
+  add a TS type via `npm run codegen`, and the editor + preview +
+  PDF all light up automatically.
+- **Want to add a new template?** Write a manifest (see the schema
+  above), drop it in the seed, and the three system-template slots
+  in the template picker populate on next start.
+- **Tracking what's done or planned?** The project uses a
+  file-based knowledge graph in `tracker/`. The CLI is the source
+  of truth — see [`tracker/README.md`](tracker/README.md).
+- **Visual regression against a reference PDF?**
+  [`docs/profile-vs-golden.md`](docs/profile-vs-golden.md) is the
+  current side-by-side comparison.
