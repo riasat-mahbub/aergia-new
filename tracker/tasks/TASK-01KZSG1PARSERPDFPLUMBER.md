@@ -157,3 +157,23 @@ position / degree / company / institution pairs.
   and `test_attach_hyperlinks_to_block_skips_non_overlapping_links`
   in `tests/test_parsers.py` — unit-level coverage for the
   pdfplumber hyperlink-attach rule.
+
+### 2026-08-12 — Task 5 done (commit 9fbec22)
+
+- Deleted the entire pypdf visitor-mode section from extract.py
+  (lines 107-712 → gone). extract.py is now 160 lines: dispatcher +
+  JSON fast-path + error classes.
+- Removed pypdf>=4.2 from pyproject.toml — pdfplumber uses
+  pdfminer.six directly.
+- Removed the pypdf-extraction-only tests from test_extract_fonts.py
+  and test_parsers.py. The 13 _infer_font / _font_family_from_basefont
+  tests stay; the 9 _extract_font_dict / _extract_pdf /
+  _collect_page_annotations tests are gone with their targets.
+- Settings.parser_backend stays for the one-release revert path; the
+  dispatcher caches it at module load and unconditionally routes
+  application/pdf to extract_with_pdfplumber.
+
+Net code: -869 lines, +68 lines. extract.py is now a 160-line
+dispatcher that imports one extraction module.
+
+101 parser-suite tests pass on the surviving surface.
