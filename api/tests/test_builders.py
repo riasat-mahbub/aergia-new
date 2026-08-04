@@ -38,7 +38,7 @@ def test_profile_emits_name_title_summary_and_social_fields():
     section = doc.sections[0]
     assert section.type == "profile"
     keys = [f.key for f in section.entries[0].fields]
-    assert keys == ["name", "title", "email", "social_links.0", "summary"]
+    assert keys == ["name", "title", "email", "social", "summary"]
     assert section.entries[0].fields[0].runs[0].text == "Ada"
 
 
@@ -377,10 +377,11 @@ def test_profile_fields_carry_row_groups_and_icons():
     assert fields["site_text"].group == "contact"
     assert fields["summary"].group == "summary"
 
-    assert fields["social_links.0"].group == "social"
-    assert fields["social_links.0"].icon == "x"
-    assert fields["social_links.1"].group == "social"
-    assert fields["social_links.1"].icon == "github"
+    field_list = doc.sections[0].entries[0].fields
+    social_fields = [f for f in field_list if f.group == "social"]
+    assert len(social_fields) == 2
+    assert {f.icon for f in social_fields} == {"x", "github"}
+    assert all(f.key == "social" for f in social_fields)
 
 
 def test_profile_social_links_without_icon_name_get_no_icon():
@@ -396,8 +397,10 @@ def test_profile_social_links_without_icon_name_get_no_icon():
     }])
     doc = build_document(cv)
     fields = {f.key: f for f in doc.sections[0].entries[0].fields}
-    assert fields["social_links.0"].group == "social"
-    assert fields["social_links.0"].icon is None
+    social_fields = [f for f in fields.values() if f.group == "social"]
+    assert len(social_fields) == 1
+    assert social_fields[0].icon is None
+    assert social_fields[0].key == "social"
 
 
 def test_experience_fields_carry_row_groups():
@@ -620,4 +623,4 @@ def test_profile_renders_social_links_before_summary():
         },
     }])
     keys = [f.key for f in build_document(cv).sections[0].entries[0].fields]
-    assert keys.index("social_links.0") < keys.index("summary")
+    assert keys.index("social") < keys.index("summary")
