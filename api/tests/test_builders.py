@@ -37,9 +37,70 @@ def test_profile_emits_name_title_summary_and_social_fields():
     assert len(doc.sections) == 1
     section = doc.sections[0]
     assert section.type == "profile"
-    keys = [f.key for f in section.entries[0].fields]
+    fields = section.entries[0].fields
+    keys = [f.key for f in fields]
     assert keys == ["name", "title", "email", "social", "summary"]
-    assert section.entries[0].fields[0].runs[0].text == "Ada"
+    assert fields[0].runs[0].text == "Ada"
+
+
+def test_profile_social_run_carries_url_for_clickable_icon():
+    """Each social link's TextRun must carry the URL on ``style.link`` so the
+    renderer can wrap the icon and the label in a single ``<a href>``. Without
+    this the icon is plain text in the rendered PDF and not clickable."""
+    cv = _cv([{
+        "id": "s1",
+        "type": "profile",
+        "title": "Profile",
+        "enabled": True,
+        "data": {
+            "name": "Ada",
+            "social_links": [
+                {"url": "https://github.com/ada", "label": "GitHub", "icon": "github"},
+                {"url": "https://linkedin.com/in/ada", "label": "LinkedIn", "icon": "linkedin"},
+            ],
+        },
+    }])
+    section = build_document(cv).sections[0]
+    social_fields = [f for f in section.entries[0].fields if f.key == "social"]
+    assert len(social_fields) == 2
+    assert social_fields[0].icon == "github"
+    assert social_fields[0].runs[0].style.link == "https://github.com/ada"
+    assert social_fields[1].icon == "linkedin"
+    assert social_fields[1].runs[0].style.link == "https://linkedin.com/in/ada"
+
+
+def test_profile_site_field_carries_url_when_present():
+    """When ``site_url`` is set, the ``site`` field's run carries it on
+    ``style.link`` so the renderer wraps the label in ``<a href>``. With
+    only ``site_text`` (no URL) it stays a plain text label."""
+    cv = _cv([{
+        "id": "s1",
+        "type": "profile",
+        "title": "Profile",
+        "enabled": True,
+        "data": {
+            "name": "Ada",
+            "site_text": "aergia.dev",
+            "site_url": "https://aergia.dev",
+        },
+    }])
+    section = build_document(cv).sections[0]
+    site = next(f for f in section.entries[0].fields if f.key == "site")
+    assert site.runs[0].text == "aergia.dev"
+    assert site.runs[0].style.link == "https://aergia.dev"
+
+    # Without a URL, ``site_text`` becomes a plain ``site_text`` field.
+    cv_no_url = _cv([{
+        "id": "s1",
+        "type": "profile",
+        "title": "Profile",
+        "enabled": True,
+        "data": {"name": "Ada", "site_text": "Plain label"},
+    }])
+    section = build_document(cv_no_url).sections[0]
+    site_text = next(f for f in section.entries[0].fields if f.key == "site_text")
+    assert site_text.runs[0].text == "Plain label"
+    assert site_text.runs[0].style is None
 
 
 def test_experience_emits_one_entry_per_row_with_date_text_run():

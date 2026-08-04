@@ -205,7 +205,31 @@ def _render_field_block(
         style = f' style="{extra_style}"' if extra_style else ""
         return f'<div class="f-{attr(block.key)}"{style}>{inner}</div>'
 
-    inner = "".join(_render_text_run(r) for r in block.runs)
+    # Decide whether to hoist the URL onto the wrapper element. Only
+    # social/chip fields need the icon+label (or pill) wrapped in a
+    # single anchor; other fields keep the link emitted by the text-run
+    # pass so the trailing ↗ glyph survives. The builder emits ``key="social"``
+    # for each social link; older payloads may use indexed ``social_links.i``
+    # keys — match by prefix to support both.
+    wants_external_anchor = (
+        block.key == "social"
+        or block.key.startswith("social_links.")
+        or (chip_keys is not None and block.key in chip_keys)
+    )
+    href: str | None = None
+    show_external_marker = False
+    runs = list(block.runs)
+    if wants_external_anchor and block.runs:
+        linked = [r for r in block.runs if r.style and r.style.link]
+        if len(linked) == len(block.runs):
+            href = linked[0].style.link
+            if href:
+                show_external_marker = True
+                runs = [
+                    r.model_copy(update={"style": r.style.model_copy(update={"link": None})})
+                    for r in block.runs
+                ]
+    inner = "".join(_render_text_run(r) for r in runs)
     icon_svg = _SOCIAL_ICONS.get(block.icon) if block.icon else None
     if icon_svg:
         icon_html = f'<span class="f-icon" aria-hidden="true">{icon_svg}</span>'
@@ -215,14 +239,21 @@ def _render_field_block(
     # defined as a CSS rule in the renderer's <style> block.
     if chip_keys and block.key in chip_keys:
         style = f' style="{extra_style}"' if extra_style else ""
-        return f'<span class="f-chip"{style}>{inner}</span>'
+        body = f'<span class="f-chip"{style}>{inner}</span>'
+        if href:
+            return f'<a href="{attr(href)}" class="f-chip-link">{body}</a>'
+        return body
     # Social links render inline so adjacent icons sit side-by-side with
     # a consistent horizontal gap (see ``.f-social`` in the document CSS).
     # The block-level div layout would otherwise stack them vertically in
     # the contact row, which reads as the same column as the email/phone.
-    if block.key == "social":
+    if block.key == "social" or block.key.startswith("social_links."):
         style = f' style="{extra_style}"' if extra_style else ""
-        return f'<span class="f-social"{style}>{inner}</span>'
+        body = f'<span class="f-social"{style}>{inner}</span>'
+        if href:
+            arrow = '<span aria-hidden="true"> ↗</span>' if show_external_marker else ''
+            return f'<a href="{attr(href)}">{body}{arrow}</a>'
+        return body
     style = f' style="{extra_style}"' if extra_style else ""
     return f'<div class="f-{attr(block.key)}"{style}>{inner}</div>'
 
@@ -230,8 +261,8 @@ def _render_field_block(
 def _resolve_row_justify(subsection: SubsectionStyle | None) -> str:
     """Map a section's ``text_align`` to the flex ``justify-content`` value
     used for its field rows. ``None``/``"left"`` keep the default
-    ``flex-start``; the renderer never emits an explicit left."""
-
+    ``flex-start``; the renderer never emits an explicit left.
+    """
     align = subsection.text_align if subsection else None
     if align == "center":
         return "center"
@@ -239,10 +270,9 @@ def _resolve_row_justify(subsection: SubsectionStyle | None) -> str:
         return "right"
     return "flex-start"
 
-
 def _split_title_row(
     fields: list,
-    chip_keys,
+    chip_keys: list[str] | None,
 ) -> tuple[list, tuple | None, list]:
     """Split fields into ``(title_fields, paired, rest)``.
 

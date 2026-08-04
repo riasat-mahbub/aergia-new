@@ -143,7 +143,41 @@ def test_same_group_fields_render_in_one_row():
     assert "Ada" not in contact_row  # name is in its own row
 
 
-def test_social_field_renders_icon_when_known():
+def test_social_field_with_link_wraps_icon_and_label_in_anchor():
+    """A known social icon plus its URL wraps the icon SVG, label, and the
+    trailing ↗ glyph in a single ``<a href>`` so the icon itself becomes a
+    clickable hyperlink in the rendered PDF. Without a URL the field falls
+    back to a plain ``<span class="f-social">``."""
+    manifest = TemplateManifest(
+        name="M", zones=[Zone(id="main", styles={})], placement={"profile": "main"},
+    )
+    doc = Document(sections=[
+        Section(id="p", type="profile", title="Profile", entries=[Entry(id="e", fields=[
+            FieldBlock(
+                key="social_links.0",
+                group="social",
+                icon="x",
+                runs=[TextRun(text="X", style=TextStyle(link="https://x.com/me"))],
+            ),
+        ])]),
+    ])
+    model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
+    html = HTMLDocumentRenderer().render(model)
+
+    assert '<a href="https://x.com/me">' in html
+    # Icon, label, and external marker all live inside the anchor.
+    anchor = re.search(r'<a href="https://x\.com/me">(.+?)</a>', html, re.S)
+    assert anchor is not None
+    body = anchor.group(1)
+    assert '<span class="f-icon"' in body
+    assert "<svg" in body
+    assert "X" in body
+    assert '<span aria-hidden="true"> ↗</span>' in body
+
+
+def test_social_field_without_link_renders_span_only():
+    """When no link is set the field is NOT wrapped in an anchor (avoids a
+    dead ``<a href="">``). The plain-text icon+label still renders."""
     manifest = TemplateManifest(
         name="M", zones=[Zone(id="main", styles={})], placement={"profile": "main"},
     )
@@ -156,9 +190,37 @@ def test_social_field_renders_icon_when_known():
     model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
     html = HTMLDocumentRenderer().render(model)
 
+    assert '<a href=' not in html
     assert '<span class="f-icon"' in html
     assert "<svg" in html
     assert "X" in html
+
+
+def test_site_field_with_url_renders_anchor():
+    """A ``site`` field whose run carries a link wraps the label in an
+    ``<a href>`` with the trailing ↗ glyph so the URL is clickable in the
+    rendered PDF."""
+    manifest = TemplateManifest(
+        name="M", zones=[Zone(id="main", styles={})], placement={"profile": "main"},
+    )
+    doc = Document(sections=[
+        Section(id="p", type="profile", title="Profile", entries=[Entry(id="e", fields=[
+            FieldBlock(
+                key="site",
+                group="contact",
+                runs=[TextRun(
+                    text="aergia.dev",
+                    style=TextStyle(link="https://aergia.dev"),
+                )],
+            ),
+        ])]),
+    ])
+    model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
+    html = HTMLDocumentRenderer().render(model)
+
+    assert '<a href="https://aergia.dev"' in html
+    assert 'class="f-site"' in html
+    assert '<span aria-hidden="true"> ↗</span>' in html
 
 
 def test_social_field_with_unknown_icon_renders_text_only():
@@ -177,7 +239,6 @@ def test_social_field_with_unknown_icon_renders_text_only():
 
     assert "<svg" not in html
     assert "Fedi" in html
-
 
 def test_ungrouped_fields_render_each_in_their_own_row():
     """group=None fields keep the pre-rows stacked look — each field gets

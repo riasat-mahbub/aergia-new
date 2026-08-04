@@ -11,7 +11,7 @@ cascades three-axis style and the renderer emits HTML.
 
 from __future__ import annotations
 
-from app.schema.models import Entry, FieldBlock, Section, SectionInstance, TextRun
+from app.schema.models import Entry, FieldBlock, Section, SectionInstance, TextRun, TextStyle
 
 
 def build_profile(instance: SectionInstance) -> Section:
@@ -35,7 +35,10 @@ def build_profile(instance: SectionInstance) -> Section:
             FieldBlock(
                 key="site",
                 group="contact",
-                runs=[TextRun(text=site_text or site_url)],
+                runs=[TextRun(
+                    text=site_text or site_url,
+                    style=TextStyle(link=site_url),
+                )],
             )
         )
     elif site_text:
@@ -56,7 +59,7 @@ def build_profile(instance: SectionInstance) -> Section:
                 key="social",  # shared key — all socials get class f-social
                 group="social",
                 icon=icon,
-                runs=[TextRun(text=label)],
+                runs=[TextRun(text=label, style=TextStyle(link=url))],
             )
         )
 
