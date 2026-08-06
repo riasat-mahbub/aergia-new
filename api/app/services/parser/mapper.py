@@ -49,8 +49,18 @@ SECTION_LABELS_BY_TYPE: dict[str, str] = {
 }
 
 
-def _new_id(prefix: str = "imp") -> str:
-    return f"{prefix}_{uuid.uuid4().hex[:8]}"
+def _new_id() -> str:
+    """Stable identifier for an imported section or entry.
+
+    Every section and entry id in the frontend uses the ``sec_`` prefix;
+    the parser used to emit type-specific prefixes (``prof_``, ``edu_``,
+    ...) which silently disabled drag-drop on imported CVs because the
+    ``SectionZoneView`` drop handler bailed out on any non-``sec_`` id.
+    A single prefix keeps the implicit contract the rest of the codebase
+    assumes and the helper no longer takes a per-type tag (the data is
+    already type-typed via ``SectionInstance.type`` and ``entry.id``).
+    """
+    return f"sec_{uuid.uuid4().hex[:8]}"
 
 
 def _skip_header(blocks: list[LabeledBlock], heading: str | None) -> list[LabeledBlock]:
@@ -225,7 +235,7 @@ def _build_experience_data(
         dates = _split_dates(row.get("date_text", ""))
         out.append(
             {
-                "id": _new_id("exp"),
+                "id": _new_id(),
                 "position": row.get("position", "") or "",
                 "company": row.get("company", "") or "",
                 "start_date": dates[0],
@@ -249,7 +259,7 @@ def _build_education_data(
         dates = _split_dates(row.get("date_text", ""))
         out.append(
             {
-                "id": _new_id("edu"),
+                "id": _new_id(),
                 "institution": row.get("institution", "") or "",
                 "degree": row.get("degree", "") or "",
                 "start_date": dates[0],
@@ -271,7 +281,7 @@ def _build_skills_data(
     if not groups:
         return []
     return [
-        {"id": _new_id("skg"), "category": g.get("category", ""), "items": g.get("items", [])}
+        {"id": _new_id(), "category": g.get("category", ""), "items": g.get("items", [])}
         for g in groups
     ]
 
@@ -279,7 +289,6 @@ def _build_skills_data(
 def _build_simple_entries(
     blocks: list[LabeledBlock],
     heading: str | None = None,
-    prefix: str = "row",
     extra: dict | None = None,
     title_field: str = "title",
     link_field: str = "url",
@@ -292,16 +301,16 @@ def _build_simple_entries(
     out: list[dict] = []
     cursor = 0
     for row in rows:
-        entry: dict = {"id": _new_id(prefix)}
+        entry: dict = {"id": _new_id()}
         title_text_raw = (row.get("title", "") or "").strip()
         title_text = _strip_title_tail(title_text_raw)
         entry[title_field] = title_text
         if extra:
             entry.update(extra)
         entry["description"] = row.get("description", "") or ""
-        title_block = _find_title_block(cleaned, title_text, cursor)
         collected_links: list[str] = []
         collected_date = ""
+        title_block = _find_title_block(cleaned, title_text, cursor)
         if title_block is not None:
             title_idx = block_index_by_label[id(title_block)]
             cursor = title_idx + 1
@@ -365,7 +374,7 @@ def _build_extras_data(
             suffix += 1
         seen.add(label)
         fields.append({"label": label, "value": b.text})
-    return [{"id": _new_id("ext"), "title": title, "fields": fields}]
+    return [{"id": _new_id(), "title": title, "fields": fields}]
 
 
 def _validate_instance(candidate: SectionInstance) -> SectionInstance | None:
@@ -417,7 +426,7 @@ def map_to_sections(
 
         if section_label == PROFILE:
             instance = SectionInstance(
-                id=_new_id("prof"),
+                id=_new_id(),
                 type="profile",
                 title=SECTION_LABELS_BY_TYPE["profile"],
                 enabled=True,
@@ -425,7 +434,7 @@ def map_to_sections(
             )
         elif section_label == "experience":
             instance = SectionInstance(
-                id=_new_id("exp"),
+                id=_new_id(),
                 type="experience",
                 title=SECTION_LABELS_BY_TYPE["experience"],
                 enabled=True,
@@ -433,7 +442,7 @@ def map_to_sections(
             )
         elif section_label == "education":
             instance = SectionInstance(
-                id=_new_id("edu"),
+                id=_new_id(),
                 type="education",
                 title=SECTION_LABELS_BY_TYPE["education"],
                 enabled=True,
@@ -441,7 +450,7 @@ def map_to_sections(
             )
         elif section_label == "skills":
             instance = SectionInstance(
-                id=_new_id("sk"),
+                id=_new_id(),
                 type="skills",
                 title=SECTION_LABELS_BY_TYPE["skills"],
                 enabled=True,
@@ -449,14 +458,13 @@ def map_to_sections(
             )
         elif section_label == "projects":
             instance = SectionInstance(
-                id=_new_id("proj"),
+                id=_new_id(),
                 type="projects",
                 title=SECTION_LABELS_BY_TYPE["projects"],
                 enabled=True,
                 data=_build_simple_entries(
                     blocks,
                     heading,
-                    "proj",
                     title_field="name",
                     link_field="url",
                     link_text_field="link_text",
@@ -464,14 +472,13 @@ def map_to_sections(
             )
         elif section_label == "certifications":
             instance = SectionInstance(
-                id=_new_id("cert"),
+                id=_new_id(),
                 type="certifications",
                 title=SECTION_LABELS_BY_TYPE["certifications"],
                 enabled=True,
                 data=_build_simple_entries(
                     blocks,
                     heading,
-                    "cert",
                     title_field="title",
                     link_field="url",
                     link_text_field="link_text",
@@ -481,11 +488,11 @@ def map_to_sections(
             cleaned = _skip_header(blocks, heading)
             entries = _extract_simple_entries(cleaned)
             data = [
-                {"id": _new_id("lang"), "language": e.get("title", ""), "proficiency": ""}
+                {"id": _new_id(), "language": e.get("title", ""), "proficiency": ""}
                 for e in entries
             ]
             instance = SectionInstance(
-                id=_new_id("lang"),
+                id=_new_id(),
                 type="languages",
                 title=SECTION_LABELS_BY_TYPE["languages"],
                 enabled=True,
@@ -493,14 +500,13 @@ def map_to_sections(
             )
         elif section_label == "research":
             instance = SectionInstance(
-                id=_new_id("res"),
+                id=_new_id(),
                 type="research",
                 title=SECTION_LABELS_BY_TYPE["research"],
                 enabled=True,
                 data=_build_simple_entries(
                     blocks,
                     heading,
-                    "res",
                     title_field="title",
                     link_field="paper_url",
                     link_text_field="paper_link_text",
@@ -512,7 +518,7 @@ def map_to_sections(
             if not data:
                 continue
             instance = SectionInstance(
-                id=_new_id("ext"),
+                id=_new_id(),
                 type="extras",
                 title=SECTION_LABELS_BY_TYPE["extras"],
                 enabled=True,
