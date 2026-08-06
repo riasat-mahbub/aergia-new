@@ -23,12 +23,13 @@ WIDTH_TOKEN_VALUES: dict[str, str] = {
 }
 
 # Padding tokens: renderer-defined CSS values.
-PaddingToken = Literal["none", "tight", "comfortable", "loose"]
+PaddingToken = Literal["none", "tight", "comfortable", "loose", "spacious"]
 PADDING_TOKEN_VALUES: dict[str, str] = {
     "none": "0",
     "tight": "12px",
     "comfortable": "24px",
     "loose": "32px",
+    "spacious": "32px",
 }
 
 # Spacing design tokens (CSS variables the renderer emits). The
@@ -37,9 +38,9 @@ PADDING_TOKEN_VALUES: dict[str, str] = {
 SpacingToken = Literal["compact", "comfortable", "minimal"]
 SPACING_TOKEN_VALUES: dict[str, tuple[str, str]] = {
     # layout_defaults.spacing -> (--spacing-section, --spacing-subsection)
-    "compact": ("16px", "12px"),
+    "compact": ("20px", "12px"),
     "comfortable": ("24px", "16px"),
-    "minimal": ("8px", "8px"),
+    "minimal": ("16px", "8px"),
 }
 
 # Font tokens: renderer-defined font stacks.

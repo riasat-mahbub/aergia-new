@@ -94,7 +94,7 @@ SEED_TEMPLATES = [
                     "label": None,
                     "styles": {
                         "width": "full",
-                        "padding": "comfortable",
+                        "padding": "spacious",
                     },
                 },
             ],
@@ -132,7 +132,7 @@ SEED_TEMPLATES = [
                     "label": None,
                     "styles": {
                         "width": "full",
-                        "padding": "loose",
+                        "padding": "spacious",
                     },
                 },
             ],
