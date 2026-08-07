@@ -267,8 +267,9 @@ def test_link_field_renders_anchor_with_right_rail_and_arrow():
     assert 'href="https://aergia.dev"' in html
     assert 'class="f-link"' in html
     assert "margin-left:auto" in html
-    assert ".f-link::after" in html
-    assert "content: \" \u2197\"" in html
+    assert ".f-link::after" not in html
+    assert "content: \" \u2197\"" not in html
+    assert '<span aria-hidden="true"> ↗</span>' in html
 
 
 def test_field_typography_groups_match_section_grammar():
