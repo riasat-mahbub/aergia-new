@@ -1,5 +1,5 @@
 // This file is generated. Do not edit by hand.
-// Source: api/app/schema/models.py (sha256:6fdf1084d1de5484)
+// Source: api/app/schema/models.py (sha256:3cb4537a95a76f5e)
 
 export interface CVLayout {
   "placement"?: Record<string, string>;
@@ -55,6 +55,7 @@ export interface LayoutDefaults {
 
 export interface LayoutHints {
   "break_before"?: boolean;
+  "chip_keys"?: (Array<string>) | null;
   "date_style"?: (DateStyle) | null;
   "font_family"?: (string) | null;
   "heading_keeps_with_first"?: boolean;
@@ -173,6 +174,6 @@ export interface Zone {
 
 export interface ZoneStyle {
   "background"?: (string) | null;
-  "padding"?: (("none" | "tight" | "comfortable" | "loose")) | null;
+  "padding"?: (("none" | "tight" | "comfortable" | "loose" | "spacious")) | null;
   "width"?: (("narrow" | "half" | "full" | "auto")) | null;
 }

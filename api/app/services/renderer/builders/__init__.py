@@ -75,7 +75,7 @@ def build_section_style(
     subsection_dict = base.get("subsection") or {}
     subsection = SubsectionStyle.model_validate(subsection_dict) if subsection_dict else _default_subsection(instance_type)
     layout_dict = base.get("layout") or {}
-    layout = LayoutHints.model_validate(layout_dict) if layout_dict else LayoutHints()
+    layout = LayoutHints.model_validate(layout_dict) if layout_dict else _default_layout(instance_type)
     policy_dict = base.get("policy")
     explicit_policy = SectionPolicy.model_validate(policy_dict) if policy_dict else None
 
@@ -105,6 +105,16 @@ def _default_subsection(instance_type: str) -> SubsectionStyle:
     if instance_type == "profile":
         return SubsectionStyle(text_align="center")
     return SubsectionStyle()
+
+
+def _default_layout(instance_type: str) -> LayoutHints:
+    """Type-level page-flow defaults, applied only when the instance
+    declares no layout of its own. Sets per-type ``chip_keys`` so the
+    renderer can branch on field keys without knowing the section type."""
+
+    if instance_type == "projects":
+        return LayoutHints(chip_keys=["tech"])
+    return LayoutHints()
 
 
 def apply_field_text_styles(section: Section, text_styles: dict[str, TextStyle]) -> Section:

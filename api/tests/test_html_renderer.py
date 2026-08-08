@@ -285,4 +285,49 @@ def test_field_typography_groups_match_section_grammar():
     # link renders at the small-meta (0.75rem) size, matching dates.
     assert ", .f-gpa, .f-link, .f-tech" in html
     # The dead .f-url class is gone (no builder emits key='url').
+
     assert ".f-url" not in html
+
+
+def test_chip_keys_render_field_as_inline_pill():
+    """LayoutHints.chip_keys = ['tech'] renders the tech field as an
+    inline chip pill span, not a block-level div. CSS rule emitted too."""
+    manifest = TemplateManifest(
+        name="M", zones=[Zone(id="main", styles={})], placement={"projects": "main"},
+    )
+    doc = Document(sections=[Section(id="pr", type="projects", title="Projects", entries=[Entry(id="e", fields=[
+        FieldBlock(key="project", group="header", runs=[TextRun(text="Aergia")]),
+        FieldBlock(key="tech", group="body", runs=[TextRun(text="Python")]),
+    ])])])
+    # Inject chip_keys into the resolved layout
+    from app.services.renderer.builders import build_section_style
+    style, policy = build_section_style("projects", None, manifest)
+    doc.sections[0] = doc.sections[0].model_copy(update={
+        "layout": (doc.sections[0].layout or __import__("app.schema.models", fromlist=["LayoutHints"]).LayoutHints()).model_copy(update={"chip_keys": ["tech"]}),
+        "policy": policy,
+    })
+    model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
+    html = HTMLDocumentRenderer().render(model)
+    assert '<span class="f-chip">Python</span>' in html
+    assert ".f-chip {" in html
+
+
+def test_skills_inline_renders_category_and_tags_on_one_line():
+    """policy.skill_variant = 'inline' renders each entry as
+    'Category: tag, tag, tag' on a single line."""
+    manifest = TemplateManifest(
+        name="M", zones=[Zone(id="main", styles={})], placement={"skills": "main"},
+    )
+    doc = Document(sections=[Section(id="sk", type="skills", title="Skills", entries=[Entry(id="e", fields=[
+        FieldBlock(key="category", group="body", runs=[TextRun(text="Languages")]),
+        FieldBlock(key="tag.0", group="body", runs=[TextRun(text="Python")]),
+        FieldBlock(key="tag.1", group="body", runs=[TextRun(text="Rust")]),
+    ])])])
+    doc.sections[0] = doc.sections[0].model_copy(update={
+        "policy": SectionPolicy(skill_variant="inline"),
+    })
+    model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
+    html = HTMLDocumentRenderer().render(model)
+    assert 'f-skills-inline' in html
+    assert 'Languages' in html
+    assert 'Python, Rust' in html

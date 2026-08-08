@@ -138,7 +138,10 @@ class LayoutHints(BaseModel):
     heading_keeps_with_first: bool = True
     orphans: int = 2
     widows: int = 2
-
+    # Field keys whose FieldBlocks render as inline chip pills (e.g. project
+    # ``tech`` items, skill ``tag`` items). ``None`` = no chips. The renderer
+    # is renderer-key-agnostic: it reads only this list.
+    chip_keys: list[str] | None = None
 
 class SectionPolicy(BaseModel):
     """Document semantics for a section. The renderer implements these
