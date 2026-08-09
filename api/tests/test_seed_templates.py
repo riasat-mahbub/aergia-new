@@ -29,8 +29,15 @@ def test_minimal_template_spacing_is_minimal():
     assert _manifest(MINIMAL_ID).layout_defaults.spacing == "minimal"
 
 
-def test_policy_overrides_are_empty_for_every_seed():
-    for template_id in (MODERN_ID, CLASSIC_ID, MINIMAL_ID):
+def test_minimal_seed_overrides_skills_to_inline():
+    """The minimal template ships with skills in inline (comma-separated) mode
+    so the rendered CV matches the single-column golden reference. The other
+    two templates leave ``policy_overrides.by_type`` empty."""
+    from app.schema.models import SectionPolicy
+    assert _manifest(MINIMAL_ID).policy_overrides.by_type == {
+        "skills": SectionPolicy(skill_variant="inline")
+    }
+    for template_id in (MODERN_ID, CLASSIC_ID):
         assert _manifest(template_id).policy_overrides.by_type == {}
 
 
