@@ -331,3 +331,21 @@ def test_skills_inline_renders_category_and_tags_on_one_line():
     assert 'f-skills-inline' in html
     assert 'Languages' in html
     assert 'Python, Rust' in html
+
+
+def test_heading_divider_emits_border_bottom_and_padding():
+    """policy.heading_divider = True adds border-bottom + padding-bottom
+    to the heading <h2> style."""
+    manifest = TemplateManifest(
+        name="M", zones=[Zone(id="main", styles={})], placement={"experience": "main"},
+    )
+    doc = Document(sections=[Section(id="x", type="experience", title="Experience", entries=[Entry(id="e", fields=[
+        FieldBlock(key="position", group="header", runs=[TextRun(text="Dev")]),
+    ])])])
+    doc.sections[0] = doc.sections[0].model_copy(update={
+        "policy": SectionPolicy(show_title=True, heading_divider=True),
+    })
+    model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
+    html = HTMLDocumentRenderer().render(model)
+    assert 'border-bottom:1px solid var(--accent,#1f2937)' in html
+    assert 'padding-bottom:4px' in html

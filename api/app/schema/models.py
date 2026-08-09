@@ -149,8 +149,8 @@ class SectionPolicy(BaseModel):
     DOCX constructs. Policy stays semantic — renderers pick the markup."""
 
     show_title: bool = True
+    heading_divider: bool = False
     skill_variant: Literal["block", "inline"] | None = None
-
 
 # ---------------------------------------------------------------------------
 # AST nodes

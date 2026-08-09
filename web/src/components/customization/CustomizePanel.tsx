@@ -619,6 +619,14 @@ export default function CustomizePanel({
                   />
                   Show title
                 </label>
+                <label className="flex items-center gap-2 text-xs text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={selectedStyle.policy?.heading_divider === true}
+                    onChange={(e) => updateSelectedPolicy({ heading_divider: e.target.checked })}
+                  />
+                  Heading divider (underline)
+                </label>
                 {selectedInstance.type === "skills" &&
                   support?.feature_skills_inline !== "NONE" && (
                     <div>

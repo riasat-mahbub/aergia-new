@@ -256,6 +256,11 @@ def _render_heading(section: Section, policy: SectionPolicy | None) -> str:
     style_parts = ["margin:0 0 8px", "font-size:1rem", "font-weight:700"]
     if color:
         style_parts.append(f"color:{color}")
+    if policy and policy.heading_divider:
+        # Legacy ``underline_section_titles`` flag: border-bottom under
+        # the heading, padded so the rule does not crowd the text.
+        style_parts.append("border-bottom:1px solid var(--accent,#1f2937)")
+        style_parts.append("padding-bottom:4px")
     return f'<h2 style="{";".join(style_parts)};">{h(section.title)}</h2>'
 
 
