@@ -19,10 +19,10 @@ SECTION_POLICIES: dict[str, SectionPolicy] = {
     "experience": SectionPolicy(show_title=True),
     "education": SectionPolicy(show_title=True),
     "skills": SectionPolicy(show_title=True, skill_variant="block"),
-    "projects": SectionPolicy(show_title=True),
+    "projects": SectionPolicy(show_title=True, entry_layout="two-column"),
     "languages": SectionPolicy(show_title=True),
-    "certifications": SectionPolicy(show_title=True),
-    "research": SectionPolicy(show_title=True),
+    "certifications": SectionPolicy(show_title=True, entry_layout="two-column"),
+    "research": SectionPolicy(show_title=True, entry_layout="two-column"),
     "extras": SectionPolicy(show_title=True),
 }
 
@@ -49,4 +49,5 @@ def _merge_policies(base: SectionPolicy, override: SectionPolicy) -> SectionPoli
     return SectionPolicy(
         show_title=override.show_title if override.show_title != base.show_title else base.show_title,
         skill_variant=override.skill_variant if override.skill_variant is not None else base.skill_variant,
+        entry_layout=override.entry_layout if override.entry_layout != base.entry_layout else base.entry_layout,
     )

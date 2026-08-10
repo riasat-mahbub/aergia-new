@@ -252,9 +252,11 @@ def test_default_rows_use_flex_start():
     assert 'justify-content:flex-start' in html
 
 
-def test_link_field_renders_anchor_with_right_rail_and_arrow():
-    """Link fields render as real anchors on the right rail with the
-    .f-link arrow — the 'link text' pattern for projects/research/certs."""
+def test_link_field_renders_anchor_in_two_column_right_block():
+    """Link fields render as real anchors in the right column of a
+    two-column entry, with the trailing .f-link arrow. The two-column
+    layout supersedes the old right-rail pattern (no ``margin-left:auto``);
+    the link is just one of the fields right-justified in entry-right."""
     manifest = TemplateManifest(name="M", zones=[Zone(id="main", styles={})], placement={"projects": "main"})
     doc = Document(sections=[Section(id="pr", type="projects", title="Projects", entries=[Entry(id="e", fields=[
         FieldBlock(key="project", group="header", runs=[TextRun(text="Aergia")]),
@@ -263,12 +265,19 @@ def test_link_field_renders_anchor_with_right_rail_and_arrow():
     ])])])
     model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
     html = HTMLDocumentRenderer().render(model)
-
-    assert 'href="https://aergia.dev"' in html
+    # The link renders as a real anchor
+    assert "grid-template-columns:5fr 1fr" in html
     assert 'class="f-link"' in html
-    assert "margin-left:auto" in html
+    # In two-column, the link sits in the right column (right-justified
+    # via the column's align-items:flex-end), not the old rail pattern
+    assert "entry-right" in html
+    right_m = re.search(r'<div class="entry-right"[^>]*>(.+?)</div></div>', html, re.S)
+    assert right_m is not None
+    assert "f-link" in right_m.group(1)
+    # No more ::after pseudo-element or CSS variable arrow
     assert ".f-link::after" not in html
     assert "content: \" \u2197\"" not in html
+    # The inline arrow is still present
     assert '<span aria-hidden="true"> ↗</span>' in html
 
 
@@ -349,3 +358,102 @@ def test_heading_divider_emits_border_bottom_and_padding():
     html = HTMLDocumentRenderer().render(model)
     assert 'border-bottom:1px solid var(--accent,#1f2937)' in html
     assert 'padding-bottom:4px' in html
+
+
+def test_two_column_entry_splits_date_and_link_into_right_column():
+    """policy.entry_layout='two-column' emits a grid with
+    grid-template-columns:5fr 1fr. The right column holds
+    ONLY the date and link fields; everything else (paper title,
+    venue, description) goes in the left column."""
+    manifest = TemplateManifest(
+        name="M", zones=[Zone(id="main", styles={})], placement={"research": "main"},
+    )
+    doc = Document(sections=[Section(id="r", type="research", title="Research", policy=SectionPolicy(entry_layout="two-column"), entries=[Entry(id="e", fields=[
+        FieldBlock(key="paper", group="header", runs=[TextRun(text="Title")]),
+        FieldBlock(key="date", group="header", align="right", runs=[TextRun(text="2026")]),
+        FieldBlock(key="venue", group="secondary", runs=[TextRun(text="NeurIPS")]),
+        FieldBlock(key="link", group="secondary", align="right",
+                   runs=[TextRun(text="PDF", style=TextStyle(link="https://x"))]),
+        FieldBlock(key="description", group="body", runs=[TextRun(text="Summary.")]),
+    ])])])
+    model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
+    html = HTMLDocumentRenderer().render(model)
+    # Grid: 2:1 ratio — left 2/3, right 1/3
+    assert "entry-two-col" in html
+    assert "display:grid" in html
+    assert "grid-template-columns:5fr 1fr" in html
+    # Left column: paper, venue, description (NOT date, NOT link)
+    left_m = re.search(r'<div class="entry-left"[^>]*>(.+?)<div class="entry-right"', html, re.S)
+    assert left_m is not None
+    assert "f-paper" in left_m.group(1)
+    assert "f-venue" in left_m.group(1)
+    assert "f-description" in left_m.group(1)
+    assert "f-date" not in left_m.group(1)
+    assert "f-link" not in left_m.group(1)
+    # Right column: ONLY date and link, right-justified
+    right_m = re.search(r'<div class="entry-right"[^>]*>(.+?)</div></div>', html, re.S)
+    assert right_m is not None
+    assert "f-date" in right_m.group(1)
+    assert "f-link" in right_m.group(1)
+    assert "f-paper" not in right_m.group(1)
+    assert "f-venue" not in right_m.group(1)
+    assert "f-description" not in right_m.group(1)
+    assert "align-items:flex-end" in right_m.group(0)
+
+
+def test_two_column_research_without_venue_keeps_description_in_left_column():
+    """A research entry with no publication_value still renders the
+    description in the left column; only the link goes in the right
+    column (no date either when absent). The right column simply has
+    fewer fields — no gap band appears between the link and the
+    description because they live in independent flex containers."""
+    manifest = TemplateManifest(
+        name="M", zones=[Zone(id="main", styles={})], placement={"research": "main"},
+    )
+    doc = Document(sections=[Section(id="r", type="research", title="Research", policy=SectionPolicy(entry_layout="two-column"), entries=[Entry(id="e", fields=[
+        FieldBlock(key="paper", group="header", runs=[TextRun(text="Title")]),
+        FieldBlock(key="date", group="header", align="right", runs=[TextRun(text="2026")]),
+        FieldBlock(key="link", group="secondary", align="right",
+                   runs=[TextRun(text="PDF", style=TextStyle(link="https://x"))]),
+        FieldBlock(key="description", group="body", runs=[TextRun(text="Summary.")]),
+    ])])])
+    model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
+    html = HTMLDocumentRenderer().render(model)
+    assert "entry-two-col" in html
+    left_m = re.search(r'<div class="entry-left"[^>]*>(.+?)<div class="entry-right"', html, re.S)
+    right_m = re.search(r'<div class="entry-right"[^>]*>(.+?)</div></div>', html, re.S)
+    # Left column: paper + description (date and link are right)
+    assert "f-paper" in left_m.group(1)
+    assert "f-description" in left_m.group(1)
+    assert "f-date" not in left_m.group(1)
+    assert "f-link" not in left_m.group(1)
+    # Right column: ONLY date and link
+    assert "f-date" in right_m.group(1)
+    assert "f-link" in right_m.group(1)
+    assert "f-paper" not in right_m.group(1)
+    assert "f-description" not in right_m.group(1)
+
+
+def test_stack_layout_is_default_for_experience():
+    """The stack entry layout (the existing rail pattern) is preserved
+    for sections whose SECTION_POLICIES default is 'stack' — experience,
+    education, profile, skills, languages, extras."""
+    manifest = TemplateManifest(
+        name="M", zones=[Zone(id="main", styles={})], placement={"experience": "main"},
+    )
+    # experience with no explicit policy — falls through to SECTION_POLICIES
+    doc = Document(sections=[Section(id="x", type="experience", title="Experience", entries=[Entry(id="e", fields=[
+        FieldBlock(key="position", group="header", runs=[TextRun(text="Dev")]),
+        FieldBlock(key="company", group="header", runs=[TextRun(text="Co")]),
+        FieldBlock(key="date", group="secondary", align="right", runs=[TextRun(text="2026")]),
+        FieldBlock(key="description", group="body", runs=[TextRun(text="Did things.")]),
+    ])])])
+    model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
+    html = HTMLDocumentRenderer().render(model)
+    # Stack: no entry-two-col class
+    assert "entry-two-col" not in html
+    # Stack uses display:flex;flex-direction:column
+    entry_m = re.search(r'<div class="entry"[^>]*>', html)
+    assert entry_m is not None
+    assert "display:flex" in entry_m.group(0)
+    assert "flex-direction:column" in entry_m.group(0)

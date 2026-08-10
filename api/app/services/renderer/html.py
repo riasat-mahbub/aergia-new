@@ -202,7 +202,10 @@ def _render_entry(
     entry: Entry,
     section_subsection: SubsectionStyle | None,
     chip_keys: list[str] | None = None,
+    entry_layout: str = "stack",
 ) -> str:
+    if entry_layout == "two-column":
+        return _render_entry_two_column(entry, section_subsection, chip_keys)
     gap = (section_subsection.spacing_after if section_subsection else None) or "var(--spacing-subsection, 16px)"
     justify = _resolve_row_justify(section_subsection)
 
@@ -221,6 +224,82 @@ def _render_entry(
 
     fields_html = "".join(rows)
     return f'<div class="entry" style="display:flex;flex-direction:column;gap:{gap};">{fields_html}</div>'
+
+
+# Field keys that always go in the right column of a two-column entry
+# (date, plus any linked text like a project link, paper link, or
+# certification link). Everything else — title, description, tech, venue,
+# issuer, location, etc. — goes in the left column.
+_RIGHT_COLUMN_KEYS: frozenset[str] = frozenset({"date", "link"})
+
+
+def _render_entry_two_column(
+    entry: Entry,
+    section_subsection: SubsectionStyle | None,
+    chip_keys: list[str] | None = None,
+) -> str:
+    """Render an entry as a two-column grid: title/description/tech/venue/etc.
+    on the left, date+link on the right.
+
+    Used for projects, research, and certifications by default. Solves three
+    visual-diff bugs against the golden PDF:
+
+    1. When a research/cert entry has a sparse secondary row (e.g. just a
+       link when venue is absent), the body sits in the left column with
+       no fixed vertical band between the secondary row and the body —
+       they live in independent flex containers.
+    2. A long title in the left column wraps inside its own block; the
+       right column anchors to the entry's top, not the title's bottom.
+    3. Long body text (descriptions) wrap naturally inside the left
+       column, which is already constrained to 5/6 of the entry width
+       by the grid layout — no extra ``max-width`` cap is needed.
+
+    Layout: ``display:grid; grid-template-columns:5fr 1fr`` — the left
+    column takes 5/6 of the entry width (title, description, tech, etc.),
+    the right column takes 1/6 (date + link, right-justified).
+    ``align-items:start`` so the right column pins to the entry's top
+    regardless of how tall the left column gets.
+    """
+
+    gap = (section_subsection.spacing_after if section_subsection else None) or "var(--spacing-subsection, 16px)"
+
+    # Split fields by key: date + link go right, everything else goes left.
+    right_fields: list[FieldBlock] = [f for f in entry.fields if f.key in _RIGHT_COLUMN_KEYS]
+    left_fields: list[FieldBlock] = [f for f in entry.fields if f.key not in _RIGHT_COLUMN_KEYS]
+    # Left column: stack fields vertically. Each field's width is
+    # constrained by the grid column itself (5/6 of the entry width),
+    # so we don't need an extra max-width cap here — the grid does the
+    # work. Chip fields (e.g. tech_stack pills) are inline spans and
+    # take only as much width as their content.
+    def left_extra_style(f: FieldBlock) -> str | None:
+        if chip_keys and f.key in chip_keys:
+            return None
+        return None
+
+    left_parts = [
+        _render_field_block(f, extra_style=left_extra_style(f), chip_keys=chip_keys)
+        for f in left_fields
+    ]
+    left_html = "".join(left_parts)
+
+    # Right column: a single right-justified block of date + link.
+    # No rail logic, no row grouping — just two stacked field blocks,
+    # right-aligned via align-items:flex-end on the column.
+    right_parts = [
+        _render_field_block(f, chip_keys=chip_keys)
+        for f in right_fields
+    ]
+    right_html = "".join(right_parts)
+
+    return (
+        f'<div class="entry entry-two-col" style="'
+        f'display:grid;grid-template-columns:5fr 1fr;'
+        f'column-gap:{gap};align-items:start;'
+        f'">'
+        f'<div class="entry-left" style="display:flex;flex-direction:column;gap:{gap};">{left_html}</div>'
+        f'<div class="entry-right" style="display:flex;flex-direction:column;gap:2px;align-items:flex-end;">{right_html}</div>'
+        f'</div>'
+    )
 
 
 def _render_field_row(
@@ -386,18 +465,16 @@ def _render_section(section: Section) -> str:
     if skill_inline:
         for entry in section.entries:
             entries_html_parts.append(_render_skills_inline_entry(entry))
-        entries_html = "".join(entries_html_parts)
     else:
         for i, entry in enumerate(section.entries):
-            entry_html = _render_entry(entry, section.subsection, chip_keys)
+            entry_html = _render_entry(
+                entry, section.subsection, chip_keys,
+                entry_layout=policy.entry_layout,
+            )
             if i == 0 and keep_first:
-                # Merge ``break-before:avoid`` into the existing ``style``
-                # attribute instead of prepending a second ``style=`` — the
-                # HTML parser ignores all but the first attribute, which used
-                # to drop the entry's own flex layout declarations.
                 entry_html = _merge_entry_break_before(entry_html, keep_first)
             entries_html_parts.append(entry_html)
-        entries_html = "".join(entries_html_parts)
+    entries_html = "".join(entries_html_parts)
 
     return (
         f'<section id="{attr(section.id)}" style="{wrapper_style}">'
