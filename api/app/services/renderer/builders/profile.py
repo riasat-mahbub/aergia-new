@@ -10,11 +10,9 @@ cascades three-axis style and the renderer emits HTML.
 """
 
 from __future__ import annotations
+from app.schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextRun, TextStyle
 
-from app.schema.models import Entry, FieldBlock, Section, SectionInstance, TextRun, TextStyle
-
-
-def build_profile(instance: SectionInstance) -> Section:
+def build_profile(instance: SectionInstance, resolved_layout: LayoutHints | None = None) -> Section:
     data = instance.data if isinstance(instance.data, dict) else {}
 
     fields: list[FieldBlock] = []

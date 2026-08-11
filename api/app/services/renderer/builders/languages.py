@@ -4,11 +4,10 @@ Fields per entry: ``language``, ``proficiency``.
 """
 
 from __future__ import annotations
+from app.schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextRun
 
-from app.schema.models import Entry, FieldBlock, Section, SectionInstance, TextRun
 
-
-def build_languages(instance: SectionInstance) -> Section:
+def build_languages(instance: SectionInstance, resolved_layout: LayoutHints | None = None) -> Section:
     rows = instance.data if isinstance(instance.data, list) else []
 
     entries: list[Entry] = []

@@ -4,14 +4,12 @@ Fields per entry: ``degree``, ``institution``, ``date``, ``gpa``, ``summary``.
 """
 
 from __future__ import annotations
-
-from app.schema.models import Entry, FieldBlock, Section, SectionInstance, TextRun
+from app.schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextRun
 from ._utils import format_date_range
 
 
-def build_education(instance: SectionInstance) -> Section:
+def build_education(instance: SectionInstance, resolved_layout: LayoutHints | None = None) -> Section:
     rows = instance.data if isinstance(instance.data, list) else []
-
     entries: list[Entry] = []
     for row in rows:
         if not isinstance(row, dict):
@@ -21,15 +19,15 @@ def build_education(instance: SectionInstance) -> Section:
 
         if row.get("degree"):
             fields.append(FieldBlock(key="degree", group="header", runs=[TextRun(text=str(row["degree"]))]))
-
+        date_style = resolved_layout.date_style if resolved_layout else None
         date = format_date_range(
             str(row.get("start_date") or ""),
             row.get("end_date"),
             bool(row.get("current")),
+            date_style,
         )
         if date:
             fields.append(FieldBlock(key="date", group="header", align="right", runs=[TextRun(text=date)]))
-
         if row.get("institution"):
             fields.append(FieldBlock(key="institution", group="secondary", runs=[TextRun(text=str(row["institution"]))]))
         if row.get("gpa"):

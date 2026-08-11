@@ -68,8 +68,6 @@ def build_section_style(
     Returns ``(style, policy)``. The style is the resolved three-axis
     shape; the policy is the resolved per-type policy.
     """
-
-    # Start from the new shape (or empty).
     base = instance_style.model_dump() if instance_style else {}
     text: dict[str, TextStyle] = dict(base.get("text") or {})
     subsection_dict = base.get("subsection") or {}
@@ -197,15 +195,12 @@ def build_document(
         builder = BUILDERS.get(instance.type)
         if builder is None:
             raise ValueError(f"Unknown section type: '{instance.type}'")
-
         style, policy = build_section_style(
             instance_type=instance.type,
             instance_style=instance.style,
             manifest=manifest,
         )
-
-        section = builder(instance)
-        # Attach the resolved three-axis style + policy onto the AST node.
+        section = builder(instance, style.layout)
         section = section.model_copy(update={
             "policy": policy,
             "subsection": style.subsection,

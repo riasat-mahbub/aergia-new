@@ -5,12 +5,11 @@ Fields per entry: ``certification``, ``date``, ``issuer``, ``link``
 """
 
 from __future__ import annotations
-
-from app.schema.models import Entry, FieldBlock, Section, SectionInstance, TextStyle, TextRun
+from app.schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextStyle, TextRun
 from ._utils import format_single_date, normalize_url_scheme
 
 
-def build_certifications(instance: SectionInstance) -> Section:
+def build_certifications(instance: SectionInstance, resolved_layout: LayoutHints | None = None) -> Section:
     rows = instance.data if isinstance(instance.data, list) else []
 
     entries: list[Entry] = []
@@ -27,9 +26,9 @@ def build_certifications(instance: SectionInstance) -> Section:
         # research pattern (paper+date in row 0, venue+link in row 1).
         raw_date = str(row.get("date") or "")
         if raw_date:
-            formatted = format_single_date(raw_date)
+            date_style = resolved_layout.date_style if resolved_layout else None
+            formatted = format_single_date(raw_date, date_style)
             fields.append(FieldBlock(key="date", group="header", align="right", runs=[TextRun(text=formatted)]))
-
         issuer = str(row.get("issuer") or "").strip()
         if issuer:
             fields.append(FieldBlock(key="issuer", group="secondary", runs=[TextRun(text=issuer)]))

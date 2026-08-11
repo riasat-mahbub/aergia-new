@@ -16,12 +16,10 @@ location — they are independent fields on opposite ends of one row.
 """
 
 from __future__ import annotations
-
-from app.schema.models import Entry, FieldBlock, Section, SectionInstance, TextRun
+from app.schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextRun
 from ._utils import format_date_range, rich_text_to_field_block
 
-
-def build_experience(instance: SectionInstance) -> Section:
+def build_experience(instance: SectionInstance, resolved_layout: LayoutHints | None = None) -> Section:
     rows = instance.data if isinstance(instance.data, list) else []
 
     entries: list[Entry] = []
@@ -34,14 +32,15 @@ def build_experience(instance: SectionInstance) -> Section:
         if row.get("position"):
             fields.append(FieldBlock(key="position", group="header", runs=[TextRun(text=str(row["position"]))]))
 
+        date_style = resolved_layout.date_style if resolved_layout else None
         date = format_date_range(
             str(row.get("start_date") or ""),
             row.get("end_date"),
             bool(row.get("current")),
+            date_style,
         )
         if date:
             fields.append(FieldBlock(key="date", group="header", align="right", runs=[TextRun(text=date)]))
-
         if row.get("company") or row.get("location"):
             if row.get("company"):
                 fields.append(FieldBlock(key="company", group="secondary", runs=[TextRun(text=str(row["company"]))]))

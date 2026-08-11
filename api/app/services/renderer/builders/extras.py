@@ -29,10 +29,10 @@ empty-entry behaviour in :func:`build_skills`.
 """
 
 from __future__ import annotations
-
 from app.schema.models import (
     Entry,
     FieldBlock,
+    LayoutHints,
     Section,
     SectionInstance,
     TextRun,
@@ -40,7 +40,6 @@ from app.schema.models import (
 )
 
 from ._utils import normalize_url_scheme
-
 
 _URL_SAFE = "-._~:/?#[]@!$&'()*+,;=%"
 
@@ -59,8 +58,7 @@ def _looks_like_url(value: str) -> bool:
         return False
     return all(ch.isalnum() or ch in _URL_SAFE for ch in lowered)
 
-
-def build_extras(instance: SectionInstance) -> Section:
+def build_extras(instance: SectionInstance, resolved_layout: LayoutHints | None = None) -> Section:
     rows = instance.data if isinstance(instance.data, list) else []
 
     entries: list[Entry] = []
