@@ -130,11 +130,16 @@ def _text_run_to_style(run: TextRun) -> str:
         decls.append("font-weight:700")
     if style.italic:
         decls.append("font-style:italic")
+    # CSS text-decoration accepts multiple values separated by spaces;
+    # combine underline and strike into one declaration so the browser
+    # applies both instead of letting the second override the first.
+    decorations: list[str] = []
     if style.underline:
-        decls.append("text-decoration:underline")
+        decorations.append("underline")
     if style.strike:
-        decls.append("text-decoration:line-through")
-        # Underline + strike both set text-decoration; later wins.
+        decorations.append("line-through")
+    if decorations:
+        decls.append("text-decoration:" + " ".join(decorations))
     if style.color:
         decls.append(f"color:{style.color}")
     if style.font_size and style.font_size in _FONT_SIZE_TO_CSS:

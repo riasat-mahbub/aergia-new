@@ -91,6 +91,57 @@ def test_profile_section_omits_h2_when_show_title_is_false():
     assert "<h2" not in html
 
 
+def test_underline_text_style_emits_text_decoration_underline():
+    """Per-field underline styling reaches the rendered HTML."""
+    manifest = _manifest(MODERN_ID)
+    cv = _cv([{
+        "id": "s1", "type": "experience", "title": "Work", "enabled": True,
+        "style": {"text": {"position": {"underline": True}}},
+        "data": [{
+            "id": "e1", "position": "Engineer", "company": "Acme",
+            "start_date": "2024-01", "end_date": None, "current": True,
+        }],
+    }])
+    html = HTMLDocumentRenderer().render(_resolve(cv, manifest))
+    assert "text-decoration:underline" in html
+
+
+def test_strike_text_style_emits_text_decoration_line_through():
+    """Per-field strikethrough styling reaches the rendered HTML."""
+    manifest = _manifest(MODERN_ID)
+    cv = _cv([{
+        "id": "s1", "type": "experience", "title": "Work", "enabled": True,
+        "style": {"text": {"position": {"strike": True}}},
+        "data": [{
+            "id": "e1", "position": "Engineer", "company": "Acme",
+            "start_date": "2024-01", "end_date": None, "current": True,
+        }],
+    }])
+    html = HTMLDocumentRenderer().render(_resolve(cv, manifest))
+    assert "text-decoration:line-through" in html
+
+
+def test_underline_and_strike_combine_into_single_text_decoration():
+    """When both flags are set, the CSS uses one declaration with both
+    values so the browser applies both instead of letting the second
+    override the first."""
+    manifest = _manifest(MODERN_ID)
+    cv = _cv([{
+        "id": "s1", "type": "experience", "title": "Work", "enabled": True,
+        "style": {"text": {"position": {"underline": True, "strike": True}}},
+        "data": [{
+            "id": "e1", "position": "Engineer", "company": "Acme",
+            "start_date": "2024-01", "end_date": None, "current": True,
+        }],
+    }])
+    html = HTMLDocumentRenderer().render(_resolve(cv, manifest))
+    assert "text-decoration:underline line-through" in html
+    pos_open = html.find('<div class="f-position"')
+    pos_close = html.find("</div>", pos_open)
+    pos_span = html[pos_open:pos_close]
+    assert pos_span.count("text-decoration:") == 1
+
+
 def test_section_shows_h2_when_show_title_is_true():
     manifest = TemplateManifest(
         name="M", zones=[Zone(id="main", styles={})], placement={"experience": "main"},
