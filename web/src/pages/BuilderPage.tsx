@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState, useRef, useMemo } from "react";
+import { useEffect, useCallback, useState, useRef } from "react";
 import { useLocation, useNavigate, useBlocker } from "react-router-dom";
 import { motion } from "motion/react";
 
@@ -6,11 +6,9 @@ import ExportPDFButton from "../components/builder/ExportPDFButton";
 import ContentSectionList from "../components/builder/ContentSectionList";
 import { useCVStore } from "../lib/store/cvStore";
 import TemplateSwitcher from "../components/preview/TemplateSwitcher";
-import CustomizePanel from "../components/customization/CustomizePanel";
-import { useSupportStore } from "../lib/store/supportStore";
+import Inspector from "../components/customization/Inspector";
 import type { SectionInstance, SectionInstanceStyle, LayoutConfig } from "../lib/sections/types";
 import { createDefaultInstance, getFirstZoneId, migratePlacement } from "../lib/sections/types";
-import { normalizeWidths } from "../lib/sections/zones";
 import { updateCV } from "../lib/api/cvs";
 import * as templatesApi from "../lib/api/templates";
 
@@ -21,11 +19,13 @@ export default function BuilderPage() {
   const { currentCV, loadCV, isLoading, isSaving, lastSaved, setIsSaving, setLastSaved } = useCVStore();
 
   const [showLoading, setShowLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"content" | "customize">("content");
   const [localInstances, setLocalInstances] = useState<SectionInstance[]>([]);
   const [localCustomizations, setLocalCustomizations] = useState<Record<string, unknown>>({});
-  const [templateManifest, setTemplateManifest] = useState<Record<string, any> | null>(null);
+  const [templateManifest, setTemplateManifest] = useState<Record<string, unknown> | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [activeTab, setActiveTab] = useState<"content" | "customize">("content");
+  // Inspector replaces CustomizePanel as of Phase C of
+  // FEAT-01M0X607K4MWVGGCVZWWMSKJHE.
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showSavedFeedback, setShowSavedFeedback] = useState(false);
   const hasChangesRef = useRef(false);
@@ -70,50 +70,10 @@ export default function BuilderPage() {
 
   const instances = localInstances;
   const customizations = localCustomizations;
-
-  const effectiveLayoutConfig = useMemo(() => {
-    const cvLayout = localCustomizations.layout as LayoutConfig | undefined;
-    if (cvLayout && cvLayout.zones?.length) return cvLayout;
-    return null;
-  }, [localCustomizations.layout]);
-
-  // Normalize zone widths at the data level so preview templates always get valid widths
-  // Zone-only layout: a single flat list, so normalize across the whole array.
-  const normalizedLayoutConfig = useMemo(() => {
-    if (!effectiveLayoutConfig?.zones?.length) return effectiveLayoutConfig;
-    return { ...effectiveLayoutConfig, zones: normalizeWidths(effectiveLayoutConfig.zones) };
-  }, [effectiveLayoutConfig]);
-  const handleLayoutConfigChange = useCallback(
-    (config: LayoutConfig) => {
-      hasChangesRef.current = true;
-      setHasUnsavedChanges(true);
-      setLocalCustomizations((prev) => ({ ...prev, layout: config }));
-    },
-    []
-  );
-
-  // Mirror state into refs inside effects so the latest values are
-  // available to async handlers without re-running them every render.
-  const instancesRef = useRef(instances);
-  const idRef = useRef(id);
-  const customizationsRef = useRef(customizations);
-  const instancesForUnloadRef = useRef({ sections: localInstances, customizations: localCustomizations });
-  useEffect(() => { instancesRef.current = instances; }, [instances]);
-  useEffect(() => { idRef.current = id; }, [id]);
-  useEffect(() => { customizationsRef.current = customizations; }, [customizations]);
   useEffect(() => {
-    instancesForUnloadRef.current = { sections: localInstances, customizations: localCustomizations };
-  }, [localInstances, localCustomizations]);
-  useEffect(() => {
-    if (!currentCV || !isLoaded) return;
-
-    // The "reset stale template state, then async refetch" pattern requires
-    // a synchronous setState inside the effect — it cannot move into the
-    // refetch IIFE because the UI must clear the previous template's zones
-    // before the new template's fetch resolves. The dependency array is
-    // tight (currentCV?.template_id, isLoaded, id) and the refetch is
-    // idempotent against the same key. Phase 9 lint debt sweep.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // Mirror state into refs inside effects so the latest values are
+    // available to async handlers without re-running them every render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- template fetch reset; see Phase 9 lint debt
     setTemplateManifest(null);
 
     (async () => {
@@ -294,6 +254,12 @@ export default function BuilderPage() {
     [],
   );
 
+  const handleReset = useCallback(() => {
+    hasChangesRef.current = true;
+    setHasUnsavedChanges(true);
+    setLocalCustomizations({});
+    setLocalInstances((prev) => prev.map((i) => ({ ...i, style: undefined })));
+  }, []);
   const handleTemplateChange = useCallback(
     async (newTemplateId: string) => {
       if (!id) return;
@@ -441,8 +407,18 @@ export default function BuilderPage() {
               >
                 Customize
               </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4">
+              {activeTab === "customize" && (
+                <Inspector
+                  templateId={currentCV.template_id}
+                  templateName={templateManifest?.name ?? ""}
+                  instances={instances}
+                  onUpdateStyle={handleUpdateStyle}
+                  onCustomizationsChange={handleUpdateCustomizations}
+                  onTemplateChange={handleTemplateChange}
+                  onReset={handleReset}
+                  customizations={localCustomizations}
+                />
+              )}
               {activeTab === "content" && (
                 <ContentSectionList
                   instances={instances}
@@ -454,25 +430,10 @@ export default function BuilderPage() {
                   onReorderInstances={handleReorderInstances}
                 />
               )}
-              {activeTab === "customize" && (
-                <CustomizePanel
-                  templateId={currentCV.template_id}
-                  onTemplateChange={handleTemplateChange}
-                  instances={instances}
-                  onUpdateStyle={handleUpdateStyle}
-                  layoutConfig={normalizedLayoutConfig || { zones: [], placement: {} }}
-                  onLayoutConfigChange={handleLayoutConfigChange}
-                  assets={templateManifest?.assets}
-                  customizations={localCustomizations}
-                  onCustomizationsChange={handleUpdateCustomizations}
-                />
-              )}
             </div>
           </motion.div>
-
           <motion.div
             initial={{ x: 20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
             transition={{ delay: 0.1 }}
             className="w-1/2 overflow-y-auto bg-gray-100 p-6"
           >
@@ -483,13 +444,11 @@ export default function BuilderPage() {
                 instances={instances}
                 customizations={customizations}
                 templateContent={currentCV.template_content || undefined}
-                layoutConfig={normalizedLayoutConfig || undefined}
                 manifest={templateManifest || undefined}
               />
             </div>
           </motion.div>
         </div>
-
       </div>
     ) : (
       <motion.div
