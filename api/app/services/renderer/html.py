@@ -332,7 +332,7 @@ def _render_heading(section: Section, policy: SectionPolicy | None) -> str:
     if not show:
         return ""
     color = section.subsection.section_color if section.subsection and section.subsection.section_color else None
-    style_parts = ["margin:0 0 8px", "font-size:1rem", "font-weight:700"]
+    style_parts = ["margin:0 0 2px", "font-size:1rem", "font-weight:700"]
     if color:
         style_parts.append(f"color:{color}")
     if policy and policy.heading_divider:
