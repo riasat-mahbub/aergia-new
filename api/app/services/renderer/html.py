@@ -516,13 +516,30 @@ def _render_document(model: RenderModel, support: RendererSupport) -> str:
     }}
     .f-name {{ font-size: 1.5rem; font-weight: 700; }}
     .f-title, .f-summary, .f-company, .f-description, .f-institution, .f-category, .f-venue, .f-issuer {{ font-size: 0.875rem; }}
-    .f-contact, .f-contact-sep, .f-email, .f-phone, .f-location, .f-site, .f-social-links, .f-date, .f-gpa, .f-link, .f-tech, .f-tag, .f-proficiency, .f-meta {{ font-size: 0.75rem; }}
+    .f-contact, .f-contact-sep, .f-email, .f-phone, .f-location, .f-site, .f-date, .f-gpa, .f-link, .f-tech, .f-tag, .f-proficiency, .f-meta {{ font-size: 0.75rem; }}
+    /* Social row: smaller than the other contact fields so the icon+label
+       pairs read as fine metadata next to the email/phone row. */
+    .f-social {{ font-size: 0.83rem; }}
     .f-position, .f-degree, .f-project, .f-certification, .f-paper {{ font-weight: 600; }}
 
-    .f-icon {{ display:inline-flex; width:0.9em; height:0.9em; margin-right:0.3em; vertical-align:-0.125em; }}
+    .f-icon {{ display:inline-flex; width:0.75em; height:0.75em; margin-right:0.25em; vertical-align:-0.1em; }}
     .f-icon svg {{ width:100%; height:100%; }}
+    /* Pipe separator between adjacent contact fields in the profile row
+       (email | phone | location | site). Skipped on the first child so
+       the row doesn't start with a dangling pipe. The profile builder
+       emits f-email/f-phone/f-location/f-site (not f-contact), so the
+       selectors target those classes specifically. */
+    .f-email + .f-phone::before,
+    .f-phone + .f-location::before,
+    .f-location + .f-site::before,
+    .f-email + .f-location::before,
+    .f-email + .f-site::before,
+    .f-phone + .f-site::before {{
+      content: " | ";
+      color: var(--text, #6b7280);
+      margin: 0 0.35em;
+    }}
     .field-row {{ display:flex; flex-wrap:wrap; align-items:baseline; column-gap:1rem; row-gap:0.25rem; }}
-    .f-category {{ font-weight: 600; }}
     .f-chip {{ display:inline-block; background:#eff6ff; padding:2px 6px; border-radius:4px; color:#1d4ed8; font-size:0.75rem; }}
 {model.link_styles}    {model.print_styles}
   </style>

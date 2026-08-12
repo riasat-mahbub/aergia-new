@@ -53,7 +53,7 @@ def build_profile(instance: SectionInstance) -> Section:
         icon = str(link.get("icon") or "") or None
         fields.append(
             FieldBlock(
-                key=f"social_links.{i}",
+                key="social",  # shared key — all socials get class f-social
                 group="social",
                 icon=icon,
                 runs=[TextRun(text=label)],
