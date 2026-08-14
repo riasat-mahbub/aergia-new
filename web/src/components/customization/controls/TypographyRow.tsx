@@ -21,7 +21,7 @@
 import { useMemo } from "react";
 import type { TextStyle } from "../../../generated/schema";
 import { FONT_SIZE_CSS, FONT_SIZE_LABELS, FONT_SIZE_TOKENS } from "../../../styles/tokens";
-import { ink, radius, rule } from "../../../styles/tokens";
+import { ink, radius, ruleDefault } from "../../../styles/tokens";
 import { TEXT_STYLE_DEFAULTS } from "../../../lib/sections/styleDefaults";
 import ColorChip from "./ColorChip";
 
@@ -59,7 +59,7 @@ export default function TypographyRow({ label, current, sample, onChange, isRich
     return (
       <div
         className="flex items-center justify-between rounded border px-3 py-2 text-xs"
-        style={{ borderColor: rule }}
+        style={{ borderColor: ruleDefault }}
         data-testid={testId}
       >
         <div>
@@ -87,7 +87,7 @@ export default function TypographyRow({ label, current, sample, onChange, isRich
   return (
     <div
       className="rounded border p-3"
-      style={{ borderColor: rule }}
+      style={{ borderColor: ruleDefault }}
       data-testid={testId}
     >
       <div className="mb-2 flex items-center justify-between">
@@ -114,7 +114,7 @@ export default function TypographyRow({ label, current, sample, onChange, isRich
           value={merged.font_size ?? ""}
           onChange={(e) => set("font_size", e.target.value ? (e.target.value as TextStyle["font_size"]) : null)}
           className="rounded border px-2 py-1 text-xs"
-          style={{ borderColor: rule }}
+          style={{ borderColor: ruleDefault }}
           aria-label="Font size"
         >
           <option value="">Default</option>
@@ -169,7 +169,7 @@ function ToggleBtn({
       style={{
         background: active ? ink.ink : "transparent",
         color: active ? "white" : ink.ink,
-        border: `1px solid ${rule}`,
+        border: `1px solid ${ruleDefault}`,
         borderRadius: radius.r1,
         ...style,
       }}

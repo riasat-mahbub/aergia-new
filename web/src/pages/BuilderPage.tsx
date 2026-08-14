@@ -22,7 +22,7 @@ export default function BuilderPage() {
   const [showLoading, setShowLoading] = useState(true);
   const [localInstances, setLocalInstances] = useState<SectionInstance[]>([]);
   const [localCustomizations, setLocalCustomizations] = useState<Record<string, unknown>>({});
-  const [templateManifest, setTemplateManifest] = useState<Record<string, unknown> | null>(null);
+  const [templateManifest, setTemplateManifest] = useState<templatesApi.UserTemplate | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [activeTab, setActiveTab] = useState<"content" | "customize">("content");
   // Inspector replaces CustomizePanel as of Phase C of
@@ -71,16 +71,27 @@ export default function BuilderPage() {
 
   const instances = localInstances;
   const customizations = localCustomizations;
+  // Mirror state into refs inside effects so the latest values are
+  // available to async handlers without re-running them every render.
+  const instancesRef = useRef(instances);
+  const idRef = useRef(id);
+  const customizationsRef = useRef(customizations);
+  const instancesForUnloadRef = useRef({ sections: localInstances, customizations: localCustomizations });
+  useEffect(() => { instancesRef.current = instances; }, [instances]);
+  useEffect(() => { idRef.current = id; }, [id]);
+  useEffect(() => { customizationsRef.current = customizations; }, [customizations]);
   useEffect(() => {
-    // Mirror state into refs inside effects so the latest values are
-    // available to async handlers without re-running them every render.
+    instancesForUnloadRef.current = { sections: localInstances, customizations: localCustomizations };
+  }, [localInstances, localCustomizations]);
+  useEffect(() => {
+    if (!currentCV || !isLoaded) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- template fetch reset; see Phase 9 lint debt
     setTemplateManifest(null);
 
     (async () => {
       try {
         const template = await templatesApi.fetchTemplate(currentCV.template_id);
-        setTemplateManifest(template.manifest ?? null);
+        setTemplateManifest(template ?? null);
       } catch {
         // Template fetch failed
       }
@@ -357,7 +368,7 @@ export default function BuilderPage() {
             <button onClick={() => navigate("/dashboard")} className="text-sm text-gray-500 hover:text-gray-700">
               &larr; Back
             </button>
-            <h1 className="text-lg font-semibold text-gray-900">{currentCV.title}</h1>
+            <h1 className="text-lg font-semibold text-gray-900">{currentCV!.title}</h1>
           </div>
           <div className="flex items-center gap-3">
             {hasUnsavedChanges && (
@@ -377,7 +388,7 @@ export default function BuilderPage() {
               {isSaving ? "Saving..." : showSavedFeedback ? "Saved!" : "Save"}
             </button>
 
-            {id && <ExportPDFButton cvId={id} cvTitle={currentCV.title} onBeforeExport={handleSave} />}
+            {id && <ExportPDFButton cvId={id} cvTitle={currentCV!.title} onBeforeExport={handleSave} />}
           </div>
         </header>
 
@@ -408,14 +419,16 @@ export default function BuilderPage() {
               >
                 Customize
               </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
               {activeTab === "customize" && (
                 <Inspector
-                  templateId={currentCV.template_id}
+                  templateId={currentCV!.template_id}
                   templateName={templateManifest?.name ?? ""}
                   instances={instances}
                   onUpdateStyle={handleUpdateStyle}
                   onCustomizationsChange={handleUpdateCustomizations}
-                  onTemplateChange={handleTemplateChange}
+                  onTemplateChange={() => handleTemplateChange(currentCV!.template_id)}
                   onReset={handleReset}
                   customizations={localCustomizations}
                 />
@@ -441,11 +454,11 @@ export default function BuilderPage() {
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-500">Preview</h2>
             <div className="mx-auto max-w-[210mm] rounded bg-white shadow-sm">
               <TemplateSwitcher
-                templateId={currentCV.template_id}
+                templateId={currentCV!.template_id}
                 instances={instances}
                 customizations={customizations}
-                templateContent={currentCV.template_content || undefined}
-                manifest={templateManifest || undefined}
+                templateContent={currentCV!.template_content || undefined}
+                manifest={templateManifest?.manifest ?? undefined}
               />
             </div>
           </motion.div>

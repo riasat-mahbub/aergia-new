@@ -337,7 +337,7 @@ describe("blocksToLexical", () => {
       },
     ];
     const state = blocksToLexical(blocks);
-    const para = state.root.children[0] as { children: unknown[] };
+    const para = state.root.children[0] as unknown as { children: unknown[] };
     expect(para.children).toHaveLength(2);
     const first = (para.children[0] as Record<string, unknown>);
     const second = (para.children[1] as Record<string, unknown>);
@@ -358,7 +358,7 @@ describe("blocksToLexical", () => {
       },
     ];
     const state = blocksToLexical(blocks);
-    const para = state.root.children[0] as { children: unknown[] };
+    const para = state.root.children[0] as unknown as { children: unknown[] };
     expect(para.children).toHaveLength(2);
     expect((para.children[0] as { url: string }).url).toBe("https://a.test");
     expect((para.children[1] as { url: string }).url).toBe("https://b.test");

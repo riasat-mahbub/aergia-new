@@ -66,8 +66,17 @@ export const rule = {
   ruleStrong: "var(--rule-strong)",
 } as const;
 
+/** Flat string exports for inline styles. The `rule` object above stays for
+ * any consumer that prefers the object form, but the flat strings avoid
+ * accidental `[object Object]` coercion in template literals and bare
+ * CSS-property values. */
+export const ruleDefault = "var(--rule)";
+export const ruleSoft = "var(--rule-soft)";
+export const ruleStrong = "var(--rule-strong)";
+
 export const danger = "var(--danger)";
 export const dangerSoft = "var(--danger-soft)";
+
 export const warn = "var(--warn)";
 export const warnSoft = "var(--warn-soft)";
 export const success = "var(--success)";
@@ -76,6 +85,9 @@ export const successSoft = "var(--success-soft)";
 export const accent = {
   accent: "var(--accent)",
 } as const;
+
+/** Flat string export for the soft accent fill (used by OverridePill background). */
+export const accentSoft = "var(--accent-soft)";
 
 /** Font tokens — what the panel offers for body and heading font.
  * Mirrors the FontToken Literal in api/app/schema/models.py.

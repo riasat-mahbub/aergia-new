@@ -25,7 +25,7 @@ import type { SectionInstance, SectionInstanceStyle } from "../../lib/sections/t
 import { SECTION_LABELS } from "../../lib/sections/types";
 import { FONT_TOKEN_LABELS, FONT_TOKENS } from "../../styles/tokens";
 import type { FontToken } from "../../styles/tokens";
-import { ink, rule, accent } from "../../styles/tokens";
+import { ink, ruleDefault, accent } from "../../styles/tokens";
 import ColorChip from "./controls/ColorChip";
 import OverridePill from "./controls/OverridePill";
 import ResetFooter from "./controls/ResetFooter";
@@ -90,7 +90,7 @@ export default function Inspector({
       </h3>
 
       {/* ── A. Document strip ──────────────────────────────────────── */}
-      <section className="mb-4 rounded p-3" style={{ border: `1px solid ${rule}` }}>
+      <section className="mb-4 rounded p-3" style={{ border: `1px solid ${ruleDefault}` }}>
         <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: ink.ink3 }}>
           Document style
         </h4>
@@ -100,7 +100,7 @@ export default function Inspector({
               value={docBodyFont ?? ""}
               onChange={(e) => updateCustomization("body_font", e.target.value || null)}
               className="rounded border px-2 py-1 text-xs"
-              style={{ borderColor: rule }}
+              style={{ borderColor: ruleDefault }}
               aria-label="Body font"
               data-testid="document-body-font"
             >
@@ -123,7 +123,7 @@ export default function Inspector({
               value={docHeadingFont ?? ""}
               onChange={(e) => updateCustomization("heading_font", e.target.value || null)}
               className="rounded border px-2 py-1 text-xs"
-              style={{ borderColor: rule }}
+              style={{ borderColor: ruleDefault }}
               aria-label="Heading font"
               data-testid="document-heading-font"
             >
@@ -165,7 +165,7 @@ export default function Inspector({
               data-testid={`section-card-${inst.id}`}
               className="rounded"
               style={{
-                border: `1px solid ${rule}`,
+                border: `1px solid ${ruleDefault}`,
                 background: open ? "var(--paper-1)" : "var(--paper)",
               }}
             >
@@ -196,7 +196,7 @@ export default function Inspector({
                 <div
                   id={`section-body-${inst.id}`}
                   className="border-t px-3 py-3"
-                  style={{ borderColor: rule }}
+                  style={{ borderColor: ruleDefault }}
                 >
                   <SectionInspector
                     instance={inst}
