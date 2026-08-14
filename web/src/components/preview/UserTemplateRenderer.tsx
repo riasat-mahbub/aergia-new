@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { SectionInstance, LayoutConfig } from "../../lib/sections/types";
+import type { SectionInstance } from "../../lib/sections/types";
 import client from "../../lib/api/client";
 
 interface Props {
@@ -7,7 +7,6 @@ interface Props {
   instances: SectionInstance[];
   customizations?: Record<string, any>;
   templateContent?: string;
-  layoutConfig?: LayoutConfig;
   manifest?: Record<string, any>;
 }
 
@@ -15,26 +14,22 @@ interface Props {
 // in api/app/services/renderer/ir.py, which is what Chromium's print engine cuts on.
 const PAGE_HEIGHT_PX = 1122;
 
-export default function UserTemplateRenderer({ instances, customizations, templateContent, layoutConfig, manifest }: Props) {
+export default function UserTemplateRenderer({ instances, customizations, templateContent, manifest }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [html, setHtml] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [iframeHeight, setIframeHeight] = useState<number>(PAGE_HEIGHT_PX);
 
   useEffect(() => {
-    const zones = layoutConfig?.zones?.length ? layoutConfig.zones : (manifest?.zones || []);
-    const placement = (layoutConfig?.placement && Object.keys(layoutConfig.placement).length > 0) ? layoutConfig.placement : (manifest?.placement || {});
-    if (!zones.length || !Object.keys(placement).length) return;
-
     // The CV layout rides in `customizations.layout` (the canonical wire
     // shape the resolver merges over the manifest). Do NOT inject a legacy
     // `layout_config` key into the manifest — the v2 schema ignores it and a
-    // manifest-less object fails TemplateManifest validation.
-    const customizationsPayload = {
-      ...(customizations || {}),
-      layout: { zones, placement },
-    };
+    // manifest-less object fails TemplateManifest validation. Pass
+    // customizations through unchanged so the user's zone styles (width,
+    // background, padding) and instance-keyed placement reach the resolver.
+    if (!customizations?.layout?.zones?.length) return;
 
+    const customizationsPayload = customizations;
     async function renderTemplate() {
       try {
         setError(null);
@@ -54,7 +49,7 @@ export default function UserTemplateRenderer({ instances, customizations, templa
       }
     }
     renderTemplate();
-  }, [manifest, templateContent, instances, customizations, layoutConfig]);
+  }, [manifest, templateContent, instances, customizations]);
 
   useEffect(() => {
     if (!html || !iframeRef.current) return;

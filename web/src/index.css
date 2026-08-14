@@ -10,17 +10,25 @@
  * element inherits. Specific controls (selects, color hex inputs)
  * override to the UI family where the serif looks mechanical.
  */
+/* Default to the UI sans family — the proof-sheet design applies the
+ * serif prose family only where explicitly chosen via `font-prose`. */
 html {
-  font-family: var(--font-prose);
+  font-family: var(--font-ui);
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  font-family: var(--font-prose);
+  font-family: var(--font-ui);
   background: var(--paper);
   color: var(--ink);
+}
+
+/* Proof-sheet components opt into the serif prose family. */
+.font-prose,
+.font-prose * {
+  font-family: var(--font-prose);
 }
 
 /* Tailwind utility classes that map to our token scale. Keep these
