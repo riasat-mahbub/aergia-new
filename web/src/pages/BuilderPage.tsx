@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import ExportPDFButton from "../components/builder/ExportPDFButton";
 import ContentSectionList from "../components/builder/ContentSectionList";
 import { useCVStore } from "../lib/store/cvStore";
+import { useSupportStore } from "../lib/store/supportStore";
 import TemplateSwitcher from "../components/preview/TemplateSwitcher";
 import Inspector from "../components/customization/Inspector";
 import type { SectionInstance, SectionInstanceStyle, LayoutConfig } from "../lib/sections/types";

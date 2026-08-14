@@ -60,15 +60,21 @@ export const ink = {
   ink4: "var(--ink-4)",
 } as const;
 
-export const rules = {
+export const rule = {
   rule: "var(--rule)",
   ruleSoft: "var(--rule-soft)",
   ruleStrong: "var(--rule-strong)",
 } as const;
 
+export const danger = "var(--danger)";
+export const dangerSoft = "var(--danger-soft)";
+export const warn = "var(--warn)";
+export const warnSoft = "var(--warn-soft)";
+export const success = "var(--success)";
+export const successSoft = "var(--success-soft)";
+
 export const accent = {
   accent: "var(--accent)",
-  accentSoft: "var(--accent-soft)",
 } as const;
 
 /** Font tokens — what the panel offers for body and heading font.
