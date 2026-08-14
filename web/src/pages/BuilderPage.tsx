@@ -448,6 +448,7 @@ export default function BuilderPage() {
           </motion.div>
           <motion.div
             initial={{ x: 20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
             transition={{ delay: 0.1 }}
             className="w-1/2 overflow-y-auto bg-gray-100 p-6"
           >
