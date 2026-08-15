@@ -50,7 +50,7 @@ PLAIN_LINK_STYLES = "  a { color: inherit; text-decoration: none; }\n"
 
 _MANIFEST_VERSION_KEY = "manifest_version"
 PRINT_STYLES = """
-  @page { size: A4; margin: 0; }
+  @page { size: A4; margin: 24px 0 0 0; }
   @media print {
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -269,8 +269,11 @@ def _drop_none_features(model: RenderModel, support: RendererSupport) -> RenderM
 
     Only fields with a per-section resolver mapping are gated here:
     ``break_before``, ``keep_together``, ``heading_keeps_with_first``.
-    The no-op markers ``keep_with_next``, ``feature_section_underline``,
-    and ``feature_anchor_styling`` have no per-section resolver mapping
+    ``keep_together`` is rendered per entry (each ``<div class="entry">``
+    carries ``break-inside: avoid``); an unsupported renderer drops the
+    flag so entries are free to split across pages. The no-op markers
+    ``keep_with_next``, ``feature_section_underline``, and
+    ``feature_anchor_styling`` have no per-section resolver mapping
     today; the renderer ignores them regardless of support level. The
     panel hides their controls on NONE but the resolver does not act.
     """
