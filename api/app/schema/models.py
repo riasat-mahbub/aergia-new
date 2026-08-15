@@ -495,5 +495,31 @@ class TemplateDetail(BaseModel):
     id: str
     name: str
     description: str | None
-    preview_image_url: str | None
     manifest: dict | None = None
+
+
+# ---------------------------------------------------------------------------
+# Library — AST types for reusable content entries
+# ---------------------------------------------------------------------------
+
+"""Library AST types.
+``LibraryEntryKindStr`` enumerates the kinds a Library entry can take.
+The set is closed: only entry-based section types are eligible. The CV's
+``profile`` and ``summary`` sections have dict-shaped ``data`` and stay
+authored directly in the CV — promote-to-library skips them.
+
+``LibraryEntryPayload`` mirrors ``SectionInstance.data`` for entry-based
+sections (a list of dicts). The model uses ``extra="ignore"`` so older
+Library rows remain readable if ``SectionInstance.data`` gains new
+optional fields in the future.
+"""
+
+LibraryEntryKindStr = Literal["experience", "education", "skill", "project", "certification", "language"]
+
+
+class LibraryEntryPayload(BaseModel):
+    """Payload of a Library entry — a list of ``SectionInstance.data`` rows."""
+
+    model_config = {"extra": "ignore"}
+
+    entries: list[dict] = Field(default_factory=list)
