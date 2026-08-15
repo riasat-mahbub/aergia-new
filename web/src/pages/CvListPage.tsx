@@ -1,23 +1,31 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { motion } from "motion/react";
+import { Library as LibraryIcon, ArrowRight } from "lucide-react";
 import { useCVStore } from "../lib/store/cvStore";
+import { useLibraryStore, countByKind } from "../lib/store/libraryStore";
 import CvCard from "../components/cv-list/CvCard";
 import CreateCvModal from "../components/cv-list/CreateCvModal";
 import DeleteCvModal from "../components/cv-list/DeleteCvModal";
 import ImportCvButton from "../components/cv-list/ImportCvButton";
 import LoadingSkeleton from "../components/common/LoadingSkeleton";
 import EmptyState from "../components/common/EmptyState";
-import { motion } from "motion/react";
 
 export default function CvListPage() {
   const navigate = useNavigate();
   const { cvList, isLoading, fetchCVs, deleteCV, copyCV } = useCVStore();
+  const libraryEntries = useLibraryStore((s) => s.entries);
+  const libraryLoaded = useLibraryStore((s) => s.loaded);
+  const libraryFetch = useLibraryStore((s) => s.fetchAll);
   const [showCreate, setShowCreate] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
 
   useEffect(() => {
     fetchCVs();
-  }, [fetchCVs]);
+    if (!libraryLoaded) libraryFetch();
+  }, [fetchCVs, libraryFetch, libraryLoaded]);
+
+  const libraryCounts = countByKind(libraryEntries);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -37,6 +45,38 @@ export default function CvListPage() {
           <ImportCvButton />
         </div>
       </motion.div>
+
+      {/* Library card — separate from the CV grid so it doesn't compete
+          visually. Sits above the CV grid for first-time discoverability. */}
+      <Link
+        to="/dashboard/library"
+        className="mb-4 flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4 shadow-sm hover:border-gray-300"
+      >
+        <div className="flex items-start gap-3">
+          <div className="rounded-md bg-gray-100 p-2">
+            <LibraryIcon className="h-5 w-5 text-gray-700" />
+          </div>
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Library</h2>
+            <p className="text-xs text-gray-500">Your reusable content. Pull into any CV.</p>
+            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
+              {!libraryLoaded ? (
+                <span>—</span>
+              ) : (
+                <>
+                  <span>{libraryCounts.experience} experiences</span>
+                  <span>{libraryCounts.education} education</span>
+                  <span>{libraryCounts.skill} skills</span>
+                  <span>{libraryCounts.project} projects</span>
+                  <span>{libraryCounts.certification} certifications</span>
+                  <span>{libraryCounts.language} languages</span>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+        <ArrowRight className="h-4 w-4 text-gray-400" />
+      </Link>
 
       <CreateCvModal open={showCreate} onClose={() => setShowCreate(false)} />
 
