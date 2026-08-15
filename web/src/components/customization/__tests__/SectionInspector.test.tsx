@@ -97,6 +97,51 @@ describe("SectionInspector", () => {
     expect(screen.getAllByText("Company").length).toBeGreaterThanOrEqual(1);
   });
 
+
+  it("renders Dates group with date format select for date-bearing sections", () => {
+    const inst = baseInstance({ type: "experience", data: [{ position: "Eng" }] });
+    render(<SectionInspector instance={inst} onChange={vi.fn()} documentAccent={null} documentBodyFont={null} />);
+    expect(screen.getByText("Dates")).toBeDefined();
+    expect(screen.getByLabelText("Date format")).toBeDefined();
+    const select = screen.getByLabelText("Date format") as HTMLSelectElement;
+    expect(select.options).toHaveLength(11);
+  });
+
+  it("hides Dates group for sections that don't carry dates (profile, skills, languages, extras)", () => {
+    for (const type of ["profile", "skills", "languages", "extras"] as const) {
+      const { unmount } = render(
+        <SectionInspector instance={baseInstance({ type })} onChange={vi.fn()} documentAccent={null} documentBodyFont={null} />
+      );
+      expect(screen.queryByText("Dates")).toBeNull();
+      unmount();
+    }
+  });
+
+  it("writes layout.date_style when the format select changes", async () => {
+    const onChange = vi.fn();
+    render(<SectionInspector instance={baseInstance({ type: "experience" })} onChange={onChange} documentAccent={null} documentBodyFont={null} />);
+    await userEvent.selectOptions(screen.getByLabelText("Date format"), "Mon YYYY");
+    const calls = onChange.mock.calls;
+    expect(calls.some((c) => {
+      const payload = c[0] as { layout?: { date_style?: { key?: string } } };
+      return payload?.layout?.date_style?.key === "Mon YYYY";
+    })).toBe(true);
+  });
+
+  it("clears layout.date_style when the format select is reset to Default", async () => {
+    const onChange = vi.fn();
+    render(
+      <SectionInspector
+        instance={baseInstance({ type: "experience", style: { layout: { date_style: { key: "Mon YYYY", rangeSep: " – " } } } } as any)}
+        onChange={onChange}
+        documentAccent={null}
+        documentBodyFont={null}
+      />
+    );
+    await userEvent.selectOptions(screen.getByLabelText("Date format"), "");
+    const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1][0] as { layout?: { date_style?: unknown } };
+    expect(lastCall?.layout?.date_style).toBeNull();
+  });
   it("renders TypographyRow redirect for rich text fields", () => {
     const inst = baseInstance({ type: "experience", data: [{ position: "Eng", description: "Hello" }] });
     render(<SectionInspector instance={inst} onChange={vi.fn()} documentAccent={null} documentBodyFont={null} />);
