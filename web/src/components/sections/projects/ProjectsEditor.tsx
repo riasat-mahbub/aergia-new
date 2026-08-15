@@ -3,6 +3,7 @@ import { useFieldArray } from "../../../lib/sections/useFieldArray";
 import SortableAccordionList from "../../../lib/sections/SortableAccordionList";
 import DateField from "../../../lib/sections/DateField";
 import RichTextEditor from "../rich-text/RichTextEditor";
+import EntryAddRow from "../_shared/EntryAddRow";
 
 interface Props {
   data: ProjectEntry[] | undefined;
@@ -44,15 +45,30 @@ export default function ProjectsEditor({ data = [], onChange }: Props) {
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-xs text-gray-500">Name</label>
-                <input type="text" value={entry.name} onChange={(e: any) => update(i, "name", e.target.value)} className="mt-0.5 w-full rounded border px-2 py-1 text-sm" />
+                <input
+                  type="text"
+                  value={entry.name}
+                  onChange={(e: any) => update(i, "name", e.target.value)}
+                  className="mt-0.5 w-full rounded border px-2 py-1 text-sm"
+                />
               </div>
               <div>
-                <label className="block text-xs text-gray-500">Link Text</label>
-                <input type="text" value={entry.link_text} placeholder="e.g. GitHub" onChange={(e: any) => update(i, "link_text", e.target.value)} className="mt-0.5 w-full rounded border px-2 py-1 text-sm" />
-              </div>
-              <div className="col-span-2">
                 <label className="block text-xs text-gray-500">URL</label>
-                <input type="text" value={entry.url} onChange={(e: any) => update(i, "url", e.target.value)} className="mt-0.5 w-full rounded border px-2 py-1 text-sm" />
+                <input
+                  type="text"
+                  value={entry.url}
+                  onChange={(e: any) => update(i, "url", e.target.value)}
+                  className="mt-0.5 w-full rounded border px-2 py-1 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500">Link text</label>
+                <input
+                  type="text"
+                  value={entry.link_text}
+                  onChange={(e: any) => update(i, "link_text", e.target.value)}
+                  className="mt-0.5 w-full rounded border px-2 py-1 text-sm"
+                />
               </div>
               <DateField
                 value={entry.start_date}
@@ -63,6 +79,7 @@ export default function ProjectsEditor({ data = [], onChange }: Props) {
                 value={entry.end_date}
                 onChange={(v) => update(i, "end_date", v)}
                 label="End Date"
+                disabled={false}
               />
             </div>
             <div className="mt-2">
@@ -74,16 +91,19 @@ export default function ProjectsEditor({ data = [], onChange }: Props) {
               />
             </div>
             <div className="mt-2">
-              <label className="block text-xs text-gray-500">Tech Stack</label>
+              <label className="block text-xs text-gray-500">Tech stack</label>
               <div className="flex flex-wrap gap-1">
                 {(entry.tech_stack ?? []).map((tech: string, j: number) => (
-                  <span key={j} className="inline-flex items-center gap-1 rounded bg-blue-50 px-2 py-0.5 text-xs text-blue-700">
+                  <span key={j} className="inline-flex items-center gap-1 rounded bg-gray-100 px-2 py-0.5 text-xs">
                     {tech}
-                    <button onClick={() => removeTech(i, j)} className="text-blue-400 hover:text-red-500">&times;</button>
+                    <button onClick={() => removeTech(i, j)} className="text-gray-400 hover:text-red-500">&times;</button>
                   </span>
                 ))}
               </div>
-              <input type="text" placeholder="Add tech and press Enter" className="mt-1 w-full rounded border px-2 py-1 text-sm"
+              <input
+                type="text"
+                placeholder="Add tech and press Enter"
+                className="mt-1 w-full rounded border px-2 py-1 text-sm"
                 onKeyDown={(e: any) => {
                   if (e.key === "Enter" && e.target.value.trim()) {
                     addTech(i, e.target.value.trim());
@@ -95,7 +115,20 @@ export default function ProjectsEditor({ data = [], onChange }: Props) {
           </div>
         )}
       </SortableAccordionList>
-      <button onClick={add} className="text-sm text-blue-600 hover:underline">+ Add Project</button>
+      <EntryAddRow
+        kind="project"
+        addLabel="Project"
+        onAddNew={add}
+        onPickFromLibrary={(picked) => {
+          if (!picked) return;
+          const incoming = Array.isArray(picked.data) ? picked.data : [];
+          const stamped = incoming.map((row) => ({
+            ...(row as Record<string, unknown>),
+            id: `proj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          }));
+          onChange([...entries, ...(stamped as ProjectEntry[])]);
+        }}
+      />
     </div>
   );
 }

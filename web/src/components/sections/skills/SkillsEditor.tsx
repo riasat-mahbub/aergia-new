@@ -1,6 +1,7 @@
 import type { SkillGroup } from "../../../lib/sections/types";
 import { useFieldArray } from "../../../lib/sections/useFieldArray";
 import SortableAccordionList from "../../../lib/sections/SortableAccordionList";
+import EntryAddRow from "../_shared/EntryAddRow";
 
 interface Props {
   data: SkillGroup[] | undefined;
@@ -63,7 +64,20 @@ export default function SkillsEditor({ data = [], onChange }: Props) {
           </div>
         )}
       </SortableAccordionList>
-      <button onClick={add} className="text-sm text-blue-600 hover:underline">+ Add Skill Group</button>
+      <EntryAddRow
+        kind="skill"
+        addLabel="Skill Group"
+        onAddNew={add}
+        onPickFromLibrary={(picked) => {
+          if (!picked) return;
+          const incoming = Array.isArray(picked.data) ? picked.data : [];
+          const stamped = incoming.map((row) => ({
+            ...(row as Record<string, unknown>),
+            id: `sk_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          }));
+          onChange([...entries, ...(stamped as SkillGroup[])]);
+        }}
+      />
     </div>
   );
 }

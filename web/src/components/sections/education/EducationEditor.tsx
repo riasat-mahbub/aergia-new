@@ -2,6 +2,7 @@ import type { EducationEntry } from "../../../lib/sections/types";
 import { useFieldArray } from "../../../lib/sections/useFieldArray";
 import SortableAccordionList from "../../../lib/sections/SortableAccordionList";
 import DateField from "../../../lib/sections/DateField";
+import EntryAddRow from "../_shared/EntryAddRow";
 
 interface Props {
   data: EducationEntry[] | undefined;
@@ -90,9 +91,21 @@ export default function EducationEditor({ data = [], onChange }: Props) {
           </div>
         )}
       </SortableAccordionList>
-      <button onClick={add} className="text-sm text-blue-600 hover:underline">
-        + Add Education
-      </button>
+      <EntryAddRow
+        kind="education"
+        addLabel="Education"
+        onAddNew={add}
+        onPickFromLibrary={(picked) => {
+          if (!picked) return;
+          const incoming = Array.isArray(picked.data) ? picked.data : [];
+          // Stamp a fresh id so each entry has a stable key.
+          const stamped = incoming.map((row) => ({
+            ...(row as Record<string, unknown>),
+            id: `edu_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          }));
+          onChange([...entries, ...(stamped as EducationEntry[])]);
+        }}
+      />
     </div>
   );
 }

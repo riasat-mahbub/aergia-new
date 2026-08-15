@@ -3,6 +3,7 @@ import { useFieldArray } from "../../../lib/sections/useFieldArray";
 import SortableAccordionList from "../../../lib/sections/SortableAccordionList";
 import DateField from "../../../lib/sections/DateField";
 import RichTextEditor from "../rich-text/RichTextEditor";
+import EntryAddRow from "../_shared/EntryAddRow";
 
 interface Props {
   data: ExperienceEntry[] | undefined;
@@ -62,7 +63,20 @@ export default function ExperienceEditor({ data = [], onChange }: Props) {
           </div>
         )}
       </SortableAccordionList>
-      <button onClick={add} className="text-sm text-blue-600 hover:underline">+ Add Experience</button>
+      <EntryAddRow
+        kind="experience"
+        addLabel="Experience"
+        onAddNew={add}
+        onPickFromLibrary={(picked) => {
+          if (!picked) return;
+          const incoming = Array.isArray(picked.data) ? picked.data : [];
+          const stamped = incoming.map((row) => ({
+            ...(row as Record<string, unknown>),
+            id: `exp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          }));
+          onChange([...entries, ...(stamped as ExperienceEntry[])]);
+        }}
+      />
     </div>
   );
 }
