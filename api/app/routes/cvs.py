@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.schemas.cv import CVCreate, CVUpdate, CVResponse, CVListItem
+from app.schemas.library import PromoteToLibraryResponse
 from fastapi.responses import StreamingResponse
 
 from app.services.cv import CVService
@@ -148,4 +149,30 @@ async def export_cv_pdf(
         iter([pdf_bytes]),
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="cv-{cv_id}.pdf"'},
+    )
+
+
+@router.post("/{cv_id}/promote-to-library", response_model=PromoteToLibraryResponse)
+async def promote_cv_to_library(
+    cv_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Promote a CV's eligible sections into Library entries.
+
+    Colocated with the CV's other routes because it operates on a CV
+    as its input. ``profile`` and ``summary`` (and any future
+    non-eligible section types) are returned in ``skipped``.
+    """
+    from app.services.library import LibraryService
+
+    lib_service = LibraryService(db)
+    try:
+        result = await lib_service.promote_cv_to_library(cv_id, current_user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    return PromoteToLibraryResponse(
+        library_id=result.library_id,
+        promoted=result.promoted,
+        skipped=result.skipped,
     )

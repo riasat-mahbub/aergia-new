@@ -14,6 +14,7 @@ from app.db.session import async_session
 from app.db.seed import seed_templates
 from app.routes.auth import router as auth_router
 from app.routes.cvs import router as cvs_router
+from app.routes.library import router as library_router
 from app.routes.assets import router as assets_router
 from app.routes.templates import router as templates_router
 from app.routes.render import router as render_router
@@ -61,6 +62,7 @@ if settings.environment != "production":
 
 app.include_router(auth_router, prefix="/api/v1/auth")
 app.include_router(cvs_router, prefix="/api/v1/cvs")
+app.include_router(library_router, prefix="/api/v1/library")
 app.include_router(assets_router, prefix="/api/v1/assets")
 app.include_router(templates_router, prefix="/api/v1/templates")
 app.include_router(render_router, prefix="/api/v1")
