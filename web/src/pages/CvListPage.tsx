@@ -14,7 +14,7 @@ import EmptyState from "../components/common/EmptyState";
 export default function CvListPage() {
   const navigate = useNavigate();
   const { cvList, isLoading, fetchCVs, deleteCV, copyCV } = useCVStore();
-  const libraryEntries = useLibraryStore((s) => s.entries);
+  const libraryEntries = useLibraryStore((s) => s.entries) ?? [];
   const libraryLoaded = useLibraryStore((s) => s.loaded);
   const libraryFetch = useLibraryStore((s) => s.fetchAll);
   const [showCreate, setShowCreate] = useState(false);
