@@ -16,7 +16,12 @@ interface LibraryPickerProps {
 }
 
 export default function LibraryPicker({ open, onClose, kind, onPick }: LibraryPickerProps) {
-  const entries = useLibraryStore((s) => s.entries) ?? [];
+  // Defensive: handle every non-array case at the entry point so the
+  // filter() and length checks below cannot throw under any prop shape.
+  // `?? []` only catches null/undefined; Array.isArray catches anything
+  // else (object, array-like, primitives leaked through HMR).
+  const rawEntries = useLibraryStore((s) => s.entries);
+  const entries: LibraryEntry[] = Array.isArray(rawEntries) ? rawEntries : [];
   const filtered = entries.filter((e) => e.kind === kind);
   const fetchAll = useLibraryStore((s) => s.fetchAll);
   const addToast = useToastStore((s) => s.addToast);
