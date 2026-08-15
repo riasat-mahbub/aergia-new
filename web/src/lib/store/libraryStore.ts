@@ -18,7 +18,13 @@ export function selectByKind(entries: LibraryEntry[]): Record<LibraryEntryKind, 
     language: [],
   };
   for (const e of entries) {
-    buckets[e.kind].push(e);
+    // Defensive: an entry's kind may be unknown (legacy data, future
+    // kinds not yet declared, or an upstream drift). Silently drop
+    // unknown kinds rather than crashing the dashboard with
+    // "buckets[e.kind] is undefined". `LibraryEntryKind` is a TS-only
+    // narrowing; at runtime any string can arrive.
+    const bucket = buckets[e.kind as LibraryEntryKind];
+    if (bucket) bucket.push(e);
   }
   return buckets;
 }
