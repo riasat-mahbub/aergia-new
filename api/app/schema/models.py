@@ -147,7 +147,12 @@ class LayoutHints(BaseModel):
 
     ``orphans``/``widows`` map to the CSS ``orphans``/``widows`` properties
     on the section wrapper; Chromium honours them on ``@page`` flow but is
-    best-effort elsewhere. ``keep_together`` maps to ``break-inside: avoid``.
+    best-effort elsewhere. ``keep_together`` maps to ``break-inside: avoid``
+    applied per entry (each ``<div class="entry">`` is the unit that must
+    not split across pages), so an overflowing entry moves to the next
+    page on its own instead of dragging the whole section with it. Entries
+    larger than a page split anyway — Chromium's ``break-inside: avoid``
+    is best-effort.
     """
 
     font_family: str | None = None

@@ -14,6 +14,7 @@ export interface SupportMap {
   keep_with_next: SupportLevelValue;
   keep_together: SupportLevelValue;
   heading_keeps_with_first: SupportLevelValue;
+  keep_entry_together: SupportLevelValue;
   feature_skills_inline: SupportLevelValue;
   feature_section_underline: SupportLevelValue;
   feature_anchor_styling: SupportLevelValue;
