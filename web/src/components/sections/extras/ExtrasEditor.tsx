@@ -75,7 +75,7 @@ export default function ExtrasEditor({ data = [], onChange }: Props): JSX.Elemen
             />
             <div className="space-y-2">
               {entry.fields.map((field, j) => (
-                <div key={j} className="flex items-start gap-2 rounded border bg-gray-50 p-2">
+                <div key={j} className="flex items-start gap-2 rounded border bg-app-canvas p-2">
                   <input
                     type="text"
                     value={field.label}
@@ -93,7 +93,7 @@ export default function ExtrasEditor({ data = [], onChange }: Props): JSX.Elemen
                   <button
                     type="button"
                     onClick={() => removeField(i, j)}
-                    className="text-gray-400 hover:text-red-500"
+                    className="text-app-ink-3 hover:text-app-danger"
                     aria-label="Remove field"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -103,7 +103,7 @@ export default function ExtrasEditor({ data = [], onChange }: Props): JSX.Elemen
               <button
                 type="button"
                 onClick={() => addField(i)}
-                className="text-sm text-blue-600 hover:underline"
+                className="text-sm text-app-primary hover:underline"
               >
                 + Add field
               </button>

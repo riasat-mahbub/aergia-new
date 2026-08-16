@@ -78,14 +78,14 @@ export default function UserTemplateRenderer({ instances, customizations, manife
 
   if (error) {
     return (
-      <div className="flex items-center justify-center rounded border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+      <div className="flex items-center justify-center rounded border border-app-danger bg-app-danger-soft p-6 text-sm text-app-danger">
         {error}
       </div>
     );
   }
 
   return (
-    <div className="relative mx-auto max-w-[210mm] rounded bg-white shadow-sm">
+    <div className="relative mx-auto max-w-[210mm] rounded bg-app-surface shadow-sm">
       <iframe
         ref={iframeRef}
         title="User Template Preview"

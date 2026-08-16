@@ -73,7 +73,7 @@ export default function ExperienceEditor({ data = [], onChange, context }: Props
               </label>
             </div>
             <div className="mt-2">
-              <label className="block text-xs text-gray-500">Description</label>
+              <label className="block text-xs text-app-ink-3">Description</label>
               <RichTextEditor
                 value={entry.description}
                 onChange={(blocks) => update(i, "description", blocks)}
@@ -104,7 +104,7 @@ export default function ExperienceEditor({ data = [], onChange, context }: Props
 function Input({ entry, field, label, onChange, disabled }: { entry: ExperienceEntry; field: keyof ExperienceEntry; label: string; onChange: (v: any) => void; disabled?: boolean }) {
   return (
     <div>
-      <label className="block text-xs text-gray-500">{label}</label>
+      <label className="block text-xs text-app-ink-3">{label}</label>
       <input
         type="text"
         value={(entry[field] as string) || ""}

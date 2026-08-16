@@ -110,7 +110,7 @@ function EditorInner({
             <ContentEditable className="outline-none" style={{ minHeight: "3rem" }} />
           }
           placeholder={
-            <div className="pointer-events-none text-gray-400">{placeholder}</div>
+            <div className="pointer-events-none text-app-ink-3">{placeholder}</div>
           }
           ErrorBoundary={({ children }) => <div>{children}</div>}
         />
@@ -136,7 +136,7 @@ export default function RichTextEditor({
     nodes: [ListNode, ListItemNode, LinkNode],
   };
   return (
-    <div className="rich-text-editor rounded border border-gray-200 focus-within:border-blue-400">
+    <div className="rich-text-editor rounded border border-app-rule focus-within:border-app-primary-soft">
       <LexicalComposer initialConfig={initialConfig}>
         <EditorInner value={value} onChange={onChange} placeholder={placeholder} />
       </LexicalComposer>

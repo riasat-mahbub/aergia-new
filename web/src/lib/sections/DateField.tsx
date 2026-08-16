@@ -243,7 +243,7 @@ export default function DateField({
       role="dialog"
       aria-label={label ? `Pick ${label.toLowerCase()}` : "Pick date"}
       style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 1000 }}
-      className="rounded-md border border-gray-200 bg-white p-2 shadow-lg"
+      className="rounded-md border border-app-rule bg-app-surface p-2 shadow-lg"
     >
       <DayPicker
         mode="single"
@@ -262,13 +262,13 @@ export default function DateField({
   return (
     <div>
       {label && (
-        <label className="block text-xs text-gray-500" htmlFor={popoverId}>
+        <label className="block text-xs text-app-ink-3" htmlFor={popoverId}>
           {label}
         </label>
       )}
       <div className="mt-0.5">
         <div
-          className="flex w-full items-center gap-1 rounded border bg-white text-sm"
+          className="flex w-full items-center gap-1 rounded border bg-app-surface text-sm"
         >
           <button
             ref={triggerRef}
@@ -281,8 +281,8 @@ export default function DateField({
             onClick={() => !disabled && setOpen((o) => !o)}
             className="flex flex-1 items-center gap-1.5 px-2 py-1 text-left disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <Calendar aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-            <span className={display ? "text-gray-900" : "text-gray-400"}>
+            <Calendar aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-app-ink-3" />
+            <span className={display ? "text-app-ink" : "text-app-ink-3"}>
               {display || placeholder || "Select month"}
             </span>
           </button>
@@ -291,7 +291,7 @@ export default function DateField({
               type="button"
               onClick={clear}
               aria-label="Clear"
-              className="rounded p-1 text-gray-400 hover:text-gray-600"
+              className="rounded p-1 text-app-ink-3 hover:text-app-ink"
             >
               <X className="h-3.5 w-3.5" />
             </button>

@@ -12,7 +12,7 @@ export default function App() {
   }, [hydrate]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-app-canvas">
       <ErrorBoundary>
       <ToastContainer />
       <Outlet />

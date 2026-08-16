@@ -21,7 +21,7 @@ export default function ProfileEditor({ data, onChange }: Props) {
   return (
     <div className="space-y-3">
       <div>
-        <label className="block text-xs font-medium text-gray-600">Full Name</label>
+        <label className="block text-xs font-medium text-app-ink-2">Full Name</label>
         <input
           type="text"
           value={data.name || ""}
@@ -31,7 +31,7 @@ export default function ProfileEditor({ data, onChange }: Props) {
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gray-600">Professional Title</label>
+        <label className="block text-xs font-medium text-app-ink-2">Professional Title</label>
         <input
           type="text"
           value={data.title || ""}
@@ -41,14 +41,14 @@ export default function ProfileEditor({ data, onChange }: Props) {
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gray-600">Email</label>
+        <label className="block text-xs font-medium text-app-ink-2">Email</label>
         <input
           type="email"
           value={data.email || ""}
           onChange={(e) => update("email", e.target.value)}
           className={inputCls}
         />
-        <label className="mt-1 inline-flex items-center gap-1 text-xs text-gray-600">
+        <label className="mt-1 inline-flex items-center gap-1 text-xs text-app-ink-2">
           <input
             type="checkbox"
             checked={data.email_link ?? true}
@@ -59,7 +59,7 @@ export default function ProfileEditor({ data, onChange }: Props) {
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gray-600">Phone</label>
+        <label className="block text-xs font-medium text-app-ink-2">Phone</label>
         <input
           type="text"
           value={data.phone || ""}
@@ -69,7 +69,7 @@ export default function ProfileEditor({ data, onChange }: Props) {
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gray-600">Location</label>
+        <label className="block text-xs font-medium text-app-ink-2">Location</label>
         <input
           type="text"
           value={data.location || ""}
@@ -80,7 +80,7 @@ export default function ProfileEditor({ data, onChange }: Props) {
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-xs font-medium text-gray-600">Site Text</label>
+          <label className="block text-xs font-medium text-app-ink-2">Site Text</label>
           <input
             type="text"
             value={data.site_text || ""}
@@ -90,7 +90,7 @@ export default function ProfileEditor({ data, onChange }: Props) {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600">Site URL</label>
+          <label className="block text-xs font-medium text-app-ink-2">Site URL</label>
           <input
             type="text"
             value={data.site_url || ""}
@@ -101,7 +101,7 @@ export default function ProfileEditor({ data, onChange }: Props) {
         </div>
       </div>
       <div>
-        <label className="block text-xs font-medium text-gray-600">Social Links</label>
+        <label className="block text-xs font-medium text-app-ink-2">Social Links</label>
         <div className="mt-1 space-y-2">
           {(data.social_links ?? []).map((link, i) => (
             <div key={i} className="grid grid-cols-[1fr_2fr_auto] gap-2">
@@ -130,7 +130,7 @@ export default function ProfileEditor({ data, onChange }: Props) {
               <button
                 type="button"
                 onClick={() => updateSocialLinks(data.social_links.filter((_, j) => j !== i))}
-                className="rounded border px-2 py-1.5 text-gray-500 hover:bg-gray-50"
+                className="rounded border px-2 py-1.5 text-app-ink-3 hover:bg-app-surface-muted"
                 aria-label="Remove social link"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -155,7 +155,7 @@ export default function ProfileEditor({ data, onChange }: Props) {
             onClick={() =>
               updateSocialLinks([...(data.social_links ?? []), { label: "", url: "", icon: "globe" }])
             }
-            className="inline-flex items-center gap-1 rounded border px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+            className="inline-flex items-center gap-1 rounded border px-2 py-1 text-xs text-app-ink-2 hover:bg-app-surface-muted"
           >
             <Plus className="h-3 w-3" />
             Add link
@@ -165,7 +165,7 @@ export default function ProfileEditor({ data, onChange }: Props) {
 
 
       <div>
-        <label className="block text-xs font-medium text-gray-600">Summary</label>
+        <label className="block text-xs font-medium text-app-ink-2">Summary</label>
         <textarea
           value={data.summary || ""}
           onChange={(e) => update("summary", e.target.value)}
@@ -175,7 +175,7 @@ export default function ProfileEditor({ data, onChange }: Props) {
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gray-600">Photo URL</label>
+        <label className="block text-xs font-medium text-app-ink-2">Photo URL</label>
         <input
           type="text"
           value={data.photo_url || ""}

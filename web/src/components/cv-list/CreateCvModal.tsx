@@ -46,33 +46,33 @@ export default function CreateCvModal({ open, onClose }: Props) {
 
   return (
     <Modal open={open} onClose={onClose}>
-      <h2 className="mb-4 text-lg font-semibold text-gray-900">Create New CV</h2>
+      <h2 className="mb-4 text-lg font-semibold text-app-ink">Create New CV</h2>
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700">Title</label>
+          <label className="block text-sm font-medium text-app-ink-2">Title</label>
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Software Engineer CV"
-            className="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+            className="mt-1 w-full rounded-md border-app-rule-strong shadow-sm focus:border-app-primary focus:ring-app-primary sm:text-sm"
             autoFocus
             onKeyDown={(e) => e.key === "Enter" && handleCreate()}
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700">Template</label>
+          <label className="block text-sm font-medium text-app-ink-2">Template</label>
           <div className="mt-2 grid grid-cols-1 gap-2">
             {systemTemplates.length > 0 && (
               <div className="space-y-2">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">System Templates</p>
+                <p className="text-xs font-semibold text-app-ink-3 uppercase tracking-wide">System Templates</p>
                 {systemTemplates.map((t) => (
                   <label
                     key={t.id}
                     className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${
                       templateId === t.id
-                        ? "border-blue-500 bg-blue-50"
-                        : "border-gray-200 hover:border-gray-300"
+                        ? "border-app-primary bg-app-primary-soft"
+                        : "border-app-rule hover:border-app-rule-strong"
                     }`}
                   >
                     <input
@@ -83,12 +83,12 @@ export default function CreateCvModal({ open, onClose }: Props) {
                       onChange={() => setTemplateId(t.id)}
                       className="sr-only"
                     />
-                    <div className={`h-4 w-4 rounded-full border-2 ${templateId === t.id ? "border-blue-500" : "border-gray-300"}`}>
-                      {templateId === t.id && <div className="m-0.5 h-2.5 w-2.5 rounded-full bg-blue-500" />}
+                    <div className={`h-4 w-4 rounded-full border-2 ${templateId === t.id ? "border-app-primary" : "border-app-rule-strong"}`}>
+                      {templateId === t.id && <div className="m-0.5 h-2.5 w-2.5 rounded-full bg-app-primary" />}
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-gray-900">{t.name}</p>
-                      {t.description && <p className="text-xs text-gray-500">{t.description}</p>}
+                      <p className="text-sm font-medium text-app-ink">{t.name}</p>
+                      {t.description && <p className="text-xs text-app-ink-3">{t.description}</p>}
                     </div>
                   </label>
                 ))}
@@ -99,14 +99,14 @@ export default function CreateCvModal({ open, onClose }: Props) {
         <div className="flex justify-end gap-2 pt-2">
           <button
             onClick={onClose}
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            className="rounded-md border border-app-rule-strong px-4 py-2 text-sm text-app-ink-2 hover:bg-app-surface-muted"
           >
             Cancel
           </button>
           <button
             onClick={handleCreate}
             disabled={!title.trim() || loading}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+            className="rounded-md bg-app-primary px-4 py-2 text-sm text-white hover:bg-app-primary-hover disabled:opacity-50"
           >
             {loading ? "Creating..." : "Create"}
           </button>

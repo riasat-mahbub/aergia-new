@@ -75,7 +75,7 @@ export default function ApplicationDetailPage() {
   const sourceCount = selectedSourceCount(linkedCV);
 
   if (isLoading || !application || application.id !== id) {
-    return <div className="mx-auto max-w-4xl px-4 py-8">{isLoading ? <LoadingSkeleton count={2} /> : <p className="text-sm text-gray-600">Application not found.</p>}</div>;
+    return <div className="mx-auto max-w-4xl px-4 py-8">{isLoading ? <LoadingSkeleton count={2} /> : <p className="text-sm text-app-ink-2">Application not found.</p>}</div>;
   }
 
   const safeJobUrl = safeExternalUrl(application.job_url);
@@ -130,77 +130,77 @@ export default function ApplicationDetailPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <Link to="/dashboard/applications" className="text-sm text-gray-500 hover:text-gray-700">&larr; Applications</Link>
+      <Link to="/dashboard/applications" className="text-sm text-app-ink-3 hover:text-app-ink-2">&larr; Applications</Link>
       <header className="mt-4 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{application.company}</h1>
-          <p className="mt-1 text-lg text-gray-600">{application.role}</p>
+          <h1 className="text-2xl font-bold text-app-ink">{application.company}</h1>
+          <p className="mt-1 text-lg text-app-ink-2">{application.role}</p>
         </div>
         <select
           aria-label="Application status"
           value={application.status}
           disabled={statusSaving}
           onChange={(event) => handleStatusChange(event.target.value as ApplicationStatus)}
-          className="w-full min-w-[10rem] rounded-md border border-gray-300 px-3 py-2 text-sm sm:w-auto"
+          className="w-full min-w-[10rem] rounded-md border border-app-rule-strong px-3 py-2 text-sm sm:w-auto"
         >
           {APPLICATION_STATUSES.map((status) => <option key={status} value={status}>{STATUS_LABELS[status]}</option>)}
         </select>
       </header>
 
       <div className="mt-6 grid gap-4 md:grid-cols-2">
-        <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Job</h2>
-          <div className="mt-4 whitespace-pre-wrap text-sm leading-6 text-gray-700">{application.job_description}</div>
-          {safeJobUrl && <a href={safeJobUrl} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex items-center gap-1 text-sm text-blue-700 hover:underline">Open job listing <ExternalLink className="h-3.5 w-3.5" /></a>}
-          {application.notes && <p className="mt-4 border-t border-gray-100 pt-4 text-sm text-gray-600">{application.notes}</p>}
+        <section className="rounded-lg border border-app-rule bg-app-surface p-5 shadow-sm">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-app-ink-3">Job</h2>
+          <div className="mt-4 whitespace-pre-wrap text-sm leading-6 text-app-ink-2">{application.job_description}</div>
+          {safeJobUrl && <a href={safeJobUrl} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex items-center gap-1 text-sm text-app-primary hover:underline">Open job listing <ExternalLink className="h-3.5 w-3.5" /></a>}
+          {application.notes && <p className="mt-4 border-t border-app-rule-soft pt-4 text-sm text-app-ink-2">{application.notes}</p>}
         </section>
 
-        <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+        <section className="rounded-lg border border-app-rule bg-app-surface p-5 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Relevance</h2>
-              <p className="mt-2 text-3xl font-semibold text-gray-900" title={RELEVANCE_TOOLTIP}>{relevance ? `${relevance.score}%` : "—"}</p>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-app-ink-3">Relevance</h2>
+              <p className="mt-2 text-3xl font-semibold text-app-ink" title={RELEVANCE_TOOLTIP}>{relevance ? `${relevance.score}%` : "—"}</p>
             </div>
-            {application.fits_one_page !== null && <span className={application.fits_one_page ? "text-sm text-emerald-700" : "text-sm text-amber-700"}>{application.fits_one_page ? "One-page fit" : "Could not fit one page without rewriting content"}</span>}
+            {application.fits_one_page !== null && <span className={application.fits_one_page ? "text-sm text-app-primary" : "text-sm text-app-warning"}>{application.fits_one_page ? "One-page fit" : "Could not fit one page without rewriting content"}</span>}
           </div>
-          <p className="mt-3 text-xs text-gray-500">{RELEVANCE_TOOLTIP}</p>
+          <p className="mt-3 text-xs text-app-ink-3">{RELEVANCE_TOOLTIP}</p>
           {relevance && (
             <>
               <div className="mt-4 flex flex-wrap gap-2">
-                {relevance.matched_keywords.map((keyword) => <span key={`matched-${keyword}`} className="rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-700">{keyword}</span>)}
-                {relevance.missing_keywords.map((keyword) => <span key={`missing-${keyword}`} className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-600">Missing: {keyword}</span>)}
+                {relevance.matched_keywords.map((keyword) => <span key={`matched-${keyword}`} className="rounded-full bg-app-primary-soft px-2 py-1 text-xs text-app-primary">{keyword}</span>)}
+                {relevance.missing_keywords.map((keyword) => <span key={`missing-${keyword}`} className="rounded-full bg-app-surface-muted px-2 py-1 text-xs text-app-ink-2">Missing: {keyword}</span>)}
               </div>
               <div className="mt-4 space-y-2">
-                {relevance.evidence.map((item, index) => <div key={`${item.keyword}-${item.field_path}-${index}`} className="rounded bg-gray-50 px-3 py-2 text-xs text-gray-600"><strong>{item.keyword}</strong> · {item.section_type} · {item.field_path}<br />{item.snippet}</div>)}
+                {relevance.evidence.map((item, index) => <div key={`${item.keyword}-${item.field_path}-${index}`} className="rounded bg-app-canvas px-3 py-2 text-xs text-app-ink-2"><strong>{item.keyword}</strong> · {item.section_type} · {item.field_path}<br />{item.snippet}</div>)}
               </div>
             </>
           )}
         </section>
       </div>
 
-      <section className="mt-4 rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Generated CV</h2>
+      <section className="mt-4 rounded-lg border border-app-rule bg-app-surface p-5 shadow-sm">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-app-ink-3">Generated CV</h2>
         {application.cv_id ? (
           <>
-            <p className="mt-2 text-sm text-gray-700">{linkedCV?.title || `${application.company} — ${application.role}`}</p>
-            {sections.length > 0 && <p className="mt-2 text-xs text-gray-500">Sections: {sections.join(" → ")}</p>}
-            {sourceCount !== null && <p className="mt-2 text-xs text-gray-500">Selected Library rows: {sourceCount}</p>}
+            <p className="mt-2 text-sm text-app-ink-2">{linkedCV?.title || `${application.company} — ${application.role}`}</p>
+            {sections.length > 0 && <p className="mt-2 text-xs text-app-ink-3">Sections: {sections.join(" → ")}</p>}
+            {sourceCount !== null && <p className="mt-2 text-xs text-app-ink-3">Selected Library rows: {sourceCount}</p>}
             <div className="mt-4 flex flex-wrap gap-2">
-              <Link to={`/dashboard/builder/${application.cv_id}?application=${application.id}`} className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">Open/Edit CV <Pencil className="h-3.5 w-3.5" /></Link>
-              <button type="button" onClick={handleExport} className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"><Download className="h-3.5 w-3.5" /> Export PDF</button>
+              <Link to={`/dashboard/builder/${application.cv_id}?application=${application.id}`} className="inline-flex items-center gap-1 rounded-md bg-app-primary px-3 py-2 text-sm font-medium text-white hover:bg-app-primary-hover">Open/Edit CV <Pencil className="h-3.5 w-3.5" /></Link>
+              <button type="button" onClick={handleExport} className="inline-flex items-center gap-1 rounded-md border border-app-rule-strong px-3 py-2 text-sm font-medium text-app-ink-2 hover:bg-app-surface-muted"><Download className="h-3.5 w-3.5" /> Export PDF</button>
             </div>
           </>
         ) : (
           <>
-            <p className="mt-2 text-sm text-gray-600">{application.generation_status === "failed" ? "CV generation failed. Please retry." : "Generation is pending."}</p>
-            <button type="button" onClick={handleRetry} disabled={retrying} className="mt-4 inline-flex items-center gap-1 rounded-md border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${retrying ? "animate-spin" : ""}`} /> {retrying ? "Generating…" : "Retry generation"}</button>
+            <p className="mt-2 text-sm text-app-ink-2">{application.generation_status === "failed" ? "CV generation failed. Please retry." : "Generation is pending."}</p>
+            <button type="button" onClick={handleRetry} disabled={retrying} className="mt-4 inline-flex items-center gap-1 rounded-md border border-app-primary-soft px-3 py-2 text-sm font-medium text-app-primary hover:bg-app-primary-soft disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${retrying ? "animate-spin" : ""}`} /> {retrying ? "Generating…" : "Retry generation"}</button>
           </>
         )}
       </section>
 
       <div className="mt-6 flex justify-end gap-2">
-        <button type="button" onClick={() => setEditOpen(true)} className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"><Pencil className="h-3.5 w-3.5" /> Edit job</button>
-        <button type="button" onClick={handleDelete} className="inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm text-red-700 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5" /> Delete</button>
+        <button type="button" onClick={() => setEditOpen(true)} className="inline-flex items-center gap-1 rounded-md border border-app-rule-strong px-3 py-2 text-sm font-medium text-app-ink-2 hover:bg-app-surface-muted"><Pencil className="h-3.5 w-3.5" /> Edit job</button>
+        <button type="button" onClick={handleDelete} className="inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm text-app-danger hover:bg-app-danger-soft"><Trash2 className="h-3.5 w-3.5" /> Delete</button>
       </div>
 
       <ApplicationFormModal open={editOpen} onClose={() => setEditOpen(false)} initialApplication={application} />

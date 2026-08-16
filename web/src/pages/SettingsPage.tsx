@@ -57,7 +57,7 @@ export default function SettingsPage() {
       animate={{ opacity: 1, y: 0 }}
       className="mx-auto max-w-lg px-4 py-8"
     >
-      <h1 className="mb-6 text-2xl font-bold text-gray-900">Settings</h1>
+      <h1 className="mb-6 text-2xl font-bold text-app-ink">Settings</h1>
 
       <ProfileCard
         profile={profile}
@@ -68,11 +68,11 @@ export default function SettingsPage() {
         testId="settings-profile-card"
       />
 
-      <div className="rounded-lg bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold text-gray-900">Change Password</h2>
+      <div className="rounded-lg bg-app-surface p-6 shadow-sm">
+        <h2 className="mb-4 text-lg font-semibold text-app-ink">Change Password</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="current-password" className="block text-sm font-medium text-gray-700">Current Password</label>
+            <label htmlFor="current-password" className="block text-sm font-medium text-app-ink-2">Current Password</label>
             <input
               id="current-password"
               name="current_password"
@@ -81,11 +81,11 @@ export default function SettingsPage() {
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               required
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 block w-full rounded-md border border-app-rule-strong px-3 py-2 text-sm shadow-sm focus:border-app-primary focus:outline-none focus:ring-1 focus:ring-app-primary"
             />
           </div>
           <div>
-            <label htmlFor="new-password" className="block text-sm font-medium text-gray-700">New Password</label>
+            <label htmlFor="new-password" className="block text-sm font-medium text-app-ink-2">New Password</label>
             <input
               id="new-password"
               name="new_password"
@@ -94,11 +94,11 @@ export default function SettingsPage() {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               required
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 block w-full rounded-md border border-app-rule-strong px-3 py-2 text-sm shadow-sm focus:border-app-primary focus:outline-none focus:ring-1 focus:ring-app-primary"
             />
           </div>
           <div>
-            <label htmlFor="confirm-new-password" className="block text-sm font-medium text-gray-700">Confirm New Password</label>
+            <label htmlFor="confirm-new-password" className="block text-sm font-medium text-app-ink-2">Confirm New Password</label>
             <input
               id="confirm-new-password"
               name="confirm_new_password"
@@ -107,14 +107,14 @@ export default function SettingsPage() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1 block w-full rounded-md border border-app-rule-strong px-3 py-2 text-sm shadow-sm focus:border-app-primary focus:outline-none focus:ring-1 focus:ring-app-primary"
             />
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-app-danger">{error}</p>}
           <button
             type="submit"
             disabled={loading}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+            className="rounded-md bg-app-primary px-4 py-2 text-sm text-white hover:bg-app-primary-hover disabled:opacity-50"
           >
             {loading ? "Changing..." : "Change Password"}
           </button>

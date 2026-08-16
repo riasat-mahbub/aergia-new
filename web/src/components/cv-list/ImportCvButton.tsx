@@ -74,7 +74,7 @@ export default function ImportCvButton() {
       <button
         onClick={() => setOpen(true)}
         disabled={busy}
-        className="flex items-center gap-1.5 rounded-md border border-blue-600 bg-white px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 disabled:opacity-50"
+        className="flex items-center gap-1.5 rounded-md border border-app-primary bg-app-surface px-3 py-2 text-sm text-app-primary hover:bg-app-primary-soft disabled:opacity-50"
         title="Import a PDF and create a new CV from it"
         type="button"
       >
@@ -87,7 +87,7 @@ export default function ImportCvButton() {
       </button>
       <button
         onClick={() => setShowKeys(true)}
-        className="flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-2 text-sm text-gray-700 hover:bg-gray-50"
+        className="flex items-center gap-1 rounded-md border border-app-rule-strong bg-app-surface px-2 py-2 text-sm text-app-ink-2 hover:bg-app-surface-muted"
         title="Configure LLM API keys"
         aria-label="Configure LLM API keys"
         type="button"

@@ -54,7 +54,7 @@ export default function ResearchEditor({ data = [], onChange, context }: Props) 
         {(entry: ResearchEntry, i: number) => (
           <div className="space-y-2">
             <div>
-              <label className="block text-xs text-gray-500">Paper Title</label>
+              <label className="block text-xs text-app-ink-3">Paper Title</label>
               <input
                 type="text"
                 value={entry.title}
@@ -63,7 +63,7 @@ export default function ResearchEditor({ data = [], onChange, context }: Props) 
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-500">Publication Venue</label>
+              <label className="block text-xs text-app-ink-3">Publication Venue</label>
               <input
                 type="text"
                 placeholder="e.g. Nature, 2024 or NeurIPS 2024"
@@ -74,7 +74,7 @@ export default function ResearchEditor({ data = [], onChange, context }: Props) 
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-xs text-gray-500">Paper Link</label>
+                <label className="block text-xs text-app-ink-3">Paper Link</label>
                 <input
                   type="text"
                   placeholder="https://doi.org/..."
@@ -84,7 +84,7 @@ export default function ResearchEditor({ data = [], onChange, context }: Props) 
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-500">Link Text</label>
+                <label className="block text-xs text-app-ink-3">Link Text</label>
                 <input
                   type="text"
                   placeholder="Paper"
@@ -92,7 +92,7 @@ export default function ResearchEditor({ data = [], onChange, context }: Props) 
                   onChange={(event: ChangeEvent<HTMLInputElement>) => update(i, "paper_link_text", event.target.value)}
                   className="mt-0.5 w-full rounded border px-2 py-1 text-sm"
                 />
-                <p className="mt-0.5 text-[10px] text-gray-400">Defaults to Paper</p>
+                <p className="mt-0.5 text-[10px] text-app-ink-3">Defaults to Paper</p>
               </div>
             </div>
             <DateField
@@ -101,7 +101,7 @@ export default function ResearchEditor({ data = [], onChange, context }: Props) 
               label="Publication Date"
             />
             <div>
-              <label className="block text-xs text-gray-500">Description</label>
+              <label className="block text-xs text-app-ink-3">Description</label>
               <RichTextEditor
                 value={entry.description ?? ""}
                 onChange={(blocks) => update(i, "description", blocks)}

@@ -127,10 +127,10 @@ export default function ApplicationFormModal({
     <Modal open={open} onClose={busy ? () => undefined : onClose} size="wide">
       <form onSubmit={handleSubmit} className="max-h-[85vh] w-full min-w-0 overflow-x-hidden overflow-y-auto">
         <header className="mb-5">
-          <h2 className="text-xl font-semibold text-gray-900">
+          <h2 className="text-xl font-semibold text-app-ink">
             {editing ? "Edit application" : "Track an application"}
           </h2>
-          <p className="mt-1 text-sm text-gray-600">
+          <p className="mt-1 text-sm text-app-ink-2">
             {editing
               ? "Update the saved job details without rewriting the linked CV."
               : "Save a job description and generate an editable tailored CV."}
@@ -139,72 +139,72 @@ export default function ApplicationFormModal({
 
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block text-sm font-medium text-gray-700">
-              Company <span className="text-red-600">*</span>
+            <label className="block text-sm font-medium text-app-ink-2">
+              Company <span className="text-app-danger">*</span>
               <input
                 required
                 value={form.company}
                 onChange={(event) => setField("company", event.target.value)}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-md border border-app-rule-strong px-3 py-2 text-sm"
               />
             </label>
-            <label className="block text-sm font-medium text-gray-700">
-              Role <span className="text-red-600">*</span>
+            <label className="block text-sm font-medium text-app-ink-2">
+              Role <span className="text-app-danger">*</span>
               <input
                 required
                 value={form.role}
                 onChange={(event) => setField("role", event.target.value)}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-md border border-app-rule-strong px-3 py-2 text-sm"
               />
             </label>
           </div>
-          <label className="block text-sm font-medium text-gray-700">
-            Job description <span className="text-red-600">*</span>
+          <label className="block text-sm font-medium text-app-ink-2">
+            Job description <span className="text-app-danger">*</span>
             <textarea
               required
               value={form.job_description}
               onChange={(event) => setField("job_description", event.target.value)}
               rows={10}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-app-rule-strong px-3 py-2 text-sm"
             />
           </label>
-          <label className="block text-sm font-medium text-gray-700">
-            Job URL <span className="font-normal text-gray-400">(optional)</span>
+          <label className="block text-sm font-medium text-app-ink-2">
+            Job URL <span className="font-normal text-app-ink-3">(optional)</span>
             <input
               type="url"
               value={form.job_url}
               onChange={(event) => setField("job_url", event.target.value)}
               placeholder="https://example.com/jobs/..."
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-app-rule-strong px-3 py-2 text-sm"
             />
           </label>
-          <label className="block text-sm font-medium text-gray-700">
-            Notes <span className="font-normal text-gray-400">(optional)</span>
+          <label className="block text-sm font-medium text-app-ink-2">
+            Notes <span className="font-normal text-app-ink-3">(optional)</span>
             <textarea
               value={form.notes}
               onChange={(event) => setField("notes", event.target.value)}
               rows={3}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-md border border-app-rule-strong px-3 py-2 text-sm"
             />
           </label>
         </div>
 
-        {error && <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-        {phase && <p className="mt-4 text-sm text-blue-700">{phase}</p>}
+        {error && <p className="mt-4 rounded-md bg-app-danger-soft px-3 py-2 text-sm text-app-danger">{error}</p>}
+        {phase && <p className="mt-4 text-sm text-app-primary">{phase}</p>}
 
         <footer className="mt-6 flex justify-end gap-2">
           <button
             type="button"
             onClick={onClose}
             disabled={busy}
-            className="rounded-md px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+            className="rounded-md px-4 py-2 text-sm font-medium text-app-ink-2 hover:bg-app-surface-muted disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={busy}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            className="rounded-md bg-app-primary px-4 py-2 text-sm font-medium text-white hover:bg-app-primary-hover disabled:opacity-50"
           >
             {busy ? phase || "Saving…" : editing ? "Save changes" : "Done"}
           </button>

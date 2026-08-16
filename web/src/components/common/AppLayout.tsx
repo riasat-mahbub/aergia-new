@@ -19,26 +19,26 @@ export default function AppLayout({ children }: AppLayoutProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="flex h-14 items-center justify-between border-b bg-white px-6 shadow-sm">
+    <div className="min-h-screen bg-app-canvas">
+      <nav className="flex h-14 items-center justify-between border-b bg-app-surface px-6 shadow-sm">
         <div className="flex items-center gap-6">
           {isBuilder ? (
             <Link
               to="/dashboard"
-              className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-gray-900"
+              className="flex items-center gap-1.5 text-sm font-medium text-app-ink-2 hover:text-app-ink"
             >
               <FileText className="h-4 w-4" />
               My CVs
             </Link>
           ) : (
-            <Link to="/" className="text-lg font-bold text-gray-900">
+            <Link to="/" className="text-lg font-bold text-app-ink">
               Aergia
             </Link>
           )}
           {!isBuilder && (
             <Link
               to="/dashboard"
-              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700"
+              className="flex items-center gap-1.5 text-sm text-app-ink-3 hover:text-app-ink-2"
             >
               <FileText className="h-4 w-4" />
               My CVs
@@ -47,7 +47,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           {!isBuilder && (
             <Link
               to="/dashboard/library"
-              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700"
+              className="flex items-center gap-1.5 text-sm text-app-ink-3 hover:text-app-ink-2"
             >
               <Library className="h-4 w-4" />
               Library
@@ -56,7 +56,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           {!isBuilder && (
             <Link
               to="/dashboard/applications"
-              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700"
+              className="flex items-center gap-1.5 text-sm text-app-ink-3 hover:text-app-ink-2"
             >
               <BriefcaseBusiness className="h-4 w-4" />
               Applications
@@ -66,14 +66,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
         <div className="flex items-center gap-3">
           <Link
             to="/dashboard/settings"
-            className="rounded p-1.5 text-gray-400 hover:text-gray-600"
+            className="rounded p-1.5 text-app-ink-3 hover:text-app-ink"
             title="Settings"
           >
             <Settings className="h-4 w-4" />
           </Link>
           <button
             onClick={handleLogout}
-            className="rounded p-1.5 text-gray-400 hover:text-gray-600"
+            className="rounded p-1.5 text-app-ink-3 hover:text-app-ink"
             title="Logout"
           >
             <LogOut className="h-4 w-4" />

@@ -22,15 +22,15 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+        <div className="flex min-h-screen items-center justify-center bg-app-canvas px-4">
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-gray-900">Something went wrong</h1>
-            <p className="mt-2 text-sm text-gray-500">
+            <h1 className="text-2xl font-bold text-app-ink">Something went wrong</h1>
+            <p className="mt-2 text-sm text-app-ink-3">
               An unexpected error occurred
             </p>
             <Link
               to="/dashboard"
-              className="mt-6 inline-block rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+              className="mt-6 inline-block rounded-md bg-app-primary px-4 py-2 text-sm text-white hover:bg-app-primary-hover"
               onClick={() => this.setState({ hasError: false })}
             >
               Go to Dashboard

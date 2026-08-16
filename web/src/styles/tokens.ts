@@ -18,24 +18,24 @@ export const radius = {
 
 
 export const ink = {
-  ink: "var(--ink)",
-  ink2: "var(--ink-2)",
-  ink3: "var(--ink-3)",
-  ink4: "var(--ink-4)",
+  ink: "var(--app-ink)",
+  ink2: "var(--app-ink-2)",
+  ink3: "var(--app-ink-3)",
+  ink4: "var(--app-ink-muted)",
 } as const;
 
 
 /** Flat string export for inline styles. */
-export const ruleDefault = "var(--rule)";
+export const ruleDefault = "var(--app-rule)";
 
 export const danger = "var(--danger)";
 
 export const accent = {
-  accent: "var(--accent)",
+  accent: "var(--app-primary)",
 } as const;
 
 /** Flat string export for the soft accent fill (used by OverridePill background). */
-export const accentSoft = "var(--accent-soft)";
+export const accentSoft = "var(--app-primary-soft)";
 
 /** Font tokens — what the panel offers for body and heading font.
  * Mirrors the FontToken Literal in api/app/schema/models.py.

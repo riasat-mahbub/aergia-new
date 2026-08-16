@@ -27,14 +27,14 @@ const STATUS_LABELS: Record<ApplicationStatus, string> = {
 };
 
 const STATUS_CLASSES: Record<ApplicationStatus, string> = {
-  draft: "bg-gray-100 text-gray-700",
-  applied: "bg-blue-100 text-blue-700",
-  responded: "bg-indigo-100 text-indigo-700",
-  interview: "bg-purple-100 text-purple-700",
-  offer: "bg-amber-100 text-amber-700",
-  hired: "bg-emerald-100 text-emerald-700",
-  rejected: "bg-red-100 text-red-700",
-  withdrawn: "bg-gray-100 text-gray-500",
+  draft: "bg-app-surface-muted text-app-ink-2",
+  applied: "bg-app-primary-soft text-app-primary",
+  responded: "bg-app-secondary-soft text-app-secondary",
+  interview: "bg-app-secondary-soft text-app-secondary",
+  offer: "bg-app-warning-soft text-app-warning",
+  hired: "bg-app-primary-soft text-app-primary",
+  rejected: "bg-app-danger-soft text-app-danger",
+  withdrawn: "bg-app-surface-muted text-app-ink-3",
 };
 
 function relevanceScore(relevance: Application["relevance"]): number | null {
@@ -63,27 +63,27 @@ function ApplicationCard({ application, retrying, onRetry, onDelete }: Applicati
       : null;
 
   return (
-    <article className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+    <article className="rounded-lg border border-app-rule bg-app-surface p-5 shadow-sm">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <Link to={`/dashboard/applications/${application.id}`} className="block truncate text-lg font-semibold text-gray-900 hover:text-blue-700">
+          <Link to={`/dashboard/applications/${application.id}`} className="block truncate text-lg font-semibold text-app-ink hover:text-app-primary">
             {application.company}
           </Link>
-          <p className="mt-1 truncate text-sm text-gray-600">{application.role}</p>
+          <p className="mt-1 truncate text-sm text-app-ink-2">{application.role}</p>
         </div>
         <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_CLASSES[application.status]}`}>
           {STATUS_LABELS[application.status]}
         </span>
       </div>
 
-      <div className="mt-4 grid gap-2 text-sm text-gray-600 sm:grid-cols-2">
+      <div className="mt-4 grid gap-2 text-sm text-app-ink-2 sm:grid-cols-2">
         <span>Updated {formatDate(application.updated_at)}</span>
         <span>{formatDate(application.applied_at)}</span>
-        {score !== null && <span className="font-medium text-gray-900" title={RELEVANCE_TOOLTIP}>Relevance {score}%</span>}
-        {fitLabel && <span className={application.fits_one_page ? "text-emerald-700" : "text-amber-700"}>{fitLabel}</span>}
+        {score !== null && <span className="font-medium text-app-ink" title={RELEVANCE_TOOLTIP}>Relevance {score}%</span>}
+        {fitLabel && <span className={application.fits_one_page ? "text-app-primary" : "text-app-warning"}>{fitLabel}</span>}
       </div>
 
-      <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-4">
+      <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-app-rule-soft pt-4">
         {application.generation_status === "ready" && application.cv_id ? (
           <Link
             to={`/dashboard/builder/${application.cv_id}?application=${application.id}`}
@@ -96,21 +96,21 @@ function ApplicationCard({ application, retrying, onRetry, onDelete }: Applicati
             type="button"
             onClick={onRetry}
             disabled={retrying}
-            className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+            className="inline-flex items-center gap-1 rounded-md border border-app-primary-soft px-3 py-1.5 text-sm font-medium text-app-primary hover:bg-app-primary-soft disabled:opacity-50"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${retrying ? "animate-spin" : ""}`} />
             {retrying ? "Generating…" : application.generation_status === "failed" ? "Retry" : "Generate CV"}
           </button>
         )}
-        <Link to={`/dashboard/applications/${application.id}`} className="rounded-md px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100">
+        <Link to={`/dashboard/applications/${application.id}`} className="rounded-md px-3 py-1.5 text-sm font-medium text-app-ink-2 hover:bg-app-surface-muted">
           Details
         </Link>
-        <button type="button" onClick={onDelete} className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-gray-500 hover:bg-red-50 hover:text-red-700">
+        <button type="button" onClick={onDelete} className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-app-ink-3 hover:bg-app-danger-soft hover:text-app-danger">
           <Trash2 className="h-3.5 w-3.5" />
           Delete
         </button>
       </div>
-      {application.generation_error && <p className="mt-3 text-xs text-red-700">CV generation failed. Please retry.</p>}
+      {application.generation_error && <p className="mt-3 text-xs text-app-danger">CV generation failed. Please retry.</p>}
     </article>
   );
 }
@@ -169,18 +169,18 @@ export default function ApplicationsPage() {
     <div className="mx-auto max-w-6xl px-4 py-8">
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Applications</h1>
-          <p className="mt-1 text-sm text-gray-600">Track jobs and generate editable, keyword-tailored CVs.</p>
+          <h1 className="text-2xl font-bold text-app-ink">Applications</h1>
+          <p className="mt-1 text-sm text-app-ink-2">Track jobs and generate editable, keyword-tailored CVs.</p>
         </div>
-        <button type="button" onClick={() => setFormOpen(true)} className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+        <button type="button" onClick={() => setFormOpen(true)} className="inline-flex items-center gap-1 rounded-md bg-app-primary px-4 py-2 text-sm font-medium text-white hover:bg-app-primary-hover">
           <Plus className="h-4 w-4" />
           Track application
         </button>
       </header>
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
-        <label htmlFor="application-status-filter" className="shrink-0 text-sm font-medium text-gray-700">Status</label>
-        <select id="application-status-filter" value={filter} onChange={(event) => setFilter(event.target.value as ApplicationStatus | "all")} className="w-full min-w-[10rem] rounded-md border border-gray-300 px-3 py-2 text-sm sm:w-auto">
+        <label htmlFor="application-status-filter" className="shrink-0 text-sm font-medium text-app-ink-2">Status</label>
+        <select id="application-status-filter" value={filter} onChange={(event) => setFilter(event.target.value as ApplicationStatus | "all")} className="w-full min-w-[10rem] rounded-md border border-app-rule-strong px-3 py-2 text-sm sm:w-auto">
           <option value="all">All statuses</option>
           {APPLICATION_STATUSES.map((status) => <option key={status} value={status}>{STATUS_LABELS[status]}</option>)}
         </select>
@@ -191,7 +191,7 @@ export default function ApplicationsPage() {
         <EmptyState title="No applications yet" description="Save a job description to generate your first tailored CV." action={{ label: "Track application", onClick: () => setFormOpen(true) }} />
       )}
       {!isLoading && applications.length > 0 && filteredApplications.length === 0 && (
-        <div className="rounded-lg border border-dashed border-gray-300 bg-white p-10 text-center text-sm text-gray-600">No applications match this status.</div>
+        <div className="rounded-lg border border-dashed border-app-rule-strong bg-app-surface p-10 text-center text-sm text-app-ink-2">No applications match this status.</div>
       )}
       {!isLoading && filteredApplications.length > 0 && (
         <div className="grid gap-4 md:grid-cols-2">

@@ -34,7 +34,7 @@ export default function ExportPDFButton({ cvId, cvTitle, onBeforeExport }: Expor
     <button
       onClick={handleExport}
       disabled={loading}
-      className="flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs text-white hover:bg-blue-700 disabled:opacity-50"
+      className="flex items-center gap-1.5 rounded-md bg-app-primary px-3 py-1.5 text-xs text-white hover:bg-app-primary-hover disabled:opacity-50"
       title="Export PDF"
     >
       {loading ? (

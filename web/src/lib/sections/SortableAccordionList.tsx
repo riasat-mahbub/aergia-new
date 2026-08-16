@@ -63,7 +63,7 @@ function SortableItem({
             <button
               {...attributes}
               {...listeners}
-              className="cursor-grab text-gray-400 hover:text-gray-600"
+              className="cursor-grab text-app-ink-3 hover:text-app-ink"
               onClick={(e) => e.stopPropagation()}
             >
               <GripVertical className="h-4 w-4" />
