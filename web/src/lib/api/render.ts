@@ -1,7 +1,6 @@
 import client from "./client";
 
-export const SUPPORT_VALUES = ["FULL", "BEST_EFFORT", "NONE"] as const;
-export type SupportLevelValue = (typeof SUPPORT_VALUES)[number];
+export type SupportLevelValue = "FULL" | "BEST_EFFORT" | "NONE";
 
 /**
  * Feature → renderer-capability level. Codegen-derived names listed below;
@@ -20,15 +19,7 @@ export interface SupportMap {
   feature_anchor_styling: SupportLevelValue;
 }
 
-export type SupportField = keyof SupportMap;
 
-/**
- * `RendererSupport` is declared on the backend as a Python @dataclass and
- * is not part of the codegen output (which only carries Pydantic models).
- * The shape below mirrors `api/app/services/renderer/support.py`. The
- * runtime endpoint returns the dataclass field-by-field as JSON.
- */
-export type RendererSupport = SupportMap;
 
 export async function fetchRendererSupport(): Promise<SupportMap> {
   const { data } = await client.get("/render/support");

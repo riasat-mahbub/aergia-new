@@ -102,9 +102,6 @@ async def preview_cv(
     if not cv:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
 
-    instances = cv.sections or []
-    if isinstance(instances, dict):
-        instances = []
 
     template_data = await service.get_template_data(cv.template_id)
 

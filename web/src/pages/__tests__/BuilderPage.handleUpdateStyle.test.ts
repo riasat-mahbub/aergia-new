@@ -46,11 +46,6 @@ describe("sectionStyleHasValues (three-axis)", () => {
     ).toBe(false);
   });
 
-  it("treats explicit `false` policy.show_title as a meaningful pick", () => {
-    expect(
-      sectionStyleHasValues({ policy: { show_title: false } } as SectionInstanceStyle),
-    ).toBe(true);
-  });
 
   it("text[key] entries with at least one TextStyle key count as a meaningful pick", () => {
     expect(

@@ -20,7 +20,6 @@ and selects the strategy to invoke. Layers below are pure functions.
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from pydantic import ValidationError
@@ -200,9 +199,6 @@ def _parse_json_fastpath(file_bytes: bytes) -> ParseResult:
         meta=ParseMeta(source="regex", warnings=["json_fastpath"]),
     )
 
-
-# Re-export for backward-compat if anyone imports the helpers directly.
-_ = json  # used implicitly by validate_section_instance_list
 
 
 __all__ = ["parse_cv"]

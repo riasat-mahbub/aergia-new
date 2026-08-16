@@ -51,44 +51,38 @@ class GeminiProvider:
 
         client = genai.Client(api_key=api_key)
         try:
-            try:
-                resp = await client.aio.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=plain_text,
-                    config=genai.types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        response_schema=section_schema,
-                        system_instruction=(
-                            "Return JSON matching the schema. Output ONLY JSON."
-                        ),
-                        temperature=0,
+            resp = await client.aio.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=plain_text,
+                config=genai.types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=section_schema,
+                    system_instruction=(
+                        "Return JSON matching the schema. Output ONLY JSON."
                     ),
-                )
-            except gapi_exc.Unauthenticated as e:
-                raise InvalidAPIKeyError(
-                    redact_payload(getattr(e, "message", e))
-                ) from e
-            except gapi_exc.PermissionDenied as e:
-                raise InvalidAPIKeyError(
-                    redact_payload(getattr(e, "message", e))
-                ) from e
-            except (gapi_exc.ResourceExhausted, gapi_exc.TooManyRequests) as e:
-                raise RateLimitError(
-                    redact_payload(getattr(e, "message", e))
-                ) from e
-            except gapi_exc.GoogleAPIError as e:
-                raise ProviderTransportError(
-                    redact_payload(getattr(e, "message", e))
-                ) from e
-            except Exception as e:
-                raise ProviderTransportError(
-                    redact_payload(getattr(e, "message", e))
-                ) from e
-        finally:
-            # genai.Client is sync (the aio namespace is request-scoped) —
-            # nothing to close. The api_key is captured only in the local
-            # closure and dies with it.
-            _ = client
+                    temperature=0,
+                ),
+            )
+        except gapi_exc.Unauthenticated as e:
+            raise InvalidAPIKeyError(
+                redact_payload(getattr(e, "message", e))
+            ) from e
+        except gapi_exc.PermissionDenied as e:
+            raise InvalidAPIKeyError(
+                redact_payload(getattr(e, "message", e))
+            ) from e
+        except (gapi_exc.ResourceExhausted, gapi_exc.TooManyRequests) as e:
+            raise RateLimitError(
+                redact_payload(getattr(e, "message", e))
+            ) from e
+        except gapi_exc.GoogleAPIError as e:
+            raise ProviderTransportError(
+                redact_payload(getattr(e, "message", e))
+            ) from e
+        except Exception as e:
+            raise ProviderTransportError(
+                redact_payload(getattr(e, "message", e))
+            ) from e
 
         data = getattr(resp, "parsed", None)
         if data is None:

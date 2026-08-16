@@ -65,8 +65,7 @@ describe("LibraryPicker defensive guards", () => {
     // Runtime-only state shape; the test passes undefined even though
     // the type says LibraryEntry[].
     useLibraryStore.setState({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      entries: undefined as any,
+      entries: undefined as unknown as never[],
       isLoading: false,
       loaded: true,
     });
@@ -76,8 +75,7 @@ describe("LibraryPicker defensive guards", () => {
 
   it("does not throw when entries is a non-array object (regression: library crash)", () => {
     useLibraryStore.setState({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      entries: { wrong: "shape" } as any,
+      entries: { wrong: "shape" } as unknown as never[],
       isLoading: false,
       loaded: true,
     });

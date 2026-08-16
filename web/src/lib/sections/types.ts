@@ -74,12 +74,6 @@ export interface LayoutConfig {
   global_styles?: Record<string, string>;
 }
 
-export interface LegacyZone {
-  id: string;
-  label?: string | null;
-  styles?: Record<string, string>;
-  assignedSections?: string[];
-}
 
 export interface SocialLink {
   label: string;
@@ -167,12 +161,6 @@ export interface ResearchEntry {
 
 export type DateStyleKey = DateStyle["key"];
 
-export interface AssetItem {
-  id: string;
-  name: string;
-  data: string;
-  type: "image" | "other";
-}
 
 // ---------------------------------------------------------------------------
 // Domain helpers

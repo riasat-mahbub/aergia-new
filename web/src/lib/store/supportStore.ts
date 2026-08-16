@@ -1,9 +1,5 @@
 import { create } from "zustand";
-import {
-  fetchRendererSupport,
-  type SupportMap,
-  type SupportField,
-} from "../api/render";
+import { fetchRendererSupport, type SupportMap } from "../api/render";
 
 interface SupportState {
   support: SupportMap | null;
@@ -36,5 +32,3 @@ export const useSupportStore = create<SupportState>((set, get) => ({
   },
   reset: () => set({ support: null, loaded: false, error: null }),
 }));
-
-export type { SupportField };

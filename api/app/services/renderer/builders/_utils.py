@@ -1,9 +1,9 @@
 """Shared utilities for AST builders.
 
-Date formatters, HTML escape helpers, URL-scheme normalisation, and the
-rich-text field block converter.  The date helpers are pure (no AST
-knowledge) — they only transform strings — so they live alongside the
-builders rather than inside the renderer.
+Date formatters, URL-scheme normalisation, and the rich-text field block
+converter. The date helpers are pure (no AST knowledge — they only
+transform strings — so they live alongside the builders rather than
+inside the renderer.
 
 The :data:`DATE_STYLE_OPTIONS` list is the canonical preset table shared
 with the frontend; each preset encodes its own ``range_sep`` so backend
@@ -12,7 +12,6 @@ and frontend cannot drift.
 
 from __future__ import annotations
 
-import html
 import re
 
 from app.schema.models import DateStyle, FieldBlock, RichTextBlock, TextRun
@@ -44,21 +43,6 @@ def normalize_url_scheme(value: object) -> str:
         return s
     return f"https://{s}"
 
-
-def esc(text: object) -> str:
-    """Escape text for safe insertion into HTML (between tags)."""
-
-    if text is None:
-        return ""
-    return html.escape(str(text))
-
-
-def esc_attr(text: object) -> str:
-    """Escape text for safe insertion into a double-quoted HTML attribute."""
-
-    if text is None:
-        return ""
-    return html.escape(str(text), quote=True)
 
 
 SHORT_MONTH_NAMES = [
