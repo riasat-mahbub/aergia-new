@@ -217,10 +217,6 @@ describe("DateField", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("exposes a data-testid for integration tests", () => {
-    const { container } = render(<DateField value="" onChange={vi.fn()} label="Start Date" />);
-    expect(container.querySelector('[data-testid="datefield"]')).toBeTruthy();
-  });
 
   it("renders the popup in a portal so ancestor overflow cannot clip it", async () => {
     const user = userEvent.setup();

@@ -18,7 +18,6 @@ export interface CVDetail {
   extra_metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
-  template_content?: string;
 }
 
 export interface CVCreateData {
@@ -73,14 +72,6 @@ export async function exportPDF(id: string): Promise<Blob> {
   return data;
 }
 
-export interface PreviewResponse {
-  html: string;
-}
-
-export async function fetchPreview(id: string): Promise<PreviewResponse> {
-  const { data } = await client.get(`/cvs/${id}/preview`);
-  return data;
-}
 
 export function downloadPDF(blob: Blob, filename: string = "cv.pdf") {
   const url = URL.createObjectURL(blob);

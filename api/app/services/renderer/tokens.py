@@ -57,19 +57,3 @@ FONT_TOKEN_VALUES: dict[str, str] = {
     "mono": "ui-monospace, SFMono-Regular, Menlo, monospace",
     "display": "Inter, system-ui, sans-serif",
 }
-
-
-def resolve_width(token: str) -> str:
-    return WIDTH_TOKEN_VALUES.get(token, token)
-
-
-def resolve_padding(token: str) -> str:
-    return PADDING_TOKEN_VALUES.get(token, token)
-
-
-def resolve_font(token: str) -> str:
-    return FONT_TOKEN_VALUES.get(token, token)
-
-
-def resolve_spacing_pair(token: str) -> tuple[str, str]:
-    return SPACING_TOKEN_VALUES.get(token, SPACING_TOKEN_VALUES["comfortable"])

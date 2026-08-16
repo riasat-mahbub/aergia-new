@@ -5,17 +5,6 @@
  * truth; this file exists for typed access and a single edit point.
  */
 
-export const spacing = {
-  s1: 4,
-  s2: 8,
-  s3: 12,
-  s4: 16,
-  s5: 20,
-  s6: 24,
-  s8: 32,
-  s10: 40,
-  s12: 48,
-} as const;
 
 export const radius = {
   r1: 4,
@@ -24,34 +13,9 @@ export const radius = {
   pill: 999,
 } as const;
 
-export const typeScale = {
-  xs: 11,
-  sm: 12,
-  base: 13,
-  md: 14,
-  lg: 16,
-  xl: 20,
-  "2xl": 28,
-} as const;
 
-export const weight = {
-  regular: 400,
-  medium: 500,
-  semibold: 600,
-  bold: 700,
-} as const;
 
-export const fonts = {
-  prose: "var(--font-prose)",
-  ui: "var(--font-ui)",
-  mono: "var(--font-mono)",
-} as const;
 
-export const surfaces = {
-  paper: "var(--paper)",
-  paper1: "var(--paper-1)",
-  paper2: "var(--paper-2)",
-} as const;
 
 export const ink = {
   ink: "var(--ink)",
@@ -60,27 +24,11 @@ export const ink = {
   ink4: "var(--ink-4)",
 } as const;
 
-export const rule = {
-  rule: "var(--rule)",
-  ruleSoft: "var(--rule-soft)",
-  ruleStrong: "var(--rule-strong)",
-} as const;
 
-/** Flat string exports for inline styles. The `rule` object above stays for
- * any consumer that prefers the object form, but the flat strings avoid
- * accidental `[object Object]` coercion in template literals and bare
- * CSS-property values. */
+/** Flat string export for inline styles. */
 export const ruleDefault = "var(--rule)";
-export const ruleSoft = "var(--rule-soft)";
-export const ruleStrong = "var(--rule-strong)";
 
 export const danger = "var(--danger)";
-export const dangerSoft = "var(--danger-soft)";
-
-export const warn = "var(--warn)";
-export const warnSoft = "var(--warn-soft)";
-export const success = "var(--success)";
-export const successSoft = "var(--success-soft)";
 
 export const accent = {
   accent: "var(--accent)",

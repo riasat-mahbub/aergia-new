@@ -1,12 +1,10 @@
-"""Preview link transform — live preview has NO working links, PDF keeps them.
+"""Preview link transform — live preview has no working links.
 
-Regression guard for the preview/PDF link contract:
+Regression guard for the preview link contract:
 
 - ``strip_anchor_hrefs`` (render routes) neutralizes preview hrefs to "#"
   so the sandboxed iframe never navigates away while editing; the anchor
   markup, inline styling, and the .f-link arrow are preserved.
-- The PDF path uses the raw renderer output (real anchors -> clickable
-  Chromium link annotations); nothing in the pipeline strips those.
 """
 
 from __future__ import annotations
@@ -33,12 +31,3 @@ def test_preview_strip_handles_multiple_anchors_and_case():
 def test_preview_strip_leaves_non_anchor_href_attributes_alone():
     html = '<div class="f-link" data-href="https://aergia.dev">Repo</div>'
     assert strip_anchor_hrefs(html) == html
-
-
-def test_pdf_input_keeps_real_hrefs():
-    """The PDF path renders the same document without the preview strip: the
-    raw renderer output must keep working anchors, and the strip must be an
-    explicit opt-in per preview endpoint only."""
-    html = '<a href="https://aergia.dev">Repo</a>'
-    assert 'href="https://aergia.dev"' in html
-    assert "href=\"#\"" not in html

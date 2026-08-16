@@ -7,7 +7,7 @@ import PromoteToLibraryButton from "../components/library/PromoteToLibraryButton
 import ContentSectionList from "../components/builder/ContentSectionList";
 import { useCVStore } from "../lib/store/cvStore";
 import { useSupportStore } from "../lib/store/supportStore";
-import TemplateSwitcher from "../components/preview/TemplateSwitcher";
+import UserTemplateRenderer from "../components/preview/UserTemplateRenderer";
 import Inspector from "../components/customization/Inspector";
 import type { SectionInstance, SectionInstanceStyle, LayoutConfig } from "../lib/sections/types";
 import { createDefaultInstance, getFirstZoneId, migratePlacement } from "../lib/sections/types";
@@ -457,11 +457,9 @@ export default function BuilderPage() {
           >
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-500">Preview</h2>
             <div className="mx-auto max-w-[210mm] rounded bg-white shadow-sm">
-              <TemplateSwitcher
-                templateId={currentCV!.template_id}
+              <UserTemplateRenderer
                 instances={instances}
                 customizations={customizations}
-                templateContent={currentCV!.template_content || undefined}
                 manifest={templateManifest?.manifest ?? undefined}
               />
             </div>

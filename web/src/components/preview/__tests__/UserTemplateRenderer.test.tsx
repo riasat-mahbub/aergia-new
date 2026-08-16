@@ -38,7 +38,6 @@ describe("UserTemplateRenderer — preview render payload (Phase 7 wire)", () =>
     };
     render(
       <UserTemplateRenderer
-        templateId="generic-modern"
         instances={INSTANCES}
         manifest={MANIFEST}
         customizations={customizations}
@@ -68,7 +67,6 @@ describe("UserTemplateRenderer — preview render payload (Phase 7 wire)", () =>
     };
     render(
       <UserTemplateRenderer
-        templateId="generic-classic"
         instances={INSTANCES}
         customizations={customizations}
       />
@@ -86,7 +84,6 @@ describe("UserTemplateRenderer — preview render payload (Phase 7 wire)", () =>
   it("does not call the render endpoint when customizations.layout has no zones", async () => {
     render(
       <UserTemplateRenderer
-        templateId="generic-modern"
         instances={INSTANCES}
         manifest={MANIFEST}
         customizations={{}}

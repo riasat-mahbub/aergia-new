@@ -22,7 +22,6 @@
     "@lexical/react": "^0.49.0",
     "axios": "^1.7.0",
     "esbuild": "^0.28.1",
-    "jsdom": "^25.0.1",
     "lexical": "^0.49.0",
     "lucide-react": "^1.21.0",
     "motion": "^12.40.0",

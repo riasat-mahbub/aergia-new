@@ -222,14 +222,12 @@ def _render_field_block(
         or (chip_keys is not None and block.key in chip_keys)
     )
     href: str | None = None
-    show_external_marker = False
     runs = list(block.runs)
     if wants_external_anchor and block.runs:
         linked = [r for r in block.runs if r.style and r.style.link]
         if len(linked) == len(block.runs):
             href = linked[0].style.link
             if href:
-                show_external_marker = True
                 runs = [
                     r.model_copy(update={"style": r.style.model_copy(update={"link": None})})
                     for r in block.runs
