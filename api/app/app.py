@@ -13,6 +13,8 @@ from app.core.rate_limit import limiter
 from app.db.session import async_session
 from app.db.seed import seed_templates
 from app.routes.auth import router as auth_router
+from app.routes.applications import router as applications_router
+from app.routes.profile import router as profile_router
 from app.routes.cvs import router as cvs_router
 from app.routes.library import router as library_router
 from app.routes.assets import router as assets_router
@@ -62,6 +64,8 @@ if settings.environment != "production":
 
 app.include_router(auth_router, prefix="/api/v1/auth")
 app.include_router(cvs_router, prefix="/api/v1/cvs")
+app.include_router(applications_router, prefix="/api/v1/applications")
+app.include_router(profile_router, prefix="/api/v1/profile")
 app.include_router(library_router, prefix="/api/v1/library")
 app.include_router(assets_router, prefix="/api/v1/assets")
 app.include_router(templates_router, prefix="/api/v1/templates")

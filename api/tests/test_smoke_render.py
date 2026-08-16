@@ -14,6 +14,7 @@ import pytest
 
 from app.schema.models import Customizations, TemplateManifest
 from app.services.renderer import HTMLDocumentRenderer, build_document, resolve
+from app.services.pdf import pdf_page_count
 from app.services.renderer._pdf_runtime import html_to_pdf
 
 
@@ -91,4 +92,5 @@ async def test_full_pipeline_emits_a_real_pdf():
     html = HTMLDocumentRenderer().render(model)
     pdf_bytes = await html_to_pdf(html)
     assert pdf_bytes[:4] == b"%PDF"
+    assert pdf_page_count(pdf_bytes) == 1
     assert len(pdf_bytes) > 1000  # Sanity: a real PDF is bigger than a stub.

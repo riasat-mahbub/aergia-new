@@ -8,9 +8,11 @@ import {
   type LibraryEntryKind,
 } from "../lib/api/library";
 import { useLibraryStore, selectByKind, countByKind } from "../lib/store/libraryStore";
+import { useProfileStore } from "../lib/store/profileStore";
 import { useToastStore } from "../lib/store/uiStore";
 import LibraryKindGroup from "../components/library/LibraryKindGroup";
 import LibraryCreateModal from "../components/library/LibraryCreateModal";
+import LibraryProfileCard from "../components/library/LibraryProfileCard";
 
 export default function LibraryPage() {
   const [searchParams] = useSearchParams();
@@ -19,18 +21,28 @@ export default function LibraryPage() {
   const entries = useLibraryStore((s) => s.entries) ?? [];
   const isLoading = useLibraryStore((s) => s.isLoading);
   const loaded = useLibraryStore((s) => s.loaded);
+  const fetchProfile = useProfileStore((s) => s.fetch);
+  const profile = useProfileStore((s) => s.profile);
+  const profileLoading = useProfileStore((s) => s.isLoading);
+  const updateProfile = useProfileStore((s) => s.update);
   const fetchAll = useLibraryStore((s) => s.fetchAll);
   const remove = useLibraryStore((s) => s.remove);
   const addToast = useToastStore((s) => s.addToast);
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<LibraryEntry | null>(null);
   const buckets = selectByKind(entries);
   const counts = countByKind(entries);
   const isEmpty = entries.length === 0;
+  const closeEntryModal = () => {
+    setCreateOpen(false);
+    setEditTarget(null);
+  };
 
   useEffect(() => {
     fetchAll();
-  }, [fetchAll]);
+    fetchProfile();
+  }, [fetchAll, fetchProfile]);
 
   const handleDelete = async (entry: LibraryEntry) => {
     if (!confirm(`Delete "${LIBRARY_KIND_LABELS[entry.kind]}" entry from library?`)) return;
@@ -60,6 +72,7 @@ export default function LibraryPage() {
             Add entry
           </button>
         </header>
+        <LibraryProfileCard profile={profile} isLoading={profileLoading} onSave={updateProfile} />
 
         {!loaded && isLoading && <p className="text-sm text-lib-ink-2">Loading…</p>}
 
@@ -90,14 +103,15 @@ export default function LibraryPage() {
           <div className="space-y-8">
             {LIBRARY_KINDS.map((kind) => (
               <LibraryKindGroup
+                onEditEntry={(entry) => {
+                  setEditTarget(entry);
+                  setCreateOpen(false);
+                }}
                 key={kind}
                 kind={kind}
                 entries={buckets[kind]}
                 onAdd={() => setCreateOpen(true)}
                 onDeleteEntry={handleDelete}
-                // onEditEntry is wired up by the page-level LibraryCreateModal flow;
-                // inline edit-on-row would require per-row state + an inline editor,
-                // deferred to v1.1.
                 highlighted={initialKind === kind}
               />
             ))}
@@ -106,11 +120,13 @@ export default function LibraryPage() {
       </div>
 
       <LibraryCreateModal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        onSaved={(entry) =>
-          addToast(`Added to ${LIBRARY_KIND_LABELS[entry.kind]}`, "success")
-        }
+        open={createOpen || !!editTarget}
+        onClose={closeEntryModal}
+        entry={editTarget}
+        onSaved={(entry) => {
+          addToast(`${editTarget ? "Updated" : "Added to"} ${LIBRARY_KIND_LABELS[entry.kind]}`, "success");
+          setEditTarget(null);
+        }}
       />
     </div>
   );

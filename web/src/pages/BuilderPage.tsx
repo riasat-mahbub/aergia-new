@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useState, useRef } from "react";
-import { useLocation, useNavigate, useBlocker } from "react-router-dom";
+import { Link, useLocation, useNavigate, useBlocker } from "react-router-dom";
 import { motion } from "motion/react";
 
 import ExportPDFButton from "../components/builder/ExportPDFButton";
@@ -13,10 +13,19 @@ import type { SectionInstance, SectionInstanceStyle, LayoutConfig } from "../lib
 import { createDefaultInstance, getFirstZoneId, migratePlacement } from "../lib/sections/types";
 import { updateCV } from "../lib/api/cvs";
 import * as templatesApi from "../lib/api/templates";
+import { getApplication, recomputeApplicationRelevance, type Application } from "../lib/api/applications";
+
+export const APPLICATION_RELEVANCE_TOOLTIP =
+  "Weighted keyword coverage of this CV against the saved job description—not an ATS or hiring probability.";
+
+export function applicationMatchesCv(application: Application | null, cvId: string): boolean {
+  return Boolean(application && application.cv_id === cvId);
+}
 
 export default function BuilderPage() {
   const location = useLocation();
   const id = location.pathname.split("/dashboard/builder/")[1] || "";
+  const applicationId = new URLSearchParams(location.search).get("application");
   const navigate = useNavigate();
   const { currentCV, loadCV, isLoading, isSaving, lastSaved, setIsSaving, setLastSaved } = useCVStore();
 
@@ -28,6 +37,7 @@ export default function BuilderPage() {
   const [activeTab, setActiveTab] = useState<"content" | "customize">("content");
   // Inspector replaces CustomizePanel as of Phase C of
   // FEAT-01M0X607K4MWVGGCVZWWMSKJHE.
+  const [applicationContext, setApplicationContext] = useState<Application | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showSavedFeedback, setShowSavedFeedback] = useState(false);
   const hasChangesRef = useRef(false);
@@ -63,8 +73,28 @@ export default function BuilderPage() {
       }
     })();
 
+
     return () => { cancelled = true; };
   }, [id, loadCV]);
+  useEffect(() => {
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset invalid/stale application context on route changes
+    setApplicationContext(null);
+    if (!applicationId || !id) return () => { cancelled = true; };
+
+    (async () => {
+      try {
+        const application = await getApplication(applicationId);
+        if (!cancelled && applicationMatchesCv(application, id)) {
+          setApplicationContext(application);
+        }
+      } catch {
+        // Invalid or cross-resource application IDs leave the ordinary builder unchanged.
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [applicationId, id]);
 
   useEffect(() => {
     useSupportStore.getState().ensureLoaded();
@@ -76,6 +106,7 @@ export default function BuilderPage() {
   // available to async handlers without re-running them every render.
   const instancesRef = useRef(instances);
   const idRef = useRef(id);
+  const applicationRef = useRef<Application | null>(applicationContext);
   const customizationsRef = useRef(customizations);
   const instancesForUnloadRef = useRef({ sections: localInstances, customizations: localCustomizations });
   useEffect(() => { instancesRef.current = instances; }, [instances]);
@@ -84,6 +115,20 @@ export default function BuilderPage() {
   useEffect(() => {
     instancesForUnloadRef.current = { sections: localInstances, customizations: localCustomizations };
   }, [localInstances, localCustomizations]);
+  useEffect(() => { applicationRef.current = applicationContext; }, [applicationContext]);
+  const refreshApplicationRelevance = useCallback(async () => {
+    const linkedApplication = applicationRef.current;
+    if (!linkedApplication) return;
+    try {
+      const refreshed = await recomputeApplicationRelevance(linkedApplication.id);
+      if (refreshed.cv_id === idRef.current) {
+        applicationRef.current = refreshed;
+        setApplicationContext(refreshed);
+      }
+    } catch {
+      // Relevance refresh is best effort; the saved CV remains authoritative.
+    }
+  }, []);
   useEffect(() => {
     if (!currentCV || !isLoaded) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- template fetch reset; see Phase 9 lint debt
@@ -108,6 +153,7 @@ export default function BuilderPage() {
         const p = updateCV(cvId, saveData);
         pendingSaveRef.current = p;
         await p;
+        await refreshApplicationRelevance();
         setLastSaved(new Date());
         hasChangesRef.current = false;
         setHasUnsavedChanges(false);
@@ -116,7 +162,7 @@ export default function BuilderPage() {
         pendingSaveRef.current = null;
       }
     },
-    [setIsSaving, setLastSaved, setHasUnsavedChanges]
+    [setIsSaving, setLastSaved, setHasUnsavedChanges, refreshApplicationRelevance]
   );
 
   const handleSave = useCallback(async () => {
@@ -128,6 +174,7 @@ export default function BuilderPage() {
       const p = updateCV(cvId, data);
       pendingSaveRef.current = p;
       await p;
+      await refreshApplicationRelevance();
       setLastSaved(new Date());
       hasChangesRef.current = false;
       setHasUnsavedChanges(false);
@@ -137,7 +184,7 @@ export default function BuilderPage() {
       setIsSaving(false);
       pendingSaveRef.current = null;
     }
-  }, [setIsSaving, setLastSaved, setHasUnsavedChanges, setShowSavedFeedback]);
+  }, [setIsSaving, setLastSaved, setHasUnsavedChanges, setShowSavedFeedback, refreshApplicationRelevance]);
 
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
@@ -370,6 +417,16 @@ export default function BuilderPage() {
               &larr; Back
             </button>
             <h1 className="text-lg font-semibold text-gray-900">{currentCV!.title}</h1>
+            {applicationContext && (
+              <Link
+                to={`/dashboard/applications/${applicationContext.id}`}
+                title={APPLICATION_RELEVANCE_TOOLTIP}
+                aria-label={APPLICATION_RELEVANCE_TOOLTIP}
+                className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+              >
+                Relevance {"score" in applicationContext.relevance && typeof applicationContext.relevance.score === "number" ? `${applicationContext.relevance.score}%` : "—"}
+              </Link>
+            )}
           </div>
           <div className="flex items-center gap-3">
             {hasUnsavedChanges && (

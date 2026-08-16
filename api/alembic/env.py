@@ -12,6 +12,7 @@ from app.db.session import Base
 import app.models.user  # noqa: F401
 import app.models.cv  # noqa: F401
 import app.models.library  # noqa: F401
+import app.models.application  # noqa: F401
 import app.models.template  # noqa: F401
 
 SQLALCHEMY_URL_KEY = "sqlalchemy.url"

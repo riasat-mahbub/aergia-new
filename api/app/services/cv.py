@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from app.models.application import Application
 from app.models.cv import CV
 from app.models.template import Template
 from app.schema.models import Customizations
@@ -15,6 +16,10 @@ def coerce_customizations(raw: dict | None) -> Customizations:
     """
     raw = raw or {}
     return Customizations.model_validate(raw)
+
+
+class CVLinkedToApplicationError(ValueError):
+    """Raised when a visible application still references this CV."""
 
 
 class CVService:
@@ -98,6 +103,13 @@ class CVService:
         cv = await self.get_cv(cv_id, user_id)
         if not cv:
             return False
+        linked = await self.db.execute(
+            select(Application.id)
+            .where(Application.user_id == user_id, Application.cv_id == cv_id)
+            .limit(1)
+        )
+        if linked.scalar_one_or_none() is not None:
+            raise CVLinkedToApplicationError("CV is linked to an application")
         cv.is_active = False
         cv.updated_at = datetime.now(timezone.utc)
         await self.db.flush()

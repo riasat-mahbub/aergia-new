@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.schemas.cv import CVCreate, CVUpdate, CVResponse, CVListItem
 from app.schemas.library import AddEntryToLibraryRequest, AddEntryToLibraryResponse, PromoteToLibraryResponse
-from app.services.cv import CVService
+from app.services.cv import CVLinkedToApplicationError, CVService
 from app.services.cv import coerce_customizations
 from app.services.pdf import PDFService
 from app.services.renderer import HTMLDocumentRenderer, build_document, resolve
@@ -72,7 +72,13 @@ async def delete_cv(
     db: AsyncSession = Depends(get_db),
 ):
     service = CVService(db)
-    deleted = await service.delete_cv(cv_id, current_user.id)
+    try:
+        deleted = await service.delete_cv(cv_id, current_user.id)
+    except CVLinkedToApplicationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="CV is linked to an application",
+        ) from exc
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
     return None

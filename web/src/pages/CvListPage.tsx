@@ -70,6 +70,7 @@ export default function CvListPage() {
                   <span>{libraryCounts.project} projects</span>
                   <span>{libraryCounts.certification} certifications</span>
                   <span>{libraryCounts.language} languages</span>
+                  <span>{libraryCounts.research} research</span>
                 </>
               )}
             </div>
