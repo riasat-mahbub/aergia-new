@@ -77,6 +77,13 @@ describe("selectByKind", () => {
     expect(buckets.education).toHaveLength(0);
   });
 
+  it("buckets Research entries as a supported Library kind", () => {
+    const buckets = selectByKind([
+      { id: "r1", kind: "research", payload: [], created_at: "", updated_at: "" },
+    ]);
+    expect(buckets.research).toHaveLength(1);
+  });
+
   it("silently drops entries with unknown kinds (regression: dashboard crash)", () => {
     // At runtime any string can arrive from the API (legacy data,
     // future kinds, upstream drift). The selector must not throw on
@@ -92,6 +99,7 @@ describe("selectByKind", () => {
     const buckets = selectByKind(entries);
     expect(buckets.experience).toHaveLength(1);
     // Unknown kinds are dropped, not surfaced under any known bucket.
+    expect(buckets.research).toHaveLength(1);
     expect(buckets.skill).toHaveLength(0);
     expect(buckets.education).toHaveLength(0);
     expect(Object.keys(buckets).sort()).toEqual([
@@ -100,6 +108,7 @@ describe("selectByKind", () => {
       "experience",
       "language",
       "project",
+      "research",
       "skill",
     ]);
   });

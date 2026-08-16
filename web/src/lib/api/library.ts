@@ -20,7 +20,8 @@ export type LibraryEntryKind =
   | "skill"
   | "project"
   | "certification"
-  | "language";
+  | "language"
+  | "research";
 
 export const LIBRARY_KIND_TO_SECTION_TYPE: Record<LibraryEntryKind, SectionType> = {
   experience: "experience",
@@ -29,6 +30,7 @@ export const LIBRARY_KIND_TO_SECTION_TYPE: Record<LibraryEntryKind, SectionType>
   project: "projects",
   certification: "certifications",
   language: "languages",
+  research: "research",
 };
 
 export const SECTION_TYPE_TO_LIBRARY_KIND: Partial<Record<SectionType, LibraryEntryKind>> = {
@@ -38,6 +40,7 @@ export const SECTION_TYPE_TO_LIBRARY_KIND: Partial<Record<SectionType, LibraryEn
   projects: "project",
   certifications: "certification",
   languages: "language",
+  research: "research",
 };
 
 export function sectionTypeForLibraryKind(kind: LibraryEntryKind): SectionType {
@@ -59,6 +62,7 @@ export const LIBRARY_KIND_LABELS: Record<LibraryEntryKind, string> = {
   project: "Projects",
   certification: "Certifications",
   language: "Languages",
+  research: "Research",
 };
 
 export const LIBRARY_KINDS: LibraryEntryKind[] = [
@@ -68,6 +72,7 @@ export const LIBRARY_KINDS: LibraryEntryKind[] = [
   "project",
   "certification",
   "language",
+  "research",
 ];
 
 export interface LibraryEntry {
