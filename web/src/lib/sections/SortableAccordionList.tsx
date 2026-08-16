@@ -22,6 +22,13 @@ interface SortableAccordionListProps {
   onRemove: (index: number) => void;
   onMove: (from: number, to: number) => void;
   getTitle: (entry: any) => string;
+  /**
+   * When provided, every entry gets a node rendered in the panel header
+   * to the left of Remove. The callback receives the entry id; the parent
+   * supplies the action UI (typically a button bound to a modal). Pass
+   * undefined to omit (used by editors whose kind is not library-eligible).
+   */
+  onAddToLibrary?: (entryId: string) => ReactNode;
   children: (entry: any, index: number) => ReactNode;
 }
 
@@ -30,12 +37,14 @@ function SortableItem({
   index,
   onRemove,
   getTitle,
+  actions,
   children,
 }: {
   entry: { id: string };
   index: number;
   onRemove: (i: number) => void;
   getTitle: (entry: any) => string;
+  actions?: ReactNode;
   children: ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entry.id });
@@ -62,6 +71,7 @@ function SortableItem({
             <span className="truncate">{getTitle(entry) || "Untitled"}</span>
           </span>
         }
+        actions={actions}
         onRemove={() => onRemove(index)}
       >
         {children}
@@ -75,6 +85,7 @@ export default function SortableAccordionList({
   onRemove,
   onMove,
   getTitle,
+  onAddToLibrary,
   children,
 }: SortableAccordionListProps) {
   // Defensive: a parent editor may briefly pass `undefined` during a
@@ -108,7 +119,13 @@ export default function SortableAccordionList({
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
               >
-                <SortableItem entry={entry} index={i} onRemove={onRemove} getTitle={getTitle}>
+                <SortableItem
+                  entry={entry}
+                  index={i}
+                  onRemove={onRemove}
+                  getTitle={getTitle}
+                  actions={onAddToLibrary ? onAddToLibrary(entry.id) : undefined}
+                >
                   {children(entry, i)}
                 </SortableItem>
               </motion.div>

@@ -4,13 +4,15 @@ import SortableAccordionList from "../../../lib/sections/SortableAccordionList";
 import DateField from "../../../lib/sections/DateField";
 import RichTextEditor from "../rich-text/RichTextEditor";
 import EntryAddRow from "../_shared/EntryAddRow";
+import AddToLibraryButton from "../../library/AddToLibraryButton";
 
 interface Props {
   data: ExperienceEntry[] | undefined;
   onChange: (data: ExperienceEntry[]) => void;
+  context?: { cvId: string; sectionId: string };
 }
 
-export default function ExperienceEditor({ data = [], onChange }: Props) {
+export default function ExperienceEditor({ data = [], onChange, context }: Props) {
   const { entries, add, remove, update, move } = useFieldArray(data, onChange, () => ({
     id: `exp_${Date.now()}`,
     company: "",
@@ -29,6 +31,21 @@ export default function ExperienceEditor({ data = [], onChange }: Props) {
         onRemove={remove}
         onMove={move}
         getTitle={(e: any) => e.company || e.position || "New Experience"}
+        onAddToLibrary={
+          context
+            ? (entryId) => {
+                const entry = entries.find((e: any) => e.id === entryId);
+                return (
+                  <AddToLibraryButton
+                    cvId={context.cvId}
+                    sectionId={context.sectionId}
+                    entryId={entryId}
+                    entryLabel={entry?.company || entry?.position}
+                  />
+                );
+              }
+            : undefined
+        }
       >
         {(entry: any, i: number) => (
           <div>

@@ -99,3 +99,20 @@ export async function promoteCvToLibrary(cvId: string): Promise<PromoteToLibrary
   const { data } = await client.post(`/cvs/${cvId}/promote-to-library`);
   return data;
 }
+
+export interface AddEntryToLibraryResponse {
+  library_id: string;
+  entry_id: string | null;
+  created: boolean;
+}
+
+export async function addEntryToLibrary(
+  cvId: string,
+  sectionId: string,
+  entryId: string
+): Promise<AddEntryToLibraryResponse> {
+  const { data } = await client.post(
+    `/cvs/${cvId}/sections/${sectionId}/entries/${entryId}/add-to-library`
+  );
+  return data;
+}

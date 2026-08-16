@@ -10,8 +10,11 @@ import CertificationsEditor from "./certifications/CertificationsEditor";
 import ExtrasEditor from "./extras/ExtrasEditor";
 import ResearchEditor from "./research/ResearchEditor";
 
-type EditorProps = { data: any; onChange: (data: any) => void };
-
+type EditorProps = {
+  data: any;
+  onChange: (data: any) => void;
+  context?: { cvId: string; sectionId: string };
+};
 interface SectionEditorComponent {
   Editor: (props: EditorProps) => React.JSX.Element;
 }
@@ -32,10 +35,15 @@ export function getSectionComponent(type: string): SectionEditorComponent | null
   return sectionMap[type] || null;
 }
 
-export function renderSectionEditor(type: string, data: any, onChange: (data: any) => void) {
+export function renderSectionEditor(
+  type: string,
+  data: any,
+  onChange: (data: any) => void,
+  context?: { cvId: string; sectionId: string }
+) {
   const comp = sectionMap[type];
   if (!comp) return null;
-  return <comp.Editor data={data} onChange={onChange} />;
+  return <comp.Editor data={data} onChange={onChange} context={context} />;
 }
 
 export { sectionMap };

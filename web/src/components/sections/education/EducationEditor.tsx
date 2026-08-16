@@ -3,13 +3,15 @@ import { useFieldArray } from "../../../lib/sections/useFieldArray";
 import SortableAccordionList from "../../../lib/sections/SortableAccordionList";
 import DateField from "../../../lib/sections/DateField";
 import EntryAddRow from "../_shared/EntryAddRow";
+import AddToLibraryButton from "../../library/AddToLibraryButton";
 
 interface Props {
   data: EducationEntry[] | undefined;
   onChange: (data: EducationEntry[]) => void;
+  context?: { cvId: string; sectionId: string };
 }
 
-export default function EducationEditor({ data = [], onChange }: Props) {
+export default function EducationEditor({ data = [], onChange, context }: Props) {
   const { entries, add, remove, update, move } = useFieldArray(data, onChange, () => ({
     id: `edu_${Date.now()}`,
     institution: "",
@@ -28,6 +30,21 @@ export default function EducationEditor({ data = [], onChange }: Props) {
         onRemove={remove}
         onMove={move}
         getTitle={(e: any) => e.degree || e.institution || "New Education"}
+        onAddToLibrary={
+          context
+            ? (entryId) => {
+                const entry = entries.find((e: any) => e.id === entryId);
+                return (
+                  <AddToLibraryButton
+                    cvId={context.cvId}
+                    sectionId={context.sectionId}
+                    entryId={entryId}
+                    entryLabel={entry?.degree || entry?.institution}
+                  />
+                );
+              }
+            : undefined
+        }
       >
         {(entry: any, i: number) => (
           <div>

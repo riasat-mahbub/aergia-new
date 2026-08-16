@@ -3,11 +3,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.schemas.cv import CVCreate, CVUpdate, CVResponse, CVListItem
-from app.schemas.library import PromoteToLibraryResponse
-from fastapi.responses import StreamingResponse
-
+from app.schemas.library import AddEntryToLibraryResponse, PromoteToLibraryResponse
 from app.services.cv import CVService
-from app.services.pdf import PDFService
+from app.services.cv import coerce_customizations
 from app.services.renderer import HTMLDocumentRenderer, build_document, resolve
 from app.routes.render import strip_anchor_hrefs
 from app.core.deps import get_current_user
@@ -175,4 +173,43 @@ async def promote_cv_to_library(
         library_id=result.library_id,
         promoted=result.promoted,
         skipped=result.skipped,
+    )
+
+
+@router.post(
+    "/{cv_id}/sections/{section_id}/entries/{entry_id}/add-to-library",
+    response_model=AddEntryToLibraryResponse,
+)
+async def add_section_entry_to_library(
+    cv_id: str,
+    section_id: str,
+    entry_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Push a single CV section entry into the user's Library.
+
+    Idempotent: re-clicking for the same entry returns the existing
+    Library entry's id with ``created=False``. Returns 404 if the CV,
+    section, or entry does not exist (or belongs to another user),
+    or 422 if the section's kind is not library-eligible.
+    """
+    from app.services.library import LibraryService
+
+    lib_service = LibraryService(db)
+    try:
+        result = await lib_service.add_section_entry_to_library(
+            cv_id, section_id, entry_id, current_user.id
+        )
+    except ValueError as exc:
+        msg = str(exc)
+        if "not library-eligible" in msg or "has no entry list" in msg:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=msg
+            )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg)
+    return AddEntryToLibraryResponse(
+        library_id=result.library_id,
+        entry_id=result.entry_id,
+        created=result.created,
     )

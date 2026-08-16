@@ -2,8 +2,9 @@
 
 Owns the per-user Library + LibraryEntry lifecycle: get-or-create the
 singleton Library row, CRUD on entries, clone an entry into a
-``SectionInstance`` for the CV builder, and promote a CV's eligible
-sections into new Library entries.
+``SectionInstance`` for the CV builder, promote a CV's eligible
+sections into new Library entries, and push a single CV section
+entry back into the Library.
 
 Concurrency: ``_get_or_create_library`` is race-safe via an
 ``IntegrityError`` catch — two concurrent first writes cannot both
@@ -42,6 +43,19 @@ class PromoteResult:
     library_id: str
     promoted: dict[str, int]
     skipped: list[str]
+
+
+@dataclass
+class AddEntryResult:
+    """Internal return type for ``add_section_entry_to_library``.
+
+    ``entry_id`` is the existing entry's id when ``created=False``,
+    or the new entry's id when ``created=True``.
+    """
+
+    library_id: str
+    entry_id: str | None
+    created: bool
 
 
 def _content_hash(payload: list[dict]) -> str:
@@ -193,3 +207,78 @@ class LibraryService:
             promoted[section_type] = promoted.get(section_type, 0) + 1
         await self.db.flush()
         return PromoteResult(library_id=library.id, promoted=promoted, skipped=skipped)
+
+    async def add_section_entry_to_library(
+        self, cv_id: str, section_id: str, entry_id: str, user_id: str
+    ) -> AddEntryResult:
+        """Push a single section entry from a CV into the user's Library.
+
+        Idempotent via content hash. If an entry with the same kind +
+        payload already exists, returns ``created=False`` with the
+        existing entry's id; otherwise creates a new one.
+        """
+        cv_result = await self.db.execute(
+            select(CV).where(CV.id == cv_id, CV.user_id == user_id)
+        )
+        cv = cv_result.scalar_one_or_none()
+        if cv is None:
+            raise ValueError(f"CV {cv_id} not found for user {user_id}")
+
+        sections = cv.sections or []
+        if isinstance(sections, dict):
+            sections = sections.get("sections", [])
+
+        target = None
+        for sec in sections or []:
+            if isinstance(sec, dict) and sec.get("id") == section_id:
+                target = sec
+                break
+        if target is None:
+            raise ValueError(f"Section {section_id} not found in CV {cv_id}")
+
+        section_type = target.get("type")
+        if section_type not in LIBRARY_ENTRY_KINDS:
+            raise ValueError(
+                f"Section kind '{section_type}' is not library-eligible"
+            )
+
+        entries = target.get("data")
+        if not isinstance(entries, list):
+            raise ValueError(f"Section {section_id} has no entry list")
+
+        target_entry = None
+        for e in entries:
+            if isinstance(e, dict) and e.get("id") == entry_id:
+                target_entry = e
+                break
+        if target_entry is None:
+            raise ValueError(f"Entry {entry_id} not found in section {section_id}")
+
+        # Library entries wrap a single CV entry as a one-element list
+        # so the picker shape (SectionInstance.data is a list) round-
+        # trips cleanly.
+        payload = [target_entry]
+        h = _content_hash(payload)
+
+        library = await self._get_or_create_library(user_id)
+
+        existing = await self.db.execute(
+            select(LibraryEntry).where(
+                LibraryEntry.library_id == library.id,
+                LibraryEntry.kind == section_type,
+            )
+        )
+        for row in existing.scalars().all():
+            if _content_hash(row.payload or []) == h:
+                return AddEntryResult(
+                    library_id=library.id, entry_id=row.id, created=False
+                )
+
+        new_entry = LibraryEntry(
+            library_id=library.id, kind=section_type, payload=payload
+        )
+        self.db.add(new_entry)
+        await self.db.flush()
+        return AddEntryResult(
+            library_id=library.id, entry_id=new_entry.id, created=True
+        )

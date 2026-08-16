@@ -4,6 +4,7 @@ import { renderSectionEditor } from "./SectionRegistry";
 interface Props {
   instance: SectionInstance;
   onChange: (id: string, data: any) => void;
+  cvId: string;
   /**
    * Kept for backward compatibility with callers that pass it. The
    * Library picker is now mounted per-editor (inside `EntryAddRow`),
@@ -12,7 +13,7 @@ interface Props {
   onAddFromLibrary?: (picked: SectionInstance) => void;
 }
 
-export default function SectionEditorPanel({ instance, onChange }: Props) {
+export default function SectionEditorPanel({ instance, onChange, cvId }: Props) {
   const handleSectionChange = (newData: any) => {
     onChange(instance.id, newData);
   };
@@ -21,7 +22,12 @@ export default function SectionEditorPanel({ instance, onChange }: Props) {
     <div
       className={`rounded-lg border ${instance.enabled ? "border-gray-200" : "border-dashed border-gray-300"} bg-white p-4`}
     >
-      {instance.enabled && renderSectionEditor(instance.type, instance.data, handleSectionChange)}
+      {instance.enabled && renderSectionEditor(
+        instance.type,
+        instance.data,
+        handleSectionChange,
+        { cvId, sectionId: instance.id }
+      )}
     </div>
   );
 }

@@ -4,13 +4,15 @@ import SortableAccordionList from "../../../lib/sections/SortableAccordionList";
 import DateField from "../../../lib/sections/DateField";
 import RichTextEditor from "../rich-text/RichTextEditor";
 import EntryAddRow from "../_shared/EntryAddRow";
+import AddToLibraryButton from "../../library/AddToLibraryButton";
 
 interface Props {
   data: ProjectEntry[] | undefined;
   onChange: (data: ProjectEntry[]) => void;
+  context?: { cvId: string; sectionId: string };
 }
 
-export default function ProjectsEditor({ data = [], onChange }: Props) {
+export default function ProjectsEditor({ data = [], onChange, context }: Props) {
   const { entries, add, remove, update, move } = useFieldArray(data, onChange, () => ({
     id: `proj_${Date.now()}`,
     name: "",
@@ -39,6 +41,21 @@ export default function ProjectsEditor({ data = [], onChange }: Props) {
         onRemove={remove}
         onMove={move}
         getTitle={(e: any) => e.name || "New Project"}
+        onAddToLibrary={
+          context
+            ? (entryId) => {
+                const entry = entries.find((e: any) => e.id === entryId);
+                return (
+                  <AddToLibraryButton
+                    cvId={context.cvId}
+                    sectionId={context.sectionId}
+                    entryId={entryId}
+                    entryLabel={entry?.name}
+                  />
+                );
+              }
+            : undefined
+        }
       >
         {(entry: any, i: number) => (
           <div>
