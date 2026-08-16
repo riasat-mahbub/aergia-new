@@ -11,11 +11,11 @@ Concurrency: ``_get_or_create_library`` is race-safe via an
 insert because ``user_id`` is ``UNIQUE``. The loser re-SELECTs and
 returns the winner.
 
-Vocabulary: Library kinds and CV section types share the same
-singular names (``experience``, ``education``, ``skill``, ``project``,
-``certification``, ``language``). No translation is needed between
-the two. ``profile`` and ``summary`` stay authored inside the CV
-because their ``data`` shape is a dict, not a list of entries.
+Vocabulary: CV section types use plural names for four entry-based
+sections while Library kinds use singular names (``skills`` → ``skill``,
+``projects`` → ``project``, ``certifications`` → ``certification``,
+``languages`` → ``language``). ``profile`` and ``summary`` stay authored
+inside the CV because their ``data`` shape is a dict, not a list of entries.
 """
 
 from __future__ import annotations
@@ -33,7 +33,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.cv import CV
 from app.models.library import Library, LibraryEntry
 from app.schema.models import SectionInstance
-from app.schemas.library import LIBRARY_ENTRY_KINDS, LibraryEntryCreate, LibraryEntryUpdate
+from app.schemas.library import (
+    LIBRARY_ENTRY_KINDS,
+    LibraryEntryCreate,
+    LibraryEntryUpdate,
+    library_kind_for_section_type,
+    section_type_for_library_kind,
+)
 
 
 @dataclass
@@ -66,12 +72,21 @@ def _content_hash(payload: list[dict]) -> str:
 
 def _derive_title(payload: list[dict], kind: str) -> str:
     """Best-effort title from the first payload entry; falls back to the kind."""
-    if payload:
+    title_fields = ("title", "text")
+    kind_fields = {
+        "experience": ("position", "company"),
+        "education": ("degree", "institution", "school"),
+        "skill": ("category", "name"),
+        "project": ("name",),
+        "language": ("language", "name"),
+        "certification": ("name",),
+    }
+    if payload and isinstance(payload[0], dict):
         first = payload[0]
-        if isinstance(first, dict):
-            t = first.get("title") or first.get("text") or first.get("name")
-            if isinstance(t, str) and t.strip():
-                return t.strip()[:120]
+        for field in (*title_fields, *kind_fields.get(kind, ())):
+            value = first.get(field)
+            if isinstance(value, str) and value.strip():
+                return value.strip()[:120]
     return kind.capitalize()
 
 
@@ -149,9 +164,10 @@ class LibraryService:
         entry = await self.get_entry(entry_id, user_id)
         if entry is None:
             raise ValueError(f"Library entry {entry_id} not found for user {user_id}")
+        section_type = section_type_for_library_kind(entry.kind)
         return SectionInstance(
             id=str(uuid.uuid4()),
-            type=entry.kind,
+            type=section_type or entry.kind,
             title=_derive_title(entry.payload, entry.kind),
             enabled=True,
             data=copy.deepcopy(entry.payload),
@@ -190,7 +206,12 @@ class LibraryService:
         skipped: list[str] = []
         for section in sections or []:
             section_type = section.get("type") if isinstance(section, dict) else None
-            if section_type not in LIBRARY_ENTRY_KINDS:
+            library_kind = (
+                library_kind_for_section_type(section_type)
+                if isinstance(section_type, str)
+                else None
+            )
+            if library_kind is None:
                 if isinstance(section, dict) and section.get("id"):
                     skipped.append(section["id"])
                 continue
@@ -199,17 +220,23 @@ class LibraryService:
                 skipped.append(section.get("id", ""))
                 continue
             h = _content_hash(payload)
-            if (section_type, h) in existing_hashes:
+            if (library_kind, h) in existing_hashes:
                 continue
-            entry = LibraryEntry(library_id=library.id, kind=section_type, payload=payload)
+            entry = LibraryEntry(library_id=library.id, kind=library_kind, payload=payload)
             self.db.add(entry)
-            existing_hashes.add((section_type, h))
-            promoted[section_type] = promoted.get(section_type, 0) + 1
+            existing_hashes.add((library_kind, h))
+            promoted[library_kind] = promoted.get(library_kind, 0) + 1
         await self.db.flush()
         return PromoteResult(library_id=library.id, promoted=promoted, skipped=skipped)
 
     async def add_section_entry_to_library(
-        self, cv_id: str, section_id: str, entry_id: str, user_id: str
+        self,
+        cv_id: str,
+        section_id: str,
+        entry_id: str,
+        user_id: str,
+        entry_snapshot: dict | None = None,
+        snapshot_kind: str | None = None,
     ) -> AddEntryResult:
         """Push a single section entry from a CV into the user's Library.
 
@@ -233,26 +260,44 @@ class LibraryService:
             if isinstance(sec, dict) and sec.get("id") == section_id:
                 target = sec
                 break
-        if target is None:
+        if target is None and entry_snapshot is None:
             raise ValueError(f"Section {section_id} not found in CV {cv_id}")
 
-        section_type = target.get("type")
-        if section_type not in LIBRARY_ENTRY_KINDS:
+        section_type = target.get("type") if target else None
+        library_kind = (
+            library_kind_for_section_type(section_type)
+            if isinstance(section_type, str)
+            else None
+        )
+        if snapshot_kind is not None:
+            if snapshot_kind not in LIBRARY_ENTRY_KINDS:
+                raise ValueError(f"Section kind '{snapshot_kind}' is not library-eligible")
+            if target is not None and library_kind != snapshot_kind:
+                raise ValueError(
+                    f"Snapshot kind '{snapshot_kind}' does not match section kind '{section_type}'"
+                )
+            library_kind = snapshot_kind
+        if library_kind is None:
             raise ValueError(
                 f"Section kind '{section_type}' is not library-eligible"
             )
 
-        entries = target.get("data")
-        if not isinstance(entries, list):
-            raise ValueError(f"Section {section_id} has no entry list")
+        if entry_snapshot is not None:
+            if entry_snapshot.get("id") != entry_id:
+                raise ValueError("Entry snapshot id does not match the route entry id")
+            target_entry = copy.deepcopy(entry_snapshot)
+        else:
+            entries = target.get("data")
+            if not isinstance(entries, list):
+                raise ValueError(f"Section {section_id} has no entry list")
 
-        target_entry = None
-        for e in entries:
-            if isinstance(e, dict) and e.get("id") == entry_id:
-                target_entry = e
-                break
-        if target_entry is None:
-            raise ValueError(f"Entry {entry_id} not found in section {section_id}")
+            target_entry = None
+            for e in entries:
+                if isinstance(e, dict) and e.get("id") == entry_id:
+                    target_entry = e
+                    break
+            if target_entry is None:
+                raise ValueError(f"Entry {entry_id} not found in section {section_id}")
 
         # Library entries wrap a single CV entry as a one-element list
         # so the picker shape (SectionInstance.data is a list) round-
@@ -265,7 +310,7 @@ class LibraryService:
         existing = await self.db.execute(
             select(LibraryEntry).where(
                 LibraryEntry.library_id == library.id,
-                LibraryEntry.kind == section_type,
+                LibraryEntry.kind == library_kind,
             )
         )
         for row in existing.scalars().all():
@@ -275,7 +320,7 @@ class LibraryService:
                 )
 
         new_entry = LibraryEntry(
-            library_id=library.id, kind=section_type, payload=payload
+            library_id=library.id, kind=library_kind, payload=payload
         )
         self.db.add(new_entry)
         await self.db.flush()

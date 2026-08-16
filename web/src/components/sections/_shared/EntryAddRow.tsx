@@ -1,18 +1,7 @@
 import { useState } from "react";
 import { Plus, Library as LibraryIcon } from "lucide-react";
-import type { LibraryEntryKind } from "../../../lib/api/library";
+import { isLibraryKind, type LibraryEntryKind } from "../../../lib/api/library";
 import LibraryPicker from "../../library/LibraryPicker";
-
-// Section types the Library can supply. Same vocabulary the
-// service-side `LIBRARY_ENTRY_KINDS` enforces.
-const LIBRARY_ELIGIBLE_KINDS: Record<string, true> = {
-  experience: true,
-  education: true,
-  skill: true,
-  project: true,
-  certification: true,
-  language: true,
-};
 
 interface EntryAddRowProps {
   /** Section kind, e.g. "experience". Drives the picker filter. */
@@ -29,6 +18,7 @@ interface EntryAddRowProps {
   onPickFromLibrary?: (picked: Record<string, unknown> | null) => void;
 }
 
+
 /**
  * Bottom row of every entry-based section editor. Renders two parallel
  * buttons: one to add a blank item, one to pull an entry from the
@@ -41,7 +31,7 @@ export default function EntryAddRow({
   onAddNew,
   onPickFromLibrary,
 }: EntryAddRowProps) {
-  const eligible = LIBRARY_ELIGIBLE_KINDS[kind] === true;
+  const eligible = isLibraryKind(kind);
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const handlePick = (picked: Record<string, unknown> | null) => {

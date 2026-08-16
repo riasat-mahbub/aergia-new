@@ -28,13 +28,16 @@ export default function LanguagesEditor({ data = [], onChange, context }: Props)
         getTitle={(e: any) => e.language || "New Language"}
         onAddToLibrary={
           context
-            ? (entryId) => {
+              ? (entryId) => {
                 const entry = entries.find((e: any) => e.id === entryId);
+                if (!entry) return null;
                 return (
                   <AddToLibraryButton
                     cvId={context.cvId}
                     sectionId={context.sectionId}
                     entryId={entryId}
+                    kind="language"
+                    entryData={entry as unknown as Record<string, unknown>}
                     entryLabel={entry?.language}
                   />
                 );

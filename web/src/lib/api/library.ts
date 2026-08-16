@@ -12,6 +12,8 @@ import client from "./client";
 // these declarations can be replaced with imports from the generated
 // file.
 
+import type { SectionType } from "../sections/types";
+
 export type LibraryEntryKind =
   | "experience"
   | "education"
@@ -19,6 +21,36 @@ export type LibraryEntryKind =
   | "project"
   | "certification"
   | "language";
+
+export const LIBRARY_KIND_TO_SECTION_TYPE: Record<LibraryEntryKind, SectionType> = {
+  experience: "experience",
+  education: "education",
+  skill: "skills",
+  project: "projects",
+  certification: "certifications",
+  language: "languages",
+};
+
+export const SECTION_TYPE_TO_LIBRARY_KIND: Partial<Record<SectionType, LibraryEntryKind>> = {
+  experience: "experience",
+  education: "education",
+  skills: "skill",
+  projects: "project",
+  certifications: "certification",
+  languages: "language",
+};
+
+export function sectionTypeForLibraryKind(kind: LibraryEntryKind): SectionType {
+  return LIBRARY_KIND_TO_SECTION_TYPE[kind];
+}
+
+export function libraryKindForSectionType(sectionType: string): LibraryEntryKind | undefined {
+  return SECTION_TYPE_TO_LIBRARY_KIND[sectionType as SectionType];
+}
+
+export function isLibraryKind(kind: string): kind is LibraryEntryKind {
+  return (LIBRARY_KINDS as readonly string[]).includes(kind);
+}
 
 export const LIBRARY_KIND_LABELS: Record<LibraryEntryKind, string> = {
   experience: "Experiences",
@@ -49,7 +81,7 @@ export interface LibraryEntry {
 export interface LibraryCloneResponse {
   section_instance: {
     id: string;
-    type: string;
+    type: SectionType;
     title: string;
     enabled: boolean;
     data: unknown;
@@ -106,13 +138,20 @@ export interface AddEntryToLibraryResponse {
   created: boolean;
 }
 
+export interface AddEntryToLibraryData {
+  kind: LibraryEntryKind;
+  entry: Record<string, unknown>;
+}
+
 export async function addEntryToLibrary(
   cvId: string,
   sectionId: string,
-  entryId: string
+  entryId: string,
+  payload: AddEntryToLibraryData,
 ): Promise<AddEntryToLibraryResponse> {
   const { data } = await client.post(
-    `/cvs/${cvId}/sections/${sectionId}/entries/${entryId}/add-to-library`
+    `/cvs/${cvId}/sections/${sectionId}/entries/${entryId}/add-to-library`,
+    payload,
   );
   return data;
 }

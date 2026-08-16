@@ -5,9 +5,11 @@ import SectionEditorPanel from "../sections/SectionEditorPanel";
 import {
   LIBRARY_KINDS,
   LIBRARY_KIND_LABELS,
+  sectionTypeForLibraryKind,
   type LibraryEntry,
   type LibraryEntryKind,
 } from "../../lib/api/library";
+import { createDefaultSectionData } from "../../lib/sections/types";
 import { useLibraryStore } from "../../lib/store/libraryStore";
 
 interface LibraryCreateModalProps {
@@ -25,12 +27,13 @@ export default function LibraryCreateModal({
 }: LibraryCreateModalProps) {
   const create = useLibraryStore((s) => s.create);
   const [kind, setKind] = useState<LibraryEntryKind | undefined>(initialKind);
-  const [data, setData] = useState<unknown>([]);
+  const [data, setData] = useState<unknown>(() =>
+    initialKind ? createDefaultSectionData(sectionTypeForLibraryKind(initialKind)) : [],
+  );
   const [saving, setSaving] = useState(false);
-
   const handleKindSelect = (k: LibraryEntryKind) => {
     setKind(k);
-    setData([{ id: `tmp_${Date.now()}` }]);
+    setData(createDefaultSectionData(sectionTypeForLibraryKind(k)));
   };
 
   const handleSave = async () => {
@@ -76,8 +79,8 @@ export default function LibraryCreateModal({
             <div className="max-h-[55vh] overflow-y-auto rounded-md border border-lib-rule bg-lib-surface-2 p-3">
               <SectionEditorPanel
                 instance={{
-                  id: `lib_draft_${Date.now()}`,
-                  type: kind,
+                  id: "lib_draft",
+                  type: sectionTypeForLibraryKind(kind),
                   title: LIBRARY_KIND_LABELS[kind],
                   enabled: true,
                   data: data as never,

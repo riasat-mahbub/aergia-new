@@ -1,16 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.schemas.cv import CVCreate, CVUpdate, CVResponse, CVListItem
-from app.schemas.library import AddEntryToLibraryResponse, PromoteToLibraryResponse
+from app.schemas.library import AddEntryToLibraryRequest, AddEntryToLibraryResponse, PromoteToLibraryResponse
 from app.services.cv import CVService
 from app.services.cv import coerce_customizations
+from app.services.pdf import PDFService
 from app.services.renderer import HTMLDocumentRenderer, build_document, resolve
 from app.routes.render import strip_anchor_hrefs
 from app.core.deps import get_current_user
 from app.models.user import User
-from app.services.cv import coerce_customizations
 
 NOT_FOUND = "CV not found"
 
@@ -184,6 +185,7 @@ async def add_section_entry_to_library(
     cv_id: str,
     section_id: str,
     entry_id: str,
+    data: AddEntryToLibraryRequest | None = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -199,11 +201,20 @@ async def add_section_entry_to_library(
     lib_service = LibraryService(db)
     try:
         result = await lib_service.add_section_entry_to_library(
-            cv_id, section_id, entry_id, current_user.id
+            cv_id,
+            section_id,
+            entry_id,
+            current_user.id,
+            entry_snapshot=data.entry if data else None,
+            snapshot_kind=data.kind.value if data else None,
         )
     except ValueError as exc:
         msg = str(exc)
-        if "not library-eligible" in msg or "has no entry list" in msg:
+        if (
+            "not library-eligible" in msg
+            or "has no entry list" in msg
+            or "does not match section kind" in msg
+        ):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=msg
             )
