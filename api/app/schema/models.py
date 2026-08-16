@@ -32,7 +32,9 @@ from __future__ import annotations
 import re
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from app.core.safe_url import normalize_url
 
 
 # ---------------------------------------------------------------------------
@@ -62,8 +64,19 @@ AlignmentToken = Literal["left", "right", "center", "justify"]
 # A color reference is either a hex literal (``#RRGGBB``) or a named
 # palette slot (``palette.<name>``). Renderers define their own
 # palettes; the schema carries the reference, not the color value.
-_HEX_LITERAL = re.compile(r"^#[0-9a-fA-F]{6}$")
+_HEX_LITERAL = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 _PALETTE_REF = re.compile(r"^palette\.[a-z][a-z0-9_-]*$")
+_SAFE_SPACING = frozenset({
+    "none", "tight", "comfortable", "loose", "spacious",
+    "compact", "minimal", "0", "0px", "12px", "16px", "20px", "24px", "32px",
+    "var(--spacing-section, 16px)", "var(--spacing-section, 24px)",
+    "var(--spacing-subsection, 0px)", "var(--spacing-subsection, 16px)",
+})
+_SAFE_FONT_FAMILIES = frozenset({
+    "sans-serif", "serif", "mono", "display", "Inter", "Georgia", "Crimson",
+    "system-ui", "Inter, system-ui, sans-serif", "Georgia, Crimson, serif",
+    "ui-monospace, SFMono-Regular, Menlo, monospace",
+})
 
 
 def is_color_ref(value: object) -> bool:
@@ -86,8 +99,8 @@ class DateStyle(BaseModel):
     ``app/services/renderer/builders/_utils.py``. The ``key`` selects the
     format; ``range_sep`` is the separator between the start and end bound.
     """
-    key: str = Field(default="YYYY-MM", alias="key")
-    range_sep: str = Field(default=" \u2013 ", alias="rangeSep")
+    key: str = Field(default="YYYY-MM", max_length=32, alias="key")
+    range_sep: str = Field(default=" \u2013 ", max_length=16, alias="rangeSep")
 
     model_config = {"extra": "ignore", "populate_by_name": True}
 
@@ -108,11 +121,26 @@ class TextStyle(BaseModel):
     link: str | None = None
     font_size: FontSizeToken | None = None
 
+    @field_validator("color")
+    @classmethod
+    def _check_color(cls, value: str | None) -> str | None:
+        if value is not None and not is_color_ref(value):
+            raise ValueError("color must be a hex literal or palette reference")
+        return value
+
+    @field_validator("link", mode="before")
+    @classmethod
+    def _normalize_link(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        normalized = normalize_url(value)
+        return normalized or None
+
 
 class RichTextItem(BaseModel):
     """A single inline run of styled text inside a rich-text block."""
 
-    text: str
+    text: str = Field(max_length=20_000)
     style: TextStyle | None = None
 
 
@@ -125,7 +153,7 @@ class RichTextBlock(BaseModel):
     """
 
     type: Literal["paragraph", "bullet_list", "numbered_list"] = "paragraph"
-    items: list[RichTextItem] = Field(default_factory=list)
+    items: list[RichTextItem] = Field(default_factory=list, max_length=100)
 
 
 class SubsectionStyle(BaseModel):
@@ -140,6 +168,20 @@ class SubsectionStyle(BaseModel):
     spacing_after: str | None = None
     background_color: str | None = None
     section_color: str | None = None
+
+    @field_validator("spacing_before", "spacing_after")
+    @classmethod
+    def _check_spacing(cls, value: str | None) -> str | None:
+        if value is not None and value not in _SAFE_SPACING:
+            raise ValueError("spacing must use a supported spacing token or resolved length")
+        return value
+
+    @field_validator("background_color", "section_color")
+    @classmethod
+    def _check_colors(cls, value: str | None) -> str | None:
+        if value is not None and not is_color_ref(value):
+            raise ValueError("color must be a hex literal or palette reference")
+        return value
 
 
 class LayoutHints(BaseModel):
@@ -165,7 +207,14 @@ class LayoutHints(BaseModel):
     # Field keys whose FieldBlocks render as inline chip pills (e.g. project
     # ``tech`` items, skill ``tag`` items). ``None`` = no chips. The renderer
     # is renderer-key-agnostic: it reads only this list.
-    chip_keys: list[str] | None = None
+    chip_keys: list[str] | None = Field(default=None, max_length=32)
+
+    @field_validator("font_family")
+    @classmethod
+    def _check_font_family(cls, value: str | None) -> str | None:
+        if value is not None and value not in _SAFE_FONT_FAMILIES:
+            raise ValueError("font_family must use a supported font token or font stack")
+        return value
 
 class SectionPolicy(BaseModel):
     """Document semantics for a section. The renderer implements these
@@ -184,7 +233,7 @@ class SectionPolicy(BaseModel):
 class TextRun(BaseModel):
     """A single run of styled text inside a field."""
 
-    text: str
+    text: str = Field(max_length=20_000)
     style: TextStyle | None = None
 
 
@@ -199,31 +248,31 @@ class FieldBlock(BaseModel):
     names a right-rail field — the first right-aligned field in a row is
     pushed to the row's right edge via margin-left:auto."""
 
-    key: str
-    runs: list[TextRun]
+    key: str = Field(max_length=128)
+    runs: list[TextRun] = Field(max_length=100)
     group: str | None = None
     align: Literal["right"] | None = None
     icon: str | None = None
-    blocks: list[RichTextBlock] | None = None
+    blocks: list[RichTextBlock] | None = Field(default=None, max_length=100)
     rich_text: bool = False
 
 
 class Entry(BaseModel):
     """One entry inside a section (a job, a school, a skill group, ...)."""
 
-    id: str
-    fields: list[FieldBlock]
+    id: str = Field(max_length=128)
+    fields: list[FieldBlock] = Field(max_length=100)
 
 
 class Section(BaseModel):
     """One section of the document. Carries the three-axis style."""
 
-    id: str
-    type: str
-    title: str
+    id: str = Field(max_length=128)
+    type: str = Field(max_length=64)
+    title: str = Field(max_length=255)
     enabled: bool = True
-    entries: list[Entry] = Field(default_factory=list)
-    fields: list[FieldBlock] = Field(default_factory=list)
+    entries: list[Entry] = Field(default_factory=list, max_length=100)
+    fields: list[FieldBlock] = Field(default_factory=list, max_length=100)
     layout: LayoutHints | None = None
     subsection: SubsectionStyle | None = None
     policy: SectionPolicy | None = None
@@ -231,7 +280,7 @@ class Section(BaseModel):
 class Document(BaseModel):
     """The full document AST."""
 
-    sections: list[Section]
+    sections: list[Section] = Field(max_length=32)
 
 
 # ---------------------------------------------------------------------------
@@ -253,7 +302,7 @@ class SectionInstanceStyle(BaseModel):
 
     model_config = {"extra": "ignore"}
 
-    text: dict[str, TextStyle] = Field(default_factory=dict)  # field_key -> TextStyle
+    text: dict[str, TextStyle] = Field(default_factory=dict, max_length=100)  # field_key -> TextStyle
     subsection: SubsectionStyle | None = None
     layout: LayoutHints | None = None
     policy: SectionPolicy | None = None
@@ -267,12 +316,18 @@ class SectionInstance(BaseModel):
     constructs the AST accordingly.
     """
 
-    id: str
-    type: str
-    title: str
+    id: str = Field(max_length=128)
+    type: str = Field(max_length=64)
+    title: str = Field(max_length=255)
     enabled: bool = True
-    data: list | dict = Field(default_factory=dict)
+    data: list | dict = Field(default_factory=dict, max_length=100)
     style: SectionInstanceStyle | None = None
+
+    @model_validator(mode="after")
+    def _check_data_size(self):
+        if isinstance(self.data, (list, dict)) and len(self.data) > 100:
+            raise ValueError("section data contains too many entries")
+        return self
 
 
 class CVRow(BaseModel):
@@ -282,7 +337,7 @@ class CVRow(BaseModel):
     collapses to content height. This type remains as a structural marker
     for layout rows that a future renderer might re-introduce."""
 
-    zones: list[str]  # zone IDs in render order
+    zones: list[str] = Field(max_length=32)  # zone IDs in render order
 
 
 # ---------------------------------------------------------------------------
@@ -299,7 +354,7 @@ class LayoutDefaults(BaseModel):
 class PolicyOverrides(BaseModel):
     """Per-type policy overrides layered over the default ``SECTION_POLICIES``."""
 
-    by_type: dict[str, SectionPolicy] = Field(default_factory=dict)
+    by_type: dict[str, SectionPolicy] = Field(default_factory=dict, max_length=32)
 
 
 class GlobalStyles(BaseModel):
@@ -360,8 +415,8 @@ class ZoneStyle(BaseModel):
 class Zone(BaseModel):
     """One zone in the template layout."""
 
-    id: str
-    label: str | None = None
+    id: str = Field(max_length=64)
+    label: str | None = Field(default=None, max_length=255)
     styles: ZoneStyle = Field(default_factory=ZoneStyle)
 
 
@@ -374,8 +429,8 @@ class CVLayout(BaseModel):
     (the editor's convention); the resolver also accepts section-type keys
     (the manifest convention)."""
 
-    zones: list[Zone] = Field(default_factory=list)
-    placement: dict[str, str] = Field(default_factory=dict)
+    zones: list[Zone] = Field(default_factory=list, max_length=8)
+    placement: dict[str, str] = Field(default_factory=dict, max_length=64)
 
 
 class TemplateManifest(BaseModel):
@@ -392,10 +447,10 @@ class TemplateManifest(BaseModel):
     """
 
     manifest_version: Literal[2] = 2
-    name: str
-    description: str | None = None
-    zones: list[Zone] = Field(default_factory=list)
-    placement: dict[str, str] = Field(default_factory=dict)  # section_type -> zone_id
+    name: str = Field(max_length=255)
+    description: str | None = Field(default=None, max_length=2_000)
+    zones: list[Zone] = Field(default_factory=list, max_length=8)
+    placement: dict[str, str] = Field(default_factory=dict, max_length=64)  # section_type -> zone_id
     layout_defaults: LayoutDefaults = Field(default_factory=LayoutDefaults)
     policy_overrides: PolicyOverrides = Field(default_factory=PolicyOverrides)
     global_styles: GlobalStyles = Field(default_factory=GlobalStyles)
@@ -444,8 +499,8 @@ class Customizations(BaseModel):
     heading_font: FontToken | None = None
     default_text_align: AlignmentToken | None = None
     spacing: Literal["compact", "comfortable", "minimal"] | None = None
-    flags: dict[str, bool] = Field(default_factory=dict)
-    per_section: dict[str, SectionInstanceStyle] = Field(default_factory=dict)
+    flags: dict[str, bool] = Field(default_factory=dict, max_length=32)
+    per_section: dict[str, SectionInstanceStyle] = Field(default_factory=dict, max_length=64)
     layout: CVLayout | None = None
 
     @model_validator(mode="before")
@@ -524,4 +579,4 @@ class LibraryEntryPayload(BaseModel):
 
     model_config = {"extra": "ignore"}
 
-    entries: list[dict] = Field(default_factory=list)
+    entries: list[dict] = Field(default_factory=list, max_length=100)

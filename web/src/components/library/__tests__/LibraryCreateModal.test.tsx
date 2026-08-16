@@ -14,6 +14,8 @@ describe("LibraryCreateModal", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Skills" }));
 
+    expect(screen.getByTestId("library-create-form")).toHaveClass("w-full", "min-w-0");
+    expect(screen.getByTestId("library-create-form")).not.toHaveClass("w-[min(640px,90vw)]");
     expect(screen.getByTestId("section-editor")).toHaveAttribute("data-section-type", "skills");
   });
 });

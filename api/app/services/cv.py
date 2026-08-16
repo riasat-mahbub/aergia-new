@@ -32,6 +32,32 @@ class CVService:
         )
         return list(result.scalars().all())
 
+    async def list_cv_summaries(self, user_id: str) -> list[tuple[CV, Application | None]]:
+        """Return the user's CVs with their latest owned application relation.
+
+        The relation is deliberately queried by both ``user_id`` and ``cv_id``.
+        CV metadata is user-editable JSON and must not be used as provenance.
+        """
+        cvs = await self.list_cvs(user_id)
+        if not cvs:
+            return []
+
+        cv_ids = [cv.id for cv in cvs]
+        result = await self.db.execute(
+            select(Application)
+            .where(
+                Application.user_id == user_id,
+                Application.cv_id.in_(cv_ids),
+            )
+            .order_by(Application.updated_at.desc(), Application.created_at.desc())
+        )
+        latest_by_cv: dict[str, Application] = {}
+        for application in result.scalars().all():
+            if application.cv_id is not None and application.cv_id not in latest_by_cv:
+                latest_by_cv[application.cv_id] = application
+
+        return [(cv, latest_by_cv.get(cv.id)) for cv in cvs]
+
     async def get_cv(self, cv_id: str, user_id: str) -> CV | None:
         result = await self.db.execute(
             select(CV).where(CV.id == cv_id, CV.user_id == user_id, CV.is_active)
@@ -120,6 +146,10 @@ class CVService:
         if not original:
             return None
 
+        copied_metadata = dict(original.extra_metadata or {})
+        for key in ("application_id", "generated_by", "selected_sources", "extracted_keywords"):
+            copied_metadata.pop(key, None)
+
         new_cv = CV(
             user_id=user_id,
             title=f"{original.title} (Copy)",
@@ -127,7 +157,7 @@ class CVService:
             template_id=original.template_id,
             sections=original.sections,
             customizations=original.customizations,
-            extra_metadata=original.extra_metadata,
+            extra_metadata=copied_metadata,
         )
         self.db.add(new_cv)
         await self.db.flush()

@@ -47,6 +47,10 @@ beforeEach(() => {
 describe("ApplicationFormModal", () => {
   it("requires the three job fields and does not ask for keywords or a source CV", () => {
     render(<ApplicationFormModal open onClose={vi.fn()} />);
+    const form = screen.getByRole("button", { name: "Done" }).closest("form");
+    expect(form).not.toBeNull();
+    expect(form).toHaveClass("w-full", "min-w-0", "overflow-x-hidden");
+    expect(form).not.toHaveClass("w-[min(720px,90vw)]");
     expect(screen.getByLabelText(/company/i)).toBeRequired();
     expect(screen.getByLabelText(/role/i)).toBeRequired();
     expect(screen.getByLabelText(/job description/i)).toBeRequired();

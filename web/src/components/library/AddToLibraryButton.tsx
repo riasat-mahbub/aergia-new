@@ -45,11 +45,8 @@ export default function AddToLibraryButton({
       }
       await fetchAll();
       setOpen(false);
-    } catch (e) {
-      addToast(
-        `Add to library failed: ${e instanceof Error ? e.message : "unknown error"}`,
-        "error",
-      );
+    } catch {
+      addToast("Unable to add this entry to the Library", "error");
     }
   };
 

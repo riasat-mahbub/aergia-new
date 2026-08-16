@@ -7,6 +7,8 @@ from enum import Enum
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.core.safe_url import normalize_http_url
+
 
 class ExtractedKeyword(BaseModel):
     text: str
@@ -53,9 +55,9 @@ class GenerationStatus(str, Enum):
 class ApplicationCreate(BaseModel):
     company: str = Field(max_length=255)
     role: str = Field(max_length=255)
-    job_description: str
+    job_description: str = Field(max_length=100_000)
     job_url: str | None = Field(default=None, max_length=2048)
-    notes: str | None = None
+    notes: str | None = Field(default=None, max_length=20_000)
 
     @field_validator("company", "role", "job_description")
     @classmethod
@@ -65,13 +67,23 @@ class ApplicationCreate(BaseModel):
             raise ValueError("must not be blank")
         return value
 
+    @field_validator("job_url")
+    @classmethod
+    def validate_job_url(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        normalized = normalize_http_url(value)
+        if not normalized:
+            raise ValueError("job_url must be an HTTP(S) URL")
+        return normalized
+
 
 class ApplicationUpdate(BaseModel):
     company: str | None = Field(default=None, max_length=255)
     role: str | None = Field(default=None, max_length=255)
-    job_description: str | None = None
+    job_description: str | None = Field(default=None, max_length=100_000)
     job_url: str | None = Field(default=None, max_length=2048)
-    notes: str | None = None
+    notes: str | None = Field(default=None, max_length=20_000)
     status: ApplicationStatus | None = None
     applied_at: datetime | None = None
 
@@ -84,6 +96,16 @@ class ApplicationUpdate(BaseModel):
         if not value:
             raise ValueError("must not be blank")
         return value
+
+    @field_validator("job_url")
+    @classmethod
+    def validate_job_url(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        normalized = normalize_http_url(value)
+        if not normalized:
+            raise ValueError("job_url must be an HTTP(S) URL")
+        return normalized
 
 
 class ApplicationResponse(BaseModel):

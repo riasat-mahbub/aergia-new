@@ -49,11 +49,8 @@ export default function LibraryPicker({ open, onClose, kind, onPick }: LibraryPi
       addToast(`Added ${title} to ${LIBRARY_KIND_LABELS[kind]}`, "success");
       onPick(inst as unknown as Record<string, unknown>);
       onClose();
-    } catch (e) {
-      addToast(
-        `Failed to add entry: ${e instanceof Error ? e.message : "unknown error"}`,
-        "error",
-      );
+    } catch {
+      addToast("Failed to add entry from the Library", "error");
     } finally {
       setPicking(null);
     }

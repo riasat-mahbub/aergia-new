@@ -3,7 +3,7 @@
  *
  * Locks the contract:
  *  - ``STORAGE_KEY`` is the literal string "aergia.llm_keys".
- *  - All read/write paths use ``sessionStorage`` (NOT ``localStorage``).
+ *  - All read/write paths use a short-lived in-memory map (NOT Web Storage).
  *  - Empty strings are stripped on save and load.
  *  - ``pickActiveProvider`` follows the canonical tie-break order.
  */
@@ -24,20 +24,19 @@ import {
   type LLMProviderKey,
 } from "../keys";
 
-describe("storage backend", () => {
-  it("uses sessionStorage — backend key is 'aergia.llm_keys'", () => {
+describe("in-memory key store", () => {
+  it("keeps the legacy storage key unavailable to browser storage", () => {
     expect(STORAGE_KEY).toBe("aergia.llm_keys");
   });
 
-  it("saveKeys writes through sessionStorage and loadKeys reads it back", () => {
+  it("saveKeys keeps keys in memory and loadKeys reads them back", () => {
     saveKeys({ openai: "sk-round-trip-key" });
-    expect(window.sessionStorage.getItem(STORAGE_KEY)).toBe(
-      JSON.stringify({ openai: "sk-round-trip-key" })
-    );
+    expect(window.sessionStorage.getItem(STORAGE_KEY)).toBeNull();
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
     expect(loadKeys()).toEqual({ openai: "sk-round-trip-key" });
   });
 
-  it("forgetAllKeys wipes sessionStorage in one call", () => {
+  it("forgetAllKeys wipes the in-memory map in one call", () => {
     saveKeys({ openai: "sk-still-here", gemini: "AIza-round-trip" });
     forgetAllKeys();
     expect(window.sessionStorage.getItem(STORAGE_KEY)).toBeNull();
@@ -46,17 +45,17 @@ describe("storage backend", () => {
 
   it("saveKeys drops empty strings and whitespace before writing", () => {
     saveKeys({ openai: "sk-real", anthropic: "   ", gemini: "" });
-    const raw = window.sessionStorage.getItem(STORAGE_KEY);
-    expect(raw).toBe(JSON.stringify({ openai: "sk-real" }));
+    expect(window.sessionStorage.getItem(STORAGE_KEY)).toBeNull();
     expect(loadKeys()).toEqual({ openai: "sk-real" });
   });
 
   it("loadKeys returns {} when no value is stored", () => {
+    forgetAllKeys();
     window.sessionStorage.clear();
     expect(loadKeys()).toEqual({});
   });
 
-  it("loadKeys returns {} on malformed JSON instead of throwing", () => {
+  it("ignores values in Web Storage", () => {
     window.sessionStorage.setItem(STORAGE_KEY, "{not-json");
     expect(loadKeys()).toEqual({});
   });
@@ -113,10 +112,10 @@ describe("forgetKey", () => {
     expect(loadKeys()).toEqual({ gemini: "AIza-keep" });
   });
 
-  it("clears sessionStorage entirely when dropping the last key", () => {
+  it("clears the in-memory store when dropping the last key", () => {
     saveKeys({ openai: "sk-only" });
     forgetKey("openai");
-    expect(window.sessionStorage.getItem(STORAGE_KEY)).toBeNull();
+    expect(loadKeys()).toEqual({});
   });
 });
 

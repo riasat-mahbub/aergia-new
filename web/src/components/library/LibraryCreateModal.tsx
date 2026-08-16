@@ -72,8 +72,8 @@ export default function LibraryCreateModal({
   };
 
   return (
-    <Modal open={open} onClose={onClose}>
-      <div className="max-h-[80vh] w-[min(640px,90vw)] bg-lib-surface text-lib-ink">
+    <Modal open={open} onClose={onClose} size="wide">
+      <div data-testid="library-create-form" className="max-h-[80vh] w-full min-w-0 bg-lib-surface text-lib-ink">
         <header className="mb-4">
           <h2 className="text-xl font-semibold text-lib-ink">{entry ? "Edit library entry" : "New library entry"}</h2>
           {!kind && (

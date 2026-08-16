@@ -81,7 +81,7 @@ async def test_route_unknown_provider_string_returns_400(client, auth_headers):
         headers=auth_headers,
     )
     assert resp.status_code == 400
-    assert "fakeco" in resp.json()["detail"]
+    assert resp.json()["detail"] == "Unsupported provider. Allowed: openai, anthropic, gemini, groq"
 
 
 async def test_route_unrecognised_key_prefix_returns_400(client, auth_headers):
@@ -92,7 +92,7 @@ async def test_route_unrecognised_key_prefix_returns_400(client, auth_headers):
         headers=auth_headers,
     )
     assert resp.status_code == 400
-    assert "Unrecognised API key prefix" in resp.json()["detail"]
+    assert resp.json()["detail"] == "Unrecognised API key format"
 
 
 async def test_route_provider_key_mismatch_returns_400(client, auth_headers):
@@ -103,7 +103,7 @@ async def test_route_provider_key_mismatch_returns_400(client, auth_headers):
         headers=auth_headers,
     )
     assert resp.status_code == 400
-    assert "shape does not match" in resp.json()["detail"]
+    assert resp.json()["detail"] == "API key format does not match the selected provider"
 
 
 async def test_route_rate_limit_falls_back_with_warning(client, auth_headers):
@@ -170,4 +170,4 @@ async def test_route_unsupported_mime_returns_400(client, auth_headers):
         headers=auth_headers,
     )
     assert resp.status_code == 400
-    assert "Unsupported file type" in resp.json()["detail"]
+    assert resp.json()["detail"] == "Unsupported document format"

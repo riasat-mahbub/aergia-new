@@ -11,9 +11,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.schema.models import Customizations, SectionInstance
+from app.schemas.application import ApplicationStatus, GenerationStatus
 
 
 DEFAULT_SECTIONS: list[dict] = [
@@ -28,20 +29,20 @@ DEFAULT_SECTIONS: list[dict] = [
 
 
 class CVCreate(BaseModel):
-    title: str
-    description: str | None = None
-    template_id: str = "generic-modern"
-    sections: list[SectionInstance] | dict = DEFAULT_SECTIONS
-    customizations: Customizations | dict | None = None
-    extra_metadata: dict = {}
+    title: str = Field(max_length=255)
+    description: str | None = Field(default=None, max_length=500)
+    template_id: str = Field(default="generic-modern", max_length=100)
+    sections: list[SectionInstance] | dict = Field(default=DEFAULT_SECTIONS, max_length=100)
+    customizations: Customizations | dict | None = Field(default=None, max_length=100)
+    extra_metadata: dict = Field(default_factory=dict, max_length=100)
 
 
 class CVUpdate(BaseModel):
-    title: str | None = None
-    description: str | None = None
-    template_id: str | None = None
-    sections: list[SectionInstance] | dict | None = None
-    customizations: Customizations | dict | None = None
+    title: str | None = Field(default=None, max_length=255)
+    description: str | None = Field(default=None, max_length=500)
+    template_id: str | None = Field(default=None, max_length=100)
+    sections: list[SectionInstance] | dict | None = Field(default=None, max_length=100)
+    customizations: Customizations | dict | None = Field(default=None, max_length=100)
 
 
 class CVResponse(BaseModel):
@@ -58,6 +59,15 @@ class CVResponse(BaseModel):
     updated_at: datetime
 
 
+class CVApplicationSummary(BaseModel):
+    id: str
+    company: str
+    role: str
+    status: ApplicationStatus
+    generation_status: GenerationStatus
+    applied_at: datetime | None
+
+
 class CVListItem(BaseModel):
     model_config = {"from_attributes": True}
 
@@ -66,11 +76,13 @@ class CVListItem(BaseModel):
     template_id: str
     created_at: datetime
     updated_at: datetime
+    application: CVApplicationSummary | None = None
 
 
 __all__ = [
     "DEFAULT_SECTIONS",
     "CVCreate",
+    "CVApplicationSummary",
     "CVListItem",
     "CVResponse",
     "CVUpdate",

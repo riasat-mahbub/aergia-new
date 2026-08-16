@@ -10,12 +10,16 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const hydrate = useAuthStore((s) => s.hydrate);
   const location = useLocation();
-  const [hydrated, setHydrated] = useState(isAuthenticated ? true : false);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    hydrate();
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration marker, see Phase 9 lint debt
-    setHydrated(true);
+    let active = true;
+    void hydrate().finally(() => {
+      if (active) setHydrated(true);
+    });
+    return () => {
+      active = false;
+    };
   }, [hydrate]);
 
   if (!hydrated) return null;

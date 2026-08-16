@@ -347,6 +347,43 @@ describe("blocksToLexical", () => {
     expect((second as { children: unknown[] }).children).toHaveLength(2);
   });
 
+  it("drops an unsafe link from a legacy Lexical node while preserving its text", () => {
+    const state = {
+      root: {
+        type: "root",
+        children: [
+          {
+            type: "paragraph",
+            children: [
+              {
+                type: "link",
+                url: "javascript:alert(1)",
+                children: [{ type: "text", text: "unsafe", format: 1 }],
+              },
+            ],
+          },
+        ],
+      },
+    } as unknown as SerializedEditorState;
+
+    expect(lexicalToBlocks(state)).toEqual([
+      { type: "paragraph", items: [{ text: "unsafe", style: { bold: true } }] },
+    ]);
+  });
+
+  it("does not encode an unsafe persisted link into a Lexical link node", () => {
+    const state = blocksToLexical([
+      {
+        type: "paragraph",
+        items: [{ text: "unsafe", style: { link: "data:text/html,boom" } }],
+      },
+    ]);
+    const paragraph = state.root.children[0] as unknown as { children: unknown[] };
+    expect(paragraph.children).toEqual([
+      expect.objectContaining({ type: "text", text: "unsafe" }),
+    ]);
+  });
+
   it("splits link wrappers when the URL changes between items", () => {
     const blocks = [
       {

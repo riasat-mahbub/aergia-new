@@ -26,6 +26,32 @@ export default function CvListPage() {
   }, [fetchCVs, libraryFetch, libraryLoaded]);
 
   const libraryCounts = countByKind(libraryEntries);
+  const applicationCvs = cvList.filter((cv) => cv.application);
+  const otherCvs = cvList.filter((cv) => !cv.application);
+
+  const renderCvGroup = (title: string, cvs: typeof cvList) => (
+    <section className="mb-8" aria-labelledby={`${title.toLowerCase().replace(/ /g, "-")}-heading`}>
+      <h2 id={`${title.toLowerCase().replace(/ /g, "-")}-heading`} className="mb-3 text-lg font-semibold text-gray-900">
+        {title}
+      </h2>
+      <motion.div
+        initial="hidden"
+        animate="visible"
+        variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
+        className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+      >
+        {cvs.map((cv) => (
+          <CvCard
+            key={cv.id}
+            cv={cv}
+            onEdit={(id) => navigate(`/dashboard/builder/${id}`)}
+            onCopy={(id) => copyCV(id)}
+            onDelete={(id) => setDeleteTarget({ id, title: cv.title })}
+          />
+        ))}
+      </motion.div>
+    </section>
+  );
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -99,22 +125,10 @@ export default function CvListPage() {
       )}
 
       {!isLoading && cvList.length > 0 && (
-        <motion.div
-          initial="hidden"
-          animate="visible"
-          variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
-          className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
-        >
-          {cvList.map((cv) => (
-            <CvCard
-              key={cv.id}
-              cv={cv}
-              onEdit={(id) => navigate(`/dashboard/builder/${id}`)}
-              onCopy={(id) => copyCV(id)}
-              onDelete={(id) => setDeleteTarget({ id, title: cv.title })}
-            />
-          ))}
-        </motion.div>
+        <div>
+          {applicationCvs.length > 0 && renderCvGroup("Application CVs", applicationCvs)}
+          {otherCvs.length > 0 && renderCvGroup("Other CVs", otherCvs)}
+        </div>
       )}
     </div>
   );

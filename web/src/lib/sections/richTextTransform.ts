@@ -9,6 +9,7 @@ backend-friendly.
 
 import type { SerializedEditorState } from "lexical";
 import type { RichTextBlock, RichTextItem, TextStyle } from "../../generated/schema";
+import { safeLinkUrl } from "../security/safeUrl";
 
 // ---------------------------------------------------------------------------
 // Lexical → RichTextBlock[]
@@ -37,6 +38,7 @@ function decodeChildren(children: unknown[]): RichTextItem[] {
       items.push({ text: node.text, ...(style ? { style } : {}) });
     } else if (node.type === "link" && typeof node.url === "string") {
       // LinkNode wraps text children; propagate its `url` to every child run.
+      const safeUrl = safeLinkUrl(node.url);
       const linkChildren = (node.children ?? []) as unknown[];
       for (const linkChild of linkChildren) {
         if (!linkChild || typeof linkChild !== "object") continue;
@@ -44,8 +46,10 @@ function decodeChildren(children: unknown[]): RichTextItem[] {
         if (inner.type !== "text" || typeof inner.text !== "string") continue;
         const format = typeof inner.format === "number" ? inner.format : 0;
         const existing = decodeFormat(format);
-        const style: TextStyle = { ...(existing ?? {}), link: node.url };
-        items.push({ text: inner.text, style });
+        const style: TextStyle | undefined = safeUrl
+          ? { ...(existing ?? {}), link: safeUrl }
+          : existing;
+        items.push({ text: inner.text, ...(style ? { style } : {}) });
       }
     }
   }
@@ -144,7 +148,7 @@ function encodeTextNodes(items: RichTextItem[]): unknown[] {
     pendingLink = null;
   };
   for (const item of items) {
-    const link = item.style?.link ?? null;
+    const link = safeLinkUrl(item.style?.link ?? null);
     const run = {
       type: "text",
       text: item.text,

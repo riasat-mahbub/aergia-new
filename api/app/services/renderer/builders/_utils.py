@@ -12,12 +12,8 @@ and frontend cannot drift.
 
 from __future__ import annotations
 
-import re
-
+from app.core.safe_url import normalize_url
 from app.schema.models import DateStyle, FieldBlock, RichTextBlock, TextRun
-
-
-_URL_SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.\-]*:")
 
 
 def normalize_url_scheme(value: object) -> str:
@@ -34,14 +30,7 @@ def normalize_url_scheme(value: object) -> str:
     - Otherwise ``https://`` is prepended.
     """
 
-    if value is None:
-        return ""
-    s = str(value).strip()
-    if not s:
-        return ""
-    if _URL_SCHEME_RE.match(s):
-        return s
-    return f"https://{s}"
+    return normalize_url(value)
 
 
 

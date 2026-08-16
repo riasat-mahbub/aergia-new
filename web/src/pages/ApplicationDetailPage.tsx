@@ -12,6 +12,7 @@ import {
 } from "../lib/api/applications";
 import { useApplicationStore } from "../lib/store/applicationStore";
 import { useToastStore } from "../lib/store/uiStore";
+import { safeExternalUrl } from "../lib/security/safeUrl";
 import { STATUS_LABELS } from "./ApplicationsPage";
 
 const RELEVANCE_TOOLTIP = "Weighted keyword coverage of this CV against the saved job description—not an ATS or hiring probability.";
@@ -77,6 +78,8 @@ export default function ApplicationDetailPage() {
     return <div className="mx-auto max-w-4xl px-4 py-8">{isLoading ? <LoadingSkeleton count={2} /> : <p className="text-sm text-gray-600">Application not found.</p>}</div>;
   }
 
+  const safeJobUrl = safeExternalUrl(application.job_url);
+
   const handleStatusChange = async (status: ApplicationStatus) => {
     setStatusSaving(true);
     try {
@@ -95,7 +98,7 @@ export default function ApplicationDetailPage() {
       if (result.application.generation_status === "ready" && result.cv_id) {
         navigate(`/dashboard/builder/${result.cv_id}?application=${application.id}`);
       } else {
-        addToast(result.application.generation_error || "CV generation failed", "error");
+        addToast("CV generation failed. Please retry.", "error");
       }
     } catch {
       addToast("Unable to generate this CV", "error");
@@ -138,7 +141,7 @@ export default function ApplicationDetailPage() {
           value={application.status}
           disabled={statusSaving}
           onChange={(event) => handleStatusChange(event.target.value as ApplicationStatus)}
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+          className="w-full min-w-[10rem] rounded-md border border-gray-300 px-3 py-2 text-sm sm:w-auto"
         >
           {APPLICATION_STATUSES.map((status) => <option key={status} value={status}>{STATUS_LABELS[status]}</option>)}
         </select>
@@ -148,7 +151,7 @@ export default function ApplicationDetailPage() {
         <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Job</h2>
           <div className="mt-4 whitespace-pre-wrap text-sm leading-6 text-gray-700">{application.job_description}</div>
-          {application.job_url && <a href={application.job_url} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-1 text-sm text-blue-700 hover:underline">Open job listing <ExternalLink className="h-3.5 w-3.5" /></a>}
+          {safeJobUrl && <a href={safeJobUrl} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex items-center gap-1 text-sm text-blue-700 hover:underline">Open job listing <ExternalLink className="h-3.5 w-3.5" /></a>}
           {application.notes && <p className="mt-4 border-t border-gray-100 pt-4 text-sm text-gray-600">{application.notes}</p>}
         </section>
 
@@ -189,7 +192,7 @@ export default function ApplicationDetailPage() {
           </>
         ) : (
           <>
-            <p className="mt-2 text-sm text-gray-600">{application.generation_status === "failed" ? application.generation_error || "Generation failed." : "Generation is pending."}</p>
+            <p className="mt-2 text-sm text-gray-600">{application.generation_status === "failed" ? "CV generation failed. Please retry." : "Generation is pending."}</p>
             <button type="button" onClick={handleRetry} disabled={retrying} className="mt-4 inline-flex items-center gap-1 rounded-md border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${retrying ? "animate-spin" : ""}`} /> {retrying ? "Generating…" : "Retry generation"}</button>
           </>
         )}

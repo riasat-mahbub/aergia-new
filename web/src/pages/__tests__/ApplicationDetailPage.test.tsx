@@ -90,6 +90,7 @@ describe("ApplicationDetailPage", () => {
     expect(screen.getByText("Selected Library rows: 1")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /open\/edit cv/i })).toHaveAttribute("href", "/dashboard/builder/cv-1?application=app-1");
     expect(screen.getByText("Could not fit one page without rewriting content")).toBeInTheDocument();
+    expect(screen.getByLabelText("Application status")).toHaveClass("w-full", "min-w-[10rem]", "sm:w-auto");
   });
 
   it("updates status and exports through the existing CV endpoint", async () => {

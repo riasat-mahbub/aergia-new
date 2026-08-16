@@ -4,8 +4,11 @@ import client from "../../lib/api/client";
 
 interface Props {
   instances: SectionInstance[];
-  customizations?: Record<string, any>;
-  manifest?: Record<string, any>;
+  customizations?: {
+    layout?: { zones?: unknown[]; placement?: Record<string, string> };
+    [key: string]: unknown;
+  };
+  manifest?: Record<string, unknown>;
 }
 
 // 297mm at 96dpi (1mm = 96/25.4 ≈ 3.78px). Matches the A4 page size
@@ -38,11 +41,8 @@ export default function UserTemplateRenderer({ instances, customizations, manife
           preview: true,
         });
         setHtml(response.data.html);
-      } catch (err) {
-        const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-          || (err as Error)?.message
-          || "Failed to render template";
-        setError(detail);
+      } catch {
+        setError("Failed to render template");
         setHtml("");
       }
     }
@@ -91,7 +91,7 @@ export default function UserTemplateRenderer({ instances, customizations, manife
         title="User Template Preview"
         className="w-full"
         style={{ height: `${iframeHeight}px` }}
-        sandbox="allow-scripts allow-same-origin"
+        sandbox="allow-same-origin"
       />
       {breakRules.map((n) => (
         <div

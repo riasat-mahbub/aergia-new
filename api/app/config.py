@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     uploads_path: str = "./uploads"
     environment: str = "development"
     parser_backend: str = "pdfplumber"
+    allow_bearer_tokens: bool = False
+    expose_tokens_in_response: bool = False
+    csrf_protection_enabled: bool = True
 
     model_config = {"env_file": ".env", "extra": "allow"}
 
