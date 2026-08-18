@@ -413,7 +413,7 @@ export default function BuilderPage() {
       <div className="flex h-screen flex-col">
         <header className="flex items-center justify-between border-b bg-app-surface px-4 py-3">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate("/dashboard")} className="text-sm text-app-ink-3 hover:text-app-ink-2">
+            <button onClick={() => navigate("/dashboard/cvs")} className="text-sm text-app-ink-3 hover:text-app-ink-2">
               &larr; Back
             </button>
             <h1 className="text-lg font-semibold text-app-ink">{currentCV!.title}</h1>

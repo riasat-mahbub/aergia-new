@@ -7,6 +7,7 @@ import ProtectedRoute from "./components/common/ProtectedRoute";
 import AppLayout from "./components/common/AppLayout";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
+import DashboardPage from "./pages/DashboardPage";
 import CvListPage from "./pages/CvListPage";
 import LibraryPage from "./pages/LibraryPage";
 import ApplicationsPage from "./pages/ApplicationsPage";
@@ -26,7 +27,8 @@ const router = createBrowserRouter(
         path="/dashboard"
         element={<ProtectedRoute><AppLayout><Outlet /></AppLayout></ProtectedRoute>}
       >
-        <Route index element={<CvListPage />} />
+        <Route index element={<DashboardPage />} />
+        <Route path="cvs" element={<CvListPage />} />
         <Route path="library" element={<LibraryPage />} />
         <Route path="applications" element={<ApplicationsPage />} />
         <Route path="applications/:id" element={<ApplicationDetailPage />} />

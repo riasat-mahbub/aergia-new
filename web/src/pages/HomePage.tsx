@@ -25,7 +25,7 @@ export default function HomePage() {
               onClick={() => navigate("/dashboard")}
               className="rounded-md bg-app-primary px-4 py-2 text-sm text-white hover:bg-app-primary-hover"
             >
-              Go to My CVs
+              Go to Dashboard
             </button>
           ) : (
             <>
@@ -58,7 +58,7 @@ export default function HomePage() {
             onClick={() => navigate("/dashboard")}
             className="mt-8 rounded-md bg-app-primary px-6 py-3 text-base text-white hover:bg-app-primary-hover"
           >
-            Go to My CVs &rarr;
+            Go to Dashboard &rarr;
           </button>
         ) : (
           <button
