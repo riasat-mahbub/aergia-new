@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FileUp, Loader2, Settings } from "lucide-react";
+import { FileUp, Loader2 } from "lucide-react";
 
-import LLMKeyDialog from "../builder/LLMKeyDialog";
 import ImportCvModal from "./ImportCvModal";
 import { importPDF } from "../../lib/api/imports";
 import { useToastStore } from "../../lib/store/uiStore";
@@ -22,8 +21,9 @@ const PROVIDER_DISPLAY_NAME: Record<LLMProviderKey, string> = {
 };
 
 /**
- * Header cluster: `Import CV` button + settings cog + LLM key dialog +
- * the pre-file modal.
+ * Header control for importing a PDF. API-key configuration lives in the
+ * account Settings page so import actions and account settings do not compete
+ * for the same visual control.
  *
  * Label is `Import CV · <Provider>` when a key is held in memory
  * (live via `useLLMKeys`). Clicking the button opens
@@ -37,7 +37,6 @@ export default function ImportCvButton() {
   const keys = useLLMKeys();
 
   const [open, setOpen] = useState(false);
-  const [showKeys, setShowKeys] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const activeProvider = pickActiveProvider(keys);
@@ -85,15 +84,6 @@ export default function ImportCvButton() {
         )}
         {busy ? "Importing..." : label}
       </button>
-      <button
-        onClick={() => setShowKeys(true)}
-        className="flex items-center gap-1 rounded-md border border-app-rule-strong bg-app-surface px-2 py-2 text-sm text-app-ink-2 hover:bg-app-surface-muted"
-        title="Configure LLM API keys"
-        aria-label="Configure LLM API keys"
-        type="button"
-      >
-        <Settings className="h-4 w-4" />
-      </button>
       <ImportCvModal
         open={open}
         onClose={() => {
@@ -103,10 +93,6 @@ export default function ImportCvButton() {
           }
         }}
         onSubmit={handleSubmit}
-      />
-      <LLMKeyDialog
-        open={showKeys}
-        onClose={() => setShowKeys(false)}
       />
     </div>
   );

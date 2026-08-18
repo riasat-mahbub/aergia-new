@@ -71,6 +71,17 @@ describe("SettingsPage", () => {
     await waitFor(() => expect(profileApi.updateProfile).toHaveBeenCalledWith(expect.objectContaining({ name: "Grace Hopper" })));
   });
 
+  it("keeps API-key configuration in the account settings surface", async () => {
+    const user = userEvent.setup();
+    useProfileStore.setState({ profile, loaded: true });
+
+    render(<SettingsPage />);
+
+    expect(screen.getByRole("heading", { name: "Import settings" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /configure api keys/i }));
+    expect(screen.getByText(/stored only in memory/i)).toBeInTheDocument();
+  });
+
   it("keeps the password change request separate from the profile data", async () => {
     const user = userEvent.setup();
     vi.mocked(client.post).mockResolvedValue({ data: undefined });
