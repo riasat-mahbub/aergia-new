@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { ExternalLink, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Plus } from "lucide-react";
+import ApplicationCard from "../components/applications/ApplicationCard";
 import ApplicationFormModal from "../components/applications/ApplicationFormModal";
 import EmptyState from "../components/common/EmptyState";
 import LoadingSkeleton from "../components/common/LoadingSkeleton";
@@ -10,110 +11,9 @@ import {
   type ApplicationGenerateResponse,
   type ApplicationStatus,
 } from "../lib/api/applications";
+import { RELEVANCE_TOOLTIP, relevanceScore, STATUS_LABELS } from "../components/applications/applicationPresentation";
 import { useApplicationStore } from "../lib/store/applicationStore";
 import { useToastStore } from "../lib/store/uiStore";
-
-const RELEVANCE_TOOLTIP = "Weighted keyword coverage of this CV against the saved job description—not an ATS or hiring probability.";
-
-const STATUS_LABELS: Record<ApplicationStatus, string> = {
-  draft: "Draft",
-  applied: "Applied",
-  responded: "Responded",
-  interview: "Interview",
-  offer: "Offer",
-  hired: "Hired",
-  rejected: "Rejected",
-  withdrawn: "Withdrawn",
-};
-
-const STATUS_CLASSES: Record<ApplicationStatus, string> = {
-  draft: "bg-app-surface-muted text-app-ink-2",
-  applied: "bg-app-primary-soft text-app-primary",
-  responded: "bg-app-secondary-soft text-app-secondary",
-  interview: "bg-app-secondary-soft text-app-secondary",
-  offer: "bg-app-warning-soft text-app-warning",
-  hired: "bg-app-primary-soft text-app-primary",
-  rejected: "bg-app-danger-soft text-app-danger",
-  withdrawn: "bg-app-surface-muted text-app-ink-3",
-};
-
-function relevanceScore(relevance: Application["relevance"]): number | null {
-  if ("score" in relevance && typeof relevance.score === "number") return relevance.score;
-  return null;
-}
-
-function formatDate(value: string | null): string {
-  if (!value) return "Not applied";
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
-}
-
-interface ApplicationCardProps {
-  application: Application;
-  retrying: boolean;
-  onRetry: () => void;
-  onDelete: () => void;
-}
-
-function ApplicationCard({ application, retrying, onRetry, onDelete }: ApplicationCardProps) {
-  const score = relevanceScore(application.relevance);
-  const fitLabel = application.fits_one_page === true
-    ? "One-page fit"
-    : application.fits_one_page === false
-      ? "Could not fit one page without rewriting content"
-      : null;
-
-  return (
-    <article className="rounded-lg border border-app-rule bg-app-surface p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <Link to={`/dashboard/applications/${application.id}`} className="block truncate text-lg font-semibold text-app-ink hover:text-app-primary">
-            {application.company}
-          </Link>
-          <p className="mt-1 truncate text-sm text-app-ink-2">{application.role}</p>
-        </div>
-        <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_CLASSES[application.status]}`}>
-          {STATUS_LABELS[application.status]}
-        </span>
-      </div>
-
-      <div className="mt-4 grid gap-2 text-sm text-app-ink-2 sm:grid-cols-2">
-        <span>Updated {formatDate(application.updated_at)}</span>
-        <span>{formatDate(application.applied_at)}</span>
-        {score !== null && <span className="font-medium text-app-ink" title={RELEVANCE_TOOLTIP}>Relevance {score}%</span>}
-        {fitLabel && <span className={application.fits_one_page ? "text-app-primary" : "text-app-warning"}>{fitLabel}</span>}
-      </div>
-
-      <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-app-rule-soft pt-4">
-        {application.generation_status === "ready" && application.cv_id ? (
-          <Link
-            to={`/dashboard/builder/${application.cv_id}?application=${application.id}`}
-          >
-            Open linked CV
-            <ExternalLink className="h-3.5 w-3.5" />
-          </Link>
-        ) : (
-          <button
-            type="button"
-            onClick={onRetry}
-            disabled={retrying}
-            className="inline-flex items-center gap-1 rounded-md border border-app-primary-soft px-3 py-1.5 text-sm font-medium text-app-primary hover:bg-app-primary-soft disabled:opacity-50"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${retrying ? "animate-spin" : ""}`} />
-            {retrying ? "Generating…" : application.generation_status === "failed" ? "Retry" : "Generate CV"}
-          </button>
-        )}
-        <Link to={`/dashboard/applications/${application.id}`} className="rounded-md px-3 py-1.5 text-sm font-medium text-app-ink-2 hover:bg-app-surface-muted">
-          Details
-        </Link>
-        <button type="button" onClick={onDelete} className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-app-ink-3 hover:bg-app-danger-soft hover:text-app-danger">
-          <Trash2 className="h-3.5 w-3.5" />
-          Delete
-        </button>
-      </div>
-      {application.generation_error && <p className="mt-3 text-xs text-app-danger">CV generation failed. Please retry.</p>}
-    </article>
-  );
-}
 
 export default function ApplicationsPage() {
   const navigate = useNavigate();
@@ -137,9 +37,8 @@ export default function ApplicationsPage() {
   );
 
   const handleGenerated = async (result: ApplicationGenerateResponse) => {
-    if (result.application.generation_status === "ready" && result.cv_id) {
-      navigate(`/dashboard/builder/${result.cv_id}?application=${result.application.id}`);
-    } else if (result.application.generation_status === "failed") {
+    navigate(`/dashboard/applications/${result.application.id}`);
+    if (result.application.generation_status === "failed") {
       addToast("CV generation failed. Please retry.", "error");
     }
   };
@@ -196,7 +95,13 @@ export default function ApplicationsPage() {
       {!isLoading && filteredApplications.length > 0 && (
         <div className="grid gap-4 md:grid-cols-2">
           {filteredApplications.map((application) => (
-            <ApplicationCard key={application.id} application={application} retrying={retryingId === application.id} onRetry={() => handleRetry(application)} onDelete={() => handleDelete(application)} />
+            <ApplicationCard
+              key={application.id}
+              application={application}
+              retrying={retryingId === application.id}
+              onRetry={() => handleRetry(application)}
+              onDelete={() => handleDelete(application)}
+            />
           ))}
         </div>
       )}
@@ -206,4 +111,4 @@ export default function ApplicationsPage() {
   );
 }
 
-export { STATUS_LABELS, relevanceScore };
+export { RELEVANCE_TOOLTIP, STATUS_LABELS, relevanceScore };
