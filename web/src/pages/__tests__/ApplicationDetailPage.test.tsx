@@ -91,6 +91,23 @@ describe("ApplicationDetailPage", () => {
     expect(screen.getByRole("link", { name: /open\/edit cv/i })).toHaveAttribute("href", "/dashboard/builder/cv-1?application=app-1");
     expect(screen.getByText("Could not fit one page without rewriting content")).toBeInTheDocument();
     expect(screen.getByLabelText("Application status")).toHaveClass("w-full", "min-w-[10rem]", "sm:w-auto");
+    expect(screen.getAllByRole("button", { name: "See more" })).toHaveLength(2);
+    expect(screen.getByRole("heading", { name: "Job" }).closest("section")).toHaveClass("h-60", "md:h-64");
+  });
+
+  it("expands the bounded job and relevance panels on demand", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText("Example Labs");
+    const seeMoreButtons = screen.getAllByRole("button", { name: "See more" });
+
+    await user.click(seeMoreButtons[0]);
+    expect(screen.getByRole("button", { name: "See less" })).toHaveAttribute("aria-expanded", "true");
+
+    await user.click(seeMoreButtons[1]);
+    expect(screen.getAllByRole("button", { name: "See less" })).toHaveLength(2);
+    expect(screen.getByRole("link", { name: /open\/edit cv/i })).toBeInTheDocument();
   });
 
   it("updates status and exports through the existing CV endpoint", async () => {
