@@ -14,6 +14,7 @@ type EditorProps = {
   data: any;
   onChange: (data: any) => void;
   context?: { cvId: string; sectionId: string };
+  mode?: "section" | "library";
 };
 interface SectionEditorComponent {
   Editor: (props: EditorProps) => React.JSX.Element;
@@ -39,11 +40,12 @@ export function renderSectionEditor(
   type: string,
   data: any,
   onChange: (data: any) => void,
-  context?: { cvId: string; sectionId: string }
+  context?: { cvId: string; sectionId: string },
+  mode: "section" | "library" = "section",
 ) {
   const comp = sectionMap[type];
   if (!comp) return null;
-  return <comp.Editor data={data} onChange={onChange} context={context} />;
+  return <comp.Editor data={data} onChange={onChange} context={context} mode={mode} />;
 }
 
 export { sectionMap };

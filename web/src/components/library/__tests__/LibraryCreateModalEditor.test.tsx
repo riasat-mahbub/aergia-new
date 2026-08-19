@@ -27,4 +27,25 @@ describe("LibraryCreateModal editor defaults", () => {
 
     expect(screen.getByText("New Skill Group")).toBeInTheDocument();
   });
+
+  it("renders an existing entry as a field-only edit form", () => {
+    render(
+      <LibraryCreateModal
+        open
+        onClose={vi.fn()}
+        entry={{
+          id: "library-1",
+          kind: "skill",
+          payload: [{ id: "skill-1", category: "Frontend", items: [] }],
+          created_at: "2026-01-01",
+          updated_at: "2026-01-02",
+        }}
+      />,
+    );
+
+    expect(screen.getByDisplayValue("Frontend")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add skill group/i })).not.toBeInTheDocument();
+    expect(screen.queryByText("Remove")).not.toBeInTheDocument();
+    expect(screen.queryByText("Change type")).not.toBeInTheDocument();
+  });
 });

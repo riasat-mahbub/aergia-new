@@ -9,9 +9,10 @@ interface Props {
   data: EducationEntry[] | undefined;
   onChange: (data: EducationEntry[]) => void;
   context?: { cvId: string; sectionId: string };
+  mode?: "section" | "library";
 }
 
-export default function EducationEditor({ data = [], onChange, context }: Props) {
+export default function EducationEditor({ data = [], onChange, context, mode = "section" }: Props) {
   const { entries, add, remove, update, move } = useFieldArray(data, onChange, () => ({
     id: `edu_${Date.now()}`,
     institution: "",
@@ -29,6 +30,7 @@ export default function EducationEditor({ data = [], onChange, context }: Props)
         entries={entries}
         onRemove={remove}
         onMove={move}
+        compact={mode === "library"}
         getTitle={(e: any) => e.degree || e.institution || "New Education"}
         onAddToLibrary={
           context
@@ -111,21 +113,23 @@ export default function EducationEditor({ data = [], onChange, context }: Props)
           </div>
         )}
       </SortableAccordionList>
-      <EntryAddRow
-        kind="education"
-        addLabel="Education"
-        onAddNew={add}
-        onPickFromLibrary={(picked) => {
-          if (!picked) return;
-          const incoming = Array.isArray(picked.data) ? picked.data : [];
-          // Stamp a fresh id so each entry has a stable key.
-          const stamped = incoming.map((row) => ({
-            ...(row as Record<string, unknown>),
-            id: `edu_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-          }));
-          onChange([...entries, ...(stamped as EducationEntry[])]);
-        }}
-      />
+      {mode !== "library" && (
+        <EntryAddRow
+          kind="education"
+          addLabel="Education"
+          onAddNew={add}
+          onPickFromLibrary={(picked) => {
+            if (!picked) return;
+            const incoming = Array.isArray(picked.data) ? picked.data : [];
+            // Stamp a fresh id so each entry has a stable key.
+            const stamped = incoming.map((row) => ({
+              ...(row as Record<string, unknown>),
+              id: `edu_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            }));
+            onChange([...entries, ...(stamped as EducationEntry[])]);
+          }}
+        />
+      )}
     </div>
   );
 }

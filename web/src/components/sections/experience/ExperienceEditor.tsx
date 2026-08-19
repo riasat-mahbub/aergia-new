@@ -10,9 +10,10 @@ interface Props {
   data: ExperienceEntry[] | undefined;
   onChange: (data: ExperienceEntry[]) => void;
   context?: { cvId: string; sectionId: string };
+  mode?: "section" | "library";
 }
 
-export default function ExperienceEditor({ data = [], onChange, context }: Props) {
+export default function ExperienceEditor({ data = [], onChange, context, mode = "section" }: Props) {
   const { entries, add, remove, update, move } = useFieldArray(data, onChange, () => ({
     id: `exp_${Date.now()}`,
     company: "",
@@ -30,6 +31,7 @@ export default function ExperienceEditor({ data = [], onChange, context }: Props
         entries={entries}
         onRemove={remove}
         onMove={move}
+        compact={mode === "library"}
         getTitle={(e: any) => e.company || e.position || "New Experience"}
         onAddToLibrary={
           context
@@ -83,20 +85,22 @@ export default function ExperienceEditor({ data = [], onChange, context }: Props
           </div>
         )}
       </SortableAccordionList>
-      <EntryAddRow
-        kind="experience"
-        addLabel="Experience"
-        onAddNew={add}
-        onPickFromLibrary={(picked) => {
-          if (!picked) return;
-          const incoming = Array.isArray(picked.data) ? picked.data : [];
-          const stamped = incoming.map((row) => ({
-            ...(row as Record<string, unknown>),
-            id: `exp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-          }));
-          onChange([...entries, ...(stamped as ExperienceEntry[])]);
-        }}
-      />
+      {mode !== "library" && (
+        <EntryAddRow
+          kind="experience"
+          addLabel="Experience"
+          onAddNew={add}
+          onPickFromLibrary={(picked) => {
+            if (!picked) return;
+            const incoming = Array.isArray(picked.data) ? picked.data : [];
+            const stamped = incoming.map((row) => ({
+              ...(row as Record<string, unknown>),
+              id: `exp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            }));
+            onChange([...entries, ...(stamped as ExperienceEntry[])]);
+          }}
+        />
+      )}
     </div>
   );
 }

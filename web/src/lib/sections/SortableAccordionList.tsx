@@ -30,6 +30,7 @@ interface SortableAccordionListProps {
    */
   onAddToLibrary?: (entryId: string) => ReactNode;
   children: (entry: any, index: number) => ReactNode;
+  compact?: boolean;
 }
 
 function SortableItem({
@@ -87,6 +88,7 @@ export default function SortableAccordionList({
   getTitle,
   onAddToLibrary,
   children,
+  compact = false,
 }: SortableAccordionListProps) {
   // Defensive: a parent editor may briefly pass `undefined` during a
   // hot-reload transition or while a section is mid-save. The prop is
@@ -96,6 +98,16 @@ export default function SortableAccordionList({
   const safeEntries = Array.isArray(entries) ? entries : [];
   const itemIds = safeEntries.map((e) => e.id);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  if (compact) {
+    return (
+      <div className="space-y-4">
+        {safeEntries.map((entry, index) => (
+          <div key={entry.id}>{children(entry, index)}</div>
+        ))}
+      </div>
+    );
+  }
 
   const handleDragEnd = (event: DragEndEvent) => {
     const activeId = String(event.active.id);

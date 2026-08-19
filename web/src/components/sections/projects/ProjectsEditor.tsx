@@ -10,9 +10,10 @@ interface Props {
   data: ProjectEntry[] | undefined;
   onChange: (data: ProjectEntry[]) => void;
   context?: { cvId: string; sectionId: string };
+  mode?: "section" | "library";
 }
 
-export default function ProjectsEditor({ data = [], onChange, context }: Props) {
+export default function ProjectsEditor({ data = [], onChange, context, mode = "section" }: Props) {
   const { entries, add, remove, update, move } = useFieldArray(data, onChange, () => ({
     id: `proj_${Date.now()}`,
     name: "",
@@ -40,6 +41,7 @@ export default function ProjectsEditor({ data = [], onChange, context }: Props) 
         entries={entries}
         onRemove={remove}
         onMove={move}
+        compact={mode === "library"}
         getTitle={(e: any) => e.name || "New Project"}
         onAddToLibrary={
           context
@@ -135,20 +137,22 @@ export default function ProjectsEditor({ data = [], onChange, context }: Props) 
           </div>
         )}
       </SortableAccordionList>
-      <EntryAddRow
-        kind="project"
-        addLabel="Project"
-        onAddNew={add}
-        onPickFromLibrary={(picked) => {
-          if (!picked) return;
-          const incoming = Array.isArray(picked.data) ? picked.data : [];
-          const stamped = incoming.map((row) => ({
-            ...(row as Record<string, unknown>),
-            id: `proj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-          }));
-          onChange([...entries, ...(stamped as ProjectEntry[])]);
-        }}
-      />
+      {mode !== "library" && (
+        <EntryAddRow
+          kind="project"
+          addLabel="Project"
+          onAddNew={add}
+          onPickFromLibrary={(picked) => {
+            if (!picked) return;
+            const incoming = Array.isArray(picked.data) ? picked.data : [];
+            const stamped = incoming.map((row) => ({
+              ...(row as Record<string, unknown>),
+              id: `proj_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            }));
+            onChange([...entries, ...(stamped as ProjectEntry[])]);
+          }}
+        />
+      )}
     </div>
   );
 }

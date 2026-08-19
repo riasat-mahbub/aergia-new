@@ -9,9 +9,10 @@ interface Props {
   data: CertificationEntry[] | undefined;
   onChange: (data: CertificationEntry[]) => void;
   context?: { cvId: string; sectionId: string };
+  mode?: "section" | "library";
 }
 
-export default function CertificationsEditor({ data = [], onChange, context }: Props) {
+export default function CertificationsEditor({ data = [], onChange, context, mode = "section" }: Props) {
   const { entries, add, remove, update, move } = useFieldArray(data, onChange, () => ({
     id: `cert_${Date.now()}`,
     name: "",
@@ -27,6 +28,7 @@ export default function CertificationsEditor({ data = [], onChange, context }: P
         entries={entries}
         onRemove={remove}
         onMove={move}
+        compact={mode === "library"}
         getTitle={(e: any) => e.name || "New Certification"}
         onAddToLibrary={
           context
@@ -73,20 +75,22 @@ export default function CertificationsEditor({ data = [], onChange, context }: P
           </div>
         )}
       </SortableAccordionList>
-      <EntryAddRow
-        kind="certification"
-        addLabel="Certification"
-        onAddNew={add}
-        onPickFromLibrary={(picked) => {
-          if (!picked) return;
-          const incoming = Array.isArray(picked.data) ? picked.data : [];
-          const stamped = incoming.map((row) => ({
-            ...(row as Record<string, unknown>),
-            id: `cert_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-          }));
-          onChange([...entries, ...(stamped as CertificationEntry[])]);
-        }}
-      />
+      {mode !== "library" && (
+        <EntryAddRow
+          kind="certification"
+          addLabel="Certification"
+          onAddNew={add}
+          onPickFromLibrary={(picked) => {
+            if (!picked) return;
+            const incoming = Array.isArray(picked.data) ? picked.data : [];
+            const stamped = incoming.map((row) => ({
+              ...(row as Record<string, unknown>),
+              id: `cert_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            }));
+            onChange([...entries, ...(stamped as CertificationEntry[])]);
+          }}
+        />
+      )}
     </div>
   );
 }
