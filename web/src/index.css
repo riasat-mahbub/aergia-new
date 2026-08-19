@@ -4,6 +4,55 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Rich-text editing uses Lexical's theme classes. Keep these structural
+ * rules here so the editor visibly matches the semantic list that will be
+ * emitted by the HTML/PDF renderer. */
+@layer components {
+  .rich-text-editor .editor-paragraph {
+    margin: 0 0 0.35rem;
+    min-height: 1.25rem;
+  }
+
+  .rich-text-editor .editor-list-ul,
+  .rich-text-editor .editor-list-ol {
+    margin: 0 0 0.35rem;
+    padding-left: 1.5rem;
+  }
+
+  .rich-text-editor .editor-list-ul {
+    list-style: disc;
+  }
+
+  .rich-text-editor .editor-list-ol {
+    list-style: decimal;
+  }
+
+  .rich-text-editor .editor-listitem {
+    padding-left: 0.15rem;
+    min-height: 1.25rem;
+  }
+
+  .rich-text-editor .editor-link {
+    color: var(--app-primary-hover);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .rich-text-toolbar {
+    row-gap: 0.25rem;
+  }
+
+  @media (max-width: 420px) {
+    .rich-text-toolbar {
+      align-items: flex-start;
+    }
+
+    .rich-text-toolbar .rich-text-toolbar-secondary {
+      flex-basis: 100%;
+    }
+  }
+}
+
 /* ── Base typography ─────────────────────────────────────────────── */
 /* The proof-sheet palette uses a serif for prose (panel headings,
  * captions) and a sans for UI controls. Apply at the root so every

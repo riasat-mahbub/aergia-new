@@ -260,6 +260,20 @@ describe("blocksToLexical", () => {
     expect(list.children[0].type).toBe("listitem");
   });
 
+  it("encodes a linked, sized list item as one link-wrapped run", () => {
+    const state = blocksToLexical([
+      {
+        type: "bullet_list" as const,
+        items: [{ text: "Read", style: { link: "https://example.com", font_size: "xl", italic: true } }],
+      },
+    ]);
+    const item = (state.root.children[0] as any).children[0];
+    expect(item.children).toHaveLength(1);
+    expect(item.children[0].type).toBe("link");
+    expect(item.children[0].url).toBe("https://example.com");
+    expect(item.children[0].children[0]).toEqual(expect.objectContaining({ format: 2, style: "font-size:1.25rem" }));
+  });
+
   it("converts numbered list blocks to Lexical numbered lists", () => {
     const blocks = [
       { type: "numbered_list" as const, items: [{ text: "First" }] },
@@ -322,6 +336,60 @@ describe("blocksToLexical", () => {
           { text: "our site", style: { bold: true, link: "https://example.com" } },
         ],
       },
+    ]);
+  });
+
+  it("decodes supported text-node sizes and colors", () => {
+    const state = {
+      root: {
+        type: "root",
+        children: [{
+          type: "paragraph",
+          children: [{ type: "text", text: "Large", format: 0, style: "font-size:1.125rem;color:#abc" }],
+        }],
+      },
+    } as unknown as SerializedEditorState;
+
+    expect(lexicalToBlocks(state)).toEqual([
+      { type: "paragraph", items: [{ text: "Large", style: { font_size: "large", color: "#abc" } }] },
+    ]);
+  });
+
+  it("ignores unsupported inline CSS values", () => {
+    const state = {
+      root: {
+        type: "root",
+        children: [{
+          type: "paragraph",
+          children: [{ type: "text", text: "Styled", format: 0, style: "font-size:22px;color:red;background:url(javascript:bad)" }],
+        }],
+      },
+    } as unknown as SerializedEditorState;
+
+    expect(lexicalToBlocks(state)).toEqual([{ type: "paragraph", items: [{ text: "Styled" }] }]);
+  });
+
+  it("keeps a linked list item as one saved run", () => {
+    const state = {
+      root: {
+        type: "root",
+        children: [{
+          type: "list",
+          listType: "bullet",
+          children: [{
+            type: "listitem",
+            children: [{
+              type: "link",
+              url: "https://example.com",
+              children: [{ type: "text", text: "Read more", format: 1, style: "font-size:0.875rem" }],
+            }],
+          }],
+        }],
+      },
+    } as unknown as SerializedEditorState;
+
+    expect(lexicalToBlocks(state)).toEqual([
+      { type: "bullet_list", items: [{ text: "Read more", style: { bold: true, font_size: "small", link: "https://example.com" } }] },
     ]);
   });
 
