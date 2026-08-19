@@ -9,7 +9,6 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   hydrate: () => Promise<void>;
 }
 
@@ -53,13 +52,6 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ isLoading: false });
       throw error;
     }
-  },
-
-  changePassword: async (currentPassword: string, newPassword: string) => {
-    await client.post("/auth/change-password", {
-      old_password: currentPassword,
-      new_password: newPassword,
-    });
   },
 
   logout: async () => {

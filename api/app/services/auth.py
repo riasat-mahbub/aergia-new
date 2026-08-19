@@ -78,16 +78,6 @@ class AuthService:
             user.refresh_token_hash = None
             await self.db.flush()
 
-    async def change_password(self, email: str, old_password: str, new_password: str) -> None:
-        result = await self.db.execute(select(User).where(User.email == email))
-        user = result.scalar_one_or_none()
-        if not user or not verify_password(old_password, user.password_hash):
-            raise ValueError("Invalid current password")
-
-        user.password_hash = hash_password(new_password)
-        user.refresh_token_hash = None
-        await self.db.flush()
-
     async def get_user_by_email(self, email: str) -> User | None:
         result = await self.db.execute(select(User).where(User.email == email))
         return result.scalar_one_or_none()
