@@ -13,7 +13,7 @@ import {
   INSERT_ORDERED_LIST_COMMAND,
   INSERT_UNORDERED_LIST_COMMAND,
 } from "@lexical/list";
-import { $createLinkNode, $toggleLink, TOGGLE_LINK_COMMAND } from "@lexical/link";
+import { $createLinkNode, $toggleLink } from "@lexical/link";
 import { $createTextNode } from "lexical";
 import { REMOVE_LIST_COMMAND } from "@lexical/list";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -298,7 +298,7 @@ export default function RichTextToolbar({ editor }: Props) {
         <ToolbarButton onPress={openLinkDialog} active={Boolean(active.link)} title={active.link ? "Edit link" : "Add link"}><Link className="h-3.5 w-3.5" /></ToolbarButton>
         {linkDialogOpen && <LinkDialog initialUrl={linkContext.url} initialText={linkContext.text} onApply={applyLinkFromDialog} onCancel={closeLinkDialog} onRemove={linkContext.url ? removeLinkFromDialog : null} />}
       </div>
-      <ToolbarButton onPress={() => { editor.dispatchCommand(TOGGLE_LINK_COMMAND, null); }} disabled={!active.link} title="Remove link"><Unlink className="h-3.5 w-3.5" /></ToolbarButton>
+      <ToolbarButton onPress={() => removeLinks(editor)} disabled={!active.link} title="Remove link"><Unlink className="h-3.5 w-3.5" /></ToolbarButton>
       <span className="mx-1 h-4 w-px bg-app-surface-strong" aria-hidden="true" />
       <ToolbarButton onPress={() => editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined)} active={active.listType === "bullet"} title="Bullet list"><List className="h-3.5 w-3.5" /></ToolbarButton>
       <ToolbarButton onPress={() => editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined)} active={active.listType === "numbered"} title="Numbered list"><ListOrdered className="h-3.5 w-3.5" /></ToolbarButton>

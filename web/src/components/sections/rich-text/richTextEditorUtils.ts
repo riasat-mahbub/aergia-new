@@ -12,7 +12,8 @@ import {
   type TextNode,
 } from "lexical";
 import { $isListItemNode, $isListNode, type ListItemNode } from "@lexical/list";
-import { $isAutoLinkNode, $isLinkNode, type LinkNode } from "@lexical/link";
+import { $createLinkNode, $isAutoLinkNode, $isLinkNode, type LinkNode } from "@lexical/link";
+import { $createTextNode } from "lexical";
 import { FONT_SIZE_CSS, FONT_SIZE_TOKENS, type FontSizeToken } from "../../../styles/tokens";
 
 export interface SelectionSnapshot {
@@ -288,8 +289,43 @@ export function removeLinks(editor: LexicalEditor): void {
   editor.update(() => {
     const selection = $getSelection();
     if (!$isRangeSelection(selection)) return;
-    for (const link of linksInSelection(selection)) unwrapLink(link);
+    const listItems = listItemsInSelection(selection);
+    const links = listItems.length > 0
+      ? listItems.flatMap(textDescendants).map(linkForNode).filter((link): link is LinkNode => link !== null)
+      : linksInSelection(selection);
+    const seen = new Set<string>();
+    for (const link of links) {
+      if (!seen.has(link.getKey())) {
+        seen.add(link.getKey());
+        unwrapLink(link);
+      }
+    }
   });
+}
+
+/** Apply one manual or automatic URL to every affected flat list item. */
+export function setListItemsLink(selection: ReturnType<typeof $getSelection>, url: string | null): boolean {
+  if (!$isRangeSelection(selection)) return false;
+  const listItems = listItemsInSelection(selection);
+  if (listItems.length === 0) return false;
+  if (url === null) {
+    const links = listItems.flatMap(textDescendants).map(linkForNode).filter((link): link is LinkNode => link !== null);
+    const seen = new Set<string>();
+    for (const link of links) {
+      if (!seen.has(link.getKey())) {
+        seen.add(link.getKey());
+        unwrapLink(link);
+      }
+    }
+    return true;
+  }
+  for (const item of listItems) {
+    const source = textDescendants(item)[0];
+    const text = $createTextNode(item.getTextContent());
+    if (source) text.setFormat(source.getFormat()).setStyle(source.getStyle());
+    item.clear().append($createLinkNode(url, { rel: "noreferrer" }).append(text));
+  }
+  return true;
 }
 
 export function clearFormatting(editor: LexicalEditor): void {
@@ -304,7 +340,16 @@ export function clearFormatting(editor: LexicalEditor): void {
       node.setFormat(0);
       node.setStyle("");
     }
-    for (const link of linksInSelection(selection)) unwrapLink(link);
+    const links = listItems.length > 0
+      ? listItems.flatMap(textDescendants).map(linkForNode).filter((link): link is LinkNode => link !== null)
+      : linksInSelection(selection);
+    const seen = new Set<string>();
+    for (const link of links) {
+      if (!seen.has(link.getKey())) {
+        seen.add(link.getKey());
+        unwrapLink(link);
+      }
+    }
   });
 }
 
