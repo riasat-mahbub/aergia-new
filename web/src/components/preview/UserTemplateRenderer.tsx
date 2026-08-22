@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { SectionInstance } from "../../lib/sections/types";
 import client from "../../lib/api/client";
+import { applyPreviewPagination } from "./pagePagination";
+import { A4_PAGE_GEOMETRY, PAGE_HEIGHT_PX, PAGE_WIDTH_PX, scaleForAvailableWidth } from "./pageGeometry";
 
 interface Props {
   instances: SectionInstance[];
@@ -11,15 +13,27 @@ interface Props {
   manifest?: Record<string, unknown>;
 }
 
-// 297mm at 96dpi (1mm = 96/25.4 ≈ 3.78px). Matches the A4 page size
-// in `api/app/services/renderer/resolve.py`'s `PRINT_STYLES`.
-const PAGE_HEIGHT_PX = 1122;
-
 export default function UserTemplateRenderer({ instances, customizations, manifest }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const [html, setHtml] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
-  const [iframeHeight, setIframeHeight] = useState<number>(PAGE_HEIGHT_PX);
+  const [iframeHeight, setIframeHeight] = useState<number>(A4_PAGE_GEOMETRY.pageHeightPx);
+  const [pageCount, setPageCount] = useState(1);
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const updateScale = () => setScale(scaleForAvailableWidth(viewport.clientWidth));
+    updateScale();
+
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(updateScale);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     // The CV layout rides in `customizations.layout` (the canonical wire
@@ -31,6 +45,7 @@ export default function UserTemplateRenderer({ instances, customizations, manife
     if (!customizations?.layout?.zones?.length) return;
 
     const customizationsPayload = customizations;
+    let cancelled = false;
     async function renderTemplate() {
       try {
         setError(null);
@@ -40,13 +55,15 @@ export default function UserTemplateRenderer({ instances, customizations, manife
           customizations: customizationsPayload,
           preview: true,
         });
-        setHtml(response.data.html);
+        if (!cancelled) setHtml(response.data.html);
       } catch {
+        if (cancelled) return;
         setError("Failed to render template");
         setHtml("");
       }
     }
     renderTemplate();
+    return () => { cancelled = true; };
   }, [manifest, instances, customizations]);
 
   useEffect(() => {
@@ -59,21 +76,67 @@ export default function UserTemplateRenderer({ instances, customizations, manife
     iframeDoc.open();
     iframeDoc.write(html);
     iframeDoc.close();
-    // Measure the rendered document so the iframe can grow past one A4 page.
-    // Read body.scrollHeight — not documentElement.scrollHeight — because the
-    // html element fills the iframe viewport and reports the iframe's own
-    // height once the iframe has been grown past the content, which would
-    // freeze the measurement in a positive feedback loop.
-    const fit = () => {
-      const body = iframeDoc.body;
-      if (!body) return;
-      const h = body.scrollHeight;
-      if (h) setIframeHeight(h);
+
+    let cancelled = false;
+    let frameId: number | null = null;
+    let observer: ResizeObserver | null = null;
+
+    const nextFrame = () => new Promise<void>((resolve) => {
+      const frameWindow = iframeDoc.defaultView;
+      if (frameWindow?.requestAnimationFrame) {
+        frameWindow.requestAnimationFrame(() => resolve());
+      } else {
+        window.requestAnimationFrame(() => resolve());
+      }
+    });
+
+    const waitForImages = async () => {
+      const images = Array.from(iframeDoc.images);
+      await Promise.all(images.map((image) => {
+        if (image.complete) return Promise.resolve();
+        return new Promise<void>((resolve) => {
+          image.addEventListener("load", () => resolve(), { once: true });
+          image.addEventListener("error", () => resolve(), { once: true });
+        });
+      }));
     };
-    requestAnimationFrame(fit);
+
+    const paginate = () => {
+      if (cancelled || !iframeDoc.body) return;
+      observer?.disconnect();
+      const result = applyPreviewPagination(iframeDoc, A4_PAGE_GEOMETRY);
+      setIframeHeight(result.height);
+      setPageCount(result.pageCount);
+      if (!cancelled && observer && iframeDoc.body) observer.observe(iframeDoc.body);
+    };
+
+    const settle = async () => {
+      if (iframeDoc.fonts) await iframeDoc.fonts.ready;
+      await waitForImages();
+      await nextFrame();
+      await nextFrame();
+      if (cancelled) return;
+      paginate();
+
+      if (typeof ResizeObserver === "undefined" || !iframeDoc.body) return;
+      observer = new ResizeObserver(() => {
+        if (frameId !== null) return;
+        frameId = window.requestAnimationFrame(() => {
+          frameId = null;
+          paginate();
+        });
+      });
+      observer.observe(iframeDoc.body);
+    };
+    void settle();
+
+    return () => {
+      cancelled = true;
+      observer?.disconnect();
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
+    };
   }, [html]);
 
-  const pageCount = Math.max(1, Math.ceil(iframeHeight / PAGE_HEIGHT_PX));
   const breakRules = Array.from({ length: Math.max(0, pageCount - 1) }, (_, i) => i + 1);
 
   if (error) {
@@ -85,27 +148,45 @@ export default function UserTemplateRenderer({ instances, customizations, manife
   }
 
   return (
-    <div className="relative mx-auto max-w-[210mm] rounded bg-app-surface shadow-sm">
-      <iframe
-        ref={iframeRef}
-        title="User Template Preview"
-        className="w-full"
-        style={{ height: `${iframeHeight}px` }}
-        sandbox="allow-same-origin"
-      />
-      {breakRules.map((n) => (
+    <div ref={viewportRef} className="w-full overflow-x-auto">
+      <div
+        className="mx-auto"
+        style={{
+          width: `${PAGE_WIDTH_PX * scale}px`,
+          height: `${iframeHeight * scale}px`,
+        }}
+      >
         <div
-          key={n}
-          aria-hidden="true"
-          className="pointer-events-none absolute left-0 right-0"
-          style={{ top: `${n * PAGE_HEIGHT_PX}px` }}
+          className="relative rounded bg-app-surface shadow-sm"
+          style={{
+            width: `${PAGE_WIDTH_PX}px`,
+            height: `${iframeHeight}px`,
+            transform: `scale(${scale})`,
+            transformOrigin: "top left",
+          }}
         >
-          <div className="border-t border-dashed border-rose-400" />
-          <div className="absolute -top-2 right-2 rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-700">
-            Page {n + 1} starts
-          </div>
+          <iframe
+            ref={iframeRef}
+            title="User Template Preview"
+            className="block border-0"
+            style={{ width: `${PAGE_WIDTH_PX}px`, height: `${iframeHeight}px` }}
+            sandbox="allow-same-origin"
+          />
+          {breakRules.map((n) => (
+            <div
+              key={n}
+              aria-hidden="true"
+              className="pointer-events-none absolute left-0 right-0"
+              style={{ top: `${n * PAGE_HEIGHT_PX}px` }}
+            >
+              <div className="border-t border-dashed border-rose-400" />
+              <div className="absolute -top-2 right-2 rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-700">
+                Page {n + 1} starts
+              </div>
+            </div>
+          ))}
         </div>
-      ))}
+      </div>
     </div>
   );
 }
