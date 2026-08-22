@@ -79,7 +79,7 @@ export default function ExperienceEditor({ data = [], onChange, context, mode = 
               <RichTextEditor
                 value={entry.description}
                 onChange={(blocks) => update(i, "description", blocks)}
-                placeholder="Description"
+                placeholder="Add a concise summary or bullet highlights…"
               />
             </div>
           </div>

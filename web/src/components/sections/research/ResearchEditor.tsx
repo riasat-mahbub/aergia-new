@@ -107,7 +107,7 @@ export default function ResearchEditor({ data = [], onChange, context, mode = "s
               <RichTextEditor
                 value={entry.description ?? ""}
                 onChange={(blocks) => update(i, "description", blocks)}
-                placeholder="Description"
+                placeholder="Summarize the research and its contribution…"
               />
             </div>
           </div>

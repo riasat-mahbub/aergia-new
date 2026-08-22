@@ -3,6 +3,7 @@ import { safeLinkUrl } from "../../../lib/security/safeUrl";
 
 const FONT_SIZE_VALUES = new Set(Object.values(FONT_SIZE_CSS));
 const HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+const PALETTE_COLOR = /^var\(--palette-[a-z][a-z0-9_-]*\)$/;
 const ALLOWED_TAGS = new Set([
   "P", "BR", "STRONG", "B", "EM", "I", "U", "S", "STRIKE", "DEL", "A",
   "UL", "OL", "LI", "SPAN",
@@ -19,7 +20,7 @@ function cleanStyle(value: string): string {
     const rawValue = declaration.slice(separator + 1).trim();
     if (property === "font-size" && FONT_SIZE_VALUES.has(rawValue)) {
       safe.push(`${property}:${rawValue}`);
-    } else if (property === "color" && HEX_COLOR.test(rawValue)) {
+    } else if (property === "color" && (HEX_COLOR.test(rawValue) || PALETTE_COLOR.test(rawValue))) {
       safe.push(`${property}:${rawValue}`);
     } else if (property === "font-weight" && /^(?:400|500|600|700|normal|bold)$/.test(rawValue)) {
       safe.push(`${property}:${rawValue}`);
@@ -59,7 +60,9 @@ function cleanElement(element: Element): void {
       continue;
     }
     if (!ALLOWED_TAGS.has(tag)) {
+      const moved = [...childElement.children];
       unwrap(childElement);
+      for (const movedElement of moved) cleanElement(movedElement);
       continue;
     }
 

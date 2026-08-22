@@ -369,6 +369,13 @@ describe("blocksToLexical", () => {
     expect(lexicalToBlocks(state)).toEqual([{ type: "paragraph", items: [{ text: "Styled" }] }]);
   });
 
+  it("preserves a persisted palette color through the Lexical style field", () => {
+    const blocks = [{ type: "paragraph" as const, items: [{ text: "Accent", style: { color: "palette.accent" } }] }];
+    const state = blocksToLexical(blocks);
+    expect((state.root.children[0] as any).children[0].style).toBe("color:var(--palette-accent)");
+    expect(lexicalToBlocks(state)).toEqual(blocks);
+  });
+
   it("keeps a linked list item as one saved run", () => {
     const state = {
       root: {

@@ -149,7 +149,7 @@ function EditorInner({
             />
           }
           placeholder={
-            <div className="pointer-events-none text-app-ink-3">{placeholder}</div>
+            <div className="pointer-events-none text-app-ink-3" aria-hidden="true">{placeholder}</div>
           }
           ErrorBoundary={({ children }) => <div>{children}</div>}
         />
