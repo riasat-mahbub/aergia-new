@@ -8,6 +8,18 @@ from app.db.session import async_session
 from app.models.application import Application
 
 
+CUSTOMIZATIONS_PAYLOAD = {
+    "layout": {
+        "zones": [{"id": "sidebar", "styles": {"width": "narrow"}}],
+        "placement": {"sec_profile": "sidebar"},
+    },
+    "flags": {"default_link_style": True},
+    "per_section": {
+        "sec_profile": {"text": {"name": {"bold": True}}},
+    },
+}
+
+
 @pytest.fixture
 async def auth_headers(client):
     """Register a test user and return auth headers."""
@@ -77,6 +89,39 @@ async def test_cv_creation_installs_template_zones(client, auth_headers):
     assert layout.get("zones"), "new CV must install the template's zones into customizations.layout"
     assert layout.get("placement"), "new CV must install the template's placement"
     assert {z["id"] for z in layout["zones"]} == {"sidebar", "main"}
+
+
+@pytest.mark.asyncio
+async def test_cv_creation_accepts_populated_customizations(client, auth_headers):
+    response = await client.post(
+        "/api/v1/cvs",
+        json={"title": "Customized CV", "customizations": CUSTOMIZATIONS_PAYLOAD},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 201
+    customizations = response.json()["customizations"]
+    assert customizations["layout"]["placement"] == {"sec_profile": "sidebar"}
+    assert customizations["flags"] == {"default_link_style": True}
+    assert customizations["per_section"]["sec_profile"]["text"]["name"]["bold"] is True
+
+
+@pytest.mark.asyncio
+async def test_cv_update_accepts_populated_customizations(client, auth_headers):
+    created = await client.post("/api/v1/cvs", json={"title": "Customized CV"}, headers=auth_headers)
+    assert created.status_code == 201
+
+    response = await client.patch(
+        f"/api/v1/cvs/{created.json()['id']}",
+        json={"customizations": CUSTOMIZATIONS_PAYLOAD},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+    customizations = response.json()["customizations"]
+    assert customizations["layout"]["placement"] == {"sec_profile": "sidebar"}
+    assert customizations["flags"] == {"default_link_style": True}
+    assert customizations["per_section"]["sec_profile"]["text"]["name"]["bold"] is True
 
 
 @pytest.mark.asyncio
@@ -225,7 +270,6 @@ async def test_cv_data_isolation(client):
     # User B cannot copy it
     copy_b = await client.post(f"/api/v1/cvs/{cv_a_id}/copy", headers=headers_b)
     assert copy_b.status_code == 404
-
 
 
 
