@@ -7,7 +7,7 @@ Each row in the data is a :class:`SkillGroup` with a ``category`` and
 
 from __future__ import annotations
 
-from app.schema.models import Entry, FieldBlock, Section, SectionInstance, TextRun
+from app.schema.models import Entry, FieldBlock, Section, SectionInstance, TextRun, TextStyle
 
 
 def build_skills(instance: SectionInstance) -> Section:
@@ -21,7 +21,7 @@ def build_skills(instance: SectionInstance) -> Section:
         fields: list[FieldBlock] = []
 
         if row.get("category"):
-            fields.append(FieldBlock(key="category", group="body", runs=[TextRun(text=str(row["category"]))]))
+            fields.append(FieldBlock(key="category", group="body", runs=[TextRun(text=str(row["category"]), style=TextStyle(bold=True))]))
 
         items = row.get("items") or []
         for i, item in enumerate(items):

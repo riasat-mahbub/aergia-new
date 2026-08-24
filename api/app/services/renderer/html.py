@@ -198,6 +198,133 @@ def _resolve_row_justify(subsection: SubsectionStyle | None) -> str:
     return "flex-start"
 
 
+def _split_title_row(
+    fields: list,
+    chip_keys,
+) -> tuple[list, tuple | None, list]:
+    """Split fields into ``(title_fields, paired, rest)``.
+
+    ``title_fields`` is the header cluster for the row's left side —
+    the project name, position, degree, etc. — plus any header-group
+    right-aligned field (the link) which becomes the right rail.
+
+    ``paired`` is ``(body_field, date_field)`` when the immediate
+    pattern is ``date (secondary, right) -> body_field (body)``: the
+    date pairs with that body field so both render on the same row
+    with body on the left and date right-aligned. ``None`` when no
+    such pairing applies.
+
+    ``rest`` is whatever remains after the title row and the paired
+    row.
+
+    Promotion isn't applicable (returns ``([], None, list(fields))``)
+    when there's no header group or when the first header field is a
+    chip.
+    """
+    if not fields:
+        return [], None, list(fields)
+    first = fields[0]
+    if first.group != "header":
+        return [], None, list(fields)
+    if chip_keys and first.key in chip_keys:
+        return [], None, list(fields)
+    # Walk forward while we stay inside the header group. The last
+    # right-aligned field within the header group becomes the right
+    # rail of the title row.
+    i = 1
+    while i < len(fields) and fields[i].group == "header":
+        if chip_keys and fields[i].key in chip_keys:
+            break
+        i += 1
+    title_fields = list(fields[:i])
+    if (
+        i < len(fields)
+        and fields[i].group != "header"
+        and fields[i].align == "right"
+        and i + 1 < len(fields)
+        and fields[i + 1].group != "header"
+        and not (chip_keys and fields[i + 1].key in chip_keys)
+    ):
+        paired = (fields[i + 1], fields[i])
+        rest = list(fields[i + 2 :])
+    else:
+        paired = None
+        rest = list(fields[i:])
+    return title_fields, paired, rest
+
+
+def _render_title_row(fields, chip_keys=None) -> str:
+    """Render the title row with the right-aligned link pinned to the top.
+
+    The *last* right-aligned field in the row becomes the rail (via
+    ``margin-left:auto``). For project / research / cert entries this is
+    the link — the project title and link share the row, with the link
+    pinned to the top-right.
+
+    The cluster's first field carries ``max-width: 70%`` and
+    ``min-width: 0`` so a long title that wraps to a second line never
+    pushes the link off the row. ``align-items: flex-start`` keeps the
+    link aligned to the top of the title row (the first line of a
+    wrapped title) instead of vertically centered against it.
+    ``column-gap`` is 0 so adjacent fields sit flush; ``row-gap`` would
+    only matter if the cluster wraps and pushes the rail to a new line.
+    """
+    right_aligned = [f for f in fields if f.align == "right"]
+    rail_field = right_aligned[-1] if right_aligned else None
+    base_style = (
+        "display:flex;flex-wrap:wrap;align-items:flex-start;"
+        "column-gap:0;row-gap:0"
+    )
+    if rail_field is None:
+        inner = "".join(
+            _render_field_block(f, chip_keys=chip_keys) for f in fields
+        )
+        return f'<div class="field-row" style="{base_style}">{inner}</div>'
+    cluster_parts: list[str] = []
+    for idx, f in enumerate(fields):
+        if f is rail_field:
+            continue
+        extra = "max-width:70%;min-width:0" if idx == 0 else None
+        cluster_parts.append(
+            _render_field_block(f, extra_style=extra, chip_keys=chip_keys)
+        )
+    rail_html = _render_field_block(
+        rail_field,
+        extra_style="margin-left:auto;align-self:flex-start",
+        chip_keys=chip_keys,
+    )
+    inner = "".join(cluster_parts) + rail_html
+    return f'<div class="field-row" style="{base_style}">{inner}</div>'
+
+
+def _render_paired_row(body_field, date_field, chip_keys=None) -> str:
+    """Render a body field (description) on the left and a date on the
+    right, sharing a single row.
+
+    Implements the visual the user wants for projects / experience:
+    the link sits on the right of the title row, the date sits on the
+    right of the description row — both right-aligned, both at the
+    same x coordinate (no diagonal drift between link and date).
+
+    A grid layout (1fr / auto) keeps the date pinned to the right edge
+    while the body field wraps within its column. ``align-items:start``
+    keeps the date at the top of the row when the body wraps.
+    ``column-gap`` is 0 so the description and date sit flush against
+    each other.
+    """
+    body_html = _render_field_block(body_field, chip_keys=chip_keys)
+    date_html = _render_field_block(
+        date_field,
+        extra_style="text-align:right;align-self:flex-start",
+        chip_keys=chip_keys,
+    )
+    style = (
+        "display:grid;grid-template-columns:1fr auto;"
+        "column-gap:0;align-items:start;"
+    )
+    return f'<div class="field-row paired" style="{style}">{body_html}{date_html}</div>'
+
+
 def _render_entry(
     entry: Entry,
     section_subsection: SubsectionStyle | None,
@@ -206,14 +333,35 @@ def _render_entry(
 ) -> str:
     if entry_layout == "two-column":
         return _render_entry_two_column(entry, section_subsection, chip_keys)
-    gap = (section_subsection.spacing_after if section_subsection else None) or "var(--spacing-subsection, 16px)"
-    justify = _resolve_row_justify(section_subsection)
 
-    # Group consecutive fields that share a group name into one row.
+    # Stack entries use --spacing-subsection as the inter-field gap so
+    # the template's spacing token drives the visual rhythm. Minimal
+    # template maps it to 0px so adjacent fields sit flush; compact
+    # gives 12px; comfortable gives 16px. Old CVs that explicitly set
+    # ``spacing_after`` on a section still win, so users who widened
+    # the gap explicitly aren't overridden.
+    gap = (section_subsection.spacing_after if section_subsection else None) or "var(--spacing-subsection, 0px)"
+
+    title_row, paired, rest = _split_title_row(entry.fields, chip_keys)
+
     rows: list[str] = []
+    if title_row:
+        rows.append(_render_title_row(title_row, chip_keys))
+        if paired is not None:
+            body_field, date_field = paired
+            rows.append(_render_paired_row(body_field, date_field, chip_keys))
+            tail = rest
+        else:
+            tail = rest
+    else:
+        tail = entry.fields
+
+    # Group the remaining fields by their ``group`` value, same as
+    # the legacy stack path. Each group becomes one flex row.
     current_group: str | None = None
     bucket: list[FieldBlock] = []
-    for field in entry.fields:
+    justify = _resolve_row_justify(section_subsection)
+    for field in tail:
         if bucket and (field.group is None or field.group != current_group):
             rows.append(_render_field_row(bucket, justify, chip_keys))
             bucket = []
@@ -261,7 +409,7 @@ def _render_entry_two_column(
     regardless of how tall the left column gets.
     """
 
-    gap = (section_subsection.spacing_after if section_subsection else None) or "var(--spacing-subsection, 16px)"
+    gap = (section_subsection.spacing_after if section_subsection else None) or "var(--spacing-subsection, 0px)"
 
     # Split fields by key: date + link go right, everything else goes left.
     right_fields: list[FieldBlock] = [f for f in entry.fields if f.key in _RIGHT_COLUMN_KEYS]
@@ -297,7 +445,7 @@ def _render_entry_two_column(
         f'column-gap:{gap};align-items:start;'
         f'">'
         f'<div class="entry-left" style="display:flex;flex-direction:column;gap:{gap};">{left_html}</div>'
-        f'<div class="entry-right" style="display:flex;flex-direction:column;gap:2px;align-items:flex-end;">{right_html}</div>'
+        f'<div class="entry-right" style="display:flex;flex-direction:column;gap:0;align-items:flex-end;">{right_html}</div>'
         f'</div>'
     )
 
@@ -315,7 +463,7 @@ def _render_field_row(
     row's ``justify-content`` mirrors the section's ``text_align``."""
 
     rail_field = next((f for f in fields if f.align == "right"), None)
-    base_style = "display:flex;flex-wrap:wrap;align-items:baseline;column-gap:1rem;row-gap:0.25rem"
+    base_style = "display:flex;flex-wrap:wrap;align-items:baseline;column-gap:0;row-gap:0"
     if rail_field is not None:
         inner = "".join(
             _render_field_block(f, extra_style="margin-left:auto" if f is rail_field else None, chip_keys=chip_keys)
@@ -332,10 +480,16 @@ def _render_heading(section: Section, policy: SectionPolicy | None) -> str:
     if not show:
         return ""
     color = section.subsection.section_color if section.subsection and section.subsection.section_color else None
-    style_parts = ["margin:0 0 2px", "font-size:1rem", "font-weight:700"]
+    has_divider = bool(policy and policy.heading_divider)
+    # Without a divider we keep 2px below the text; with a divider the
+    # ``border-bottom`` + ``padding-bottom`` already provide breathing
+    # room, so any margin on top of that pushes the body too far from
+    # the title row (a visible ~7px gap on project / research entries).
+    base_margin = "0 0 0" if has_divider else "0 0 2px"
+    style_parts = [f"margin:{base_margin}", "font-size:1rem", "font-weight:700"]
     if color:
         style_parts.append(f"color:{color}")
-    if policy and policy.heading_divider:
+    if has_divider:
         # Legacy ``underline_section_titles`` flag: border-bottom under
         # the heading, padded so the rule does not crowd the text.
         style_parts.append("border-bottom:1px solid var(--accent,#1f2937)")
@@ -421,23 +575,40 @@ def _render_skills_inline_entry(entry: Entry) -> str:
     Field keys follow the skills builder convention: ``category`` for the
     group label and ``tag.<i>`` for the items. Empty category or no tags
     returns an empty entry so the spacing keeps parity with the block path.
+
+    Per-run :class:`TextStyle` is honored on every tag: the block-variant
+    field-row renderer reads ``run.style``; this path used to discard it
+    and emit a single concatenated ``<span>``, so user edits to a tag's
+    font-size/color silently no-op. Each tag is now a separate ``<span>``
+    carrying its run's inline style, so the customize panel actually
+    reaches the inline (comma-separated) layout.
     """
 
-    category = ""
-    tags: list[str] = []
+    category_runs: list[TextRun] = []
+    tag_runs: list[TextRun] = []
     for field in entry.fields:
         if field.key == "category":
-            category = "".join(h(r.text) for r in field.runs)
+            category_runs.extend(field.runs)
         elif field.key.startswith("tag."):
-            tags.append("".join(h(r.text) for r in field.runs))
+            tag_runs.extend(field.runs)
     parts: list[str] = []
-    if category:
-        parts.append(f'<span class="f-category">{h(category)}</span>')
-    if tags:
-        joined = ", ".join(tags)
-        if category:
-            joined = ": " + joined
-        parts.append(f'<span class="f-tag">{h(joined)}</span>')
+    if category_runs:
+        sep = ": " if tag_runs else ""
+        category_inner = "".join(_render_text_run(r) for r in category_runs)
+        parts.append(f'<span class="f-category">{category_inner}</span>{h(sep)}')
+    if tag_runs:
+        tag_spans: list[str] = []
+        for run in tag_runs:
+            inner = h(run.text)
+            run_style = _text_run_to_style(run)
+            if run_style:
+                tag_spans.append(f'<span class="f-tag" style="{run_style}">{inner}</span>')
+            else:
+                tag_spans.append(f'<span class="f-tag">{inner}</span>')
+        if len(tag_spans) == 1:
+            parts.append(tag_spans[0])
+        else:
+            parts.append('<span class="f-tag-sep">,</span>'.join(tag_spans))
     if not parts:
         return ""
     return f'<div class="entry f-skills-inline">{"".join(parts)}</div>'
@@ -520,7 +691,7 @@ def _render_document(model: RenderModel, support: RendererSupport) -> str:
     /* Social row: smaller than the other contact fields so the icon+label
        pairs read as fine metadata next to the email/phone row. */
     .f-social {{ font-size: 0.83rem; }}
-    .f-position, .f-degree, .f-project, .f-certification, .f-paper {{ font-weight: 600; }}
+    .f-position, .f-degree, .f-project, .f-certification, .f-paper, .f-category {{ font-weight: 600; }}
 
     .f-icon {{ display:inline-flex; width:0.75em; height:0.75em; margin-right:0.25em; vertical-align:-0.1em; }}
     .f-icon svg {{ width:100%; height:100%; }}
@@ -539,7 +710,7 @@ def _render_document(model: RenderModel, support: RendererSupport) -> str:
       color: var(--text, #6b7280);
       margin: 0 0.35em;
     }}
-    .field-row {{ display:flex; flex-wrap:wrap; align-items:baseline; column-gap:1rem; row-gap:0.25rem; }}
+    .field-row {{ display:flex; flex-wrap:wrap; align-items:baseline; column-gap:0; row-gap:0; }}
     .f-chip {{ display:inline-block; background:#eff6ff; padding:2px 6px; border-radius:4px; color:#1d4ed8; font-size:0.75rem; }}
 {model.link_styles}    {model.print_styles}
   </style>

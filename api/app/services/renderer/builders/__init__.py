@@ -133,11 +133,21 @@ def apply_field_text_styles(section: Section, text_styles: dict[str, TextStyle])
     if not text_styles:
         return section
 
+    def _lookup(key: str) -> TextStyle | None:
+        # Indexed-field fallback: builders emit ``tag.0``, ``tag.1`` …
+        # but the customize panel binds a single field per row (``"tag"``).
+        # Match exact first, then strip a trailing ``.<digits>`` index so
+        # ``"tag"`` reaches every ``tag.<i>``. Explicit indexed keys win.
+        if (ts := text_styles.get(key)) is not None:
+            return ts
+        base = key.rsplit(".", 1)[0] if "." in key else key
+        return text_styles.get(base) if base and base != key else None
+
     new_entries = []
     for entry in section.entries:
         new_fields = []
         for field in entry.fields:
-            ts = text_styles.get(field.key)
+            ts = _lookup(field.key)
             if ts is None:
                 new_fields.append(field)
                 continue

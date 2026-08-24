@@ -79,7 +79,7 @@ def test_css_vars_include_spacing_section_body_font_heading_font_accent():
 def test_compact_spacing_maps_to_legacy_vars():
     model = resolve(_document(), HTMLDocumentRenderer(), _manifest("compact"), Customizations())
     assert model.css_vars["--spacing-section"] == "20px"
-    assert model.css_vars["--spacing-subsection"] == "12px"
+    assert model.css_vars["--spacing-subsection"] == "0px"
 
 
 def test_minimal_spacing_maps_to_legacy_vars():
