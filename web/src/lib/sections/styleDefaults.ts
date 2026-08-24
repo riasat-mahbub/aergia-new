@@ -30,15 +30,15 @@ import type {
 /** Per-section-type policy defaults. Mirrors SECTION_POLICIES in
  * api/app/services/renderer/policy.py. */
 export const SECTION_POLICY_DEFAULTS: Record<string, SectionPolicy> = {
-  profile: { show_title: false, heading_divider: false, skill_variant: null, entry_layout: "stack" },
-  experience: { show_title: true, heading_divider: false, skill_variant: null, entry_layout: "stack" },
-  education: { show_title: true, heading_divider: false, skill_variant: null, entry_layout: "stack" },
-  skills: { show_title: true, heading_divider: false, skill_variant: "block", entry_layout: "stack" },
-  projects: { show_title: true, heading_divider: false, skill_variant: null, entry_layout: "two-column" },
-  languages: { show_title: true, heading_divider: false, skill_variant: null, entry_layout: "stack" },
-  certifications: { show_title: true, heading_divider: false, skill_variant: null, entry_layout: "two-column" },
-  research: { show_title: true, heading_divider: false, skill_variant: null, entry_layout: "two-column" },
-  extras: { show_title: true, heading_divider: false, skill_variant: null, entry_layout: "stack" },
+  profile: { show_title: false, heading_divider: true, skill_variant: null, entry_layout: "stack" },
+  experience: { show_title: true, heading_divider: true, skill_variant: null, entry_layout: "stack" },
+  education: { show_title: true, heading_divider: true, skill_variant: null, entry_layout: "stack" },
+  skills: { show_title: true, heading_divider: true, skill_variant: "block", entry_layout: "stack" },
+  projects: { show_title: true, heading_divider: true, skill_variant: null, entry_layout: "two-column" },
+  languages: { show_title: true, heading_divider: true, skill_variant: null, entry_layout: "stack" },
+  certifications: { show_title: true, heading_divider: true, skill_variant: null, entry_layout: "two-column" },
+  research: { show_title: true, heading_divider: true, skill_variant: null, entry_layout: "two-column" },
+  extras: { show_title: true, heading_divider: true, skill_variant: null, entry_layout: "stack" },
 };
 
 /** Per-section-type subsection defaults. Mirrors
@@ -89,7 +89,7 @@ export const TEXT_STYLE_DEFAULTS: TextStyle = {
  * the type is unknown. Use this in the inspector instead of
  * `selectedStyle.policy ?? {}` so the effective value is correct. */
 export function defaultPolicyFor(sectionType: string): SectionPolicy {
-  return SECTION_POLICY_DEFAULTS[sectionType] ?? { show_title: true, heading_divider: false, skill_variant: null, entry_layout: "stack" };
+  return SECTION_POLICY_DEFAULTS[sectionType] ?? { show_title: true, heading_divider: true, skill_variant: null, entry_layout: "stack" };
 }
 
 export function defaultSubsectionFor(sectionType: string): SubsectionStyle {

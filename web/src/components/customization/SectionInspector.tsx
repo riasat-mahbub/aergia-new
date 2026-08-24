@@ -196,7 +196,7 @@ export default function SectionInspector({ instance, documentAccent, documentBod
               aria-label="Date format"
               data-testid={`date-format-${instance.id}`}
             >
-              <option value="">Default (YYYY-MM)</option>
+              <option value="">Default (Month YYYY)</option>
               {DATE_STYLE_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}

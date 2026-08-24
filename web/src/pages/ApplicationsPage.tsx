@@ -11,7 +11,7 @@ import {
   type ApplicationGenerateResponse,
   type ApplicationStatus,
 } from "../lib/api/applications";
-import { RELEVANCE_TOOLTIP, relevanceScore, STATUS_LABELS } from "../components/applications/applicationPresentation";
+import { applicationMatchesSearch, RELEVANCE_TOOLTIP, relevanceScore, STATUS_LABELS } from "../components/applications/applicationPresentation";
 import { useApplicationStore } from "../lib/store/applicationStore";
 import { useToastStore } from "../lib/store/uiStore";
 
@@ -24,6 +24,7 @@ export default function ApplicationsPage() {
   const remove = useApplicationStore((state) => state.remove);
   const addToast = useToastStore((state) => state.addToast);
   const [filter, setFilter] = useState<ApplicationStatus | "all">("all");
+  const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [retryingId, setRetryingId] = useState<string | null>(null);
 
@@ -32,8 +33,11 @@ export default function ApplicationsPage() {
   }, [fetchAll]);
 
   const filteredApplications = useMemo(
-    () => filter === "all" ? applications : applications.filter((application) => application.status === filter),
-    [applications, filter],
+    () => applications.filter((application) => {
+      const statusMatches = filter === "all" || application.status === filter;
+      return statusMatches && applicationMatchesSearch(application, search);
+    }),
+    [applications, filter, search],
   );
 
   const handleGenerated = async (result: ApplicationGenerateResponse) => {
@@ -77,12 +81,24 @@ export default function ApplicationsPage() {
         </button>
       </header>
 
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <label htmlFor="application-status-filter" className="shrink-0 text-sm font-medium text-app-ink-2">Status</label>
+      <div className="mb-6 space-y-2">
+        <label htmlFor="application-search" className="sr-only">Search applications</label>
+        <input
+          id="application-search"
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search company, role, or try status:interview relevance:>=70 followup:overdue"
+          className="w-full rounded-md border border-app-rule-strong bg-app-surface px-3 py-2 text-sm"
+        />
+        <p className="text-xs text-app-ink-3">Filters: <code>company:</code>, <code>status:</code>, <code>after:</code>, <code>before:</code>, <code>relevance:&gt;=70</code>, <code>followup:overdue</code>.</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <label htmlFor="application-status-filter" className="shrink-0 text-sm font-medium text-app-ink-2">Status</label>
         <select id="application-status-filter" value={filter} onChange={(event) => setFilter(event.target.value as ApplicationStatus | "all")} className="w-full min-w-[10rem] rounded-md border border-app-rule-strong px-3 py-2 text-sm sm:w-auto">
           <option value="all">All statuses</option>
           {APPLICATION_STATUSES.map((status) => <option key={status} value={status}>{STATUS_LABELS[status]}</option>)}
         </select>
+        </div>
       </div>
 
       {isLoading && <LoadingSkeleton count={4} />}
@@ -90,7 +106,7 @@ export default function ApplicationsPage() {
         <EmptyState title="No applications yet" description="Save a job description to generate your first tailored CV." action={{ label: "Track application", onClick: () => setFormOpen(true) }} />
       )}
       {!isLoading && applications.length > 0 && filteredApplications.length === 0 && (
-        <div className="rounded-lg border border-dashed border-app-rule-strong bg-app-surface p-10 text-center text-sm text-app-ink-2">No applications match this status.</div>
+        <div className="rounded-lg border border-dashed border-app-rule-strong bg-app-surface p-10 text-center text-sm text-app-ink-2">No applications match these filters.</div>
       )}
       {!isLoading && filteredApplications.length > 0 && (
         <div className="grid gap-4 md:grid-cols-2">

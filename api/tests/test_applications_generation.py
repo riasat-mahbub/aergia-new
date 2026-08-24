@@ -56,6 +56,7 @@ async def test_generation_creates_ordered_editable_cv_with_fresh_copies(client, 
         ("education", {"id": "edu-source", "institution": "State University", "degree": "Python"}),
         ("skill", {"id": "skill-source", "category": "FastAPI", "items": ["PostgreSQL"]}),
         ("experience", {"id": "exp-source", "company": "Example Labs", "position": "Distributed Systems"}),
+        ("language", {"id": "language-source", "language": "Spanish", "proficiency": "Professional"}),
         ("certification", {"id": "cert-source", "name": "Cloud Native"}),
         ("project", {"id": "project-source", "name": "Platform", "tech_stack": ["Python"]}),
         ("research", {"id": "research-source", "title": "Systems Research"}),
@@ -70,7 +71,7 @@ async def test_generation_creates_ordered_editable_cv_with_fresh_copies(client, 
         json={
             "company": "Example Labs",
             "role": "Platform Engineer",
-            "job_description": "Python\nFastAPI\nPostgreSQL\nDistributed Systems\nCloud Native\nPlatform\nSystems Research",
+            "job_description": "Python\nFastAPI\nPostgreSQL\nDistributed Systems\nCloud Native\nPlatform\nSystems Research\nSpanish",
         },
     )
     assert application.status_code == 201
@@ -89,6 +90,7 @@ async def test_generation_creates_ordered_editable_cv_with_fresh_copies(client, 
         "education",
         "skills",
         "experience",
+        "languages",
         "certifications",
         "projects",
         "research",
@@ -96,9 +98,10 @@ async def test_generation_creates_ordered_editable_cv_with_fresh_copies(client, 
     assert cv["title"] == "Example Labs — Platform Engineer"
     assert cv["description"] == "Tailored for Platform Engineer at Example Labs"
     assert cv["template_id"] == "generic-minimal"
-    assert cv["customizations"]["spacing"] == "minimal"
+    assert cv["customizations"]["spacing"] == "none"
     assert cv["extra_metadata"]["application_id"] == application_id
-    assert cv["extra_metadata"]["generated_by"] == "keyword-v1"
+    assert cv["extra_metadata"]["generated_by"] == "requirement-v1"
+    assert cv["extra_metadata"]["extracted_requirements"]
     assert len({section["id"] for section in cv["sections"]}) == len(cv["sections"])
     row_ids = [row["id"] for section in cv["sections"] if isinstance(section["data"], list) for row in section["data"]]
     assert len(row_ids) == len(set(row_ids))
@@ -151,6 +154,39 @@ async def test_failed_generation_is_retryable_and_linked_cv_blocks_delete(client
 
 
 @pytest.mark.asyncio
+async def test_fit_trims_low_relevance_skill_items_before_rows(client, monkeypatch):
+    headers = await _auth_headers(client, "generation-skill-fit")
+    await _set_profile(client, headers)
+    for kind, row in (
+        ("skill", {"id": "skill-source", "category": "Backend", "items": ["Legacy", "Python"]}),
+        ("research", {"id": "research-source", "title": "Research"}),
+    ):
+        created = await client.post("/api/v1/library", headers=headers, json={"kind": kind, "payload": [row]})
+        assert created.status_code == 201
+
+    created = await client.post(
+        "/api/v1/applications",
+        headers=headers,
+        json={"company": "Fit Co", "role": "Engineer", "job_description": "Python Research"},
+    )
+    application_id = created.json()["id"]
+    page_counts = iter([2, 1])
+    async def render_payload(self, template_id, sections, customizations):
+        return b"pdf"
+
+    monkeypatch.setattr(pdf_service_module.PDFService, "render_payload", render_payload)
+    monkeypatch.setattr(application_service_module, "pdf_page_count", lambda _: next(page_counts))
+
+    generated = await client.post(f"/api/v1/applications/{application_id}/generate", headers=headers)
+    assert generated.status_code == 200
+    assert generated.json()["application"]["fits_one_page"] is True
+    cv = (await client.get(f"/api/v1/cvs/{generated.json()['cv_id']}", headers=headers)).json()
+    skills = next(section for section in cv["sections"] if section["type"] == "skills")
+    assert skills["data"][0]["items"] == ["Python"]
+    assert any(section["type"] == "research" for section in cv["sections"])
+
+
+@pytest.mark.asyncio
 async def test_edit_after_generation_recomputes_relevance_without_rewriting_cv(client, one_page_pdf):
     headers = await _auth_headers(client, "generation-edit")
     await _set_profile(client, headers)
@@ -175,6 +211,50 @@ async def test_edit_after_generation_recomputes_relevance_without_rewriting_cv(c
     assert edited.json()["status"] == before_application["status"]
     assert edited.json()["generation_status"] == "ready"
     assert edited.json()["cv_id"] == cv_id
-    assert edited.json()["relevance"]["score"] < before_application["relevance"]["score"]
+    assert edited.json()["relevance"]["requirements"][0]["requirement"]["text"] == "rust"
+    assert before_application["relevance"]["requirements"][0]["requirement"]["text"] == "python"
+    assert edited.json()["relevance"]["score"] <= before_application["relevance"]["score"]
     after_cv = (await client.get(f"/api/v1/cvs/{cv_id}", headers=headers)).json()
     assert after_cv["sections"] == before_cv["sections"]
+
+
+@pytest.mark.asyncio
+async def test_direct_cv_save_recomputes_score_without_regenerating(client, one_page_pdf):
+    headers = await _auth_headers(client, "generation-cv-save")
+    await _set_profile(client, headers)
+    library = await client.post(
+        "/api/v1/library",
+        headers=headers,
+        json={"kind": "skill", "payload": [{"id": "skill-source", "category": "Backend", "items": ["Python"]}]},
+    )
+    assert library.status_code == 201
+    created = await client.post(
+        "/api/v1/applications",
+        headers=headers,
+        json={"company": "Save Co", "role": "Engineer", "job_description": "Python"},
+    )
+    application_id = created.json()["id"]
+    generated = await client.post(f"/api/v1/applications/{application_id}/generate", headers=headers)
+    cv_id = generated.json()["cv_id"]
+    before = generated.json()["application"]["relevance"]["score"]
+    before_cv = (await client.get(f"/api/v1/cvs/{cv_id}", headers=headers)).json()
+    changed_library = await client.patch(
+        f"/api/v1/library/{library.json()['id']}",
+        headers=headers,
+        json={"payload": [{"id": "skill-source", "category": "Backend", "items": ["Rust"]}]},
+    )
+    assert changed_library.status_code == 200
+    unchanged = await client.get(f"/api/v1/applications/{application_id}", headers=headers)
+    assert unchanged.json()["relevance"]["score"] == before
+    assert (await client.get(f"/api/v1/cvs/{cv_id}", headers=headers)).json()["sections"] == before_cv["sections"]
+
+    sections = before_cv["sections"]
+    skills = next(section for section in sections if section["type"] == "skills")
+    skills["data"][0]["items"] = ["Rust"]
+
+    saved = await client.patch(f"/api/v1/cvs/{cv_id}", headers=headers, json={"sections": sections})
+    assert saved.status_code == 200
+    refreshed = await client.get(f"/api/v1/applications/{application_id}", headers=headers)
+    assert refreshed.status_code == 200
+    assert refreshed.json()["relevance"]["score"] < before
+    assert refreshed.json()["cv_id"] == cv_id

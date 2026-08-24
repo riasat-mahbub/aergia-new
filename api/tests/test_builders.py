@@ -299,6 +299,23 @@ def test_build_section_style_uses_manifest_override_when_no_instance_policy():
     assert policy.skill_variant == "inline"
 
 
+def test_build_section_style_preserves_explicit_manifest_heading_divider_override():
+    """A template can still opt out after the default changed to enabled."""
+    from app.services.renderer.builders import build_section_style
+    from app.schema.models import TemplateManifest
+
+    manifest = TemplateManifest(
+        name="M",
+        policy_overrides={"by_type": {"experience": {"heading_divider": False}}},
+    )
+    _, policy = build_section_style(
+        instance_type="experience",
+        instance_style=None,
+        manifest=manifest,
+    )
+    assert policy.heading_divider is False
+
+
 def test_build_document_applies_manifest_policy_overrides():
     """``build_document`` must apply the manifest's ``policy_overrides``.
 

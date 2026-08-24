@@ -40,6 +40,12 @@ describe("styleDefaults — schema mirror", () => {
     expect(defaultPolicyFor("extras").show_title).toBe(true);
   });
 
+  it("defaults visible section headings to underlined", () => {
+    expect(defaultPolicyFor("profile").heading_divider).toBe(true);
+    expect(defaultPolicyFor("experience").heading_divider).toBe(true);
+    expect(defaultPolicyFor("skills").heading_divider).toBe(true);
+  });
+
   it("skills policy defaults skill_variant to 'block'", () => {
     expect(defaultPolicyFor("skills").skill_variant).toBe("block");
   });

@@ -13,7 +13,7 @@ from app.services.renderer.builders._utils import (
 
 
 PRESETS = [
-    ("YYYY-MM", "YYYY-MM (default)", " – ", "2021-03"),
+    ("YYYY-MM", "YYYY-MM", " – ", "2021-03"),
     ("YYYY/MM", "YYYY/MM", "/", "2021/03"),
     ("MM/YYYY", "MM/YYYY", "/", "03/2021"),
     ("MM-YYYY", "MM-YYYY", "-", "03-2021"),

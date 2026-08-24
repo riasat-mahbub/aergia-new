@@ -204,10 +204,11 @@ def test_date_style_month_yyyy_renders_in_experience():
     assert "2024-03" not in html
 
 def test_date_style_yyyy_dash_mm_renders_in_education():
-    """The YYYY-MM format (schema default) stays as YYYY-MM."""
+    """An explicit YYYY-MM format stays as YYYY-MM."""
     manifest = _manifest(MODERN_ID)
     cv = _cv([{
         "id": "s1", "type": "education", "title": "Ed", "enabled": True,
+        "style": {"layout": {"date_style": {"key": "YYYY-MM", "rangeSep": " – "}}},
         "data": [{
             "id": "e1", "degree": "BSc", "institution": "U",
             "start_date": "2020-09", "end_date": "2024-06",
@@ -215,6 +216,20 @@ def test_date_style_yyyy_dash_mm_renders_in_education():
     }])
     html = HTMLDocumentRenderer().render(_resolve(cv, manifest))
     assert "2020-09 – 2024-06" in html
+
+
+def test_date_style_defaults_to_month_yyyy():
+    """Dates without a section override use the professional Month YYYY format."""
+    manifest = _manifest(MODERN_ID)
+    cv = _cv([{
+        "id": "s1", "type": "experience", "title": "Work", "enabled": True,
+        "data": [{
+            "id": "e1", "position": "Eng", "company": "Acme",
+            "start_date": "2024-03", "end_date": None, "current": True,
+        }],
+    }])
+    html = HTMLDocumentRenderer().render(_resolve(cv, manifest))
+    assert "March 2024 – Present" in html
 
 
 def test_date_style_mon_yyyy_renders_in_research_single_date():
@@ -231,7 +246,7 @@ def test_date_style_mon_yyyy_renders_in_research_single_date():
 
 def test_all_date_style_presets_render():
     """Every preset renders a non-YYYY-MM form for current roles; the
-    YYYY-MM preset is the schema default and renders literally."""
+    The explicit YYYY-MM preset renders literally."""
     from app.services.renderer.builders._utils import DATE_STYLE_OPTIONS
     manifest = _manifest(MODERN_ID)
     for preset in DATE_STYLE_OPTIONS:
@@ -513,7 +528,8 @@ def test_field_typography_groups_match_section_grammar():
     # header-style token (it groups tags), so it gets the same emphasis.
     assert ".f-degree, .f-project, .f-certification, .f-paper, .f-category { font-weight: 600;" in html
     # venue/issuer render at the secondary (0.875rem) size; category shares it.
-    assert ".f-category, .f-venue, .f-issuer { font-size: 0.875rem;" in html
+    assert ".f-title, .f-company, .f-institution, .f-category, .f-venue, .f-issuer { font-size: 0.875rem;" in html
+    assert ".f-summary, .f-description { font-size: 0.75rem;" in html
     # The dead .f-url class is gone (no builder emits key='url').
 
     assert ".f-url" not in html

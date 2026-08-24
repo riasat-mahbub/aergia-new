@@ -17,7 +17,7 @@ interface Props {
 }
 
 const TITLE_PLACEHOLDER = "e.g. My Imported CV";
-const DEFAULT_TEMPLATE_ID = "generic-modern";
+const DEFAULT_TEMPLATE_ID = "generic-minimal";
 
 /**
  * Strip a `.pdf` extension (case-insensitive) from a filename.
@@ -129,7 +129,7 @@ export default function ImportCvModal({ open, onClose, onSubmit }: Props) {
             className="w-full rounded border border-app-rule-strong px-2 py-1.5 text-sm focus:border-app-primary focus:outline-none"
           >
             {templates.length === 0 ? (
-              <option value={DEFAULT_TEMPLATE_ID}>Modern</option>
+              <option value={DEFAULT_TEMPLATE_ID}>Minimal</option>
             ) : (
               templates.map((t) => (
                 <option key={t.id} value={t.id}>

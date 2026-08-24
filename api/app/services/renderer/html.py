@@ -922,7 +922,8 @@ def _render_document(model: RenderModel, support: RendererSupport) -> str:
       font-family: {heading_font};
     }}
     .f-name {{ font-size: 1.5rem; font-weight: 700; }}
-    .f-title, .f-summary, .f-company, .f-description, .f-institution, .f-category, .f-venue, .f-issuer {{ font-size: 0.875rem; }}
+    .f-title, .f-company, .f-institution, .f-category, .f-venue, .f-issuer {{ font-size: 0.875rem; }}
+    .f-summary, .f-description {{ font-size: 0.75rem; }}
     .f-contact, .f-contact-sep, .f-email, .f-phone, .f-location, .f-site, .f-date, .f-gpa, .f-link, .f-tech, .f-tag, .f-proficiency, .f-meta {{ font-size: 0.75rem; }}
     /* Social row: smaller than the other contact fields so the icon+label
        pairs read as fine metadata next to the email/phone row. */

@@ -68,7 +68,15 @@ export default function SkillsEditor({ data = [], onChange, context, mode = "sec
               {group.items.map((item: string, j: number) => (
                 <span key={j} className="inline-flex items-center gap-1 rounded bg-app-surface-muted px-2 py-0.5 text-xs">
                   {item}
-                  <button onClick={() => removeItem(i, j)} className="text-app-ink-3 hover:text-app-danger">&times;</button>
+                  <button
+                    type="button"
+                    onClick={() => removeItem(i, j)}
+                    className="text-app-ink-3 hover:text-app-danger"
+                    aria-label={`Remove ${item}`}
+                    title={`Remove ${item}`}
+                  >
+                    &times;
+                  </button>
                 </span>
               ))}
             </div>

@@ -48,6 +48,11 @@ def _merge_policies(base: SectionPolicy, override: SectionPolicy) -> SectionPoli
 
     return SectionPolicy(
         show_title=override.show_title if override.show_title != base.show_title else base.show_title,
+        heading_divider=(
+            override.heading_divider
+            if override.heading_divider != base.heading_divider
+            else base.heading_divider
+        ),
         skill_variant=override.skill_variant if override.skill_variant is not None else base.skill_variant,
         entry_layout=override.entry_layout if override.entry_layout != base.entry_layout else base.entry_layout,
     )

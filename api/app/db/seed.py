@@ -8,8 +8,8 @@ closed design vocabulary:
 - ``zones[].styles.padding`` is a :data:`SpacingToken`.
 - ``global_styles.accent_color`` is a color ref; ``body_font`` and
   ``heading_font`` are :data:`FontToken` enums.
-- ``layout_defaults.spacing`` is the legacy v2 enum
-  (``compact | comfortable | minimal``).
+- ``layout_defaults.spacing`` is the v2 enum
+  (``none | compact | comfortable | minimal``).
 
 The manifest never carries raw CSS strings; the resolver maps each token
 to the renderer's native value. The three seeds ship the token values
@@ -146,7 +146,7 @@ SEED_TEMPLATES = [
                 "certifications": "main",
                 "research": "main",
             },
-            "layout_defaults": {"spacing": "minimal"},
+            "layout_defaults": {"spacing": "none"},
             "policy_overrides": {"by_type": {"skills": {"skill_variant": "inline"}}},
             "global_styles": {
                 "accent_color": "#111827",

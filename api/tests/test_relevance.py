@@ -11,6 +11,7 @@ from app.services.relevance import (
     extract_keywords,
     flatten_library_fields,
     normalize_text,
+    score_skill_items,
     score_library_rows,
     select_relevant_library_rows,
     tokenize,
@@ -102,6 +103,17 @@ def test_kind_threshold_uses_positive_kind_maximum_and_stable_order():
     selected = select_relevant_library_rows(keywords, entries)
     assert [row.source_row_id for row in selected] == ["first"]
     assert ENTRY_RELEVANCE_THRESHOLD == 0.35
+
+
+def test_skill_items_are_scored_independently_for_fit_trimming():
+    row = score_library_rows(
+        [{"text": "Python", "normalized": "python", "weight": 4}],
+        [{"id": "lib", "kind": "skill", "payload": [{"id": "row", "category": "Backend", "items": ["Legacy", "Python"]}]}],
+    )[0]
+
+    scored = score_skill_items([{"text": "Python", "normalized": "python", "weight": 4}], row)
+
+    assert [(item.text, item.score) for item in scored] == [("Legacy", 0), ("Python", 4)]
 
 
 def test_relevance_is_weighted_coverage_with_complete_evidence():

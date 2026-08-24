@@ -73,10 +73,9 @@ class ManifestVersionError(ValueError):
 
 
 def _default_date_style() -> dict:
-    """The legacy default date style, used when neither the section nor the
-    template nor the user declared one."""
+    """The professional default date style used when no override is set."""
 
-    return {"key": "YYYY-MM", "range_sep": " – "}
+    return {"key": "Month YYYY", "range_sep": " – "}
 
 
 def _overlay_subsection(base: SubsectionStyle | None, override: SubsectionStyle | None) -> SubsectionStyle:
@@ -176,7 +175,7 @@ def _build_css_vars(customizations: Customizations, manifest: TemplateManifest |
         spacing = manifest.layout_defaults.spacing
 
     vars_: dict[str, str] = {}
-    section_gap, subsection_gap = _SPACING_TOKENS.get(spacing or "comfortable", _SPACING_TOKENS["comfortable"])
+    section_gap, subsection_gap = _SPACING_TOKENS.get(spacing or "none", _SPACING_TOKENS["none"])
     vars_["--spacing-section"] = section_gap
     vars_["--spacing-subsection"] = subsection_gap
 

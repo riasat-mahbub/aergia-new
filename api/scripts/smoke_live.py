@@ -220,7 +220,9 @@ def _smoke_application(client: httpx.Client, base_url: str, headers: dict) -> No
     if generated_application.get("generation_status") != "ready" or not cv_id:
         raise AssertionError(f"application generation was not ready: {generated_body!r}")
     relevance = generated_application.get("relevance") or {}
-    if not relevance.get("matched_keywords") or "score" not in relevance:
+    has_requirement_details = bool(relevance.get("requirements")) and "total_requirements" in relevance
+    has_legacy_details = bool(relevance.get("matched_keywords"))
+    if not (has_requirement_details or has_legacy_details) or "score" not in relevance:
         raise AssertionError(f"generation relevance details missing: {generated_body!r}")
 
     cv = client.get(f"{base_url}/api/v1/cvs/{cv_id}", headers=headers)

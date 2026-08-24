@@ -41,7 +41,7 @@ async def test_cv_crud_flow(client, auth_headers):
     assert create_resp.status_code == 201
     cv = create_resp.json()
     assert cv["title"] == "My Test CV"
-    assert cv["template_id"] == "generic-modern"
+    assert cv["template_id"] == "generic-minimal"
     cv_id = cv["id"]
 
     # List
@@ -88,7 +88,7 @@ async def test_cv_creation_installs_template_zones(client, auth_headers):
     layout = (cv.get("customizations") or {}).get("layout") or {}
     assert layout.get("zones"), "new CV must install the template's zones into customizations.layout"
     assert layout.get("placement"), "new CV must install the template's placement"
-    assert {z["id"] for z in layout["zones"]} == {"sidebar", "main"}
+    assert {z["id"] for z in layout["zones"]} == {"main"}
 
 
 @pytest.mark.asyncio
@@ -270,6 +270,5 @@ async def test_cv_data_isolation(client):
     # User B cannot copy it
     copy_b = await client.post(f"/api/v1/cvs/{cv_a_id}/copy", headers=headers_b)
     assert copy_b.status_code == 404
-
 
 

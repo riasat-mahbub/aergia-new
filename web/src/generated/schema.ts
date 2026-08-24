@@ -1,5 +1,5 @@
 // This file is generated. Do not edit by hand.
-// Source: api/app/schema/models.py (sha256:37af754d5caef6e2)
+// Source: api/app/schema/models.py (sha256:5e4c67fb1f340db1)
 
 export interface CVLayout {
   "placement"?: Record<string, string>;
@@ -18,7 +18,7 @@ export interface Customizations {
   "heading_font"?: (("sans-serif" | "serif" | "mono" | "display")) | null;
   "layout"?: (CVLayout) | null;
   "per_section"?: Record<string, SectionInstanceStyle>;
-  "spacing"?: (("compact" | "comfortable" | "minimal")) | null;
+  "spacing"?: (("none" | "compact" | "comfortable" | "minimal")) | null;
 }
 
 export interface DateStyle {
@@ -52,7 +52,7 @@ export interface GlobalStyles {
 }
 
 export interface LayoutDefaults {
-  "spacing"?: ("compact" | "comfortable" | "minimal");
+  "spacing"?: ("none" | "compact" | "comfortable" | "minimal");
 }
 
 export interface LayoutHints {

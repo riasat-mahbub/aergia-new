@@ -1,9 +1,10 @@
 import { useEffect, useCallback, useState, useRef } from "react";
-import { Link, useLocation, useNavigate, useBlocker } from "react-router-dom";
+import { useLocation, useNavigate, useBlocker } from "react-router-dom";
 import { motion } from "motion/react";
 
 import ExportPDFButton from "../components/builder/ExportPDFButton";
 import PromoteToLibraryButton from "../components/library/PromoteToLibraryButton";
+import RelevanceDrawer from "../components/applications/RelevanceDrawer";
 import ContentSectionList from "../components/builder/ContentSectionList";
 import { useCVStore } from "../lib/store/cvStore";
 import { useSupportStore } from "../lib/store/supportStore";
@@ -13,13 +14,21 @@ import type { SectionInstance, SectionInstanceStyle, LayoutConfig } from "../lib
 import { createDefaultInstance, getFirstZoneId, migratePlacement } from "../lib/sections/types";
 import { updateCV } from "../lib/api/cvs";
 import * as templatesApi from "../lib/api/templates";
-import { getApplication, recomputeApplicationRelevance, type Application } from "../lib/api/applications";
+import { getApplication, recomputeApplicationRelevance, type Application, type RelevanceAnalysis } from "../lib/api/applications";
 
 export const APPLICATION_RELEVANCE_TOOLTIP =
-  "Weighted keyword coverage of this CV against the saved job description—not an ATS or hiring probability.";
+  "Weighted job-requirement coverage of this CV—not an ATS or hiring probability.";
 
 export function applicationMatchesCv(application: Application | null, cvId: string): boolean {
   return Boolean(application && application.cv_id === cvId);
+}
+
+function isRelevanceResult(value: Application["relevance"]): value is RelevanceAnalysis {
+  return "score" in value && typeof value.score === "number";
+}
+
+function applicationRelevance(application: Application | null): RelevanceAnalysis | null {
+  return application && isRelevanceResult(application.relevance) ? application.relevance : null;
 }
 
 export default function BuilderPage() {
@@ -35,6 +44,9 @@ export default function BuilderPage() {
   const [templateManifest, setTemplateManifest] = useState<templatesApi.UserTemplate | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [activeTab, setActiveTab] = useState<"content" | "customize">("content");
+  const [relevanceDrawerOpen, setRelevanceDrawerOpen] = useState(false);
+  const [relevanceRefreshing, setRelevanceRefreshing] = useState(false);
+  const [relevanceRefreshError, setRelevanceRefreshError] = useState(false);
   // Inspector replaces CustomizePanel as of Phase C of
   // FEAT-01M0X607K4MWVGGCVZWWMSKJHE.
   const [applicationContext, setApplicationContext] = useState<Application | null>(null);
@@ -119,6 +131,8 @@ export default function BuilderPage() {
   const refreshApplicationRelevance = useCallback(async () => {
     const linkedApplication = applicationRef.current;
     if (!linkedApplication) return;
+    setRelevanceRefreshing(true);
+    setRelevanceRefreshError(false);
     try {
       const refreshed = await recomputeApplicationRelevance(linkedApplication.id);
       if (refreshed.cv_id === idRef.current) {
@@ -127,6 +141,9 @@ export default function BuilderPage() {
       }
     } catch {
       // Relevance refresh is best effort; the saved CV remains authoritative.
+      setRelevanceRefreshError(true);
+    } finally {
+      setRelevanceRefreshing(false);
     }
   }, []);
   useEffect(() => {
@@ -398,6 +415,7 @@ export default function BuilderPage() {
     const hours = Math.floor(minutes / 60);
     return `${hours}h ago`;
   }, []);
+  const relevance = applicationRelevance(applicationContext);
 
   return (
     <>
@@ -418,14 +436,15 @@ export default function BuilderPage() {
             </button>
             <h1 className="text-lg font-semibold text-app-ink">{currentCV!.title}</h1>
             {applicationContext && (
-              <Link
-                to={`/dashboard/applications/${applicationContext.id}`}
+              <button
+                type="button"
+                onClick={() => setRelevanceDrawerOpen(true)}
                 title={APPLICATION_RELEVANCE_TOOLTIP}
-                aria-label={APPLICATION_RELEVANCE_TOOLTIP}
+                aria-label="Open relevance details"
                 className="rounded-full bg-app-primary-soft px-2.5 py-1 text-xs font-medium text-app-primary hover:bg-app-primary-soft"
               >
-                Relevance {"score" in applicationContext.relevance && typeof applicationContext.relevance.score === "number" ? `${applicationContext.relevance.score}%` : "—"}
-              </Link>
+                Relevance {relevance ? `${relevance.score}%` : "—"}
+              </button>
             )}
           </div>
           <div className="flex items-center gap-3">
@@ -522,6 +541,13 @@ export default function BuilderPage() {
             </div>
           </motion.div>
         </div>
+        <RelevanceDrawer
+          open={relevanceDrawerOpen}
+          relevance={relevance}
+          refreshing={relevanceRefreshing}
+          refreshError={relevanceRefreshError}
+          onClose={() => setRelevanceDrawerOpen(false)}
+        />
       </div>
     ) : (
       <motion.div

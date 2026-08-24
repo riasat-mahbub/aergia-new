@@ -99,7 +99,7 @@ class DateStyle(BaseModel):
     ``app/services/renderer/builders/_utils.py``. The ``key`` selects the
     format; ``range_sep`` is the separator between the start and end bound.
     """
-    key: str = Field(default="YYYY-MM", max_length=32, alias="key")
+    key: str = Field(default="Month YYYY", max_length=32, alias="key")
     range_sep: str = Field(default=" \u2013 ", max_length=16, alias="rangeSep")
 
     model_config = {"extra": "ignore", "populate_by_name": True}
@@ -222,7 +222,7 @@ class SectionPolicy(BaseModel):
     DOCX constructs. Policy stays semantic — renderers pick the markup."""
 
     show_title: bool = True
-    heading_divider: bool = False
+    heading_divider: bool = True
     skill_variant: Literal["block", "inline"] | None = None
     entry_layout: Literal["stack", "two-column"] = "stack"
 # ---------------------------------------------------------------------------
@@ -348,7 +348,7 @@ class CVRow(BaseModel):
 class LayoutDefaults(BaseModel):
     """Layout-wide defaults. Spacing maps to design tokens."""
 
-    spacing: Literal["compact", "comfortable", "minimal"] = "comfortable"
+    spacing: Literal["none", "compact", "comfortable", "minimal"] = "none"
 
 
 class PolicyOverrides(BaseModel):
@@ -498,7 +498,7 @@ class Customizations(BaseModel):
     body_font: FontToken | None = None
     heading_font: FontToken | None = None
     default_text_align: AlignmentToken | None = None
-    spacing: Literal["compact", "comfortable", "minimal"] | None = None
+    spacing: Literal["none", "compact", "comfortable", "minimal"] | None = None
     flags: dict[str, bool] = Field(default_factory=dict, max_length=32)
     per_section: dict[str, SectionInstanceStyle] = Field(default_factory=dict, max_length=64)
     layout: CVLayout | None = None

@@ -8,6 +8,12 @@ from app.models.cv import CV
 from app.models.template import Template
 from app.schema.models import Customizations
 from app.schemas.cv import CVCreate, CVUpdate
+from app.services.relevance import (
+    REQUIREMENT_ALGORITHM_VERSION,
+    KeywordExtractionError,
+    evaluate_requirement_relevance,
+    extract_requirements,
+)
 
 def coerce_customizations(raw: dict | None) -> Customizations:
     """Validate raw DB customizations against the canonical Customizations
@@ -123,7 +129,27 @@ class CVService:
             setattr(cv, key, value)
         cv.updated_at = datetime.now(timezone.utc)
         await self.db.flush()
+        await self._refresh_linked_application_relevance(cv)
         return cv
+
+    async def _refresh_linked_application_relevance(self, cv: CV) -> None:
+        """Keep score state in sync for direct CV API edits without rebuilding content."""
+        result = await self.db.execute(
+            select(Application).where(Application.cv_id == cv.id, Application.user_id == cv.user_id)
+        )
+        applications = result.scalars().all()
+        for application in applications:
+            try:
+                requirements = extract_requirements(application.role, application.job_description)
+            except KeywordExtractionError:
+                continue
+            relevance = evaluate_requirement_relevance(requirements, cv.sections or [])
+            application.relevance = relevance.model_dump(mode="json")
+            application.extracted_keywords = []
+            application.algorithm_version = REQUIREMENT_ALGORITHM_VERSION
+            application.updated_at = datetime.now(timezone.utc)
+        if applications:
+            await self.db.flush()
 
     async def delete_cv(self, cv_id: str, user_id: str) -> bool:
         cv = await self.get_cv(cv_id, user_id)
@@ -147,7 +173,7 @@ class CVService:
             return None
 
         copied_metadata = dict(original.extra_metadata or {})
-        for key in ("application_id", "generated_by", "selected_sources", "extracted_keywords"):
+        for key in ("application_id", "generated_by", "selected_sources", "extracted_keywords", "extracted_requirements"):
             copied_metadata.pop(key, None)
 
         new_cv = CV(
