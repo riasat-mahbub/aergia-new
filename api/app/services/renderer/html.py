@@ -608,7 +608,7 @@ def _render_skills_inline_entry(entry: Entry) -> str:
         if len(tag_spans) == 1:
             parts.append(tag_spans[0])
         else:
-            parts.append('<span class="f-tag-sep">,</span>'.join(tag_spans))
+            parts.append('<span class="f-tag-sep">,</span> '.join(tag_spans))
     if not parts:
         return ""
     return f'<div class="entry f-skills-inline">{"".join(parts)}</div>'
@@ -624,20 +624,20 @@ def _render_section(section: Section) -> str:
     wrapper_style = _format_inline_style(wrapper_decl_parts)
     heading_html = _render_heading(section, policy)
 
-    chip_keys = (section.layout.chip_keys if section.layout else None)
     entries_html_parts: list[str] = []
-    # Skills ``inline`` variant: render each entry as one line of
-    # ``Category: tag, tag, tag`` instead of the default flex rows. The
-    # default (block) keeps the existing per-entry flex layout with chips.
-    skill_inline = (
-        section.type == "skills"
-        and (policy.skill_variant or "block") == "inline"
-    )
-    if skill_inline:
+    # Skills are always rendered as a comma-separated list per category
+    # (e.g. ``Programming Languages: TypeScript, JavaScript, Python``).
+    # The block variant — each tag as its own flex item — looked tight
+    # after the entry-gap fix (gap: 0 collapsed everything flush), and
+    # a comma list avoids the gap problem entirely while reading as a
+    # single semantic group. The ``skill_variant`` policy is preserved
+    # for API compatibility but no longer affects the layout.
+    if section.type == "skills":
         for entry in section.entries:
             entries_html_parts.append(_render_skills_inline_entry(entry))
     else:
         for i, entry in enumerate(section.entries):
+            chip_keys = section.layout.chip_keys if section.layout else None
             entry_html = _render_entry(
                 entry, section.subsection, chip_keys,
                 entry_layout=policy.entry_layout,
