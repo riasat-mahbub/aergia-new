@@ -2,6 +2,7 @@ import type { ExperienceEntry } from "../../../lib/sections/types";
 import { useFieldArray } from "../../../lib/sections/useFieldArray";
 import SortableAccordionList from "../../../lib/sections/SortableAccordionList";
 import DateField from "../../../lib/sections/DateField";
+import RichTextEditor from "../rich-text/RichTextEditor";
 
 interface Props {
   data: ExperienceEntry[] | undefined;
@@ -17,7 +18,7 @@ export default function ExperienceEditor({ data = [], onChange }: Props) {
     end_date: null,
     current: false,
     location: "",
-    description: "",
+    description: [],
   }));
 
   return (
@@ -50,13 +51,14 @@ export default function ExperienceEditor({ data = [], onChange }: Props) {
                 Current
               </label>
             </div>
-            <textarea
-              value={entry.description}
-              onChange={(e: any) => update(i, "description", e.target.value)}
-              placeholder="Description"
-              rows={2}
-              className="mt-2 w-full rounded border px-2 py-1 text-sm"
-            />
+            <div className="mt-2">
+              <label className="block text-xs text-gray-500">Description</label>
+              <RichTextEditor
+                value={entry.description}
+                onChange={(blocks) => update(i, "description", blocks)}
+                placeholder="Description"
+              />
+            </div>
           </div>
         )}
       </SortableAccordionList>

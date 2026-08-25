@@ -32,6 +32,7 @@ from app.schema.models import (
     LayoutHints,
     RenderModel,
     ResolvedZone,
+    RichTextBlock,
     Section,
     SectionPolicy,
     SubsectionStyle,
@@ -165,11 +166,45 @@ def _render_text_run(run: TextRun) -> str:
     return text
 
 
+def _render_rich_text_blocks(blocks: list[RichTextBlock]) -> str:
+    """Render a list of ``RichTextBlock`` nodes as semantic HTML.
+
+    Paragraphs become ``<p>``, bullet lists become ``<ul><li>…</li></ul>``,
+    and numbered lists become ``<ol><li>…</li></ol>``.  Each ``items`` entry
+    inside a list block is its own ``<li>`` (the wire format flattens nested
+    runs into one ``<li>`` each — the encoder treats them as siblings).
+    """
+    parts: list[str] = []
+    for block in blocks:
+        if block.type == "bullet_list":
+            items_html = "".join(
+                f"<li>{_render_text_run(TextRun(text=item.text, style=item.style))}</li>"
+                for item in block.items
+            )
+            parts.append(f"<ul>{items_html}</ul>")
+        elif block.type == "numbered_list":
+            items_html = "".join(
+                f"<li>{_render_text_run(TextRun(text=item.text, style=item.style))}</li>"
+                for item in block.items
+            )
+            parts.append(f"<ol>{items_html}</ol>")
+        else:
+            inner = "".join(_render_text_run(TextRun(text=item.text, style=item.style)) for item in block.items)
+            parts.append(f"<p>{inner}</p>")
+    return "".join(parts)
+
+
 def _render_field_block(
     block: FieldBlock,
     extra_style: str | None = None,
     chip_keys: list[str] | None = None,
 ) -> str:
+    # Rich text blocks: render as semantic HTML (p/ul/ol)
+    if block.blocks:
+        inner = _render_rich_text_blocks(block.blocks)
+        style = f' style="{extra_style}"' if extra_style else ""
+        return f'<div class="f-{attr(block.key)}"{style}>{inner}</div>'
+
     inner = "".join(_render_text_run(r) for r in block.runs)
     icon_svg = _SOCIAL_ICONS.get(block.icon) if block.icon else None
     if icon_svg:
@@ -181,6 +216,13 @@ def _render_field_block(
     if chip_keys and block.key in chip_keys:
         style = f' style="{extra_style}"' if extra_style else ""
         return f'<span class="f-chip"{style}>{inner}</span>'
+    # Social links render inline so adjacent icons sit side-by-side with
+    # a consistent horizontal gap (see ``.f-social`` in the document CSS).
+    # The block-level div layout would otherwise stack them vertically in
+    # the contact row, which reads as the same column as the email/phone.
+    if block.key == "social":
+        style = f' style="{extra_style}"' if extra_style else ""
+        return f'<span class="f-social"{style}>{inner}</span>'
     style = f' style="{extra_style}"' if extra_style else ""
     return f'<div class="f-{attr(block.key)}"{style}>{inner}</div>'
 
@@ -690,8 +732,18 @@ def _render_document(model: RenderModel, support: RendererSupport) -> str:
     .f-contact, .f-contact-sep, .f-email, .f-phone, .f-location, .f-site, .f-date, .f-gpa, .f-link, .f-tech, .f-tag, .f-proficiency, .f-meta {{ font-size: 0.75rem; }}
     /* Social row: smaller than the other contact fields so the icon+label
        pairs read as fine metadata next to the email/phone row. */
-    .f-social {{ font-size: 0.83rem; }}
+    .f-social {{ display:inline-block; font-size: 0.83rem; margin-right: 0.5rem; }}
+    .f-social:last-child {{ margin-right: 0; }}
     .f-position, .f-degree, .f-project, .f-certification, .f-paper, .f-category {{ font-weight: 600; }}
+
+    /* Rich text blocks: paragraphs and lists inside description/summary fields */
+    .f-description p, .f-summary p {{ margin: 0.25rem 0; }}
+    .f-description p:first-child, .f-summary p:first-child {{ margin-top: 0; }}
+    .f-description p:last-child, .f-summary p:last-child {{ margin-bottom: 0; }}
+    .f-description ul, .f-description ol, .f-summary ul, .f-summary ol {{ margin: 0.25rem 0; padding-left: 1.5rem; }}
+    .f-description ul, .f-summary ul {{ list-style-type: disc; }}
+    .f-description ol, .f-summary ol {{ list-style-type: decimal; }}
+    .f-description li, .f-summary li {{ margin: 0.125rem 0; }}
 
     .f-icon {{ display:inline-flex; width:0.75em; height:0.75em; margin-right:0.25em; vertical-align:-0.1em; }}
     .f-icon svg {{ width:100%; height:100%; }}

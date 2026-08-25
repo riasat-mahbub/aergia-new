@@ -2,6 +2,7 @@ import type { ProjectEntry } from "../../../lib/sections/types";
 import { useFieldArray } from "../../../lib/sections/useFieldArray";
 import SortableAccordionList from "../../../lib/sections/SortableAccordionList";
 import DateField from "../../../lib/sections/DateField";
+import RichTextEditor from "../rich-text/RichTextEditor";
 
 interface Props {
   data: ProjectEntry[] | undefined;
@@ -16,7 +17,7 @@ export default function ProjectsEditor({ data = [], onChange }: Props) {
     link_text: "",
     start_date: "",
     end_date: null,
-    description: "",
+    description: [],
     tech_stack: [],
   }));
 
@@ -64,7 +65,14 @@ export default function ProjectsEditor({ data = [], onChange }: Props) {
                 label="End Date"
               />
             </div>
-            <textarea value={entry.description} onChange={(e: any) => update(i, "description", e.target.value)} placeholder="Description" rows={2} className="mt-2 w-full rounded border px-2 py-1 text-sm" />
+            <div className="mt-2">
+              <label className="block text-xs text-gray-500">Description</label>
+              <RichTextEditor
+                value={entry.description}
+                onChange={(blocks) => update(i, "description", blocks)}
+                placeholder="Description"
+              />
+            </div>
             <div className="mt-2">
               <label className="block text-xs text-gray-500">Tech Stack</label>
               <div className="flex flex-wrap gap-1">

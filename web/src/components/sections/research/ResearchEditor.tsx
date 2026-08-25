@@ -2,6 +2,7 @@ import type { ResearchEntry } from "../../../lib/sections/types";
 import { useFieldArray } from "../../../lib/sections/useFieldArray";
 import SortableAccordionList from "../../../lib/sections/SortableAccordionList";
 import DateField from "../../../lib/sections/DateField";
+import RichTextEditor from "../rich-text/RichTextEditor";
 
 interface Props {
   data: ResearchEntry[] | undefined;
@@ -14,7 +15,7 @@ export default function ResearchEditor({ data = [], onChange }: Props) {
     title: "",
     paper_url: "",
     paper_link_text: "",
-    description: "",
+    description: [],
     publication_date: "",
     publication_value: "",
   }));
@@ -78,11 +79,10 @@ export default function ResearchEditor({ data = [], onChange }: Props) {
             />
             <div>
               <label className="block text-xs text-gray-500">Description</label>
-              <textarea
+              <RichTextEditor
                 value={entry.description}
-                onChange={(e: any) => update(i, "description", e.target.value)}
-                rows={2}
-                className="mt-0.5 w-full rounded border px-2 py-1 text-sm"
+                onChange={(blocks) => update(i, "description", blocks)}
+                placeholder="Description"
               />
             </div>
           </div>

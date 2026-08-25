@@ -1,8 +1,9 @@
 """Shared utilities for AST builders.
 
-Date formatters, HTML escape helpers, and URL-scheme normalisation. The
-date helpers are pure (no AST knowledge) — they only transform strings —
-so they live alongside the builders rather than inside the renderer.
+Date formatters, HTML escape helpers, URL-scheme normalisation, and the
+rich-text field block converter.  The date helpers are pure (no AST
+knowledge) — they only transform strings — so they live alongside the
+builders rather than inside the renderer.
 
 The :data:`DATE_STYLE_OPTIONS` list is the canonical preset table shared
 with the frontend; each preset encodes its own ``range_sep`` so backend
@@ -14,7 +15,7 @@ from __future__ import annotations
 import html
 import re
 
-from app.schema.models import DateStyle
+from app.schema.models import DateStyle, FieldBlock, RichTextBlock, TextRun
 
 
 _URL_SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.\-]*:")
@@ -165,3 +166,64 @@ def format_date_range(
     style_dict = _style_dict(style)
     sep = style_dict["range_sep"] if style_dict and style_dict.get("range_sep") else " – "
     return f"{a}{sep}{b}"
+
+
+def rich_text_to_field_block(
+    key: str,
+    value: list | str | None,
+    *,
+    group: str = "body",
+) -> FieldBlock | None:
+    """Convert a rich-text value (``RichTextBlock[]`` or legacy string) to a
+    :class:`FieldBlock`.
+
+    Returns ``None`` when the value is empty or absent.  For legacy plain
+    strings the result is a single unstyled ``TextRun`` inside a paragraph
+    block.  For ``RichTextBlock[]`` the ``blocks`` field is populated and
+    ``runs`` carries flat text for backward compat — the renderer checks
+    ``blocks`` first when present.
+    """
+    if value is None:
+        return None
+
+    # Legacy plain string
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        return FieldBlock(
+            key=key,
+            runs=[TextRun(text=text)],
+            group=group,
+            blocks=[RichTextBlock(type="paragraph", items=[{"text": text}])],
+            rich_text=True,
+        )
+
+    # RichTextBlock[] — validate and filter empty blocks
+    if not isinstance(value, list):
+        return None
+
+    blocks: list[RichTextBlock] = []
+    for raw in value:
+        if not isinstance(raw, dict):
+            continue
+        block = RichTextBlock.model_validate(raw)
+        if block.items:
+            blocks.append(block)
+
+    if not blocks:
+        return None
+
+    # Build runs for backward compat (flat list of all text items)
+    runs: list[TextRun] = []
+    for block in blocks:
+        for item in block.items:
+            runs.append(TextRun(text=item.text, style=item.style))
+
+    return FieldBlock(
+        key=key,
+        runs=runs,
+        group=group,
+        blocks=blocks,
+        rich_text=True,
+    )

@@ -7,7 +7,7 @@ Fields per entry: ``project``, ``link`` (the URL), ``date``,
 from __future__ import annotations
 
 from app.schema.models import Entry, FieldBlock, Section, SectionInstance, TextStyle, TextRun
-from ._utils import format_date_range, normalize_url_scheme
+from ._utils import format_date_range, normalize_url_scheme, rich_text_to_field_block
 
 
 def build_projects(instance: SectionInstance) -> Section:
@@ -42,8 +42,9 @@ def build_projects(instance: SectionInstance) -> Section:
         if date:
             fields.append(FieldBlock(key="date", group="secondary", align="right", runs=[TextRun(text=date)]))
 
-        if row.get("description"):
-            fields.append(FieldBlock(key="description", group="body", runs=[TextRun(text=str(row["description"]))]))
+        desc_block = rich_text_to_field_block("description", row.get("description"))
+        if desc_block:
+            fields.append(desc_block)
 
         tech = row.get("tech_stack") or []
         for t in tech:

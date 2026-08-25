@@ -109,6 +109,25 @@ class TextStyle(BaseModel):
     font_size: FontSizeToken | None = None
 
 
+class RichTextItem(BaseModel):
+    """A single inline run of styled text inside a rich-text block."""
+
+    text: str
+    style: TextStyle | None = None
+
+
+class RichTextBlock(BaseModel):
+    """One block of rich text: a paragraph or a list.
+
+    Descriptions and summary fields use ``list[RichTextBlock]`` for rich
+    text content.  Each block is either a paragraph (inline-styled runs)
+    or a list (one item per entry in ``items``).
+    """
+
+    type: Literal["paragraph", "bullet_list", "numbered_list"] = "paragraph"
+    items: list[RichTextItem] = Field(default_factory=list)
+
+
 class SubsectionStyle(BaseModel):
     """Block-level appearance per section/entry.
 
@@ -180,6 +199,8 @@ class FieldBlock(BaseModel):
     group: str | None = None
     align: Literal["right"] | None = None
     icon: str | None = None
+    blocks: list[RichTextBlock] | None = None
+    rich_text: bool = False
 
 
 class Entry(BaseModel):
