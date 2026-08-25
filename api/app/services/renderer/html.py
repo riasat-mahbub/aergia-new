@@ -767,6 +767,8 @@ def _render_document(model: RenderModel, support: RendererSupport) -> str:
     .f-social-link:last-child {{ margin-right: 0; }}
     .f-position, .f-degree, .f-project, .f-certification, .f-paper, .f-category {{ font-weight: 600; }}
     /* Rich text blocks: paragraphs and lists inside description/summary fields */
+    .f-description p, .f-summary p {{ margin: 0.25rem 0; }}
+    .f-description p:first-child, .f-summary p:first-child {{ margin-top: 0; }}
     .f-description p:last-child, .f-summary p:last-child {{ margin-bottom: 0; }}
     .f-description ul, .f-description ol, .f-summary ul, .f-summary ol {{ margin: 0.25rem 0; padding-left: 1.5rem; }}
     .f-description ul, .f-summary ul {{ list-style-type: disc; }}
