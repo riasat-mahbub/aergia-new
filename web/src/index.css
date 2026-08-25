@@ -1,3 +1,48 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@import "./styles/tokens.css";
+
+/* ── Base typography ─────────────────────────────────────────────── */
+/* The proof-sheet palette uses a serif for prose (panel headings,
+ * captions) and a sans for UI controls. Apply at the root so every
+ * element inherits. Specific controls (selects, color hex inputs)
+ * override to the UI family where the serif looks mechanical.
+ */
+html {
+  font-family: var(--font-prose);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-prose);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* Tailwind utility classes that map to our token scale. Keep these
+ * alongside tokens.css so existing utility-first code can reach the
+ * proof-sheet surfaces without a refactor. */
+@layer utilities {
+  .bg-paper      { background-color: var(--paper); }
+  .bg-paper-1    { background-color: var(--paper-1); }
+  .bg-paper-2    { background-color: var(--paper-2); }
+  .bg-accent     { background-color: var(--accent); }
+  .bg-accent-soft { background-color: var(--accent-soft); }
+  .text-ink      { color: var(--ink); }
+  .text-ink-2    { color: var(--ink-2); }
+  .text-ink-3    { color: var(--ink-3); }
+  .text-ink-4    { color: var(--ink-4); }
+  .border-rule   { border-color: var(--rule); }
+  .border-rule-soft { border-color: var(--rule-soft); }
+  .border-rule-strong { border-color: var(--rule-strong); }
+  .border-accent { border-color: var(--accent); }
+  .font-prose    { font-family: var(--font-prose); }
+  .font-ui       { font-family: var(--font-ui); }
+  .font-mono     { font-family: var(--font-mono); }
+  .shadow-pop    { box-shadow: var(--shadow-pop); }
+  .shadow-focus  { box-shadow: var(--shadow-focus); }
+}

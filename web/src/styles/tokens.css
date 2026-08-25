@@ -1,0 +1,82 @@
+/* Aergia proof-sheet design tokens.
+ *
+ * Single source of truth for the customize-panel redesign. TypeScript
+ * mirrors the spacing and radius scales via web/src/styles/tokens.ts; the
+ * CSS variables here are what every component consumes at runtime.
+ *
+ * The palette is a single-hue proof sheet — off-white paper, soft
+ * graphite ink, one accent. No chrome color that competes with the CV's
+ * own accent. Type pairing: a serif for prose (panel headings, captions)
+ * and a sans for UI controls.
+ */
+
+:root {
+  /* ── Surfaces ───────────────────────────────────────────────────── */
+  --paper:        #F7F4EE;   /* panel background, the proof sheet */
+  --paper-1:      #FBF8F2;   /* one elevation up, cards */
+  --paper-2:      #FFFFFF;   /* inputs, inset */
+
+  /* ── Ink (text + chrome) ────────────────────────────────────────── */
+  --ink:          #1F1B16;   /* primary text */
+  --ink-2:        #4A453E;   /* secondary text */
+  --ink-3:        #807A70;   /* tertiary / metadata */
+  --ink-4:        #B5AFA4;   /* disabled / muted */
+
+  /* ── Rules (borders) ────────────────────────────────────────────── */
+  --rule:         rgba(31, 27, 22, 0.08);
+  --rule-soft:    rgba(31, 27, 22, 0.05);
+  --rule-strong:  rgba(31, 27, 22, 0.14);
+
+  /* ── Accent (single ink-blue, used sparingly) ───────────────────── */
+  --accent:       #1F4E79;
+  --accent-soft:  #E8EEF5;
+
+  /* ── Semantic ───────────────────────────────────────────────────── */
+  --warn:         #B45309;
+  --warn-soft:    #FEF3E2;
+  --danger:       #9B2C2C;
+  --danger-soft:  #FCEDEC;
+  --success:      #166534;
+  --success-soft: #F0FDF4;
+
+  /* ── Spacing scale (4px base, restrained) ───────────────────────── */
+  --s-1:  4px;
+  --s-2:  8px;
+  --s-3:  12px;
+  --s-4:  16px;
+  --s-5:  20px;
+  --s-6:  24px;
+  --s-8:  32px;
+  --s-10: 40px;
+  --s-12: 48px;
+
+  /* ── Type families ──────────────────────────────────────────────── */
+  --font-prose:   "Source Serif 4", "Iowan Old Style", Georgia, serif;
+  --font-ui:      "Inter", system-ui, sans-serif;
+  --font-mono:    ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* ── Type scale (px @ 16px base, 1.25 ratio) ────────────────────── */
+  --t-xs:   11px;
+  --t-sm:   12px;
+  --t-base: 13px;
+  --t-md:   14px;
+  --t-lg:   16px;
+  --t-xl:   20px;
+  --t-2xl:  28px;
+
+  /* ── Weights ────────────────────────────────────────────────────── */
+  --w-regular:  400;
+  --w-medium:   500;
+  --w-semibold: 600;
+  --w-bold:     700;
+
+  /* ── Radius (concentric: outer = inner + padding) ──────────────── */
+  --r-1:   4px;     /* inputs, buttons, small chips */
+  --r-2:   6px;     /* cards */
+  --r-3:   8px;     /* modals, popovers */
+  --r-pill: 999px;
+
+  /* ── Shadows (borders carry structure; shadows lift only) ──────── */
+  --shadow-pop:    0 1px 2px rgba(31, 27, 22, 0.04), 0 4px 12px rgba(31, 27, 22, 0.06);
+  --shadow-focus:  0 0 0 3px var(--accent-soft);
+}
