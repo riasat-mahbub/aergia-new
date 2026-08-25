@@ -275,13 +275,15 @@ export default function SectionZoneView({
 
     const activeId = String(active.id);
     const overId = String(over.id);
-
-    // Entry-level DnD — delegate to parent
-    if (!activeId.startsWith("sec_")) {
-      onEntryDragEnd(event);
-      return;
-    }
-
+    // Entry-level DnD is not currently rendered by this component — only
+    // section-level useSortable() draggables are registered here. The
+    // previous `!startsWith("sec_")` check delegated to onEntryDragEnd,
+    // but that path was a no-op everywhere it was passed (CustomizePanel
+    // passes `() => {}`) and the prefix heuristic was brittle: the parser
+    // emitted non-`sec_` IDs for imported sections, which silently
+    // disabled drag-drop on imported CVs. Every activeId in this
+    // component is a section id, so we route every drop through the
+    // placement logic below.
     // Zone reorder (left↔right) when a zone is the active draggable.
     if (zones.some((z) => z.id === activeId) && zones.some((z) => z.id === overId)) {
       const oldIndex = zones.findIndex((z) => z.id === activeId);
