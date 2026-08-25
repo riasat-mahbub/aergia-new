@@ -13,7 +13,7 @@ ready to apply.
   Add Profile, Experience, Education, Skills, Projects, Languages,
   Certifications, Research, or Extras sections.
 - **Start from an existing CV.** Import a PDF and review the extracted content
-  in the editor before using it as a new CV.
+  in the editor before using it as a new CV.W
 - **Choose your look.** Use Modern, Classic, or Minimal templates, then adjust
   colors, fonts, section order, spacing, and layout.
 - **Reuse your best work.** Save experiences, skills, projects, education,
