@@ -5,12 +5,11 @@ Fields per entry: ``project``, ``link`` (the URL), ``date``,
 """
 
 from __future__ import annotations
-
-from app.schema.models import Entry, FieldBlock, Section, SectionInstance, TextStyle, TextRun
+from app.schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextStyle, TextRun
 from ._utils import format_date_range, normalize_url_scheme, rich_text_to_field_block
 
 
-def build_projects(instance: SectionInstance) -> Section:
+def build_projects(instance: SectionInstance, resolved_layout: LayoutHints | None = None) -> Section:
     rows = instance.data if isinstance(instance.data, list) else []
 
     entries: list[Entry] = []
@@ -33,15 +32,15 @@ def build_projects(instance: SectionInstance) -> Section:
                 key="link", group="header", align="right",
                 runs=[TextRun(text=link_text, style=TextStyle(link=url))],
             ))
-
+        date_style = resolved_layout.date_style if resolved_layout else None
         date = format_date_range(
             str(row.get("start_date") or ""),
             row.get("end_date"),
             False,
+            date_style,
         )
         if date:
             fields.append(FieldBlock(key="date", group="secondary", align="right", runs=[TextRun(text=date)]))
-
         desc_block = rich_text_to_field_block("description", row.get("description"))
         if desc_block:
             fields.append(desc_block)

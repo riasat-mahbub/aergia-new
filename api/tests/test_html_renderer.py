@@ -43,6 +43,28 @@ def _model():
     return resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
 
 
+MODERN_ID = "generic-modern"
+
+
+def _manifest(template_id=MODERN_ID):
+    from app.db.seed import SEED_TEMPLATES
+    seed = next(t for t in SEED_TEMPLATES if t["id"] == template_id)
+    return TemplateManifest.model_validate(seed["manifest"])
+
+
+class _CVStub:
+    def __init__(self, sections):
+        self.sections = sections
+
+
+def _cv(sections):
+    return _CVStub(sections)
+
+
+def _resolve(cv, manifest):
+    from app.services.renderer.builders import build_document
+    doc = build_document(cv, manifest)
+    return resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
 def test_renders_doctype_and_body():
     html = HTMLDocumentRenderer().render(_model())
     assert "<!DOCTYPE html>" in html
@@ -90,6 +112,72 @@ def test_render_bytes_returns_utf8_bytes():
     html = HTMLDocumentRenderer().render_bytes(_model())
     assert isinstance(html, bytes)
     assert html.startswith(b"<!DOCTYPE html>")
+
+
+def test_date_style_month_yyyy_renders_in_experience():
+    """layout.date_style = {key: "Mon YYYY"} flows through the builder and
+    renders as ``Mar 2024`` (not ``2024-03``).
+    """
+    manifest = _manifest(MODERN_ID)
+    cv = _cv([{
+        "id": "s1", "type": "experience", "title": "Work", "enabled": True,
+        "style": {"layout": {"date_style": {"key": "Mon YYYY", "rangeSep": " – "}}},
+        "data": [{
+            "id": "e1", "position": "Eng", "company": "Acme",
+            "start_date": "2024-03", "end_date": None, "current": True,
+        }],
+    }])
+    html = HTMLDocumentRenderer().render(_resolve(cv, manifest))
+    assert "Mar 2024" in html
+    assert "2024-03" not in html
+
+def test_date_style_yyyy_dash_mm_renders_in_education():
+    """The YYYY-MM format (schema default) stays as YYYY-MM."""
+    manifest = _manifest(MODERN_ID)
+    cv = _cv([{
+        "id": "s1", "type": "education", "title": "Ed", "enabled": True,
+        "data": [{
+            "id": "e1", "degree": "BSc", "institution": "U",
+            "start_date": "2020-09", "end_date": "2024-06",
+        }],
+    }])
+    html = HTMLDocumentRenderer().render(_resolve(cv, manifest))
+    assert "2020-09 – 2024-06" in html
+
+
+def test_date_style_mon_yyyy_renders_in_research_single_date():
+    """Single-date sections (research, certifications) honor date_style too."""
+    manifest = _manifest(MODERN_ID)
+    cv = _cv([{
+        "id": "s1", "type": "research", "title": "Papers", "enabled": True,
+        "style": {"layout": {"date_style": {"key": "Mon YYYY", "rangeSep": " – "}}},
+        "data": [{"id": "p1", "title": "Paper", "publication_date": "2024-03"}],
+    }])
+    html = HTMLDocumentRenderer().render(_resolve(cv, manifest))
+    assert "Mar 2024" in html
+
+
+def test_all_date_style_presets_render():
+    """Every preset renders a non-YYYY-MM form for current roles; the
+    YYYY-MM preset is the schema default and renders literally."""
+    from app.services.renderer.builders._utils import DATE_STYLE_OPTIONS
+    manifest = _manifest(MODERN_ID)
+    for preset in DATE_STYLE_OPTIONS:
+        key, _label, _sep = preset
+        cv = _cv([{
+            "id": "s1", "type": "experience", "title": "Work", "enabled": True,
+            "style": {"layout": {"date_style": {"key": key, "rangeSep": " – "}}},
+            "data": [{
+                "id": "e1", "position": "Eng", "company": "Acme",
+                "start_date": "2024-03", "end_date": None, "current": True,
+            }],
+        }])
+        html = HTMLDocumentRenderer().render(_resolve(cv, manifest))
+        assert " – Present" in html, f"preset {key} didn't produce a date range"
+        if key == "YYYY-MM":
+            assert "2024-03 – Present" in html
+        else:
+            assert "2024-03 – Present" not in html, f"preset {key} fell back to YYYY-MM"
 
 
 def test_html_renderer_uses_resolved_css_not_manifest_css():

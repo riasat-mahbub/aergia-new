@@ -5,12 +5,11 @@ Fields per entry: ``paper``, ``venue`` (publication venue), ``link``
 """
 
 from __future__ import annotations
-
-from app.schema.models import Entry, FieldBlock, Section, SectionInstance, TextStyle, TextRun
+from app.schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextStyle, TextRun
 from ._utils import format_single_date, normalize_url_scheme, rich_text_to_field_block
 
 
-def build_research(instance: SectionInstance) -> Section:
+def build_research(instance: SectionInstance, resolved_layout: LayoutHints | None = None) -> Section:
     rows = instance.data if isinstance(instance.data, list) else []
 
     entries: list[Entry] = []
@@ -22,12 +21,11 @@ def build_research(instance: SectionInstance) -> Section:
 
         if row.get("title"):
             fields.append(FieldBlock(key="paper", group="header", runs=[TextRun(text=str(row["title"]))]))
-
         raw_date = str(row.get("publication_date") or "")
         if raw_date:
-            formatted = format_single_date(raw_date)
+            date_style = resolved_layout.date_style if resolved_layout else None
+            formatted = format_single_date(raw_date, date_style)
             fields.append(FieldBlock(key="date", group="header", align="right", runs=[TextRun(text=formatted)]))
-
         venue = str(row.get("publication_value") or "").strip()
         if venue:
             fields.append(FieldBlock(key="venue", group="secondary", runs=[TextRun(text=venue)]))

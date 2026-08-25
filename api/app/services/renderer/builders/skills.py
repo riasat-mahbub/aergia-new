@@ -6,11 +6,10 @@ Each row in the data is a :class:`SkillGroup` with a ``category`` and
 """
 
 from __future__ import annotations
+from app.schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextRun, TextStyle
 
-from app.schema.models import Entry, FieldBlock, Section, SectionInstance, TextRun, TextStyle
 
-
-def build_skills(instance: SectionInstance) -> Section:
+def build_skills(instance: SectionInstance, resolved_layout: LayoutHints | None = None) -> Section:
     rows = instance.data if isinstance(instance.data, list) else []
 
     entries: list[Entry] = []
