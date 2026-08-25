@@ -144,9 +144,10 @@ def test_same_group_fields_render_in_one_row():
 
 
 def test_social_field_with_link_wraps_icon_and_label_in_anchor():
-    """A known social icon plus its URL wraps the icon SVG, label, and the
-    trailing ↗ glyph in a single ``<a href>`` so the icon itself becomes a
-    clickable hyperlink in the rendered PDF. Without a URL the field falls
+    """A known social icon plus its URL wraps the icon SVG and the label in
+    a single ``<a href>`` so the icon itself becomes a clickable hyperlink
+    in the rendered PDF. The icon+label pair intentionally omits the trailing
+    ↗ glyph (it would clutter the icon row); without a URL the field falls
     back to a plain ``<span class="f-social">``."""
     manifest = TemplateManifest(
         name="M", zones=[Zone(id="main", styles={})], placement={"profile": "main"},
@@ -165,15 +166,14 @@ def test_social_field_with_link_wraps_icon_and_label_in_anchor():
     html = HTMLDocumentRenderer().render(model)
 
     assert '<a href="https://x.com/me">' in html
-    # Icon, label, and external marker all live inside the anchor.
+    # Icon and label live inside the anchor; the glyph is intentionally absent.
     anchor = re.search(r'<a href="https://x\.com/me">(.+?)</a>', html, re.S)
     assert anchor is not None
     body = anchor.group(1)
     assert '<span class="f-icon"' in body
     assert "<svg" in body
     assert "X" in body
-    assert '<span aria-hidden="true"> ↗</span>' in body
-
+    assert '<span aria-hidden="true"> ↗</span>' not in body
 
 def test_social_field_without_link_renders_span_only():
     """When no link is set the field is NOT wrapped in an anchor (avoids a
