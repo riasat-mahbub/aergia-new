@@ -35,11 +35,21 @@ def _register_login_ready_handler(
         return _ok_json({"status": "ok", "database": "ok", "version": "0.1.0"})
 
     if path == "/api/v1/auth/register" and method == "POST":
-        return httpx.Response(201, json=None)
+        return httpx.Response(
+            201,
+            json=None,
+            headers={"set-cookie": "aergia_csrf=csrf-token; Path=/"},
+        )
 
     if path == "/api/v1/auth/login" and method == "POST":
-        return _ok_json(
-            {"access_token": "token", "refresh_token": "refresh", "token_type": "bearer"}
+        return httpx.Response(
+            200,
+            json={"message": "Logged in"},
+            headers=[
+                ("set-cookie", "aergia_access_token=token; Path=/api/v1; HttpOnly"),
+                ("set-cookie", "aergia_refresh_token=refresh; Path=/api/v1/auth; HttpOnly"),
+                ("set-cookie", "aergia_csrf=csrf-token; Path=/"),
+            ],
         )
 
     if path == "/api/v1/templates" and method == "GET":

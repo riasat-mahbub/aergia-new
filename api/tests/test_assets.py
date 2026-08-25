@@ -8,7 +8,7 @@ import pytest
 
 PNG_1X1 = bytes.fromhex(
     "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
-    "0000000d49444154789c6360000000020001e221bc330000000049454e44ae426082"
+    "0000000d49444154789c6360606060000000050001a5f645400000000049454e44ae426082"
 )
 
 
@@ -74,7 +74,7 @@ async def test_upload_rejects_invalid_extension_and_non_image(client, auth_heade
 async def test_upload_file_too_large_is_rejected(client, auth_headers):
     large_content = b"x" * (6 * 1024 * 1024)
     response = await client.post("/api/v1/assets", files=_make_file(large_content), headers=auth_headers)
-    assert response.status_code == 400
+    assert response.status_code == 413
     assert "too large" in response.json()["detail"].lower()
 
 

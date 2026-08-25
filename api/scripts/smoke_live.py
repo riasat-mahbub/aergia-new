@@ -4,7 +4,7 @@ Exercises the live backend (uvicorn launched by scripts/smoke.sh) for
 ``generic-modern``, ``generic-classic``, and ``generic-minimal``:
 
 - Register a unique throwaway user.
-- Login and obtain a bearer token.
+- Login and obtain the HttpOnly access/refresh cookies plus the CSRF cookie.
 - List the seed templates and assert the exact set.
 - For each template, create a CV and verify the HTML preview
   (``<body`` in the response) and the PDF export (``Content-Type``
@@ -30,11 +30,13 @@ from typing import Iterable, Optional
 
 import httpx
 
+from app.core.auth import ACCESS_COOKIE_NAME, CSRF_COOKIE_NAME, REFRESH_COOKIE_NAME
+
 
 EXPECTED_TEMPLATES = ("generic-modern", "generic-classic", "generic-minimal")
 
 
-def _register_and_login(client: httpx.Client, base_url: str) -> str:
+def _register_and_login(client: httpx.Client, base_url: str) -> dict[str, str]:
     email = f"smoke-{uuid.uuid4().hex[:8]}@example.com"
     password = "smoke-test-123"
     r = client.post(
@@ -51,13 +53,20 @@ def _register_and_login(client: httpx.Client, base_url: str) -> str:
     )
     if r.status_code != 200:
         raise AssertionError(f"login failed: {r.status_code} {r.text[:200]}")
-    return r.json()["access_token"]
+    csrf_token = client.cookies.get(CSRF_COOKIE_NAME)
+    if not csrf_token:
+        raise AssertionError("login did not establish a CSRF cookie")
+    if not client.cookies.get(ACCESS_COOKIE_NAME):
+        raise AssertionError("login did not establish an access cookie")
+    if not client.cookies.get(REFRESH_COOKIE_NAME):
+        raise AssertionError("login did not establish a refresh cookie")
+    return {"X-CSRF-Token": csrf_token}
 
 
-def _list_templates(client: httpx.Client, base_url: str, token: str) -> list[str]:
+def _list_templates(client: httpx.Client, base_url: str, headers: dict[str, str]) -> list[str]:
     r = client.get(
         f"{base_url}/api/v1/templates",
-        headers={"Authorization": f"Bearer {token}"},
+        headers=headers,
     )
     if r.status_code != 200:
         raise AssertionError(f"templates list failed: {r.status_code} {r.text[:200]}")
@@ -76,7 +85,7 @@ def _wait_for_ready(client: httpx.Client, base_url: str) -> None:
     raise AssertionError(f"server at {base_url} did not become ready within 30s")
 
 
-def _smoke_import_pdf(client: httpx.Client, base_url: str, token: str) -> None:
+def _smoke_import_pdf(client: httpx.Client, base_url: str, headers: dict[str, str]) -> None:
     """POST the fixture PDF to the import route and validate the response shape."""
     fixture = (
         Path(__file__).resolve().parent.parent
@@ -90,7 +99,7 @@ def _smoke_import_pdf(client: httpx.Client, base_url: str, token: str) -> None:
     r = client.post(
         f"{base_url}/api/v1/cvs/import/pdf",
         files={"file": ("sample.pdf", io.BytesIO(body), "application/pdf")},
-        headers={"Authorization": f"Bearer {token}"},
+        headers=headers,
     )
     if r.status_code != 200:
         raise AssertionError(
@@ -110,7 +119,7 @@ def _smoke_import_pdf(client: httpx.Client, base_url: str, token: str) -> None:
             f"import PDF payload.sections contains malformed items: {sections!r}"
         )
 
-def _smoke_library(client: httpx.Client, base_url: str, headers: dict) -> None:
+def _smoke_library(client: httpx.Client, base_url: str, headers: dict[str, str]) -> None:
     """Minimal Library block: create an entry, clone it into a CV, render preview."""
     title_substring = f"SmokeEntry-{uuid.uuid4().hex[:6]}"
 
@@ -152,7 +161,7 @@ def _smoke_library(client: httpx.Client, base_url: str, headers: dict) -> None:
     if r.json()["promoted"] != {}:
         raise AssertionError(f"re-promote should be a no-op; got {r.json()['promoted']!r}")
 
-def _smoke_application(client: httpx.Client, base_url: str, headers: dict) -> None:
+def _smoke_application(client: httpx.Client, base_url: str, headers: dict[str, str]) -> None:
     """Exercise Profile → Library rows → generated application → linked CV."""
     profile = client.put(
         f"{base_url}/api/v1/profile",
@@ -252,10 +261,9 @@ def _smoke_application(client: httpx.Client, base_url: str, headers: dict) -> No
 
 def run_smoke(client: httpx.Client, base_url: str) -> None:
     _wait_for_ready(client, base_url)
-    token = _register_and_login(client, base_url)
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = _register_and_login(client, base_url)
 
-    template_ids = _list_templates(client, base_url, token)
+    template_ids = _list_templates(client, base_url, headers)
     if set(template_ids) != set(EXPECTED_TEMPLATES):
         raise AssertionError(
             f"unexpected template set: {template_ids!r}; "
@@ -305,7 +313,7 @@ def run_smoke(client: httpx.Client, base_url: str) -> None:
                 f"export PDF for {template_id} returned non-PDF body: {r.content[:8]!r}"
             )
     # Import route smoke (PDF → typed ParseResult).
-    _smoke_import_pdf(client, base_url, token)
+    _smoke_import_pdf(client, base_url, headers)
 
     # Library smoke — promote-to-library + clone-into-CV + preview reflects it.
     _smoke_library(client, base_url, headers)

@@ -22,11 +22,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ENV PLAYWRIGHT_BROWSERS_PATH=/app/ms-playwright
 
-COPY api/pyproject.toml .
-RUN pip install --no-cache-dir -e ".[test]" && \
-    playwright install chromium
-
 COPY api/ .
+RUN pip install --no-cache-dir -e . && \
+    playwright install chromium
 
 # Create data directory for SQLite
 RUN mkdir -p /app/data

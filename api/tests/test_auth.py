@@ -84,7 +84,10 @@ async def test_password_change_endpoint_is_removed(client):
         "/api/v1/auth/change-password",
         json={"old_password": "oldpass123", "new_password": "newpass123"},
     )
-    assert response.status_code == 404
+    # A built SPA's GET catch-all can match the path and report 405 for POST;
+    # without the built SPA this is a normal 404. Either means the endpoint is
+    # no longer exposed.
+    assert response.status_code in {404, 405}
 
 
 @pytest.mark.asyncio
