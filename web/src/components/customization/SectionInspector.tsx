@@ -27,6 +27,7 @@ import type {
   TextStyle,
 } from "../../generated/schema";
 import { fieldsForInstance } from "../../lib/sections/fieldsForInstance";
+import { DATE_STYLE_OPTIONS } from "../../lib/sections/DateField";
 import { effectiveStyle } from "../../lib/sections/cascade";
 import type { SectionInstanceStyle } from "../../lib/sections/types";
 import {
@@ -53,10 +54,15 @@ export default function SectionInspector({ instance, documentAccent, documentBod
   const fields = useMemo(() => fieldsForInstance(instance), [instance]);
 
   const isProfile = instance.type === "profile";
+  const isDateSection = instance.type === "experience"
+    || instance.type === "education"
+    || instance.type === "projects"
+    || instance.type === "research"
+    || instance.type === "certifications";
   const isTwoColumn = style.policy?.entry_layout === "two-column";
   const showTextAlign = !isProfile;
   const showPageBreak = !isProfile;
-
+  const showDates = isDateSection;
   const updateSubsection = (partial: Partial<SubsectionStyle>) => {
     const next = { ...style.subsection, ...partial };
     onChange({ ...style, subsection: next });
@@ -163,6 +169,38 @@ export default function SectionInspector({ instance, documentAccent, documentBod
               className="h-3.5 w-3.5"
               aria-label="Start on a new page"
             />
+          </Row>
+        </Group>
+      )}
+      {/* ── Dates ───────────────────────────────────────────────── */}
+      {showDates && (
+        <Group title="Dates">
+          <Row label="Date format">
+            <select
+              value={style.layout?.date_style?.key ?? ""}
+              onChange={(e) => {
+                const key = e.target.value;
+                if (!key) {
+                  updateLayout({ date_style: null });
+                } else {
+                  updateLayout({
+                    date_style: {
+                      key,
+                      rangeSep: DATE_STYLE_OPTIONS.find(o => o.value === key)?.rangeSep ?? " – ",
+                    },
+                  });
+                }
+              }}
+              className="rounded border px-2 py-1 text-xs"
+              style={{ borderColor: ruleDefault }}
+              aria-label="Date format"
+              data-testid={`date-format-${instance.id}`}
+            >
+              <option value="">Default (YYYY-MM)</option>
+              {DATE_STYLE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
           </Row>
         </Group>
       )}
