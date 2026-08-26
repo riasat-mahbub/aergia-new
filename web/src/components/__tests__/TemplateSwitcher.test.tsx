@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import TemplateSwitcher from "../preview/TemplateSwitcher";
-import type { SectionInstance, LayoutConfig } from "../../lib/sections/types";
+import type { SectionInstance } from "../../lib/sections/types";
 
 vi.mock("../../lib/api/client", () => ({
   default: {
@@ -14,19 +14,21 @@ const baseInstances: SectionInstance[] = [
   { id: "sec_2", type: "experience", title: "Experience", enabled: false, data: [] },
 ];
 
-const modernLayoutConfig: LayoutConfig = {
-  zones: [
-    { id: "sidebar", styles: { width: "narrow", padding: "comfortable" } },
-    { id: "main", styles: { padding: "comfortable" } },
-  ],
-  placement: {
-    profile: "sidebar",
-    experience: "main",
-    education: "main",
-    skills: "main",
-    projects: "main",
-    languages: "main",
-    certifications: "main",
+const modernLayoutConfig = {
+  layout: {
+    zones: [
+      { id: "sidebar", styles: { width: "narrow", padding: "comfortable" } },
+      { id: "main", styles: { padding: "comfortable" } },
+    ],
+    placement: {
+      profile: "sidebar",
+      experience: "main",
+      education: "main",
+      skills: "main",
+      projects: "main",
+      languages: "main",
+      certifications: "main",
+    },
   },
 };
 
@@ -40,10 +42,9 @@ describe("TemplateSwitcher", () => {
     const { container } = render(<TemplateSwitcher {...baseProps} templateId="generic-modern" />);
     expect(container.querySelector(".min-h-\\[297mm\\]")).toBeDefined();
   });
-
-  it("renders Modern template with layoutConfig", () => {
+  it("renders Modern template with customizations.layout", () => {
     const { container } = render(
-      <TemplateSwitcher {...baseProps} templateId="generic-modern" layoutConfig={modernLayoutConfig} />
+      <TemplateSwitcher {...baseProps} templateId="generic-modern" customizations={modernLayoutConfig} />
     );
     expect(container.querySelector(".min-h-\\[297mm\\]")).toBeDefined();
   });

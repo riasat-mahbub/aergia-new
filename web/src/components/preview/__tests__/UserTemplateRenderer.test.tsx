@@ -28,78 +28,67 @@ beforeEach(() => {
 });
 
 describe("UserTemplateRenderer — preview render payload (Phase 7 wire)", () => {
-  it("sends the manifest verbatim and the CV layout via customizations, not layout_config", async () => {
+  it("passes customizations.layout through to the render endpoint verbatim", async () => {
+    const customizations = {
+      accent_color: "#aabbcc",
+      layout: {
+        zones: [{ id: "main", styles: { width: "full" } }],
+        placement: { sec_profile: "main" },
+      },
+    };
     render(
       <UserTemplateRenderer
         templateId="generic-modern"
         instances={INSTANCES}
         manifest={MANIFEST}
-        layoutConfig={{ zones: [{ id: "main", styles: { width: "full" } }], placement: { sec_profile: "main" } }}
-        customizations={{ accent_color: "#aabbcc" }}
+        customizations={customizations}
       />
     );
     await act(async () => { await Promise.resolve(); });
 
     expect(mockPost).toHaveBeenCalledTimes(1);
     const [url, rawPayload] = mockPost.mock.calls[0];
-    const payload = rawPayload as Record<string, any>; // test-built object; narrow once
+    const payload = rawPayload as Record<string, any>;
     expect(url).toBe("/render/html");
     expect(payload.manifest).toEqual(MANIFEST);
     expect(payload.manifest).not.toHaveProperty("layout_config");
     expect(payload.cv_sections).toEqual(INSTANCES);
-    expect(payload.customizations.layout).toEqual({
-      zones: [{ id: "main", styles: { width: "full" } }],
-      placement: { sec_profile: "main" },
-    });
-    expect(payload.customizations.accent_color).toBe("#aabbcc");
-  });
-
-  it("falls back to the manifest zones when no CV layout exists", async () => {
-    render(
-      <UserTemplateRenderer
-        templateId="generic-modern"
-        instances={INSTANCES}
-        manifest={MANIFEST}
-        customizations={{}}
-      />
-    );
-    await act(async () => { await Promise.resolve(); });
-
-    expect(mockPost).toHaveBeenCalledTimes(1);
-    const [, rawPayload] = mockPost.mock.calls[0];
-    const payload = rawPayload as Record<string, any>; // test-built object; narrow once
-    expect(payload.manifest).toEqual(MANIFEST);
-    expect(payload.cv_sections).toEqual(INSTANCES);
-    expect(payload.customizations.layout.zones).toEqual(MANIFEST.zones);
+    expect(payload.customizations).toEqual(customizations);
   });
 
   it("sends a null manifest with the CV layout when the template manifest is unavailable", async () => {
-    // This is the template-switch window: BuilderPage nulls templateManifest
-    // before refetching. The payload must not fabricate a manifest-less
-    // object that fails TemplateManifest validation ("name Field required").
+    // Template-switch window: BuilderPage nulls templateManifest before
+    // refetching. The payload must not fabricate a manifest-less object
+    // that fails TemplateManifest validation.
+    const customizations = {
+      layout: {
+        zones: [{ id: "main", styles: {} }],
+        placement: { sec_profile: "main" },
+      },
+    };
     render(
       <UserTemplateRenderer
         templateId="generic-classic"
         instances={INSTANCES}
-        layoutConfig={{ zones: [{ id: "main", styles: {} }], placement: { sec_profile: "main" } }}
-        customizations={{}}
+        customizations={customizations}
       />
     );
     await act(async () => { await Promise.resolve(); });
 
     expect(mockPost).toHaveBeenCalledTimes(1);
     const [, rawPayload] = mockPost.mock.calls[0];
-    const payload = rawPayload as Record<string, any>; // test-built object; narrow once
+    const payload = rawPayload as Record<string, any>;
     expect(payload.manifest).toBeNull();
     expect(payload.cv_sections).toEqual(INSTANCES);
     expect(payload.customizations.layout.placement).toEqual({ sec_profile: "main" });
   });
 
-  it("does not call the render endpoint when neither manifest nor layout has zones", async () => {
+  it("does not call the render endpoint when customizations.layout has no zones", async () => {
     render(
       <UserTemplateRenderer
         templateId="generic-modern"
         instances={INSTANCES}
+        manifest={MANIFEST}
         customizations={{}}
       />
     );
