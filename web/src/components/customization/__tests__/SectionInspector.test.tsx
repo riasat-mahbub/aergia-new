@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import SectionInspector from "../SectionInspector";
-import type { SectionInstance } from "../../lib/sections/types";
+import type { SectionInstance } from "../../../lib/sections/types";
 
 const baseInstance = (overrides: Partial<SectionInstance>): SectionInstance => ({
   id: "s1",

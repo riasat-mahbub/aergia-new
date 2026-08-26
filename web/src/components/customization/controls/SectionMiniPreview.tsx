@@ -18,7 +18,7 @@ import type { SectionInstance } from "../../../lib/sections/types";
 import { SECTION_LABELS } from "../../../lib/sections/types";
 import { fieldsForInstance } from "../../../lib/sections/fieldsForInstance";
 import { effectiveStyle } from "../../../lib/sections/cascade";
-import { ink, radius, rule } from "../../../styles/tokens";
+import { ink, radius, ruleDefault } from "../../../styles/tokens";
 
 interface Props {
   instance: SectionInstance;
@@ -41,7 +41,7 @@ export default function SectionMiniPreview({ instance, accent: accentColor, body
       style={{
         background: "var(--paper-1)",
         borderRadius: radius.r1,
-        border: `1px solid ${rule}`,
+        border: `1px solid ${ruleDefault}`,
       }}
       aria-label={`${instance.title} preview`}
     >

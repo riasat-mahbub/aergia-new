@@ -9,7 +9,7 @@ import { ListNode, ListItemNode } from "@lexical/list";
 import { ListPlugin } from "@lexical/react/LexicalListPlugin";
 import { LinkNode } from "@lexical/link";
 import { LinkPlugin } from "@lexical/react/LexicalLinkPlugin";
-import type { EditorState, LexicalEditor } from "lexical";
+import type { EditorState } from "lexical";
 import type { RichTextBlock } from "../../../generated/schema";
 import { lexicalToBlocks, blocksToLexical } from "../../../lib/sections/richTextTransform";
 import RichTextToolbar from "./RichTextToolbar";

@@ -83,8 +83,8 @@ describe("styleDefaults — schema mirror", () => {
   it("defaultStyleFor returns the layered shape", () => {
     const s = defaultStyleFor("profile");
     expect(s.text).toEqual({});
-    expect(s.subsection.text_align).toBe("center");
-    expect(s.policy.show_title).toBe(false);
+    expect(s.subsection!.text_align).toBe("center");
+    expect(s.policy!.show_title).toBe(false);
     expect(s.layout).toBeDefined();
   });
 });

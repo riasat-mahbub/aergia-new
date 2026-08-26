@@ -19,7 +19,7 @@
 
 import { useState } from "react";
 import { X } from "lucide-react";
-import { ink, radius, rule } from "../../../styles/tokens";
+import { ink, radius, ruleDefault } from "../../../styles/tokens";
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
@@ -56,11 +56,11 @@ export default function ColorChip({ value, onChange, showRevert, onRevert, label
     <div
       className="flex items-center gap-2"
       data-testid={testId}
-      style={{ borderColor: rule, borderRadius: radius.r1 }}
+      style={{ borderColor: ruleDefault, borderRadius: radius.r1 }}
     >
       <label
         className="relative inline-flex h-7 w-9 cursor-pointer items-center justify-center overflow-hidden rounded border"
-        style={{ borderColor: rule }}
+        style={{ borderColor: ruleDefault }}
         title={label ?? "Color"}
       >
         <input
@@ -86,7 +86,7 @@ export default function ColorChip({ value, onChange, showRevert, onRevert, label
         onKeyDown={(e) => { if (e.key === "Enter") commit((e.target as HTMLInputElement).value); }}
         placeholder="#RRGGBB"
         className="w-24 rounded border px-2 py-1 font-mono text-xs"
-        style={{ borderColor: rule }}
+        style={{ borderColor: ruleDefault }}
         aria-label={label ? `${label} hex` : "Hex value"}
       />
       {showRevert && onRevert && (

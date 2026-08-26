@@ -22,18 +22,18 @@ import { useMemo } from "react";
 import type {
   LayoutHints,
   SectionInstance,
-  SectionInstanceStyle,
   SectionPolicy,
   SubsectionStyle,
   TextStyle,
 } from "../../generated/schema";
 import { fieldsForInstance } from "../../lib/sections/fieldsForInstance";
 import { effectiveStyle } from "../../lib/sections/cascade";
+import type { SectionInstanceStyle } from "../../lib/sections/types";
 import {
   SECTION_SPACING_TOKENS,
   ink,
   radius,
-  rule,
+  ruleDefault,
 } from "../../styles/tokens";
 import type { SectionSpacingToken } from "../../styles/tokens";
 import ColorChip from "./controls/ColorChip";
@@ -53,7 +53,7 @@ export default function SectionInspector({ instance, documentAccent, documentBod
   const fields = useMemo(() => fieldsForInstance(instance), [instance]);
 
   const isProfile = instance.type === "profile";
-  const isTwoColumn = style.policy.entry_layout === "two-column";
+  const isTwoColumn = style.policy?.entry_layout === "two-column";
   const showTextAlign = !isProfile;
   const showPageBreak = !isProfile;
 
@@ -94,7 +94,7 @@ export default function SectionInspector({ instance, documentAccent, documentBod
           <Row label="Show heading">
             <input
               type="checkbox"
-              checked={!!style.policy.show_title}
+              checked={!!style.policy?.show_title}
               onChange={(e) => updatePolicy({ show_title: e.target.checked })}
               className="h-3.5 w-3.5"
               aria-label="Show heading"
@@ -105,7 +105,7 @@ export default function SectionInspector({ instance, documentAccent, documentBod
           <Row label="Underline heading">
             <input
               type="checkbox"
-              checked={!!style.policy.heading_divider}
+              checked={!!style.policy?.heading_divider}
               onChange={(e) => updatePolicy({ heading_divider: e.target.checked })}
               className="h-3.5 w-3.5"
               aria-label="Underline heading"
@@ -132,14 +132,14 @@ export default function SectionInspector({ instance, documentAccent, documentBod
       <Group title="Spacing">
         <TokenPicker
           label="Above"
-          value={spacingTokenToSpacingToken(style.layout?.spacing_before)}
-          onChange={(tok) => updateLayout({ spacing_before: tok })}
+          value={spacingTokenToSpacingToken(style.subsection?.spacing_before)}
+          onChange={(tok) => updateSubsection({ spacing_before: tok })}
           testId={`spacing-above-${instance.id}`}
         />
         <TokenPicker
           label="Below"
-          value={spacingTokenToSpacingToken(style.layout?.spacing_after)}
-          onChange={(tok) => updateLayout({ spacing_after: tok })}
+          value={spacingTokenToSpacingToken(style.subsection?.spacing_after)}
+          onChange={(tok) => updateSubsection({ spacing_after: tok })}
           testId={`spacing-below-${instance.id}`}
         />
         {!isProfile && (
@@ -186,7 +186,7 @@ export default function SectionInspector({ instance, documentAccent, documentBod
                     style={{
                       background: style.subsection?.text_align === tok ? ink.ink : "transparent",
                       color: style.subsection?.text_align === tok ? "white" : ink.ink,
-                      border: `1px solid ${rule}`,
+                      border: `1px solid ${ruleDefault}`,
                       borderRadius: radius.r1,
                     }}
                     title={disabled ? "Not applicable to two-column entries" : undefined}
@@ -227,7 +227,7 @@ export default function SectionInspector({ instance, documentAccent, documentBod
 
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded p-3" style={{ border: `1px solid ${rule}` }}>
+    <section className="rounded p-3" style={{ border: `1px solid ${ruleDefault}` }}>
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: ink.ink3 }}>
         {title}
       </h3>

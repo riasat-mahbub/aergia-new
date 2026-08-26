@@ -189,7 +189,6 @@ export default function SectionZoneView({
   onRenameInstance,
   onLayoutConfigChange,
   onReorderInstances,
-  onEntryDragEnd,
   readOnly = false,
   selectedSectionId = null,
   onSelect,

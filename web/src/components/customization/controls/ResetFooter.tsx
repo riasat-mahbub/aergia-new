@@ -13,7 +13,7 @@
 
 import { useState } from "react";
 import Modal from "../../common/Modal";
-import { accent, danger, ink, radius, rule } from "../../../styles/tokens";
+import { accent, danger, ink, radius, ruleDefault } from "../../../styles/tokens";
 
 interface Props {
   templateName: string;
@@ -30,7 +30,7 @@ export default function ResetFooter({ templateName, onChangeTemplate, onReset, c
     <>
       <div
         className="mt-4 flex items-center justify-between rounded border px-3 py-2"
-        style={{ borderColor: rule }}
+        style={{ borderColor: ruleDefault }}
       >
         <div className="flex items-center gap-2">
           <span className="text-xs" style={{ color: ink.ink3 }}>Template</span>
@@ -72,7 +72,7 @@ export default function ResetFooter({ templateName, onChangeTemplate, onReset, c
             type="button"
             onClick={() => setConfirmOpen(false)}
             className="rounded-md border px-4 py-2 text-sm"
-            style={{ borderColor: rule, color: ink.ink2 }}
+            style={{ borderColor: ruleDefault, color: ink.ink2 }}
           >
             Cancel
           </button>

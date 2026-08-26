@@ -13,7 +13,7 @@
  */
 
 import { SECTION_SPACING_LABELS, SECTION_SPACING_TOKENS, SECTION_SPACING_PX } from "../../../styles/tokens";
-import { ink, radius, rule } from "../../../styles/tokens";
+import { ink, radius, ruleDefault } from "../../../styles/tokens";
 import type { SectionSpacingToken } from "../../../styles/tokens";
 
 interface Props {
@@ -48,7 +48,7 @@ export default function TokenPicker({
       )}
       <div
         className="flex flex-wrap items-center gap-1.5 rounded p-1"
-        style={{ borderColor: rule, borderWidth: 1, borderStyle: "solid" }}
+        style={{ borderColor: ruleDefault, borderWidth: 1, borderStyle: "solid" }}
         role="radiogroup"
         aria-label={label}
       >

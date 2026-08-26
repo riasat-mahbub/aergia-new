@@ -43,12 +43,12 @@ describe("cascade — effective values", () => {
       layout: { break_before: true },
       policy: { heading_divider: true },
     });
-    expect(eff.text.project?.bold).toBe(true);
-    expect(eff.layout.chip_keys).toEqual(["tech"]); // type default preserved
-    expect(eff.layout.break_before).toBe(true);    // override applied
-    expect(eff.layout.keep_together).toBe(true);   // type default preserved
-    expect(eff.policy.entry_layout).toBe("two-column"); // type default
-    expect(eff.policy.heading_divider).toBe(true); // override applied
+    expect(eff.text!.project?.bold).toBe(true);
+    expect(eff.layout!.chip_keys).toEqual(["tech"]); // type default preserved
+    expect(eff.layout!.break_before).toBe(true);    // override applied
+    expect(eff.layout!.keep_together).toBe(true);   // type default preserved
+    expect(eff.policy!.entry_layout).toBe("two-column"); // type default
+    expect(eff.policy!.heading_divider).toBe(true); // override applied
   });
 
   it("isOverridden returns true when values differ", () => {

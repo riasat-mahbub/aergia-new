@@ -108,7 +108,7 @@ def test_seed_manifests_use_constrained_vocabulary():
                 f"{template_id} zone {zone['id']} width must be a token"
             )
             if "padding" in styles:
-                assert styles["padding"] in {"none", "tight", "comfortable", "loose"}, (
+                assert styles["padding"] in {"none", "tight", "comfortable", "loose", "spacious"}, (
                     f"{template_id} zone {zone['id']} padding must be a token"
                 )
             if "background" in styles:

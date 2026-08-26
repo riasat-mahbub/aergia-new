@@ -13,7 +13,7 @@
  * view and selects it).
  */
 
-import { accent, radius } from "../../../styles/tokens";
+import { accent, accentSoft, radius } from "../../../styles/tokens";
 
 interface Props {
   /** Human-readable list of section titles that override this control. */
@@ -33,7 +33,7 @@ export default function OverridePill({ sections, onJump }: Props) {
       onClick={onJump}
       className="ml-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs"
       style={{
-        background: accent.accentSoft,
+        background: accentSoft,
         color: accent.accent,
         borderRadius: radius.pill,
       }}
