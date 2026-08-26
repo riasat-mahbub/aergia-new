@@ -9,6 +9,12 @@ Concurrency: ``_get_or_create_library`` is race-safe via an
 ``IntegrityError`` catch — two concurrent first writes cannot both
 insert because ``user_id`` is ``UNIQUE``. The loser re-SELECTs and
 returns the winner.
+
+Vocabulary: Library kinds and CV section types share the same
+singular names (``experience``, ``education``, ``skill``, ``project``,
+``certification``, ``language``). No translation is needed between
+the two. ``profile`` and ``summary`` stay authored inside the CV
+because their ``data`` shape is a dict, not a list of entries.
 """
 
 from __future__ import annotations
@@ -25,17 +31,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.cv import CV
 from app.models.library import Library, LibraryEntry
-from app.models.user import User
 from app.schema.models import SectionInstance
 from app.schemas.library import LIBRARY_ENTRY_KINDS, LibraryEntryCreate, LibraryEntryUpdate
 
 
 @dataclass
 class PromoteResult:
-    """Internal return type for ``promote_cv_to_library``.
-
-    Surfaced to the FE as ``PromoteToLibraryResponse`` in the route layer.
-    """
+    """Internal return type for ``promote_cv_to_library``."""
 
     library_id: str
     promoted: dict[str, int]
@@ -43,27 +45,19 @@ class PromoteResult:
 
 
 def _content_hash(payload: list[dict]) -> str:
-    """Stable hash of a payload for content-based dedupe.
-
-    ``sort_keys=True`` keeps dict ordering irrelevant; ``json.dumps``
-    on plain dict/list/scalar primitives is deterministic.
-    """
+    """Stable sha256 of a payload for content-based dedupe."""
     blob = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     return hashlib.sha256(blob).hexdigest()
 
 
 def _derive_title(payload: list[dict], kind: str) -> str:
-    """Best-effort title for a Library entry from its payload.
-
-    Looks at the first entry's ``title``/``text`` fields; falls back to
-    the kind capitalized.
-    """
+    """Best-effort title from the first payload entry; falls back to the kind."""
     if payload:
         first = payload[0]
         if isinstance(first, dict):
-            title = first.get("title") or first.get("text")
-            if isinstance(title, str) and title.strip():
-                return title.strip()[:120]
+            t = first.get("title") or first.get("text") or first.get("name")
+            if isinstance(t, str) and t.strip():
+                return t.strip()[:120]
     return kind.capitalize()
 
 
@@ -85,15 +79,8 @@ class LibraryService:
             result = await self.db.execute(
                 select(Library).where(Library.user_id == user_id)
             )
-            existing = result.scalar_one()
-            return existing
+            return result.scalar_one()
         return new_lib
-
-    async def _user_owns_library(self, library_id: str, user_id: str) -> bool:
-        result = await self.db.execute(
-            select(Library.id).where(Library.id == library_id, Library.user_id == user_id)
-        )
-        return result.scalar_one_or_none() is not None
 
     async def list_entries(
         self, user_id: str, kind: str | None = None
@@ -163,11 +150,8 @@ class LibraryService:
         """Promote every Library-eligible section of a CV into Library entries.
 
         ``profile``/``summary`` (and any future non-eligible types) are
-        reported in ``skipped`` so the FE can surface them in a toast.
-        Idempotent via content hash: a second promote of the same CV
-        produces zero new entries.
+        reported in ``skipped``. Idempotent via content hash.
         """
-        # 1. Load the CV with ownership enforcement.
         cv_result = await self.db.execute(
             select(CV).where(CV.id == cv_id, CV.user_id == user_id)
         )
@@ -175,10 +159,8 @@ class LibraryService:
         if cv is None:
             raise ValueError(f"CV {cv_id} not found for user {user_id}")
 
-        # 2. Get-or-create the user's Library.
         library = await self._get_or_create_library(user_id)
 
-        # 3. Existing content hashes per kind for dedupe.
         existing_stmt = select(LibraryEntry.kind, LibraryEntry.payload).where(
             LibraryEntry.library_id == library.id
         )
@@ -187,7 +169,6 @@ class LibraryService:
             (row.kind, _content_hash(row.payload or [])) for row in existing_rows
         }
 
-        # 4. Iterate CV sections; promote eligible, skip the rest.
         sections = cv.sections or []
         if isinstance(sections, dict):
             sections = sections.get("sections", [])
