@@ -9,7 +9,7 @@ capabilities:
 
 - ``break_before`` is ``FULL`` because Chromium honours
   ``break-before: page``.
-- ``keep_with_next`` / ``keep_together`` / ``heading_keeps_with_first``
+- ``keep_with_next`` / ``keep_entry_together`` / ``heading_keeps_with_first``
   are ``BEST_EFFORT`` because Chromium honours ``break-inside: avoid``
   and ``break-after: avoid`` only when other constraints allow it.
 
@@ -99,14 +99,14 @@ def attr(text: object) -> str:
 
 
 def _best_effort_comments(model: RenderModel, support: RendererSupport) -> str:
-    if support.keep_together is SupportLevel.BEST_EFFORT:
-        yield "<!-- best-effort: keep_together -->"
     if support.keep_with_next is SupportLevel.BEST_EFFORT:
         yield "<!-- best-effort: keep_with_next -->"
     if support.heading_keeps_with_first is SupportLevel.BEST_EFFORT:
         yield "<!-- best-effort: heading_keeps_with_first -->"
     if support.break_before is SupportLevel.BEST_EFFORT:
         yield "<!-- best-effort: break_before -->"
+    if support.keep_entry_together is SupportLevel.BEST_EFFORT:
+        yield "<!-- best-effort: keep_entry_together -->"
 
 
 def _render_css_vars(model: RenderModel) -> str:
@@ -600,8 +600,6 @@ def _layout_style_decl(section: Section) -> str:
         decls.append(f"font-family:{layout.font_family}")
     if layout.break_before:
         decls.append("break-before:page")
-    if layout.keep_together:
-        decls.append("break-inside:avoid")
     if layout.orphans:
         decls.append(f"orphans:{layout.orphans}")
     if layout.widows:
@@ -619,8 +617,22 @@ def _heading_keeps_with_first_decl(section: Section) -> str:
     return "break-before:avoid"
 
 
-_ENTRY_OPEN_RE = re.compile(r'(<div class="entry")( style="([^"]*)")?()')
+def _keep_entry_together_decl(section: Section) -> str:
+    """When ``keep_together`` is set, every entry carries ``break-inside: avoid``
+    so the unit of page-flow is the entry — an overflowing entry moves to
+    the next page on its own instead of dragging the whole section with it.
+    Chromium's ``break-inside: avoid`` is best-effort: a single entry taller
+    than a page still splits, which is the intended fallback for very tall
+    entries.
+    """
 
+    layout = section.layout or LayoutHints()
+    if not layout.keep_together:
+        return ""
+    return "break-inside:avoid"
+
+
+_ENTRY_OPEN_RE = re.compile(r'(<div class="entry[^"]*")(?:( style="([^"]*)"))?()')
 
 def _merge_entry_break_before(entry_html: str, decl: str) -> str:
     """Merge ``decl`` (e.g. ``"break-before:avoid"``) into the entry's
@@ -695,6 +707,7 @@ def _render_section(section: Section) -> str:
     sub_decl = _subsection_style_decl(section)
     layout_decl = _layout_style_decl(section)
     keep_first = _heading_keeps_with_first_decl(section)
+    keep_entry = _keep_entry_together_decl(section)
     wrapper_decl_parts = [d for d in (layout_decl, sub_decl) if d]
     wrapper_decl_parts.append("margin-bottom:var(--spacing-section, 24px)")
     wrapper_style = _format_inline_style(wrapper_decl_parts)
@@ -710,7 +723,10 @@ def _render_section(section: Section) -> str:
     # for API compatibility but no longer affects the layout.
     if section.type == "skills":
         for entry in section.entries:
-            entries_html_parts.append(_render_skills_inline_entry(entry))
+            entry_html = _render_skills_inline_entry(entry)
+            if keep_entry:
+                entry_html = _merge_entry_break_before(entry_html, keep_entry)
+            entries_html_parts.append(entry_html)
     else:
         for i, entry in enumerate(section.entries):
             chip_keys = section.layout.chip_keys if section.layout else None
@@ -720,6 +736,8 @@ def _render_section(section: Section) -> str:
             )
             if i == 0 and keep_first:
                 entry_html = _merge_entry_break_before(entry_html, keep_first)
+            if keep_entry:
+                entry_html = _merge_entry_break_before(entry_html, keep_entry)
             entries_html_parts.append(entry_html)
     entries_html = "".join(entries_html_parts)
 

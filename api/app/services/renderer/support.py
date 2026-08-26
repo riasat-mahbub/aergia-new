@@ -33,6 +33,7 @@ class RendererSupport:
     keep_with_next: SupportLevel = SupportLevel.BEST_EFFORT
     keep_together: SupportLevel = SupportLevel.BEST_EFFORT
     heading_keeps_with_first: SupportLevel = SupportLevel.BEST_EFFORT
+    keep_entry_together: SupportLevel = SupportLevel.BEST_EFFORT
     feature_skills_inline: SupportLevel = SupportLevel.FULL
     feature_section_underline: SupportLevel = SupportLevel.FULL
     feature_anchor_styling: SupportLevel = SupportLevel.FULL

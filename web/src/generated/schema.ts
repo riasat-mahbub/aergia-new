@@ -1,5 +1,5 @@
 // This file is generated. Do not edit by hand.
-// Source: api/app/schema/models.py (sha256:56f63767c578144f)
+// Source: api/app/schema/models.py (sha256:4879eb27628fcd4a)
 
 export interface CVLayout {
   "placement"?: Record<string, string>;

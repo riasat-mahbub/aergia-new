@@ -20,6 +20,7 @@ from app.schema.models import (
     TextStyle,
     TextRun,
     Zone,
+    LayoutHints,
 )
 from app.services.renderer import resolve
 from app.services.renderer.html import HTMLDocumentRenderer
@@ -748,3 +749,157 @@ def test_legacy_string_description_renders_unchanged():
     html = _render_field_html(field)
     assert "Legacy text" in html
     assert "f-description" in html
+
+
+# ---------------------------------------------------------------------------
+# Per-entry page break behavior
+# ---------------------------------------------------------------------------
+
+
+def _experience_section(entries, *, layout=None):
+    """Build a simple experience section with the given entries and layout."""
+    return Section(
+        id="x", type="experience", title="Experience",
+        layout=layout,
+        entries=entries,
+    )
+
+
+def _experience_doc(section):
+    return Document(sections=[section])
+
+
+def test_keep_together_emits_break_inside_avoid_on_every_entry_default_on():
+    """With ``keep_together=True`` (the schema default), each ``<div class=\"entry\">``
+    carries ``break-inside:avoid``. The section wrapper carries no such declaration.
+    Page-flow unit is the entry, not the section."""
+    manifest = TemplateManifest(
+        name="M", zones=[Zone(id="main", styles={})], placement={"experience": "main"},
+    )
+    section = _experience_section([
+        Entry(id="e1", fields=[FieldBlock(key="position", group="header", runs=[TextRun(text="Dev")])]),
+        Entry(id="e2", fields=[FieldBlock(key="position", group="header", runs=[TextRun(text="Eng")])]),
+    ])
+    doc = _experience_doc(section)
+    model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
+    html = HTMLDocumentRenderer().render(model)
+
+    section_m = re.search(r'<section [^>]*style="([^"]*)"', html)
+    assert section_m is not None
+    assert "break-inside" not in section_m.group(1)
+
+    entry_tags = re.findall(r'<div class="entry"[^>]*>', html)
+    assert len(entry_tags) >= 2
+    for tag in entry_tags:
+        assert "break-inside:avoid" in tag, f"entry missing break-inside:avoid: {tag}"
+
+
+def test_keep_together_false_emits_no_break_inside_on_entries():
+    """When the user opts the section out of keep-together, no entry wrapper
+    carries ``break-inside:avoid``. The flag is honored per entry."""
+    manifest = TemplateManifest(
+        name="M", zones=[Zone(id="main", styles={})], placement={"experience": "main"},
+    )
+    section = _experience_section(
+        [
+            Entry(id="e1", fields=[FieldBlock(key="position", group="header", runs=[TextRun(text="Dev")])]),
+            Entry(id="e2", fields=[FieldBlock(key="position", group="header", runs=[TextRun(text="Eng")])]),
+        ],
+        layout=LayoutHints(keep_together=False),
+    )
+    doc = _experience_doc(section)
+    model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
+    html = HTMLDocumentRenderer().render(model)
+
+    section_m = re.search(r'<section [^>]*style="([^"]*)"', html)
+    assert section_m is not None
+    assert "break-inside" not in section_m.group(1)
+    assert "break-inside:avoid" not in html
+
+
+def test_keep_together_applies_to_two_column_entries():
+    """Two-column entries (policy.entry_layout='two-column', projects / research /
+    certifications) also get ``break-inside:avoid`` on their ``<div class=\"entry entry-two-col\">``."""
+    manifest = TemplateManifest(
+        name="M", zones=[Zone(id="main", styles={})], placement={"projects": "main"},
+    )
+    doc = Document(sections=[Section(
+        id="p", type="projects", title="Projects",
+        policy=SectionPolicy(entry_layout="two-column"),
+        entries=[Entry(id="p1", fields=[
+            FieldBlock(key="project", group="header", runs=[TextRun(text="Aergia")]),
+            FieldBlock(key="link", group="secondary", align="right", runs=[TextRun(text="link")]),
+            FieldBlock(key="description", group="body", runs=[TextRun(text="Built it.")]),
+        ])],
+    )])
+    model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
+    html = HTMLDocumentRenderer().render(model)
+
+    two_col_m = re.search(r'<div class="entry entry-two-col"[^>]*>', html)
+    assert two_col_m is not None
+    assert "break-inside:avoid" in two_col_m.group(0)
+
+
+def test_keep_together_applies_to_skills_entries():
+    """Each skills category is its own entry; per-category ``break-inside:avoid``
+    is what keeps tall categories from dragging the whole skills section to the
+    next page."""
+    manifest = TemplateManifest(
+        name="M", zones=[Zone(id="main", styles={})], placement={"skills": "main"},
+    )
+    doc = Document(sections=[Section(
+        id="s", type="skills", title="Skills",
+        entries=[
+            Entry(id="c1", fields=[
+                FieldBlock(key="category", runs=[TextRun(text="Languages")]),
+                FieldBlock(key="tag.0", runs=[TextRun(text="Python")]),
+                FieldBlock(key="tag.1", runs=[TextRun(text="Rust")]),
+            ]),
+            Entry(id="c2", fields=[
+                FieldBlock(key="category", runs=[TextRun(text="Tools")]),
+                FieldBlock(key="tag.0", runs=[TextRun(text="vim")]),
+            ]),
+        ],
+    )])
+    model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
+    html = HTMLDocumentRenderer().render(model)
+
+    skill_entries = re.findall(r'<div class="entry f-skills-inline"[^>]*>', html)
+    assert len(skill_entries) == 2
+    for tag in skill_entries:
+        assert "break-inside:avoid" in tag, f"skills entry missing break-inside:avoid: {tag}"
+
+
+def test_section_wrapper_carries_no_break_inside_when_keep_together_off():
+    """Regression guard for the pre-feature behavior: the section wrapper never
+    carries ``break-inside`` at all, regardless of the flag. The flag's effect
+    lives entirely on entry wrappers."""
+    manifest = TemplateManifest(
+        name="M", zones=[Zone(id="main", styles={})], placement={"experience": "main"},
+    )
+    for keep in (True, False):
+        section = _experience_section(
+            [Entry(id="e1", fields=[FieldBlock(key="position", group="header", runs=[TextRun(text="Dev")])])],
+            layout=LayoutHints(keep_together=keep, break_before=True),
+        )
+        doc = _experience_doc(section)
+        model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
+        html = HTMLDocumentRenderer().render(model)
+        section_m = re.search(r'<section [^>]*style="([^"]*)"', html)
+        assert section_m is not None
+        assert "break-inside" not in section_m.group(1)
+
+
+def test_best_effort_keep_entry_together_comment_present():
+    """The renderer emits a ``<!-- best-effort: keep_entry_together -->`` comment
+    so debugging the live preview shows that the per-entry rule is best-effort."""
+    manifest = TemplateManifest(
+        name="M", zones=[Zone(id="main", styles={})], placement={"experience": "main"},
+    )
+    section = _experience_section([
+        Entry(id="e1", fields=[FieldBlock(key="position", group="header", runs=[TextRun(text="Dev")])]),
+    ])
+    doc = _experience_doc(section)
+    model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
+    html = HTMLDocumentRenderer().render(model)
+    assert "<!-- best-effort: keep_entry_together -->" in html
