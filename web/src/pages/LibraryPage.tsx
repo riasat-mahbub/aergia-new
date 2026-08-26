@@ -16,7 +16,7 @@ export default function LibraryPage() {
   const [searchParams] = useSearchParams();
   const initialKind = searchParams.get("kind") as LibraryEntryKind | null;
 
-  const entries = useLibraryStore((s) => s.entries);
+  const entries = useLibraryStore((s) => s.entries) ?? [];
   const isLoading = useLibraryStore((s) => s.isLoading);
   const loaded = useLibraryStore((s) => s.loaded);
   const fetchAll = useLibraryStore((s) => s.fetchAll);

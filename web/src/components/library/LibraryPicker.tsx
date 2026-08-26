@@ -16,7 +16,7 @@ interface LibraryPickerProps {
 }
 
 export default function LibraryPicker({ open, onClose, kind, onPick }: LibraryPickerProps) {
-  const entries = useLibraryStore((s) => s.entries);
+  const entries = useLibraryStore((s) => s.entries) ?? [];
   const filtered = entries.filter((e) => e.kind === kind);
   const fetchAll = useLibraryStore((s) => s.fetchAll);
   const addToast = useToastStore((s) => s.addToast);
