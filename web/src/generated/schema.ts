@@ -1,5 +1,5 @@
 // This file is generated. Do not edit by hand.
-// Source: api/app/schema/models.py (sha256:4879eb27628fcd4a)
+// Source: api/app/schema/models.py (sha256:e420b086820bf9cd)
 
 export interface CVLayout {
   "placement"?: Record<string, string>;
@@ -64,6 +64,10 @@ export interface LayoutHints {
   "keep_together"?: boolean;
   "orphans"?: number;
   "widows"?: number;
+}
+
+export interface LibraryEntryPayload {
+  "entries"?: Array<Record<string, unknown>>;
 }
 
 export interface PolicyOverrides {
@@ -144,7 +148,6 @@ export interface TemplateDetail {
   "id": string;
   "manifest"?: (Record<string, unknown>) | null;
   "name": string;
-  "preview_image_url": (string) | null;
 }
 
 export interface TemplateListItem {
