@@ -38,3 +38,25 @@ describe("useFieldArray move", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 });
+
+describe("useFieldArray defensive guards", () => {
+  it("treats `undefined` data as an empty array (regression: editor crash)", () => {
+    const onChange = vi.fn();
+    const { result } = renderHook(() =>
+      useFieldArray(undefined as never, onChange, () => ({ id: "new", title: "New" })),
+    );
+
+    expect(result.current.entries).toEqual([]);
+    // add() and update() must also work without crashing.
+    result.current.add();
+    expect(onChange).toHaveBeenCalledWith([{ id: "new", title: "New" }]);
+  });
+
+  it("treats non-array data as an empty array", () => {
+    const onChange = vi.fn();
+    const { result } = renderHook(() =>
+      useFieldArray({} as never, onChange, () => ({ id: "x", title: "X" })),
+    );
+    expect(result.current.entries).toEqual([]);
+  });
+});

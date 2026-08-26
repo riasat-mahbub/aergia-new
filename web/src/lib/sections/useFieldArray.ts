@@ -5,30 +5,36 @@ export function useFieldArray<T extends { id: string }>(
   onChange: (data: T[]) => void,
   createDefault: () => T
 ) {
-  useState(() => data.length > 0 ? data : []);
+  // Always coerce to a real array. Editor callers already default
+  // `data = []` at the prop boundary, but transient `undefined` can
+  // still leak through (HMR, mid-save updates, partial API responses).
+  // Centralising the guard here prevents every editor from
+  // re-implementing it.
+  const safeData = Array.isArray(data) ? data : [];
+  useState(() => (safeData.length > 0 ? safeData : []));
 
   const add = () => {
-    onChange([...data, createDefault()]);
+    onChange([...safeData, createDefault()]);
   };
 
   const remove = (index: number) => {
-    onChange(data.filter((_, i) => i !== index));
+    onChange(safeData.filter((_, i) => i !== index));
   };
 
   const update = (index: number, field: keyof T, value: unknown) => {
-    const updated = data.map((entry, i) =>
-      i === index ? { ...entry, [field]: value } : entry
+    const updated = safeData.map((entry, i) =>
+      i === index ? { ...entry, [field]: value } : entry,
     );
     onChange(updated);
   };
 
   const move = (from: number, to: number) => {
-    if (from === to || from < 0 || from >= data.length || to < 0 || to > data.length) return;
-    const updated = [...data];
+    if (from === to || from < 0 || from >= safeData.length || to < 0 || to > safeData.length) return;
+    const updated = [...safeData];
     const [entry] = updated.splice(from, 1);
     updated.splice(to, 0, entry);
     onChange(updated);
   };
 
-  return { entries: data, add, remove, update, move };
+  return { entries: safeData, add, remove, update, move };
 }

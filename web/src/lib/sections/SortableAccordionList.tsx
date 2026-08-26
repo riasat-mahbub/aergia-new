@@ -77,15 +77,21 @@ export default function SortableAccordionList({
   getTitle,
   children,
 }: SortableAccordionListProps) {
-  const itemIds = entries.map((e) => e.id);
+  // Defensive: a parent editor may briefly pass `undefined` during a
+  // hot-reload transition or while a section is mid-save. The prop is
+  // typed as an array, but at runtime anything goes. Falling back to
+  // [] keeps every consumer safe without requiring each editor to
+  // remember its own guard.
+  const safeEntries = Array.isArray(entries) ? entries : [];
+  const itemIds = safeEntries.map((e) => e.id);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const handleDragEnd = (event: DragEndEvent) => {
     const activeId = String(event.active.id);
     const overId = event.over ? String(event.over.id) : null;
     if (!overId || activeId === overId) return;
-    const from = entries.findIndex((entry) => entry.id === activeId);
-    const to = entries.findIndex((entry) => entry.id === overId);
+    const from = safeEntries.findIndex((entry) => entry.id === activeId);
+    const to = safeEntries.findIndex((entry) => entry.id === overId);
     if (from === -1 || to === -1) return;
     onMove(from, to);
   };
@@ -95,7 +101,7 @@ export default function SortableAccordionList({
       <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
         <div className="space-y-4">
           <AnimatePresence>
-            {entries.map((entry, i) => (
+            {safeEntries.map((entry, i) => (
               <motion.div
                 key={entry.id}
                 initial={{ opacity: 0, x: -20 }}
