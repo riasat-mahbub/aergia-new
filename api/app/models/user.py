@@ -23,3 +23,4 @@ class User(Base):
     CASCADE_ALL = "all, delete-orphan"
 
     cvs = relationship("CV", back_populates="user", cascade=CASCADE_ALL)
+    libraries = relationship("Library", back_populates="user", cascade=CASCADE_ALL)
