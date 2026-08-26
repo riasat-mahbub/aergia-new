@@ -53,4 +53,22 @@ body {
   .font-mono     { font-family: var(--font-mono); }
   .shadow-pop    { box-shadow: var(--shadow-pop); }
   .shadow-focus  { box-shadow: var(--shadow-focus); }
+
+  /* Library (modern-minimal) tokens. Distinct from the proof-sheet
+   * utilities above; Library surfaces consume ONLY these classes. */
+  .bg-lib-canvas      { background-color: var(--lib-canvas); }
+  .bg-lib-surface     { background-color: var(--lib-surface); }
+  .bg-lib-surface-2   { background-color: var(--lib-surface-2); }
+  .bg-lib-accent      { background-color: var(--lib-accent); }
+  .hover\:bg-lib-accent-hover:hover { background-color: var(--lib-accent-hover); }
+  .bg-lib-accent-soft { background-color: var(--lib-accent-soft); }
+  .text-lib-ink       { color: var(--lib-ink); }
+  .text-lib-ink-2     { color: var(--lib-ink-2); }
+  .text-lib-ink-3     { color: var(--lib-ink-3); }
+  .text-lib-accent    { color: var(--lib-accent); }
+  .text-lib-accent-ink { color: var(--lib-accent-ink); }
+  .text-lib-danger    { color: var(--lib-danger); }
+  .border-lib-rule    { border-color: var(--lib-rule); }
+  .shadow-lib-pop     { box-shadow: var(--lib-shadow-pop); }
+  .shadow-lib-focus   { box-shadow: var(--lib-shadow-focus); }
 }
