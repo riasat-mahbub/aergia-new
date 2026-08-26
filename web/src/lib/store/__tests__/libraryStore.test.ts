@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { useLibraryStore } from "../libraryStore";
+import { useLibraryStore, selectByKind } from "../libraryStore";
 
 vi.mock("../../api/library", () => ({
   listLibrary: vi.fn(),
@@ -61,5 +61,46 @@ describe("useLibraryStore", () => {
     await useLibraryStore.getState().remove("x");
 
     expect(useLibraryStore.getState().entries).toHaveLength(0);
+  });
+});
+
+describe("selectByKind", () => {
+  it("buckets entries by their kind", () => {
+    const entries = [
+      { id: "1", kind: "experience" as const, payload: [], created_at: "", updated_at: "" },
+      { id: "2", kind: "skill" as const, payload: [], created_at: "", updated_at: "" },
+      { id: "3", kind: "experience" as const, payload: [], created_at: "", updated_at: "" },
+    ];
+    const buckets = selectByKind(entries);
+    expect(buckets.experience).toHaveLength(2);
+    expect(buckets.skill).toHaveLength(1);
+    expect(buckets.education).toHaveLength(0);
+  });
+
+  it("silently drops entries with unknown kinds (regression: dashboard crash)", () => {
+    // At runtime any string can arrive from the API (legacy data,
+    // future kinds, upstream drift). The selector must not throw on
+    // unknown kinds — the dashboard used to crash with
+    // "buckets[e.kind] is undefined" when an entry had an unknown kind.
+    const entries = [
+      { id: "1", kind: "experience", payload: [], created_at: "", updated_at: "" },
+      { id: "2", kind: "research", payload: [], created_at: "", updated_at: "" },
+      { id: "3", kind: "extras", payload: [], created_at: "", updated_at: "" },
+    ] as never;
+
+    expect(() => selectByKind(entries)).not.toThrow();
+    const buckets = selectByKind(entries);
+    expect(buckets.experience).toHaveLength(1);
+    // Unknown kinds are dropped, not surfaced under any known bucket.
+    expect(buckets.skill).toHaveLength(0);
+    expect(buckets.education).toHaveLength(0);
+    expect(Object.keys(buckets).sort()).toEqual([
+      "certification",
+      "education",
+      "experience",
+      "language",
+      "project",
+      "skill",
+    ]);
   });
 });
