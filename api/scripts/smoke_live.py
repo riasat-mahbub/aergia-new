@@ -107,9 +107,50 @@ def _smoke_import_pdf(client: httpx.Client, base_url: str, token: str) -> None:
         for s in sections
     ):
         raise AssertionError(
-            "import PDF sections are not SectionInstance-shaped"
+            f"import PDF payload.sections contains malformed items: {sections!r}"
         )
 
+def _smoke_library(client: httpx.Client, base_url: str, headers: dict) -> None:
+    """Minimal Library block: create an entry, clone it into a CV, render preview."""
+    title_substring = f"SmokeEntry-{uuid.uuid4().hex[:6]}"
+
+    r = client.post(
+        f"{base_url}/api/v1/library",
+        json={"kind": "experience", "payload": [{"title": title_substring, "company": "SmokeCo"}]},
+        headers=headers,
+    )
+    if r.status_code != 201:
+        raise AssertionError(f"create library entry failed: {r.status_code} {r.text[:200]}")
+    entry_id = r.json()["id"]
+
+    r = client.post(f"{base_url}/api/v1/library/{entry_id}/clone", headers=headers)
+    if r.status_code != 200:
+        raise AssertionError(f"clone library entry failed: {r.status_code} {r.text[:200]}")
+    section_instance = r.json()["section_instance"]
+
+    r = client.post(
+        f"{base_url}/api/v1/cvs",
+        json={"title": "Library smoke CV", "sections": [section_instance]},
+        headers=headers,
+    )
+    if r.status_code not in (200, 201):
+        raise AssertionError(f"create CV from cloned library entry failed: {r.status_code} {r.text[:200]}")
+    cv_id = r.json()["id"]
+
+    r = client.get(f"{base_url}/api/v1/cvs/{cv_id}/preview", headers=headers)
+    if r.status_code != 200:
+        raise AssertionError(f"preview of library-CV failed: {r.status_code} {r.text[:200]}")
+    if title_substring not in r.text:
+        raise AssertionError(
+            f"preview missing cloned entry title '{title_substring}': {r.text[:200]!r}"
+        )
+
+    # Idempotent re-promote of the same CV — Library already has the entry, no new rows.
+    r = client.post(f"{base_url}/api/v1/cvs/{cv_id}/promote-to-library", headers=headers)
+    if r.status_code != 200:
+        raise AssertionError(f"promote re-run failed: {r.status_code} {r.text[:200]}")
+    if r.json()["promoted"] != {}:
+        raise AssertionError(f"re-promote should be a no-op; got {r.json()['promoted']!r}")
 
 def run_smoke(client: httpx.Client, base_url: str) -> None:
     _wait_for_ready(client, base_url)
@@ -165,9 +206,11 @@ def run_smoke(client: httpx.Client, base_url: str) -> None:
             raise AssertionError(
                 f"export PDF for {template_id} returned non-PDF body: {r.content[:8]!r}"
             )
-
     # Import route smoke (PDF → typed ParseResult).
     _smoke_import_pdf(client, base_url, token)
+
+    # Library smoke — promote-to-library + clone-into-CV + preview reflects it.
+    _smoke_library(client, base_url, headers)
 
     r = client.get(f"{base_url}/")
     if r.status_code != 200:
