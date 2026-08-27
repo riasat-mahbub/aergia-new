@@ -17,9 +17,9 @@ TAGS:
 RELATIONS: null
 AFFECTS:
   files:
-    - web/src/components/layout/SectionZoneView.tsx
-    - api/app/services/parser/mapper.py
-    - api/scripts/migrate_imported_ids_to_sec_prefix.py
+  - web/src/components/layout/SectionZoneView.tsx
+  - api/app/services/parser/mapper.py
+  - api/scripts/migrate_imported_ids_to_sec_prefix.py
 LINKS: null
 VERIFIED_BY: null
 CREATED_BY: riasat

@@ -16,7 +16,7 @@ TAGS:
 RELATIONS: null
 AFFECTS:
   files:
-    - api/app/services/renderer/html.py
+  - api/app/services/renderer/html.py
 LINKS: null
 VERIFIED_BY: null
 CREATED_BY: riasat
