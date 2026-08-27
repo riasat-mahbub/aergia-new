@@ -34,7 +34,7 @@ import Modal from "../common/Modal";
 
 interface Props {
   instances: SectionInstance[];
-  cvId: string;
+  cvId?: string;
   onToggle: (sectionId: string) => void;
   onUpdateData: (sectionId: string, data: unknown) => void;
   onAddSection: (type: string) => void;
@@ -64,7 +64,7 @@ function SortableRow({
   setEditingTitle: (id: string | null) => void;
   onRemoveInstance: (id: string) => void;
   onToggleExpand: (id: string) => void;
-  cvId: string;
+  cvId?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -225,11 +225,14 @@ export default function ContentSectionList({
   onRenameInstance,
   onReorderInstances,
 }: Props) {
+  // Defensive: a parent may briefly pass `undefined` during a hot-
+  // reload transition or while the CV is mid-load. Same pattern as
+  // SortableAccordionList's safeEntries.
+  const safeInstances = Array.isArray(instances) ? instances : [];
   const [expandedSectionId, setExpandedSectionId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
-
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const toggleSectionExpand = (id: string) => {
@@ -244,14 +247,14 @@ export default function ContentSectionList({
     const activeId = String(active.id);
     const overId = String(over.id);
     // Nested per-section DndContext handles entry-level drags; only section IDs belong here.
-    if (!instances.some((i) => i.id === activeId) || !instances.some((i) => i.id === overId)) return;
-    const oldIndex = instances.findIndex((i) => i.id === activeId);
-    const newIndex = instances.findIndex((i) => i.id === overId);
+    if (!safeInstances.some((i) => i.id === activeId) || !safeInstances.some((i) => i.id === overId)) return;
+    const oldIndex = safeInstances.findIndex((i) => i.id === activeId);
+    const newIndex = safeInstances.findIndex((i) => i.id === overId);
     if (oldIndex === -1 || newIndex === -1) return;
-    onReorderInstances(arrayMove(instances, oldIndex, newIndex));
+    onReorderInstances(arrayMove(safeInstances, oldIndex, newIndex));
   };
 
-  const deleteTarget = instances.find((i) => i.id === deleteConfirmId);
+  const deleteTarget = safeInstances.find((i) => i.id === deleteConfirmId);
 
   return (
     <div className="space-y-2">
@@ -261,11 +264,11 @@ export default function ContentSectionList({
         onDragEnd={handleDragEnd}
       >
         <SortableContext
-          items={instances.map((i) => i.id)}
+          items={safeInstances.map((i) => i.id)}
           strategy={verticalListSortingStrategy}
         >
           <div className="space-y-1.5">
-            {instances.map((instance) => (
+            {safeInstances.map((instance) => (
               <SortableRow
                 key={instance.id}
                 instance={instance}

@@ -30,13 +30,16 @@ export default function CertificationsEditor({ data = [], onChange, context }: P
         getTitle={(e: any) => e.name || "New Certification"}
         onAddToLibrary={
           context
-            ? (entryId) => {
+              ? (entryId) => {
                 const entry = entries.find((e: any) => e.id === entryId);
+                if (!entry) return null;
                 return (
                   <AddToLibraryButton
                     cvId={context.cvId}
                     sectionId={context.sectionId}
                     entryId={entryId}
+                    kind="certification"
+                    entryData={entry as unknown as Record<string, unknown>}
                     entryLabel={entry?.name}
                   />
                 );

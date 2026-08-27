@@ -99,16 +99,34 @@ class AddEntryToLibraryResponse(BaseModel):
     created: bool
 
 
+class AddEntryToLibraryRequest(BaseModel):
+    """Current CV entry snapshot submitted by the builder.
+
+    The builder uses manual saves, so the visible entry can be newer than
+    the copy persisted on the CV. The section kind is included so a newly
+    added, not-yet-saved section can still be routed correctly.
+    """
+
+    kind: LibraryEntryKind
+    entry: dict
+
+
 
 
 __all__ = [
     "LIBRARY_ENTRY_KINDS",
+    "LIBRARY_KIND_TO_SECTION_TYPE",
+    "SECTION_TYPE_TO_LIBRARY_KIND",
+    "AddEntryToLibraryRequest",
+    "AddEntryToLibraryResponse",
     "LibraryEntryCreate",
     "LibraryEntryKind",
     "LibraryEntryResponse",
     "LibraryEntryUpdate",
     "LibraryCloneResponse",
     "PromoteToLibraryResponse",
+    "library_kind_for_section_type",
+    "section_type_for_library_kind",
 ]
 
 
@@ -116,3 +134,37 @@ __all__ = [
 LIBRARY_ENTRY_KINDS: tuple[LibraryEntryKindStr, ...] = tuple(
     kind.value for kind in LibraryEntryKind
 )
+
+# CV sections use plural names for four entry-based sections while Library
+# rows use singular kinds. Keep the translation at this boundary so every
+# service operation handles the same vocabulary.
+SECTION_TYPE_TO_LIBRARY_KIND: dict[str, LibraryEntryKindStr] = {
+    "experience": "experience",
+    "education": "education",
+    "skills": "skill",
+    "projects": "project",
+    "languages": "language",
+    "certifications": "certification",
+    # Accept legacy singular section names while old CV rows are migrated
+    # naturally through the next write.
+    "skill": "skill",
+    "project": "project",
+    "language": "language",
+    "certification": "certification",
+}
+LIBRARY_KIND_TO_SECTION_TYPE: dict[str, str] = {
+    "experience": "experience",
+    "education": "education",
+    "skill": "skills",
+    "project": "projects",
+    "language": "languages",
+    "certification": "certifications",
+}
+
+
+def library_kind_for_section_type(section_type: str) -> LibraryEntryKindStr | None:
+    return SECTION_TYPE_TO_LIBRARY_KIND.get(section_type)
+
+
+def section_type_for_library_kind(kind: str) -> str | None:
+    return LIBRARY_KIND_TO_SECTION_TYPE.get(kind)

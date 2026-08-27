@@ -3,8 +3,11 @@ import Modal from "../common/Modal";
 import { useToastStore } from "../../lib/store/uiStore";
 import { useLibraryStore } from "../../lib/store/libraryStore";
 import type { LibraryEntry, LibraryEntryKind } from "../../lib/api/library";
-import { LIBRARY_KIND_LABELS } from "../../lib/api/library";
-import { cloneLibrary } from "../../lib/api/library";
+import {
+  LIBRARY_KIND_LABELS,
+  cloneLibrary,
+  sectionTypeForLibraryKind,
+} from "../../lib/api/library";
 import LibraryEntryCard from "./LibraryEntryCard";
 
 interface LibraryPickerProps {
@@ -38,8 +41,11 @@ export default function LibraryPicker({ open, onClose, kind, onPick }: LibraryPi
     setPicking(entry.id);
     try {
       const resp = await cloneLibrary(entry.id);
-      const inst = resp.section_instance;
-      const title = (inst.title as string) || entry.kind;
+      const inst = {
+        ...resp.section_instance,
+        type: sectionTypeForLibraryKind(kind),
+      };
+      const title = inst.title || entry.kind;
       addToast(`Added ${title} to ${LIBRARY_KIND_LABELS[kind]}`, "success");
       onPick(inst as unknown as Record<string, unknown>);
       onClose();

@@ -32,13 +32,16 @@ export default function EducationEditor({ data = [], onChange, context }: Props)
         getTitle={(e: any) => e.degree || e.institution || "New Education"}
         onAddToLibrary={
           context
-            ? (entryId) => {
+              ? (entryId) => {
                 const entry = entries.find((e: any) => e.id === entryId);
+                if (!entry) return null;
                 return (
                   <AddToLibraryButton
                     cvId={context.cvId}
                     sectionId={context.sectionId}
                     entryId={entryId}
+                    kind="education"
+                    entryData={entry as unknown as Record<string, unknown>}
                     entryLabel={entry?.degree || entry?.institution}
                   />
                 );

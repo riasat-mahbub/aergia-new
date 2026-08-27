@@ -12,28 +12,61 @@ interface LibraryEntryCardProps {
   showMeta?: boolean;
 }
 
+const TITLE_FIELDS: Record<string, readonly string[]> = {
+  experience: ["position", "company"],
+  education: ["degree", "institution", "school"],
+  skill: ["category", "name"],
+  project: ["name"],
+  language: ["language", "name"],
+  certification: ["name"],
+};
+
+function firstText(payload: Record<string, unknown>, fields: readonly string[]): string | null {
+  for (const field of fields) {
+    const value = payload[field];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+}
+
 function deriveTitle(entry: LibraryEntry): string {
   const first = entry.payload?.[0];
   if (first && typeof first === "object") {
-    const t = (first as Record<string, unknown>).title ?? (first as Record<string, unknown>).text;
-    if (typeof t === "string" && t.trim()) return t.trim().slice(0, 120);
-    const n = (first as Record<string, unknown>).name;
-    if (typeof n === "string" && n.trim()) return n.trim().slice(0, 120);
+    const payload = first as Record<string, unknown>;
+    const title = firstText(payload, ["title", "text", ...(TITLE_FIELDS[entry.kind] ?? [])]);
+    if (title) return title.slice(0, 120);
   }
   return entry.kind.charAt(0).toUpperCase() + entry.kind.slice(1);
+}
+
+function deriveDateRange(payload: Record<string, unknown>): string | null {
+  const start = firstText(payload, ["start_date", "start"]);
+  const end = firstText(payload, ["end_date", "end"]) ?? (payload.current === true ? "Present" : null);
+  if (start && end) return `${start} – ${end}`;
+  return start ?? end;
 }
 
 function deriveMeta(entry: LibraryEntry): string {
   const first = entry.payload?.[0];
   if (!first || typeof first !== "object") return "";
-  const f = first as Record<string, unknown>;
-  const company = typeof f.company === "string" ? f.company : null;
-  const school = typeof f.school === "string" ? f.school : null;
-  const start = typeof f.start === "string" ? f.start : null;
-  const end = typeof f.end === "string" ? f.end : null;
-  const range = start && end ? `${start} – ${end}` : start ?? "";
-  const bits = [company ?? school, range].filter(Boolean);
-  return bits.join(" · ");
+  const payload = first as Record<string, unknown>;
+  const range = deriveDateRange(payload);
+  let details: Array<string | null> = [];
+  if (entry.kind === "experience") {
+    details = [firstText(payload, ["company"]), range];
+  } else if (entry.kind === "education") {
+    details = [firstText(payload, ["institution", "school"]), range];
+  } else if (entry.kind === "certification") {
+    details = [firstText(payload, ["issuer"]), firstText(payload, ["date"])];
+  } else if (entry.kind === "language") {
+    details = [firstText(payload, ["proficiency"])];
+  } else if (entry.kind === "skill") {
+    const items = payload.items;
+    details = [Array.isArray(items) ? items.filter((item): item is string => typeof item === "string").join(", ") : null];
+  } else if (entry.kind === "project") {
+    details = [range];
+  }
+  return details.filter((value): value is string => Boolean(value)).join(" · ");
 }
 
 export default function LibraryEntryCard({

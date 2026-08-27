@@ -43,13 +43,16 @@ export default function ProjectsEditor({ data = [], onChange, context }: Props) 
         getTitle={(e: any) => e.name || "New Project"}
         onAddToLibrary={
           context
-            ? (entryId) => {
+              ? (entryId) => {
                 const entry = entries.find((e: any) => e.id === entryId);
+                if (!entry) return null;
                 return (
                   <AddToLibraryButton
                     cvId={context.cvId}
                     sectionId={context.sectionId}
                     entryId={entryId}
+                    kind="project"
+                    entryData={entry as unknown as Record<string, unknown>}
                     entryLabel={entry?.name}
                   />
                 );

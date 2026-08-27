@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Archive } from "lucide-react";
-import { addEntryToLibrary } from "../../lib/api/library";
+import { addEntryToLibrary, type LibraryEntryKind } from "../../lib/api/library";
 import { useToastStore } from "../../lib/store/uiStore";
 import { useLibraryStore } from "../../lib/store/libraryStore";
 import AddToLibraryConfirmModal from "./AddToLibraryConfirmModal";
@@ -9,6 +9,8 @@ interface AddToLibraryButtonProps {
   cvId: string;
   sectionId: string;
   entryId: string;
+  kind: LibraryEntryKind;
+  entryData: Record<string, unknown>;
   /** Short label shown in the confirmation modal copy. */
   entryLabel?: string;
 }
@@ -25,6 +27,8 @@ export default function AddToLibraryButton({
   cvId,
   sectionId,
   entryId,
+  kind,
+  entryData,
   entryLabel,
 }: AddToLibraryButtonProps) {
   const [open, setOpen] = useState(false);
@@ -33,7 +37,7 @@ export default function AddToLibraryButton({
 
   const handleConfirm = async () => {
     try {
-      const resp = await addEntryToLibrary(cvId, sectionId, entryId);
+      const resp = await addEntryToLibrary(cvId, sectionId, entryId, { kind, entry: entryData });
       if (resp.created) {
         addToast(entryLabel ? `Added "${entryLabel}" to Library.` : "Added to Library.", "success");
       } else {

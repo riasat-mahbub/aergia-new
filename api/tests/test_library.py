@@ -12,7 +12,34 @@ import sqlalchemy
 
 from app.db.session import async_session
 from app.models.library import Library, LibraryEntry
+from app.schemas.library import library_kind_for_section_type, section_type_for_library_kind
 from app.services.library import LibraryService, _content_hash, _derive_title
+
+
+def test_library_kind_mapping_round_trips_renderer_section_types():
+    expected = {
+        "experience": "experience",
+        "education": "education",
+        "skills": "skill",
+        "projects": "project",
+        "languages": "language",
+        "certifications": "certification",
+    }
+    assert {
+        section: library_kind_for_section_type(section)
+        for section in expected
+    } == expected
+    assert {
+        kind: section_type_for_library_kind(kind)
+        for kind in expected.values()
+    } == {kind: section for section, kind in expected.items()}
+
+
+def test_add_entry_route_is_registered_as_post():
+    from app.app import app
+
+    path = "/api/v1/cvs/{cv_id}/sections/{section_id}/entries/{entry_id}/add-to-library"
+    assert "post" in app.openapi()["paths"][path]
 
 
 @pytest.fixture
@@ -84,6 +111,10 @@ def test_derive_title_falls_back_to_kind():
     assert _derive_title([], "skill") == "Skill"
     assert _derive_title([{"unrelated": "x"}], "education") == "Education"
 
+def test_derive_title_uses_normal_section_fields():
+    assert _derive_title([{"company": "Acme", "position": "Lead Engineer"}], "experience") == "Lead Engineer"
+    assert _derive_title([{"institution": "State U", "degree": "BS"}], "education") == "BS"
+
 
 # ─── Service-level behaviour ────────────────────────────────────────
 
@@ -143,6 +174,33 @@ async def test_create_list_update_delete_entry(client, auth_headers, clean_libra
 
     after = await client.get(f"/api/v1/library/{entry_id}", headers=auth_headers)
     assert after.status_code == 404
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("kind", "section_type"),
+    [
+        ("experience", "experience"),
+        ("education", "education"),
+        ("skill", "skills"),
+        ("project", "projects"),
+        ("language", "languages"),
+        ("certification", "certifications"),
+    ],
+)
+async def test_clone_maps_library_kind_to_renderer_section_type(
+    client, auth_headers, clean_library, kind, section_type
+):
+    create = await client.post(
+        "/api/v1/library",
+        json={"kind": kind, "payload": [{"name": "Reusable item"}]},
+        headers=auth_headers,
+    )
+    entry_id = create.json()["id"]
+
+    clone = await client.post(f"/api/v1/library/{entry_id}/clone", headers=auth_headers)
+
+    assert clone.status_code == 200
+    assert clone.json()["section_instance"]["type"] == section_type
 
 
 @pytest.mark.asyncio
@@ -306,7 +364,7 @@ async def test_promote_cv_to_library_extracts_sections(client, auth_headers, cle
             "sections": [
                 {"id": "s_exp", "type": "experience", "title": "Experience", "enabled": True, "data": [{"title": "Eng"}]},
                 {"id": "s_edu", "type": "education", "title": "Education", "enabled": True, "data": [{"school": "Uni"}]},
-                {"id": "s_sk", "type": "skill", "title": "Skills", "enabled": True, "data": [{"name": "Python"}]},
+                {"id": "s_sk", "type": "skills", "title": "Skills", "enabled": True, "data": [{"name": "Python"}]},
                 {"id": "s_prof", "type": "profile", "title": "Profile", "enabled": True, "data": {"name": "X"}},
             ],
         },
@@ -324,6 +382,151 @@ async def test_promote_cv_to_library_extracts_sections(client, auth_headers, cle
     assert body["promoted"].get("skill") == 1
     assert "s_prof" in body["skipped"]
     assert "library_id" in body
+
+
+@pytest.mark.asyncio
+async def test_promote_cv_to_library_accepts_all_renderer_section_types(
+    client, auth_headers, clean_library
+):
+    sections = [
+        {
+            "id": "s_exp",
+            "type": "experience",
+            "title": "Experience",
+            "enabled": True,
+            "data": [{"id": "exp_1", "company": "Acme", "position": "Engineer"}],
+        },
+        {
+            "id": "s_edu",
+            "type": "education",
+            "title": "Education",
+            "enabled": True,
+            "data": [{"id": "edu_1", "institution": "State U", "degree": "BS"}],
+        },
+        {
+            "id": "s_skills",
+            "type": "skills",
+            "title": "Skills",
+            "enabled": True,
+            "data": [{"id": "skill_1", "category": "Languages", "items": ["Python"]}],
+        },
+        {
+            "id": "s_projects",
+            "type": "projects",
+            "title": "Projects",
+            "enabled": True,
+            "data": [{"id": "project_1", "name": "Aergia"}],
+        },
+        {
+            "id": "s_languages",
+            "type": "languages",
+            "title": "Languages",
+            "enabled": True,
+            "data": [{"id": "language_1", "language": "English"}],
+        },
+        {
+            "id": "s_certifications",
+            "type": "certifications",
+            "title": "Certifications",
+            "enabled": True,
+            "data": [{"id": "cert_1", "name": "AWS"}],
+        },
+        {
+            "id": "s_profile",
+            "type": "profile",
+            "title": "Profile",
+            "enabled": True,
+            "data": {"name": "X"},
+        },
+    ]
+    cv_resp = await client.post(
+        "/api/v1/cvs",
+        json={"title": "All renderer sections", "sections": sections},
+        headers=auth_headers,
+    )
+    cv_id = cv_resp.json()["id"]
+
+    promote = await client.post(
+        f"/api/v1/cvs/{cv_id}/promote-to-library", headers=auth_headers
+    )
+
+    assert promote.status_code == 200
+    assert promote.json()["promoted"] == {
+        "experience": 1,
+        "education": 1,
+        "skill": 1,
+        "project": 1,
+        "language": 1,
+        "certification": 1,
+    }
+    assert promote.json()["skipped"] == ["s_profile"]
+
+
+@pytest.mark.asyncio
+async def test_add_section_entry_accepts_plural_renderer_section_type(
+    client, auth_headers, clean_library
+):
+    sections = [
+        {
+            "id": "s_skills",
+            "type": "skills",
+            "title": "Skills",
+            "enabled": True,
+            "data": [{"id": "skill_1", "category": "Languages", "items": ["Python"]}],
+        },
+        {
+            "id": "s_projects",
+            "type": "projects",
+            "title": "Projects",
+            "enabled": True,
+            "data": [{"id": "project_1", "name": "Aergia"}],
+        },
+        {
+            "id": "s_languages",
+            "type": "languages",
+            "title": "Languages",
+            "enabled": True,
+            "data": [{"id": "language_1", "language": "English"}],
+        },
+        {
+            "id": "s_certifications",
+            "type": "certifications",
+            "title": "Certifications",
+            "enabled": True,
+            "data": [{"id": "cert_1", "name": "AWS"}],
+        },
+    ]
+    cv_resp = await client.post(
+        "/api/v1/cvs",
+        json={"title": "Plural entry sections", "sections": sections},
+        headers=auth_headers,
+    )
+    cv_id = cv_resp.json()["id"]
+
+    for section, kind in zip(sections, ("skill", "project", "language", "certification")):
+        entry = section["data"][0]
+        response = await client.post(
+            f"/api/v1/cvs/{cv_id}/sections/{section['id']}/entries/{entry['id']}/add-to-library",
+            json={"kind": kind, "entry": entry},
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        assert response.json()["created"] is True
+
+    persisted_only = await client.post(
+        f"/api/v1/cvs/{cv_id}/sections/s_skills/entries/skill_1/add-to-library",
+        headers=auth_headers,
+    )
+    assert persisted_only.status_code == 200
+    assert persisted_only.json()["created"] is False
+
+    listing = (await client.get("/api/v1/library", headers=auth_headers)).json()
+    assert {entry["kind"] for entry in listing} == {
+        "skill",
+        "project",
+        "language",
+        "certification",
+    }
 
 
 @pytest.mark.asyncio
@@ -383,6 +586,44 @@ async def test_library_unaffected_by_renderer(client, auth_headers, clean_librar
 
 
 # ─── Per-entry Add to Library ────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_add_section_entry_to_library_uses_current_entry_snapshot(
+    client, auth_headers, clean_library
+):
+    cv_resp = await client.post(
+        "/api/v1/cvs",
+        json={
+            "title": "CV with edited experience",
+            "sections": [
+                {
+                    "id": "s_exp",
+                    "type": "experience",
+                    "title": "Experience",
+                    "enabled": True,
+                    "data": [{"id": "exp_1", "company": "Old Company", "position": "Engineer"}],
+                }
+            ],
+        },
+        headers=auth_headers,
+    )
+    cv_id = cv_resp.json()["id"]
+
+    current_entry = {
+        "id": "exp_1",
+        "company": "Current Company",
+        "position": "Lead Engineer",
+    }
+    resp = await client.post(
+        f"/api/v1/cvs/{cv_id}/sections/s_exp/entries/exp_1/add-to-library",
+        json={"kind": "experience", "entry": current_entry},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+
+    listing = (await client.get("/api/v1/library?kind=experience", headers=auth_headers)).json()
+    assert listing[0]["payload"] == [current_entry]
 
 
 @pytest.mark.asyncio

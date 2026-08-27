@@ -4,7 +4,7 @@ import { renderSectionEditor } from "./SectionRegistry";
 interface Props {
   instance: SectionInstance;
   onChange: (id: string, data: any) => void;
-  cvId: string;
+  cvId?: string;
   /**
    * Kept for backward compatibility with callers that pass it. The
    * Library picker is now mounted per-editor (inside `EntryAddRow`),
@@ -26,7 +26,7 @@ export default function SectionEditorPanel({ instance, onChange, cvId }: Props) 
         instance.type,
         instance.data,
         handleSectionChange,
-        { cvId, sectionId: instance.id }
+        cvId ? { cvId, sectionId: instance.id } : undefined
       )}
     </div>
   );

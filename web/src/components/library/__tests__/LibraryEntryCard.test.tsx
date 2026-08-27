@@ -18,6 +18,45 @@ describe("LibraryEntryCard", () => {
     expect(screen.getByText(/Acme/)).toBeInTheDocument();
   });
 
+  it("renders normal experience fields and date range", () => {
+    render(
+      <LibraryEntryCard
+        entry={{
+          ...entry,
+          payload: [{
+            id: "exp_1",
+            company: "Acme",
+            position: "Lead Engineer",
+            start_date: "2020",
+            end_date: "2024",
+          }],
+        }}
+      />,
+    );
+    expect(screen.getByText("Lead Engineer")).toBeInTheDocument();
+    expect(screen.getByText("Acme · 2020 – 2024")).toBeInTheDocument();
+  });
+
+  it("renders normal education fields and date range", () => {
+    render(
+      <LibraryEntryCard
+        entry={{
+          ...entry,
+          kind: "education",
+          payload: [{
+            id: "edu_1",
+            institution: "State U",
+            degree: "BS Computer Science",
+            start_date: "2018",
+            end_date: "2022",
+          }],
+        }}
+      />,
+    );
+    expect(screen.getByText("BS Computer Science")).toBeInTheDocument();
+    expect(screen.getByText("State U · 2018 – 2022")).toBeInTheDocument();
+  });
+
   it("invokes onEdit and onDelete callbacks", async () => {
     const onEdit = vi.fn();
     const onDelete = vi.fn();

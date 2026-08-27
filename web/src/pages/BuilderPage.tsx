@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useBlocker } from "react-router-dom";
 import { motion } from "motion/react";
 
 import ExportPDFButton from "../components/builder/ExportPDFButton";
+import PromoteToLibraryButton from "../components/library/PromoteToLibraryButton";
 import ContentSectionList from "../components/builder/ContentSectionList";
 import { useCVStore } from "../lib/store/cvStore";
 import { useSupportStore } from "../lib/store/supportStore";
@@ -389,6 +390,7 @@ export default function BuilderPage() {
             </button>
 
             {id && <ExportPDFButton cvId={id} cvTitle={currentCV!.title} onBeforeExport={handleSave} />}
+            {id && <PromoteToLibraryButton cvId={id} />}
           </div>
         </header>
 
@@ -435,6 +437,7 @@ export default function BuilderPage() {
               )}
               {activeTab === "content" && (
                 <ContentSectionList
+                  instances={instances}
                   cvId={id}
                   onToggle={handleToggle}
                   onUpdateData={handleUpdateData}
@@ -501,4 +504,3 @@ export function sectionStyleHasValues(style: SectionInstanceStyle): boolean {
       (style.text && Object.keys(style.text).length > 0)
   );
 }
-
