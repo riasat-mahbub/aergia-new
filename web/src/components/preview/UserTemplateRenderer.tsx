@@ -3,18 +3,16 @@ import type { SectionInstance } from "../../lib/sections/types";
 import client from "../../lib/api/client";
 
 interface Props {
-  templateId: string;
   instances: SectionInstance[];
   customizations?: Record<string, any>;
-  templateContent?: string;
   manifest?: Record<string, any>;
 }
 
-// 297mm at 96dpi (1mm = 96/25.4 ≈ 3.78px). Matches `@page { size: A4; margin: 0 }`
-// in api/app/services/renderer/ir.py, which is what Chromium's print engine cuts on.
+// 297mm at 96dpi (1mm = 96/25.4 ≈ 3.78px). Matches the A4 page size
+// in `api/app/services/renderer/resolve.py`'s `PRINT_STYLES`.
 const PAGE_HEIGHT_PX = 1122;
 
-export default function UserTemplateRenderer({ instances, customizations, templateContent, manifest }: Props) {
+export default function UserTemplateRenderer({ instances, customizations, manifest }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [html, setHtml] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +47,7 @@ export default function UserTemplateRenderer({ instances, customizations, templa
       }
     }
     renderTemplate();
-  }, [manifest, templateContent, instances, customizations]);
+  }, [manifest, instances, customizations]);
 
   useEffect(() => {
     if (!html || !iframeRef.current) return;

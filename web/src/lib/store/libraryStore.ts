@@ -52,7 +52,6 @@ interface LibraryState {
   ) => Promise<LibraryEntry>;
   update: (id: string, payload: Array<Record<string, unknown>>) => Promise<void>;
   remove: (id: string) => Promise<void>;
-  cloneToSection: (id: string) => Promise<LibraryEntry>;
 }
 export const useLibraryStore = create<LibraryState>((set) => ({
   entries: [],
@@ -87,16 +86,4 @@ export const useLibraryStore = create<LibraryState>((set) => ({
     set((s) => ({ entries: s.entries.filter((e) => e.id !== id) }));
   },
 
-  cloneToSection: async (id) => {
-    // cloneToSection on the API returns the full SectionInstance payload,
-    // not a LibraryEntry. The caller (LibraryPicker) is responsible for
-    // inserting the result into the CV store. This method returns the
-    // raw response; see libraryApi.cloneLibrary for the full shape.
-    return (await libraryApi.cloneLibrary(id)) as unknown as LibraryEntry;
-  },
 }));
-
-// ─── Re-export the API surface for components that prefer the store
-// namespace over importing `lib/api/library` directly. ───────────────
-
-export const libraryApiMethods = libraryApi;

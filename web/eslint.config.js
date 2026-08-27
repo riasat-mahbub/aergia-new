@@ -15,7 +15,7 @@ const TYPESCRIPT_RECOMMENDED = tseslint.configs?.recommended ?? { rules: {} };
 
 export default [
   {
-    ignores: ["dist/", "node_modules/"],
+    ignores: ["dist/", "node_modules/", "node_modules_bak/"],
   },
   {
     files: ["src/**/*.{ts,tsx}"],

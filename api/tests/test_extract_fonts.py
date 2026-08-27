@@ -6,12 +6,10 @@ embeds Type0 subset fonts whose BaseFont names never match the size-hint
 regex. The fix reads the font dictionary directly and infers boldness
 from the font family name.
 
-These tests cover the two surviving primitives (now in
+These tests cover the surviving primitive (now in
 :mod:`app.services.parser._fonts`):
 
-1. :func:`_font_family_from_basefont` strips the ``AAAAAA+`` subset
-   prefix.
-2. :func:`_infer_font` decides bold from the font family, not the text.
+1. :func:`_infer_font` decides bold from the font family, not the text.
 
 The pdfplumber backend applies ``_infer_font`` to the majority fontname
 of each text line (see ``_extract_pdfplumber._majority_font_for_line``),
@@ -20,42 +18,13 @@ so bold flags now flow through without any visitor-mode wiring.
 
 from __future__ import annotations
 
-from app.services.parser._fonts import (
-    _font_family_from_basefont,
-    _infer_font,
-)
-
-
-# ---------------------------------------------------------------------------
-# _font_family_from_basefont
-# ---------------------------------------------------------------------------
-
-
-def test_font_family_from_basefont_strips_subset_prefix():
-    """``/AAAAAA+NotoSans-Bold`` -> ``NotoSans-Bold``."""
-    assert _font_family_from_basefont("/AAAAAA+NotoSans-Bold") == "NotoSans-Bold"
-
-
-def test_font_family_from_basefont_handles_bare_name():
-    """No prefix; the whole name is the family."""
-    assert _font_family_from_basefont("Helvetica") == "Helvetica"
-
-
-def test_font_family_from_basefont_handles_empty():
-    """Empty / None becomes empty string."""
-    assert _font_family_from_basefont("") == ""
-    assert _font_family_from_basefont("/") == ""
+from app.services.parser._fonts import _infer_font
 
 
 # ---------------------------------------------------------------------------
 # _infer_font (font-name-based)
 # ---------------------------------------------------------------------------
 
-
-def _looks_bold(family: str) -> bool:
-    """Mirror the bold regex used inside _infer_font."""
-    f = family.lower()
-    return any(tok in f for tok in ("bold", "semibold", "black", "heavy"))
 
 
 def test_infer_font_flags_bold_for_bold_family():

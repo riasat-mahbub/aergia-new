@@ -268,7 +268,6 @@ export default function DateField({
       )}
       <div className="mt-0.5">
         <div
-          data-testid="datefield"
           className="flex w-full items-center gap-1 rounded border bg-white text-sm"
         >
           <button

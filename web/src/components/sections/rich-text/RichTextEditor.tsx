@@ -45,7 +45,7 @@ function InitPlugin({ value }: { value: RichTextBlock[] | string }) {
     initialized.current = true;
 
     const serialized = blocksToLexical(value);
-    const state = editor.parseEditorState(serialized as any);
+    const state = editor.parseEditorState(serialized);
     editor.setEditorState(state);
   }, [editor, value]);
 
@@ -64,7 +64,9 @@ function EditorInner({
   const [editor] = useLexicalComposerContext();
   const isInternalChange = useRef(false);
   const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   const handleChange = useCallback(
     (editorState: EditorState) => {
@@ -95,7 +97,7 @@ function EditorInner({
     if (JSON.stringify(currentBlocks) !== JSON.stringify(incomingBlocks)) {
       isInternalChange.current = true;
       const serialized = blocksToLexical(value);
-      editor.setEditorState(editor.parseEditorState(serialized as any));
+      editor.setEditorState(editor.parseEditorState(serialized));
     }
   }, [editor, value]);
 
