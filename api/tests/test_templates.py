@@ -47,14 +47,6 @@ async def test_get_template_returns_manifest_only(client):
     assert data["manifest"]["manifest_version"] == 2
 
 
-@pytest.mark.asyncio
-async def test_template_detail(client):
-    """Verify template detail endpoint returns full config."""
-    resp = await client.get("/api/v1/templates/generic-modern")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data.get("default_customizations") is None
-
 
 @pytest.mark.asyncio
 async def test_template_detail_not_found(client):

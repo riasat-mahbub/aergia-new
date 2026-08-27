@@ -8,6 +8,7 @@ const FULL_SUPPORT = {
   break_before: "FULL",
   keep_with_next: "FULL",
   keep_together: "FULL",
+  keep_entry_together: "FULL",
   heading_keeps_with_first: "FULL",
   feature_skills_inline: "FULL",
   feature_section_underline: "FULL",

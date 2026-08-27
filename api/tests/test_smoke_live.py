@@ -24,6 +24,7 @@ def _register_login_ready_handler(
     pdf_body: bytes = b"%PDF-1.4\n% smoke",
     spa_html: str = '<!doctype html><html><body><div id="root"></div></body></html>',
     import_payload: dict | None = None,
+    library_state: dict[str, str] | None = None,
 ) -> httpx.Response:
     """Return a single handler that simulates a healthy backend for the
     exact flow ``run_smoke`` performs."""
@@ -51,9 +52,43 @@ def _register_login_ready_handler(
             ]
         )
 
-    if path.startswith("/api/v1/cvs/") and path.endswith("/preview") and method == "GET":
+    if path == "/api/v1/library" and method == "POST":
+        payload = json.loads(request.content)
+        title = payload["payload"][0]["title"]
+        if library_state is not None:
+            library_state["title"] = title
         return _ok_json(
-            {"html": "<!DOCTYPE html><html><head></head><body>preview</body></html>"}
+            {
+                "id": "lib_smoke",
+                "kind": payload["kind"],
+                "payload": payload["payload"],
+            },
+            status_code=201,
+        )
+
+    if path.startswith("/api/v1/library/") and path.endswith("/clone") and method == "POST":
+        title = (library_state or {}).get("title", "Library")
+        return _ok_json(
+            {
+                "section_instance": {
+                    "id": "sec_library",
+                    "type": "experience",
+                    "title": "Experience",
+                    "enabled": True,
+                    "data": [{"id": "entry_smoke", "title": title, "company": "SmokeCo"}],
+                }
+            }
+        )
+
+    if path.startswith("/api/v1/cvs/") and path.endswith("/promote-to-library") and method == "POST":
+        return _ok_json({"promoted": {}})
+
+    if path.startswith("/api/v1/cvs/") and path.endswith("/preview") and method == "GET":
+        preview_text = "preview"
+        if library_state and library_state.get("title"):
+            preview_text += f" {library_state['title']}"
+        return _ok_json(
+            {"html": f"<!DOCTYPE html><html><head></head><body>{preview_text}</body></html>"}
         )
 
     if path == "/api/v1/cvs/import/pdf" and method == "POST":
@@ -96,6 +131,7 @@ def _register_login_ready_handler(
 def test_run_smoke_happy_path_exercises_all_three_templates() -> None:
     seen: dict[str, list[str]] = {"template_ids": [], "cv_create_titles": []}
 
+    library_state: dict[str, str] = {}
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/api/v1/cvs" and request.method == "POST":
             seen["cv_create_titles"].append(json.loads(request.content)["title"])
@@ -104,17 +140,18 @@ def test_run_smoke_happy_path_exercises_all_three_templates() -> None:
             and request.method == "POST"
         ):
             seen.setdefault("import_called", []).append(True)
-        return _register_login_ready_handler(request)
+        return _register_login_ready_handler(request, library_state=library_state)
 
     transport = httpx.MockTransport(handler)
     with httpx.Client(transport=transport, base_url="http://test") as client:
         smoke_live.run_smoke(client, "http://test")
 
-    assert seen["cv_create_titles"] == [
+    assert seen["cv_create_titles"][:3] == [
         "Smoke generic-modern",
         "Smoke generic-classic",
         "Smoke generic-minimal",
     ]
+    assert "Library smoke CV" in seen["cv_create_titles"]
     assert seen.get("import_called") == [True]
 
 
@@ -142,10 +179,13 @@ def test_run_smoke_rejects_non_pdf_body() -> None:
 
 
 def test_run_smoke_rejects_missing_root_div() -> None:
+    library_state: dict[str, str] = {}
+
     def handler(request: httpx.Request) -> httpx.Response:
         return _register_login_ready_handler(
             request,
             spa_html='<!doctype html><html><body>no root</body></html>',
+            library_state=library_state,
         )
 
     transport = httpx.MockTransport(handler)
@@ -259,13 +299,14 @@ def test_llm_no_key_prefers_regex_default():
     payload — the orchestrator's default path."""
     seen: dict[str, object] = {}
 
+    library_state: dict[str, str] = {}
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/api/v1/cvs/import/pdf" and request.method == "POST":
             seen["form_keys"] = list(request.url.params.keys())
             # Run smoke against the canned payload by adding the import
             # default — easiest way to assert the no-key behaviour is
             # to check the body's meta.source.
-        return _register_login_ready_handler(request)
+        return _register_login_ready_handler(request, library_state=library_state)
 
     transport = httpx.MockTransport(handler)
     with httpx.Client(transport=transport, base_url="http://test") as client:

@@ -52,11 +52,11 @@ web/
     main.tsx          # createBrowserRouter entry; /dashboard under ProtectedRoute > AppLayout
     App.tsx           # auth store hydrate(), ErrorBoundary, toasts
     pages/            # BuilderPage (schematic editor orchestrator), auth pages
-    components/       # builder/, sections/ (SectionRegistry → 8 editors), customization/ (CustomizePanel), layout/ (dnd-kit zones), preview/ (iframe + page-break overlay)
+    components/       # builder/, sections/ (SectionRegistry → 8 editors), customization/ (Inspector, SectionInspector), preview/ (iframe + page-break overlay)
     lib/
       store/          # Zustand: authStore, cvStore, uiStore, supportStore
       api/            # axios client + typed wrappers (cvs, templates, render)
-      sections/       # types.ts (re-exports generated), fieldStyles.ts, zones.ts
+      sections/       # types.ts (re-exports generated), fieldsForInstance.ts
       test/setup.ts   # Vitest setup: jest-dom + localStorage shim
     generated/schema.ts  # codegen output — never hand-edit
 scripts/              # smoke.sh (hardening gate)
@@ -126,7 +126,7 @@ npm run codegen:check             # drift guard (must stay green)
 | `api/app/services/renderer/support.py` | `SupportLevel` + `RendererSupport` capability map. |
 | `api/scripts/codegen_schema.py` | In-tree Pydantic→TS generator; `--check` drift gate. |
 | `web/src/pages/BuilderPage.tsx` | Schematic editor orchestrator: save/unsaved blocker, template switch, `sectionStyleHasValues`. |
-| `web/src/components/customization/CustomizePanel.tsx` | Three-axis style editor + Document customizations + capability gating. |
+| `web/src/components/customization/Inspector.tsx` / `SectionInspector.tsx` | Three-axis style inspector, document customizations, and capability gating. |
 | `web/src/lib/api/client.ts` | Single axios entry point for all API I/O. |
 | `web/vite.config.ts` | Dev proxy (`/api` → `:8000`, lines 9-13), Vitest jsdom config. |
 | `api/alembic/env.py` | `DATABASE_URL` override (lines 22-24). `alembic.ini` hardcodes a SQLite URL that is overridden at runtime. |

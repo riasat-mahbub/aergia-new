@@ -54,11 +54,11 @@ def _new_id() -> str:
 
     Every section and entry id in the frontend uses the ``sec_`` prefix;
     the parser used to emit type-specific prefixes (``prof_``, ``edu_``,
-    ...) which silently disabled drag-drop on imported CVs because the
-    ``SectionZoneView`` drop handler bailed out on any non-``sec_`` id.
+    ...) which previously caused imported sections to be ignored by the
+    customize surface's drop handler when ids did not start with ``sec_``.
     A single prefix keeps the implicit contract the rest of the codebase
-    assumes and the helper no longer takes a per-type tag (the data is
-    already type-typed via ``SectionInstance.type`` and ``entry.id``).
+    assumes; the helper no longer takes a per-type tag because the data is
+    already type-typed via ``SectionInstance.type`` and ``entry.id``.
     """
     return f"sec_{uuid.uuid4().hex[:8]}"
 

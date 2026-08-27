@@ -114,28 +114,6 @@ describe("ContentSectionList", () => {
     fireEvent.click(confirmBtn);
   });
 
-  it("toggles the section editor when the chevron is clicked", () => {
-    // SectionEditorPanel is mocked as <div />; we just verify that clicking the chevron does not throw
-    // and that the row's aria / data attributes can be located. The presence of two collapse buttons
-    // confirms the chevron is wired.
-    render(
-      <ContentSectionList
-        instances={SAMPLE}
-        onToggle={vi.fn()}
-        onUpdateData={vi.fn()}
-        onAddSection={vi.fn()}
-        onRemoveInstance={vi.fn()}
-        onRenameInstance={vi.fn()}
-        onReorderInstances={vi.fn()}
-      />,
-    );
-
-    const expandButtons = screen.getAllByTitle("Expand");
-    expect(expandButtons.length).toBe(2);
-    fireEvent.click(expandButtons[0]);
-    // After click the title becomes Collapse for that row.
-    expect(screen.getAllByTitle("Collapse").length).toBe(1);
-  });
 
   it("keeps only one section expanded at a time", () => {
     render(

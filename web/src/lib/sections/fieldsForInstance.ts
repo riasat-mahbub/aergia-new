@@ -1,7 +1,7 @@
 /**
  * Build the per-field list for a section instance at runtime.
  *
- * The old static FIELD_DEFS table in fieldStyles.ts had bugs: wrong
+ * The previous static field table had bugs: wrong
  * keys ("social_links" vs "social"), missing sections (certifications
  * not in list), missing fields (location on experience), and no
  * awareness of rich-text fields. Worse, it listed every possible field
