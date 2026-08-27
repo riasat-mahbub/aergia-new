@@ -10,6 +10,7 @@ interface LibraryKindGroupProps {
   onEditEntry?: (entry: LibraryEntry) => void;
   onDeleteEntry?: (entry: LibraryEntry) => void;
   onPickEntry?: (entry: LibraryEntry) => void;
+  highlighted?: boolean;
 }
 
 export default function LibraryKindGroup({
@@ -19,11 +20,15 @@ export default function LibraryKindGroup({
   onEditEntry,
   onDeleteEntry,
   onPickEntry,
+  highlighted = false,
 }: LibraryKindGroupProps) {
   const label = LIBRARY_KIND_LABELS[kind];
+  const sectionClasses = highlighted
+    ? "space-y-3 rounded-lg ring-2 ring-lib-accent/40 p-3 -m-3"
+    : "space-y-3";
 
   return (
-    <section className="space-y-3" aria-labelledby={`lib-group-${kind}`}>
+    <section className={sectionClasses} aria-labelledby={`lib-group-${kind}`}>
       <div className="flex items-center justify-between border-b border-lib-rule pb-2">
         <div className="flex items-baseline gap-2">
           <h2

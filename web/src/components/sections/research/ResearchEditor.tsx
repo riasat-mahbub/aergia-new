@@ -3,6 +3,7 @@ import { useFieldArray } from "../../../lib/sections/useFieldArray";
 import SortableAccordionList from "../../../lib/sections/SortableAccordionList";
 import DateField from "../../../lib/sections/DateField";
 import RichTextEditor from "../rich-text/RichTextEditor";
+import EntryAddRow from "../_shared/EntryAddRow";
 
 interface Props {
   data: ResearchEntry[] | undefined;
@@ -88,9 +89,7 @@ export default function ResearchEditor({ data = [], onChange }: Props) {
           </div>
         )}
       </SortableAccordionList>
-      <button onClick={add} className="text-sm text-blue-600 hover:underline">
-        + Add Research Paper
-      </button>
+      <EntryAddRow kind="research" addLabel="Research Paper" onAddNew={add} />
     </div>
   );
 }

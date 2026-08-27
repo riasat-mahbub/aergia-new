@@ -2,6 +2,7 @@ import type { CertificationEntry } from "../../../lib/sections/types";
 import { useFieldArray } from "../../../lib/sections/useFieldArray";
 import SortableAccordionList from "../../../lib/sections/SortableAccordionList";
 import DateField from "../../../lib/sections/DateField";
+import EntryAddRow from "../_shared/EntryAddRow";
 
 interface Props {
   data: CertificationEntry[] | undefined;
@@ -52,7 +53,20 @@ export default function CertificationsEditor({ data = [], onChange }: Props) {
           </div>
         )}
       </SortableAccordionList>
-      <button onClick={add} className="text-sm text-blue-600 hover:underline">+ Add Certification</button>
+      <EntryAddRow
+        kind="certification"
+        addLabel="Certification"
+        onAddNew={add}
+        onPickFromLibrary={(picked) => {
+          if (!picked) return;
+          const incoming = Array.isArray(picked.data) ? picked.data : [];
+          const stamped = incoming.map((row) => ({
+            ...(row as Record<string, unknown>),
+            id: `cert_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          }));
+          onChange([...entries, ...(stamped as CertificationEntry[])]);
+        }}
+      />
     </div>
   );
 }
