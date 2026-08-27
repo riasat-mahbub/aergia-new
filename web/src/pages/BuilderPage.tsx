@@ -435,7 +435,7 @@ export default function BuilderPage() {
               )}
               {activeTab === "content" && (
                 <ContentSectionList
-                  instances={instances}
+                  cvId={id}
                   onToggle={handleToggle}
                   onUpdateData={handleUpdateData}
                   onAddSection={handleAddSection}

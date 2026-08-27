@@ -34,6 +34,7 @@ import Modal from "../common/Modal";
 
 interface Props {
   instances: SectionInstance[];
+  cvId: string;
   onToggle: (sectionId: string) => void;
   onUpdateData: (sectionId: string, data: unknown) => void;
   onAddSection: (type: string) => void;
@@ -52,6 +53,7 @@ function SortableRow({
   setEditingTitle,
   onRemoveInstance,
   onToggleExpand,
+  cvId,
 }: {
   instance: SectionInstance;
   isExpanded: boolean;
@@ -62,6 +64,7 @@ function SortableRow({
   setEditingTitle: (id: string | null) => void;
   onRemoveInstance: (id: string) => void;
   onToggleExpand: (id: string) => void;
+  cvId: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -204,9 +207,7 @@ function SortableRow({
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-            <div className="border-t bg-gray-50 p-3">
-              <SectionEditorPanel instance={instance} onChange={onUpdateData} />
-            </div>
+              <SectionEditorPanel instance={instance} onChange={onUpdateData} cvId={cvId} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -216,6 +217,7 @@ function SortableRow({
 
 export default function ContentSectionList({
   instances,
+  cvId,
   onToggle,
   onUpdateData,
   onAddSection,
@@ -275,6 +277,7 @@ export default function ContentSectionList({
                 setEditingTitle={setEditingTitle}
                 onRemoveInstance={(id) => setDeleteConfirmId(id)}
                 onToggleExpand={toggleSectionExpand}
+                cvId={cvId}
               />
             ))}
           </div>

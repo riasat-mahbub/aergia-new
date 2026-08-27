@@ -3,13 +3,15 @@ import { useFieldArray } from "../../../lib/sections/useFieldArray";
 import SortableAccordionList from "../../../lib/sections/SortableAccordionList";
 import DateField from "../../../lib/sections/DateField";
 import EntryAddRow from "../_shared/EntryAddRow";
+import AddToLibraryButton from "../../library/AddToLibraryButton";
 
 interface Props {
   data: CertificationEntry[] | undefined;
   onChange: (data: CertificationEntry[]) => void;
+  context?: { cvId: string; sectionId: string };
 }
 
-export default function CertificationsEditor({ data = [], onChange }: Props) {
+export default function CertificationsEditor({ data = [], onChange, context }: Props) {
   const { entries, add, remove, update, move } = useFieldArray(data, onChange, () => ({
     id: `cert_${Date.now()}`,
     name: "",
@@ -26,6 +28,21 @@ export default function CertificationsEditor({ data = [], onChange }: Props) {
         onRemove={remove}
         onMove={move}
         getTitle={(e: any) => e.name || "New Certification"}
+        onAddToLibrary={
+          context
+            ? (entryId) => {
+                const entry = entries.find((e: any) => e.id === entryId);
+                return (
+                  <AddToLibraryButton
+                    cvId={context.cvId}
+                    sectionId={context.sectionId}
+                    entryId={entryId}
+                    entryLabel={entry?.name}
+                  />
+                );
+              }
+            : undefined
+        }
       >
         {(entry: any, i: number) => (
           <div className="grid grid-cols-2 gap-2">

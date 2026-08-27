@@ -2,14 +2,17 @@ import type { LanguageEntry } from "../../../lib/sections/types";
 import { useFieldArray } from "../../../lib/sections/useFieldArray";
 import SortableAccordionList from "../../../lib/sections/SortableAccordionList";
 import EntryAddRow from "../_shared/EntryAddRow";
+import AddToLibraryButton from "../../library/AddToLibraryButton";
 
 interface Props {
   data: LanguageEntry[] | undefined;
   onChange: (data: LanguageEntry[]) => void;
+  context?: { cvId: string; sectionId: string };
 }
 
 const PROFICIENCIES = ["Native", "Fluent", "Advanced", "Intermediate", "Basic"];
-export default function LanguagesEditor({ data = [], onChange }: Props) {
+
+export default function LanguagesEditor({ data = [], onChange, context }: Props) {
   const { entries, add, remove, update, move } = useFieldArray(data, onChange, () => ({
     id: `lang_${Date.now()}`,
     language: "",
@@ -23,6 +26,21 @@ export default function LanguagesEditor({ data = [], onChange }: Props) {
         onRemove={remove}
         onMove={move}
         getTitle={(e: any) => e.language || "New Language"}
+        onAddToLibrary={
+          context
+            ? (entryId) => {
+                const entry = entries.find((e: any) => e.id === entryId);
+                return (
+                  <AddToLibraryButton
+                    cvId={context.cvId}
+                    sectionId={context.sectionId}
+                    entryId={entryId}
+                    entryLabel={entry?.language}
+                  />
+                );
+              }
+            : undefined
+        }
       >
         {(entry: any, i: number) => (
           <div className="flex items-center gap-2">

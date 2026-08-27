@@ -86,6 +86,21 @@ class PromoteToLibraryResponse(BaseModel):
     skipped: list[str]
 
 
+class AddEntryToLibraryResponse(BaseModel):
+    """Response shape for ``POST /cvs/{cv_id}/sections/.../add-to-library``.
+
+    ``created=False`` means an identical Library entry already exists
+    (same kind + content hash); the FE should treat this as a no-op
+    success. ``entry_id`` is the new or existing Library entry's id.
+    """
+
+    library_id: str
+    entry_id: str | None
+    created: bool
+
+
+
+
 __all__ = [
     "LIBRARY_ENTRY_KINDS",
     "LibraryEntryCreate",

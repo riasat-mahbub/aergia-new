@@ -2,13 +2,15 @@ import type { SkillGroup } from "../../../lib/sections/types";
 import { useFieldArray } from "../../../lib/sections/useFieldArray";
 import SortableAccordionList from "../../../lib/sections/SortableAccordionList";
 import EntryAddRow from "../_shared/EntryAddRow";
+import AddToLibraryButton from "../../library/AddToLibraryButton";
 
 interface Props {
   data: SkillGroup[] | undefined;
   onChange: (data: SkillGroup[]) => void;
+  context?: { cvId: string; sectionId: string };
 }
 
-export default function SkillsEditor({ data = [], onChange }: Props) {
+export default function SkillsEditor({ data = [], onChange, context }: Props) {
   const { entries, add, remove, update, move } = useFieldArray(data, onChange, () => ({
     id: `sk_${Date.now()}`,
     category: "",
@@ -32,6 +34,21 @@ export default function SkillsEditor({ data = [], onChange }: Props) {
         onRemove={remove}
         onMove={move}
         getTitle={(e: any) => e.category || "New Skill Group"}
+        onAddToLibrary={
+          context
+            ? (entryId) => {
+                const entry = entries.find((e: any) => e.id === entryId);
+                return (
+                  <AddToLibraryButton
+                    cvId={context.cvId}
+                    sectionId={context.sectionId}
+                    entryId={entryId}
+                    entryLabel={entry?.category}
+                  />
+                );
+              }
+            : undefined
+        }
       >
         {(group: any, i: number) => (
           <div>

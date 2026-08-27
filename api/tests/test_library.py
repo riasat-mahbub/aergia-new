@@ -380,3 +380,163 @@ async def test_library_unaffected_by_renderer(client, auth_headers, clean_librar
         ).scalar_one()
     assert lib_before == lib_after
     assert entry_before == entry_after
+
+
+# ─── Per-entry Add to Library ────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_add_section_entry_to_library_creates_entry(client, auth_headers, clean_library):
+    cv_resp = await client.post(
+        "/api/v1/cvs",
+        json={
+            "title": "CV with one education entry",
+            "sections": [
+                {
+                    "id": "s_edu",
+                    "type": "education",
+                    "title": "Education",
+                    "enabled": True,
+                    "data": [
+                        {
+                            "id": "edu_1",
+                            "institution": "State U",
+                            "degree": "BS",
+                            "start_date": "2018",
+                            "end_date": "2022",
+                            "current": False,
+                            "gpa": "",
+                            "summary": "",
+                        }
+                    ],
+                }
+            ],
+        },
+        headers=auth_headers,
+    )
+    cv_id = cv_resp.json()["id"]
+
+    resp = await client.post(
+        f"/api/v1/cvs/{cv_id}/sections/s_edu/entries/edu_1/add-to-library",
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["created"] is True
+    assert body["library_id"]
+    assert body["entry_id"]
+
+    # New Library entry exists with the right kind + payload shape.
+    listing = (await client.get("/api/v1/library?kind=education", headers=auth_headers)).json()
+    assert len(listing) == 1
+    assert listing[0]["payload"] == [
+        {
+            "id": "edu_1",
+            "institution": "State U",
+            "degree": "BS",
+            "start_date": "2018",
+            "end_date": "2022",
+            "current": False,
+            "gpa": "",
+            "summary": "",
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_add_section_entry_to_library_is_idempotent(client, auth_headers, clean_library):
+    cv_resp = await client.post(
+        "/api/v1/cvs",
+        json={
+            "title": "Idempotent CV",
+            "sections": [
+                {
+                    "id": "s_exp",
+                    "type": "experience",
+                    "title": "Experience",
+                    "enabled": True,
+                    "data": [{"id": "exp_1", "company": "Acme", "position": "SWE"}],
+                }
+            ],
+        },
+        headers=auth_headers,
+    )
+    cv_id = cv_resp.json()["id"]
+
+    first = (await client.post(
+        f"/api/v1/cvs/{cv_id}/sections/s_exp/entries/exp_1/add-to-library",
+        headers=auth_headers,
+    )).json()
+    second = (await client.post(
+        f"/api/v1/cvs/{cv_id}/sections/s_exp/entries/exp_1/add-to-library",
+        headers=auth_headers,
+    )).json()
+    assert first["created"] is True
+    assert second["created"] is False
+    assert first["entry_id"] == second["entry_id"]
+
+
+@pytest.mark.asyncio
+async def test_add_section_entry_to_library_rejects_ineligible_kind(
+    client, auth_headers, clean_library
+):
+    cv_resp = await client.post(
+        "/api/v1/cvs",
+        json={
+            "title": "Profile-only CV",
+            "sections": [
+                {
+                    "id": "s_prof",
+                    "type": "profile",
+                    "title": "Profile",
+                    "enabled": True,
+                    "data": {"name": "Test"},
+                }
+            ],
+        },
+        headers=auth_headers,
+    )
+    cv_id = cv_resp.json()["id"]
+    resp = await client.post(
+        f"/api/v1/cvs/{cv_id}/sections/s_prof/entries/none/add-to-library",
+        headers=auth_headers,
+    )
+    # Either 422 (not library-eligible) or 404 (no matching entry) — but never 200.
+    assert resp.status_code in (404, 422)
+
+
+@pytest.mark.asyncio
+async def test_add_section_entry_to_library_other_users_cv_404(
+    client, auth_headers, other_auth_headers, clean_library
+):
+    cv_resp = await client.post(
+        "/api/v1/cvs",
+        json={
+            "title": "Private CV",
+            "sections": [
+                {
+                    "id": "s_exp",
+                    "type": "experience",
+                    "title": "Experience",
+                    "enabled": True,
+                    "data": [{"id": "exp_1", "company": "Acme"}],
+                }
+            ],
+        },
+        headers=auth_headers,
+    )
+    cv_id = cv_resp.json()["id"]
+    resp = await client.post(
+        f"/api/v1/cvs/{cv_id}/sections/s_exp/entries/exp_1/add-to-library",
+        headers=other_auth_headers,
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_add_section_entry_to_library_missing_cv_404(client, auth_headers, clean_library):
+    resp = await client.post(
+        "/api/v1/cvs/00000000-0000-0000-0000-000000000000/sections/s_exp/entries/exp_1/add-to-library",
+        headers=auth_headers,
+    )
+    assert resp.status_code == 404
