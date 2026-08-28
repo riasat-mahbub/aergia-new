@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { Download, ExternalLink, Pencil, RefreshCw, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Download, ExternalLink, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import ApplicationFormModal from "../components/applications/ApplicationFormModal";
 import LoadingSkeleton from "../components/common/LoadingSkeleton";
 import { exportPDF, downloadPDF, fetchCV, type CVDetail } from "../lib/api/cvs";
@@ -53,6 +53,8 @@ export default function ApplicationDetailPage() {
   const [retrying, setRetrying] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
   const [linkedCV, setLinkedCV] = useState<CVDetail | null>(null);
+  const [jobExpanded, setJobExpanded] = useState(false);
+  const [relevanceExpanded, setRelevanceExpanded] = useState(false);
 
   useEffect(() => {
     if (id) fetch(id);
@@ -74,6 +76,9 @@ export default function ApplicationDetailPage() {
   }, [application?.cv_id]);
 
   const relevance = application && isRelevanceResult(application.relevance) ? application.relevance : null;
+  const hasRelevanceDetails = Boolean(
+    relevance && (relevance.matched_keywords.length > 0 || relevance.missing_keywords.length > 0 || relevance.evidence.length > 0),
+  );
   const sections = useMemo(() => sectionTypes(linkedCV), [linkedCV]);
   const sourceCount = selectedSourceCount(linkedCV);
 
@@ -159,32 +164,60 @@ export default function ApplicationDetailPage() {
       </header>
 
       <div className="mt-6 grid gap-4 md:grid-cols-2">
-        <section className="rounded-lg border border-app-rule bg-app-surface p-5 shadow-sm">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-app-ink-3">Job</h2>
-          <div className="mt-4 whitespace-pre-wrap text-sm leading-6 text-app-ink-2">{application.job_description}</div>
-          {safeJobUrl && <a href={safeJobUrl} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex items-center gap-1 text-sm text-app-primary hover:underline">Open job listing <ExternalLink className="h-3.5 w-3.5" /></a>}
-          {application.notes && <p className="mt-4 border-t border-app-rule-soft pt-4 text-sm text-app-ink-2">{application.notes}</p>}
+        <section className={`flex flex-col overflow-hidden rounded-lg border border-app-rule bg-app-surface p-5 shadow-sm ${jobExpanded ? "" : "h-60 md:h-64"}`}>
+          <div id="application-job-details" className="relative min-h-0 flex-1 overflow-hidden">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-app-ink-3">Job</h2>
+            <div className="mt-4 whitespace-pre-wrap text-sm leading-6 text-app-ink-2">{application.job_description}</div>
+            {safeJobUrl && <a href={safeJobUrl} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex items-center gap-1 text-sm text-app-primary hover:underline">Open job listing <ExternalLink className="h-3.5 w-3.5" /></a>}
+            {application.notes && <p className="mt-4 border-t border-app-rule-soft pt-4 text-sm text-app-ink-2">{application.notes}</p>}
+            {!jobExpanded && <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-app-surface to-transparent" />}
+          </div>
+          <button
+            type="button"
+            aria-expanded={jobExpanded}
+            aria-controls="application-job-details"
+            onClick={() => setJobExpanded((expanded) => !expanded)}
+            className="mt-3 inline-flex shrink-0 items-center gap-1 self-start text-sm font-medium text-app-primary hover:text-app-primary-hover"
+          >
+            {jobExpanded ? "See less" : "See more"}
+            {jobExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
         </section>
 
-        <section className="rounded-lg border border-app-rule bg-app-surface p-5 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-app-ink-3">Relevance</h2>
-              <p className="mt-2 text-3xl font-semibold text-app-ink" title={RELEVANCE_TOOLTIP}>{relevance ? `${relevance.score}%` : "—"}</p>
+        <section className={`flex flex-col overflow-hidden rounded-lg border border-app-rule bg-app-surface p-5 shadow-sm ${relevanceExpanded ? "" : "h-60 md:h-64"}`}>
+          <div id="application-relevance-details" className="relative min-h-0 flex-1 overflow-hidden">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-app-ink-3">Relevance</h2>
+                <p className="mt-2 text-3xl font-semibold text-app-ink" title={RELEVANCE_TOOLTIP}>{relevance ? `${relevance.score}%` : "—"}</p>
+              </div>
+              {application.fits_one_page !== null && <span className={application.fits_one_page ? "text-sm text-app-primary" : "text-sm text-app-warning"}>{application.fits_one_page ? "One-page fit" : "Could not fit one page without rewriting content"}</span>}
             </div>
-            {application.fits_one_page !== null && <span className={application.fits_one_page ? "text-sm text-app-primary" : "text-sm text-app-warning"}>{application.fits_one_page ? "One-page fit" : "Could not fit one page without rewriting content"}</span>}
+            <p className="mt-3 text-xs text-app-ink-3">{RELEVANCE_TOOLTIP}</p>
+            {relevance && (
+              <>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {relevance.matched_keywords.map((keyword) => <span key={`matched-${keyword}`} className="rounded-full bg-app-primary-soft px-2 py-1 text-xs text-app-primary">{keyword}</span>)}
+                  {relevance.missing_keywords.map((keyword) => <span key={`missing-${keyword}`} className="rounded-full bg-app-surface-muted px-2 py-1 text-xs text-app-ink-2">Missing: {keyword}</span>)}
+                </div>
+                <div className="mt-4 space-y-2">
+                  {relevance.evidence.map((item, index) => <div key={`${item.keyword}-${item.field_path}-${index}`} className="rounded bg-app-canvas px-3 py-2 text-xs text-app-ink-2"><strong>{item.keyword}</strong> · {item.section_type} · {item.field_path}<br />{item.snippet}</div>)}
+                </div>
+              </>
+            )}
+            {!relevanceExpanded && hasRelevanceDetails && <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-app-surface to-transparent" />}
           </div>
-          <p className="mt-3 text-xs text-app-ink-3">{RELEVANCE_TOOLTIP}</p>
-          {relevance && (
-            <>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {relevance.matched_keywords.map((keyword) => <span key={`matched-${keyword}`} className="rounded-full bg-app-primary-soft px-2 py-1 text-xs text-app-primary">{keyword}</span>)}
-                {relevance.missing_keywords.map((keyword) => <span key={`missing-${keyword}`} className="rounded-full bg-app-surface-muted px-2 py-1 text-xs text-app-ink-2">Missing: {keyword}</span>)}
-              </div>
-              <div className="mt-4 space-y-2">
-                {relevance.evidence.map((item, index) => <div key={`${item.keyword}-${item.field_path}-${index}`} className="rounded bg-app-canvas px-3 py-2 text-xs text-app-ink-2"><strong>{item.keyword}</strong> · {item.section_type} · {item.field_path}<br />{item.snippet}</div>)}
-              </div>
-            </>
+          {hasRelevanceDetails && (
+            <button
+              type="button"
+              aria-expanded={relevanceExpanded}
+              aria-controls="application-relevance-details"
+              onClick={() => setRelevanceExpanded((expanded) => !expanded)}
+              className="mt-3 inline-flex shrink-0 items-center gap-1 self-start text-sm font-medium text-app-primary hover:text-app-primary-hover"
+            >
+              {relevanceExpanded ? "See less" : "See more"}
+              {relevanceExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
           )}
         </section>
       </div>
