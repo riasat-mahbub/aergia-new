@@ -18,6 +18,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     { to: "/dashboard/cvs", label: "CVs", Icon: FileText },
     { to: "/dashboard/library", label: "Library", Icon: Library },
     { to: "/dashboard/applications", label: "Applications", Icon: BriefcaseBusiness },
+    { to: "/dashboard/settings", label: "Settings", Icon: Settings },
   ];
 
   const handleLogout = async () => {
@@ -63,13 +64,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
           )}
         </div>
         <div className="flex items-center gap-3">
-          <Link
-            to="/dashboard/settings"
-            className="rounded p-1.5 text-app-ink-3 hover:text-app-ink"
-            title="Settings"
-          >
-            <Settings className="h-4 w-4" />
-          </Link>
           <button
             onClick={handleLogout}
             className="rounded p-1.5 text-app-ink-3 hover:text-app-ink"

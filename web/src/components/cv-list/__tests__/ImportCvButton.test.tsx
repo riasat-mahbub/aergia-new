@@ -109,12 +109,9 @@ describe("ImportCvButton", () => {
     expect(screen.getByText("Import CV · OpenAI")).toBeTruthy();
   });
 
-  it("clicking the cog mounts the LLMKeyDialog", () => {
+  it("keeps API-key configuration out of the import action cluster", () => {
     renderButton();
-    fireEvent.click(screen.getByTitle("Configure LLM API keys"));
-    expect(
-      screen.getByText(/stored only in memory/, { exact: false })
-    ).toBeTruthy();
+    expect(screen.queryByTitle("Configure LLM API keys")).not.toBeInTheDocument();
   });
 
   it("clicking the Import CV button opens the modal", () => {
