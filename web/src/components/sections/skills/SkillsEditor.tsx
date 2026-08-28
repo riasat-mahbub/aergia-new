@@ -64,9 +64,9 @@ export default function SkillsEditor({ data = [], onChange, context }: Props) {
             />
             <div className="flex flex-wrap gap-1">
               {group.items.map((item: string, j: number) => (
-                <span key={j} className="inline-flex items-center gap-1 rounded bg-gray-100 px-2 py-0.5 text-xs">
+                <span key={j} className="inline-flex items-center gap-1 rounded bg-app-surface-muted px-2 py-0.5 text-xs">
                   {item}
-                  <button onClick={() => removeItem(i, j)} className="text-gray-400 hover:text-red-500">&times;</button>
+                  <button onClick={() => removeItem(i, j)} className="text-app-ink-3 hover:text-app-danger">&times;</button>
                 </span>
               ))}
             </div>

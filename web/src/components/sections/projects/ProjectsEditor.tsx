@@ -64,7 +64,7 @@ export default function ProjectsEditor({ data = [], onChange, context }: Props) 
           <div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-xs text-gray-500">Name</label>
+                <label className="block text-xs text-app-ink-3">Name</label>
                 <input
                   type="text"
                   value={entry.name}
@@ -73,7 +73,7 @@ export default function ProjectsEditor({ data = [], onChange, context }: Props) 
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-500">URL</label>
+                <label className="block text-xs text-app-ink-3">URL</label>
                 <input
                   type="text"
                   value={entry.url}
@@ -82,7 +82,7 @@ export default function ProjectsEditor({ data = [], onChange, context }: Props) 
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-500">Link text</label>
+                <label className="block text-xs text-app-ink-3">Link text</label>
                 <input
                   type="text"
                   value={entry.link_text}
@@ -103,7 +103,7 @@ export default function ProjectsEditor({ data = [], onChange, context }: Props) 
               />
             </div>
             <div className="mt-2">
-              <label className="block text-xs text-gray-500">Description</label>
+              <label className="block text-xs text-app-ink-3">Description</label>
               <RichTextEditor
                 value={entry.description}
                 onChange={(blocks) => update(i, "description", blocks)}
@@ -111,12 +111,12 @@ export default function ProjectsEditor({ data = [], onChange, context }: Props) 
               />
             </div>
             <div className="mt-2">
-              <label className="block text-xs text-gray-500">Tech stack</label>
+              <label className="block text-xs text-app-ink-3">Tech stack</label>
               <div className="flex flex-wrap gap-1">
                 {(entry.tech_stack ?? []).map((tech: string, j: number) => (
-                  <span key={j} className="inline-flex items-center gap-1 rounded bg-gray-100 px-2 py-0.5 text-xs">
+                  <span key={j} className="inline-flex items-center gap-1 rounded bg-app-surface-muted px-2 py-0.5 text-xs">
                     {tech}
-                    <button onClick={() => removeTech(i, j)} className="text-gray-400 hover:text-red-500">&times;</button>
+                    <button onClick={() => removeTech(i, j)} className="text-app-ink-3 hover:text-app-danger">&times;</button>
                   </span>
                 ))}
               </div>

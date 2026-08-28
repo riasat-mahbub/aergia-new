@@ -55,7 +55,7 @@ function ToolbarButton({
       disabled={disabled}
       title={title}
       className={`rounded p-1 text-xs ${
-        active ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:bg-gray-100"
+        active ? "bg-app-primary-soft text-app-primary" : "text-app-ink-2 hover:bg-app-surface-muted"
       } ${disabled ? "opacity-40" : ""}`}
     >
       {children}
@@ -112,7 +112,7 @@ export default function RichTextToolbar({ editor }: Props) {
   };
 
   return (
-    <div className="flex items-center gap-0.5 border-b border-gray-100 px-2 py-1">
+    <div className="flex items-center gap-0.5 border-b border-app-rule-soft px-2 py-1">
       <ToolbarButton
         onPress={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold")}
         active={active.bold}
@@ -141,11 +141,11 @@ export default function RichTextToolbar({ editor }: Props) {
       >
         <Strikethrough className="h-3.5 w-3.5" />
       </ToolbarButton>
-      <div className="mx-1 h-4 w-px bg-gray-200" />
+      <div className="mx-1 h-4 w-px bg-app-surface-strong" />
       <ToolbarButton onPress={insertLink} title="Link">
         <Link className="h-3.5 w-3.5" />
       </ToolbarButton>
-      <div className="mx-1 h-4 w-px bg-gray-200" />
+      <div className="mx-1 h-4 w-px bg-app-surface-strong" />
       <ToolbarButton
         onPress={() => editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined)}
         title="Bullet List"

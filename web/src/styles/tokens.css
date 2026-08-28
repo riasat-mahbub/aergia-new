@@ -1,35 +1,43 @@
-/* Aergia proof-sheet design tokens.
+/* Aergia application design tokens.
  *
- * Single source of truth for the customize-panel redesign. TypeScript
- * mirrors the spacing and radius scales via web/src/styles/tokens.ts; the
- * CSS variables here are what every component consumes at runtime.
- *
- * The palette is a single-hue proof sheet — off-white paper, soft
- * graphite ink, one accent. No chrome color that competes with the CV's
- * own accent. Type pairing: a serif for prose (panel headings, captions)
- * and a sans for UI controls.
+ * The application chrome has one visual language: emerald actions, mint
+ * surfaces, slate ink, and an off-white canvas. CV document accents remain
+ * data-driven and are resolved by the HTML renderer separately.
  */
 
 :root {
-  /* ── Surfaces ───────────────────────────────────────────────────── */
-  --paper:        #F7F4EE;   /* panel background, the proof sheet */
-  --paper-1:      #FBF8F2;   /* one elevation up, cards */
-  --paper-2:      #FFFFFF;   /* inputs, inset */
+  /* ── Application palette ───────────────────────────────────────── */
+  --app-primary:         #059669;
+  --app-primary-hover:   #047857;
+  --app-primary-soft:    #DAFFEF;
+  --app-secondary:       #41658A;
+  --app-secondary-soft:  rgba(65, 101, 138, 0.12);
+  --app-canvas:          #FCFFFD;
+  --app-surface:         #FCFFFD;
+  --app-surface-muted:   #DAFFEF;
+  --app-surface-strong:  rgba(47, 69, 80, 0.08);
+  --app-ink:             #2F4550;
+  --app-ink-2:           #41658A;
+  --app-ink-3:           rgba(65, 101, 138, 0.78);
+  --app-ink-muted:       rgba(65, 101, 138, 0.46);
+  --app-rule:            rgba(47, 69, 80, 0.14);
+  --app-rule-soft:       rgba(47, 69, 80, 0.08);
+  --app-rule-strong:     rgba(47, 69, 80, 0.24);
+  --app-focus:           rgba(5, 150, 105, 0.28);
 
-  /* ── Ink (text + chrome) ────────────────────────────────────────── */
-  --ink:          #1F1B16;   /* primary text */
-  --ink-2:        #4A453E;   /* secondary text */
-  --ink-3:        #807A70;   /* tertiary / metadata */
-  --ink-4:        #B5AFA4;   /* disabled / muted */
-
-  /* ── Rules (borders) ────────────────────────────────────────────── */
-  --rule:         rgba(31, 27, 22, 0.08);
-  --rule-soft:    rgba(31, 27, 22, 0.05);
-  --rule-strong:  rgba(31, 27, 22, 0.14);
-
-  /* ── Accent (single ink-blue, used sparingly) ───────────────────── */
-  --accent:       #1F4E79;
-  --accent-soft:  #E8EEF5;
+  /* Compatibility names used by the customization inspector. */
+  --paper:        var(--app-canvas);
+  --paper-1:      var(--app-surface);
+  --paper-2:      var(--app-surface);
+  --ink:          var(--app-ink);
+  --ink-2:        var(--app-ink-2);
+  --ink-3:        var(--app-ink-3);
+  --ink-4:        var(--app-ink-muted);
+  --rule:         var(--app-rule);
+  --rule-soft:    var(--app-rule-soft);
+  --rule-strong:  var(--app-rule-strong);
+  --accent:       var(--app-primary);
+  --accent-soft:  var(--app-primary-soft);
 
   /* ── Semantic ───────────────────────────────────────────────────── */
   --warn:         #B45309;
@@ -81,30 +89,24 @@
   --shadow-focus:  0 0 0 3px var(--accent-soft);
 }
 
-/* ── Modern-minimal namespace for the Library feature ────────────────── *
- *
- * Distinct from the proof-sheet tokens above. Library surfaces consume
- * ONLY the `--lib-*` variables; existing components never reference
- * them. This keeps the two systems side-by-side without collision.
- *
- * Palette: cool, modern, single-hue. White surfaces, slate text,
- * emerald-600 primary accent (per the locked UI direction).
- */
+/* Library aliases remain for component compatibility. They intentionally
+ * resolve to the same application palette rather than creating a second
+ * design system. */
 :root {
-  --lib-canvas:        #F8FAFC;
-  --lib-surface:       #FFFFFF;
-  --lib-surface-2:     #F1F5F9;
+  --lib-canvas:        var(--app-canvas);
+  --lib-surface:       var(--app-surface);
+  --lib-surface-2:     var(--app-surface-muted);
 
-  --lib-ink:           #0F172A;
-  --lib-ink-2:         #475569;
-  --lib-ink-3:         #94A3B8;
+  --lib-ink:           var(--app-ink);
+  --lib-ink-2:         var(--app-ink-2);
+  --lib-ink-3:         var(--app-ink-3);
 
-  --lib-rule:          #E2E8F0;
-  --lib-rule-soft:     #F1F5F9;
+  --lib-rule:          var(--app-rule);
+  --lib-rule-soft:     var(--app-rule-soft);
 
-  --lib-accent:        #059669;
-  --lib-accent-hover:  #047857;
-  --lib-accent-soft:   #D1FAE5;
+  --lib-accent:        var(--app-primary);
+  --lib-accent-hover:  var(--app-primary-hover);
+  --lib-accent-soft:   var(--app-primary-soft);
   --lib-accent-ink:    #FFFFFF;
 
   --lib-danger:        #DC2626;

@@ -87,7 +87,7 @@ function SortableRow({
     <div
       ref={setNodeRef}
       style={style}
-      className={`rounded border bg-white ${instance.enabled ? "border-gray-200" : "border-dashed border-gray-300 bg-gray-50"}`}
+      className={`rounded border bg-app-surface ${instance.enabled ? "border-app-rule" : "border-dashed border-app-rule-strong bg-app-canvas"}`}
       data-section-id={instance.id}
     >
       <div
@@ -100,7 +100,7 @@ function SortableRow({
           {...attributes}
           {...listeners}
           onClick={(e) => e.stopPropagation()}
-          className="cursor-grab text-gray-400 hover:text-gray-600"
+          className="cursor-grab text-app-ink-3 hover:text-app-ink"
           title="Drag to reorder"
         >
           <GripVertical className="h-3.5 w-3.5" />
@@ -114,7 +114,7 @@ function SortableRow({
                 type="text"
                 defaultValue={instance.title}
                 autoFocus
-                className="w-full rounded border border-blue-300 px-1.5 py-0.5 text-sm font-medium text-gray-800"
+                className="w-full rounded border border-app-primary-soft px-1.5 py-0.5 text-sm font-medium text-app-ink"
                 onBlur={commitRename}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") commitRename();
@@ -122,7 +122,7 @@ function SortableRow({
                 onClick={(e) => e.stopPropagation()}
               />
               <button
-                className="rounded bg-emerald-600 px-2 py-0.5 text-xs text-white"
+                className="rounded bg-app-primary px-2 py-0.5 text-xs text-white"
                 onClick={(e) => {
                   e.stopPropagation();
                   commitRename();
@@ -134,11 +134,11 @@ function SortableRow({
           ) : (
             <div className="flex items-center gap-2">
               <span
-                className={`text-sm font-medium ${instance.enabled ? "text-gray-800" : "text-gray-400"}`}
+                className={`text-sm font-medium ${instance.enabled ? "text-app-ink" : "text-app-ink-3"}`}
               >
                 {instance.title}
               </span>
-              <span className="text-[10px] text-gray-400">
+              <span className="text-[10px] text-app-ink-3">
                 {SECTION_LABELS[instance.type] || instance.type}
               </span>
             </div>
@@ -152,8 +152,8 @@ function SortableRow({
           }}
           className={`rounded p-1 ${
             instance.enabled
-              ? "text-blue-600 hover:text-blue-800"
-              : "text-gray-400 hover:text-gray-600"
+              ? "text-app-primary hover:text-app-primary"
+              : "text-app-ink-3 hover:text-app-ink"
           }`}
           title={instance.enabled ? "Disable" : "Enable"}
         >
@@ -165,7 +165,7 @@ function SortableRow({
             e.stopPropagation();
             setEditingTitle(instance.id);
           }}
-          className="rounded p-1 text-gray-400 hover:text-gray-600"
+          className="rounded p-1 text-app-ink-3 hover:text-app-ink"
           title="Rename"
         >
           <Pencil className="h-3.5 w-3.5" />
@@ -176,7 +176,7 @@ function SortableRow({
             e.stopPropagation();
             onRemoveInstance(instance.id);
           }}
-          className="rounded p-1 text-red-400 hover:text-red-600"
+          className="rounded p-1 text-app-danger hover:text-app-danger"
           title="Delete"
         >
           <Trash2 className="h-3.5 w-3.5" />
@@ -187,7 +187,7 @@ function SortableRow({
             e.stopPropagation();
             onToggleExpand(instance.id);
           }}
-          className="rounded p-1 text-gray-400 hover:text-gray-600"
+          className="rounded p-1 text-app-ink-3 hover:text-app-ink"
           title={isExpanded ? "Collapse" : "Expand"}
         >
           <motion.div
@@ -290,7 +290,7 @@ export default function ContentSectionList({
       <button
         type="button"
         onClick={() => setShowAddModal(true)}
-        className="flex w-full items-center justify-center gap-1 rounded-md border border-dashed border-gray-300 py-2 text-xs text-gray-500 hover:border-blue-400 hover:text-blue-600"
+        className="flex w-full items-center justify-center gap-1 rounded-md border border-dashed border-app-rule-strong py-2 text-xs text-app-ink-3 hover:border-app-primary-soft hover:text-app-primary"
       >
         <Plus className="h-3 w-3" />
         Add section
@@ -306,10 +306,10 @@ export default function ContentSectionList({
       />
 
       <Modal open={!!deleteConfirmId} onClose={() => setDeleteConfirmId(null)}>
-        <h2 className="mb-2 text-lg font-semibold text-gray-900">Delete Section</h2>
-        <p className="text-sm text-gray-600">
+        <h2 className="mb-2 text-lg font-semibold text-app-ink">Delete Section</h2>
+        <p className="text-sm text-app-ink-2">
           Are you sure you want to delete{" "}
-          <span className="font-medium text-gray-900">
+          <span className="font-medium text-app-ink">
             &ldquo;{deleteTarget?.title}&rdquo;
           </span>
           ? This action cannot be undone.
@@ -317,7 +317,7 @@ export default function ContentSectionList({
         <div className="mt-6 flex justify-end gap-2">
           <button
             onClick={() => setDeleteConfirmId(null)}
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            className="rounded-md border border-app-rule-strong px-4 py-2 text-sm text-app-ink-2 hover:bg-app-surface-muted"
           >
             Cancel
           </button>
@@ -326,7 +326,7 @@ export default function ContentSectionList({
               if (deleteConfirmId) onRemoveInstance(deleteConfirmId);
               setDeleteConfirmId(null);
             }}
-            className="rounded-md bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700"
+            className="rounded-md bg-app-danger px-4 py-2 text-sm text-white hover:bg-app-danger"
           >
             Delete
           </button>

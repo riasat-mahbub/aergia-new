@@ -9,9 +9,9 @@ const iconMap = {
 };
 
 const colorMap = {
-  success: "border-green-500 bg-green-50 text-green-800",
-  error: "border-red-500 bg-red-50 text-red-800",
-  info: "border-blue-500 bg-blue-50 text-blue-800",
+  success: "border-app-success bg-app-success-soft text-app-success",
+  error: "border-app-danger bg-app-danger-soft text-app-danger",
+  info: "border-app-primary bg-app-primary-soft text-app-primary",
 };
 
 export default function ToastContainer() {

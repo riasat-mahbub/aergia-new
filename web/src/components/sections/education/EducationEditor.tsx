@@ -53,7 +53,7 @@ export default function EducationEditor({ data = [], onChange, context }: Props)
           <div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-xs text-gray-500">Institution</label>
+                <label className="block text-xs text-app-ink-3">Institution</label>
                 <input
                   type="text"
                   value={entry.institution}
@@ -62,7 +62,7 @@ export default function EducationEditor({ data = [], onChange, context }: Props)
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-500">Degree</label>
+                <label className="block text-xs text-app-ink-3">Degree</label>
                 <input
                   type="text"
                   value={entry.degree}
@@ -83,7 +83,7 @@ export default function EducationEditor({ data = [], onChange, context }: Props)
               />
               <div className="col-span-2 flex items-center justify-between gap-2">
                 <div className="flex-1">
-                  <label className="block text-xs text-gray-500">GPA</label>
+                  <label className="block text-xs text-app-ink-3">GPA</label>
                   <input
                     type="text"
                     value={entry.gpa}

@@ -87,12 +87,12 @@ export default function ImportCvModal({ open, onClose, onSubmit }: Props) {
     <Modal open={open} onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="flex items-start justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Import CV</h2>
+          <h2 className="text-lg font-semibold text-app-ink">Import CV</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="rounded p-1 text-gray-500 hover:bg-gray-100"
+            className="rounded p-1 text-app-ink-3 hover:bg-app-surface-muted"
           >
             <X className="h-4 w-4" />
           </button>
@@ -101,7 +101,7 @@ export default function ImportCvModal({ open, onClose, onSubmit }: Props) {
         <div className="space-y-2">
           <label
             htmlFor="import-title"
-            className="block text-sm font-medium text-gray-700"
+            className="block text-sm font-medium text-app-ink-2"
           >
             Title
           </label>
@@ -111,14 +111,14 @@ export default function ImportCvModal({ open, onClose, onSubmit }: Props) {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder={TITLE_PLACEHOLDER}
-            className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+            className="w-full rounded border border-app-rule-strong px-2 py-1.5 text-sm focus:border-app-primary focus:outline-none"
           />
         </div>
 
         <div className="space-y-2">
           <label
             htmlFor="import-template"
-            className="block text-sm font-medium text-gray-700"
+            className="block text-sm font-medium text-app-ink-2"
           >
             Template
           </label>
@@ -126,7 +126,7 @@ export default function ImportCvModal({ open, onClose, onSubmit }: Props) {
             id="import-template"
             value={templateId}
             onChange={(e) => setTemplateId(e.target.value)}
-            className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+            className="w-full rounded border border-app-rule-strong px-2 py-1.5 text-sm focus:border-app-primary focus:outline-none"
           >
             {templates.length === 0 ? (
               <option value={DEFAULT_TEMPLATE_ID}>Modern</option>
@@ -141,13 +141,13 @@ export default function ImportCvModal({ open, onClose, onSubmit }: Props) {
         </div>
 
         <div className="space-y-2">
-          <span className="block text-sm font-medium text-gray-700">
+          <span className="block text-sm font-medium text-app-ink-2">
             PDF
           </span>
           {file ? (
             <div className="flex items-center gap-2">
               <span
-                className="flex-1 truncate rounded border border-gray-200 bg-gray-50 px-2 py-1.5 text-sm text-gray-700"
+                className="flex-1 truncate rounded border border-app-rule bg-app-canvas px-2 py-1.5 text-sm text-app-ink-2"
                 title={file.name}
               >
                 {file.name}
@@ -155,7 +155,7 @@ export default function ImportCvModal({ open, onClose, onSubmit }: Props) {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+                className="rounded border border-app-rule-strong px-2 py-1 text-xs text-app-ink-2 hover:bg-app-surface-muted"
               >
                 Change
               </button>
@@ -164,7 +164,7 @@ export default function ImportCvModal({ open, onClose, onSubmit }: Props) {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-1.5 rounded-md border border-blue-600 bg-white px-3 py-1.5 text-xs text-blue-600 hover:bg-blue-50"
+              className="flex items-center gap-1.5 rounded-md border border-app-primary bg-app-surface px-3 py-1.5 text-xs text-app-primary hover:bg-app-primary-soft"
             >
               <FileUp className="h-3.5 w-3.5" />
               Choose PDF…
@@ -179,18 +179,18 @@ export default function ImportCvModal({ open, onClose, onSubmit }: Props) {
           />
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-gray-200 pt-3">
+        <div className="flex items-center justify-end gap-2 border-t border-app-rule pt-3">
           <button
             type="button"
             onClick={onClose}
-            className="rounded border border-gray-300 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+            className="rounded border border-app-rule-strong px-3 py-1.5 text-xs text-app-ink-2 hover:bg-app-surface-muted"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={!canImport}
-            className="flex items-center gap-1 rounded bg-blue-600 px-3 py-1.5 text-xs text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex items-center gap-1 rounded bg-app-primary px-3 py-1.5 text-xs text-white hover:bg-app-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Loader2 className="hidden h-3 w-3 animate-spin" />
             Import

@@ -16,14 +16,14 @@ export default function HomePage() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-white">
+    <div className="min-h-screen bg-gradient-to-br from-app-primary-soft to-app-surface">
       <header className="flex items-center justify-between px-6 py-4">
-        <span className="text-xl font-bold text-emerald-800">Aergia</span>
+        <span className="text-xl font-bold text-app-primary">Aergia</span>
         <div className="flex items-center gap-3">
           {isAuthenticated ? (
             <button
               onClick={() => navigate("/dashboard")}
-              className="rounded-md bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700"
+              className="rounded-md bg-app-primary px-4 py-2 text-sm text-white hover:bg-app-primary-hover"
             >
               Go to My CVs
             </button>
@@ -31,13 +31,13 @@ export default function HomePage() {
             <>
               <button
                 onClick={() => navigate("/login")}
-                className="rounded-md border border-emerald-300 px-4 py-2 text-sm text-emerald-700 hover:bg-emerald-50"
+                className="rounded-md border border-app-primary-soft px-4 py-2 text-sm text-app-primary hover:bg-app-primary-soft"
               >
                 Sign in
               </button>
               <button
                 onClick={() => navigate("/register")}
-                className="rounded-md bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700"
+                className="rounded-md bg-app-primary px-4 py-2 text-sm text-white hover:bg-app-primary-hover"
               >
                 Get started
               </button>
@@ -47,23 +47,23 @@ export default function HomePage() {
       </header>
 
       <section className="flex flex-col items-center px-4 py-20 text-center">
-        <h1 className="text-5xl font-bold tracking-tight text-gray-900 sm:text-6xl">
+        <h1 className="text-5xl font-bold tracking-tight text-app-ink sm:text-6xl">
           Build beautiful CVs
         </h1>
-        <p className="mt-4 max-w-lg text-lg text-gray-500">
+        <p className="mt-4 max-w-lg text-lg text-app-ink-3">
           Aergia helps you create, customize, and export professional CVs in minutes — no design skills needed.
         </p>
         {isAuthenticated ? (
           <button
             onClick={() => navigate("/dashboard")}
-            className="mt-8 rounded-md bg-emerald-600 px-6 py-3 text-base text-white hover:bg-emerald-700"
+            className="mt-8 rounded-md bg-app-primary px-6 py-3 text-base text-white hover:bg-app-primary-hover"
           >
             Go to My CVs &rarr;
           </button>
         ) : (
           <button
             onClick={() => navigate("/register")}
-            className="mt-8 rounded-md bg-emerald-600 px-6 py-3 text-base text-white hover:bg-emerald-700"
+            className="mt-8 rounded-md bg-app-primary px-6 py-3 text-base text-white hover:bg-app-primary-hover"
           >
             Start building &rarr;
           </button>
@@ -73,18 +73,18 @@ export default function HomePage() {
       <section className="mx-auto max-w-5xl px-4 pb-24">
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((f) => (
-            <div key={f.title} className="rounded-lg border border-emerald-100 bg-white p-6 shadow-sm">
-              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-md bg-emerald-100 text-emerald-700">
+            <div key={f.title} className="rounded-lg border border-app-primary-soft bg-app-surface p-6 shadow-sm">
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-md bg-app-primary-soft text-app-primary">
                 <f.icon className="h-5 w-5" />
               </div>
-              <h3 className="text-sm font-semibold text-gray-900">{f.title}</h3>
-              <p className="mt-1 text-sm text-gray-500">{f.description}</p>
+              <h3 className="text-sm font-semibold text-app-ink">{f.title}</h3>
+              <p className="mt-1 text-sm text-app-ink-3">{f.description}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <footer className="border-t border-emerald-100 px-6 py-6 text-center text-sm text-gray-400">
+      <footer className="border-t border-app-primary-soft px-6 py-6 text-center text-sm text-app-ink-3">
         &copy; {new Date().getFullYear()} Aergia
       </footer>
     </div>

@@ -26,7 +26,7 @@ export default function ProfileCard({
   description = "Shared contact details for your CVs",
   testId = "profile-card",
   editorTestId = "profile-editor",
-  surfaceClassName = "mb-6 rounded-lg border border-gray-200 bg-white p-5 shadow-sm",
+  surfaceClassName = "mb-6 rounded-lg border border-app-rule bg-app-surface p-5 shadow-sm",
   modalTitle = "Edit Profile",
   modalDescription = "These details are reused across your CVs.",
 }: ProfileCardProps) {
@@ -67,16 +67,16 @@ export default function ProfileCard({
       <section className={surfaceClassName} data-testid={testId}>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">{eyebrow}</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-app-primary">{eyebrow}</p>
             {isLoading ? (
-              <p className="mt-2 text-sm text-gray-600">Loading profile…</p>
+              <p className="mt-2 text-sm text-app-ink-2">Loading profile…</p>
             ) : (
               <>
-                <h2 className="mt-1 text-xl font-semibold text-gray-900">
+                <h2 className="mt-1 text-xl font-semibold text-app-ink">
                   {profile?.name || "Complete your profile"}
                 </h2>
-                <p className="mt-1 text-sm text-gray-600">{profile?.title || description}</p>
-                {profile?.email && <p className="mt-3 text-sm text-gray-600">{profile.email}</p>}
+                <p className="mt-1 text-sm text-app-ink-2">{profile?.title || description}</p>
+                {profile?.email && <p className="mt-3 text-sm text-app-ink-2">{profile.email}</p>}
               </>
             )}
           </div>
@@ -84,20 +84,20 @@ export default function ProfileCard({
             type="button"
             onClick={handleOpen}
             disabled={!profile || isLoading}
-            className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-1 rounded-md border border-app-rule-strong bg-app-surface px-3 py-2 text-sm font-medium text-app-ink-2 hover:bg-app-surface-muted disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Pencil className="h-4 w-4" />
             Edit
           </button>
         </div>
-        <p className="mt-4 text-xs text-gray-500">{description}</p>
+        <p className="mt-4 text-xs text-app-ink-3">{description}</p>
       </section>
 
       <Modal open={open} onClose={() => !saving && setOpen(false)} size="wide">
         <div data-testid={editorTestId} className="max-h-[80vh] w-full min-w-0 overflow-y-auto">
           <header className="mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">{modalTitle}</h2>
-            <p className="mt-1 text-sm text-gray-600">{modalDescription}</p>
+            <h2 className="text-xl font-semibold text-app-ink">{modalTitle}</h2>
+            <p className="mt-1 text-sm text-app-ink-2">{modalDescription}</p>
           </header>
           {syntheticInstance && (
             <SectionEditorPanel
@@ -110,7 +110,7 @@ export default function ProfileCard({
               type="button"
               onClick={() => setOpen(false)}
               disabled={saving}
-              className="rounded-md px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+              className="rounded-md px-3 py-2 text-sm font-medium text-app-ink-2 hover:bg-app-surface-muted disabled:opacity-50"
             >
               Cancel
             </button>
@@ -118,7 +118,7 @@ export default function ProfileCard({
               type="button"
               onClick={handleSave}
               disabled={saving || !draft}
-              className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50"
+              className="rounded-md bg-app-ink px-4 py-2 text-sm font-medium text-white hover:bg-app-surface-muted disabled:opacity-50"
             >
               {saving ? "Saving…" : "Save profile"}
             </button>

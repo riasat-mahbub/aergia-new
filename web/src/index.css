@@ -35,6 +35,58 @@ body {
  * alongside tokens.css so existing utility-first code can reach the
  * proof-sheet surfaces without a refactor. */
 @layer utilities {
+  /* Application semantic utilities. Layout stays Tailwind; color and
+   * interaction styling comes from the Aergia token layer. */
+  .bg-app-canvas       { background-color: var(--app-canvas); }
+  .bg-app-surface      { background-color: var(--app-surface); }
+  .bg-app-surface-muted { background-color: var(--app-surface-muted); }
+  .bg-app-surface-strong { background-color: var(--app-surface-strong); }
+  .bg-app-ink          { background-color: var(--app-ink); }
+  .bg-app-ink-2        { background-color: var(--app-ink-2); }
+  .bg-app-primary      { background-color: var(--app-primary); }
+  .bg-app-primary-soft { background-color: var(--app-primary-soft); }
+  .bg-app-danger       { background-color: var(--danger); }
+  .bg-app-warning      { background-color: var(--warn); }
+  .bg-app-success      { background-color: var(--success); }
+  .bg-app-danger-soft  { background-color: var(--danger-soft); }
+  .bg-app-warning-soft { background-color: var(--warn-soft); }
+  .bg-app-success-soft { background-color: var(--success-soft); }
+  .text-app-ink        { color: var(--app-ink); }
+  .text-app-ink-2      { color: var(--app-ink-2); }
+  .text-app-ink-3      { color: var(--app-ink-3); }
+  .text-app-ink-muted  { color: var(--app-ink-muted); }
+  .text-app-primary    { color: var(--app-primary); }
+  .text-app-secondary  { color: var(--app-secondary); }
+  .text-app-danger     { color: var(--danger); }
+  .text-app-warning    { color: var(--warn); }
+  .text-app-success    { color: var(--success); }
+  .border-app-rule     { border-color: var(--app-rule); }
+  .border-app-rule-soft { border-color: var(--app-rule-soft); }
+  .border-app-rule-strong { border-color: var(--app-rule-strong); }
+  .border-app-primary  { border-color: var(--app-primary); }
+  .border-app-primary-soft { border-color: var(--app-primary-soft); }
+  .border-app-danger   { border-color: var(--danger); }
+  .border-app-warning  { border-color: var(--warn); }
+  .border-app-success  { border-color: var(--success); }
+  .from-app-primary-soft { --tw-gradient-from: var(--app-primary-soft) var(--tw-gradient-from-position); --tw-gradient-to: rgb(218 255 239 / 0) var(--tw-gradient-to-position); --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to); }
+  .to-app-surface { --tw-gradient-to: var(--app-surface) var(--tw-gradient-to-position); }
+  .hover\:bg-app-primary-hover:hover { background-color: var(--app-primary-hover); }
+  .hover\:bg-app-primary-soft:hover { background-color: var(--app-primary-soft); }
+  .hover\:bg-app-danger:hover { background-color: var(--danger); }
+  .hover\:bg-app-surface-muted:hover { background-color: var(--app-surface-muted); }
+  .hover\:bg-app-ink-2:hover { background-color: var(--app-ink-2); }
+  .hover\:text-app-primary:hover { color: var(--app-primary-hover); }
+  .hover\:text-app-ink:hover { color: var(--app-ink); }
+  .hover\:text-app-ink-2:hover { color: var(--app-ink-2); }
+  .hover\:text-app-danger:hover { color: var(--danger); }
+  .hover\:border-app-primary:hover { border-color: var(--app-primary); }
+  .hover\:border-app-primary-soft:hover { border-color: var(--app-primary-soft); }
+  .hover\:border-app-rule-strong:hover { border-color: var(--app-rule-strong); }
+  .focus\:border-app-primary:focus { border-color: var(--app-primary); }
+  .focus\:ring-app-primary:focus { --tw-ring-color: var(--app-focus); }
+  .ring-app-focus { --tw-ring-color: var(--app-focus); }
+  .ring-app-primary { --tw-ring-color: var(--app-focus); }
+
   .bg-paper      { background-color: var(--paper); }
   .bg-paper-1    { background-color: var(--paper-1); }
   .bg-paper-2    { background-color: var(--paper-2); }
@@ -54,8 +106,7 @@ body {
   .shadow-pop    { box-shadow: var(--shadow-pop); }
   .shadow-focus  { box-shadow: var(--shadow-focus); }
 
-  /* Library (modern-minimal) tokens. Distinct from the proof-sheet
-   * utilities above; Library surfaces consume ONLY these classes. */
+  /* Library aliases resolve to the same application token system. */
   .bg-lib-canvas      { background-color: var(--lib-canvas); }
   .bg-lib-surface     { background-color: var(--lib-surface); }
   .bg-lib-surface-2   { background-color: var(--lib-surface-2); }

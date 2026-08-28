@@ -34,8 +34,8 @@ export default function RegisterForm() {
   if (success) {
     return (
       <div className="text-center">
-        <p className="text-green-600 font-medium">Account created successfully!</p>
-        <p className="text-sm text-gray-500 mt-2">Redirecting to login...</p>
+        <p className="text-app-success font-medium">Account created successfully!</p>
+        <p className="text-sm text-app-ink-3 mt-2">Redirecting to login...</p>
       </div>
     );
   }
@@ -43,53 +43,53 @@ export default function RegisterForm() {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div>
-        <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
+        <label htmlFor="email" className="block text-sm font-medium text-app-ink-2">Email</label>
         <input
           id="email"
           type="email"
           {...register("email")}
-          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="mt-1 block w-full rounded-md border border-app-rule-strong px-3 py-2 shadow-sm focus:border-app-primary focus:outline-none focus:ring-1 focus:ring-app-primary"
         />
-        {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>}
+        {errors.email && <p className="mt-1 text-sm text-app-danger">{errors.email.message}</p>}
       </div>
 
       <div>
-        <label htmlFor="password" className="block text-sm font-medium text-gray-700">Password</label>
+        <label htmlFor="password" className="block text-sm font-medium text-app-ink-2">Password</label>
         <input
           id="password"
           type="password"
           autoComplete="new-password"
           {...register("password")}
-          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="mt-1 block w-full rounded-md border border-app-rule-strong px-3 py-2 shadow-sm focus:border-app-primary focus:outline-none focus:ring-1 focus:ring-app-primary"
         />
-        {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>}
+        {errors.password && <p className="mt-1 text-sm text-app-danger">{errors.password.message}</p>}
       </div>
 
       <div>
-        <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">Confirm Password</label>
+        <label htmlFor="confirmPassword" className="block text-sm font-medium text-app-ink-2">Confirm Password</label>
         <input
           id="confirmPassword"
           type="password"
           autoComplete="new-password"
           {...register("confirmPassword")}
-          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="mt-1 block w-full rounded-md border border-app-rule-strong px-3 py-2 shadow-sm focus:border-app-primary focus:outline-none focus:ring-1 focus:ring-app-primary"
         />
-        {errors.confirmPassword && <p className="mt-1 text-sm text-red-600">{errors.confirmPassword.message}</p>}
+        {errors.confirmPassword && <p className="mt-1 text-sm text-app-danger">{errors.confirmPassword.message}</p>}
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-app-danger">{error}</p>}
 
       <button
         type="submit"
         disabled={isLoading}
-        className="w-full rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
+        className="w-full rounded-md bg-app-primary px-4 py-2 text-white hover:bg-app-primary-hover disabled:opacity-50"
       >
         {isLoading ? "Creating account..." : "Create account"}
       </button>
 
-      <p className="text-center text-sm text-gray-600">
+      <p className="text-center text-sm text-app-ink-2">
         Already have an account?{" "}
-        <a href="/login" className="text-blue-600 hover:underline">Sign in</a>
+        <a href="/login" className="text-app-primary hover:underline">Sign in</a>
       </p>
     </form>
   );

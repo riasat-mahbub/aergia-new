@@ -16,15 +16,15 @@ export default function EmptyState({
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="rounded-lg border-2 border-dashed border-gray-300 p-12 text-center"
+      className="rounded-lg border-2 border-dashed border-app-rule-strong p-12 text-center"
     >
-      <FileText className="mx-auto mb-4 h-12 w-12 text-gray-300" />
-      <h3 className="text-lg font-medium text-gray-900">{title}</h3>
-      <p className="mt-1 text-sm text-gray-500">{description}</p>
+      <FileText className="mx-auto mb-4 h-12 w-12 text-app-ink-muted" />
+      <h3 className="text-lg font-medium text-app-ink">{title}</h3>
+      <p className="mt-1 text-sm text-app-ink-3">{description}</p>
       {action && (
         <button
           onClick={action.onClick}
-          className="mt-4 rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+          className="mt-4 rounded-md bg-app-primary px-4 py-2 text-sm text-white hover:bg-app-primary-hover"
         >
           {action.label}
         </button>

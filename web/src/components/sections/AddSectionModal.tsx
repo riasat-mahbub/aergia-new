@@ -23,13 +23,13 @@ const SECTION_ICONS: Record<string, React.ReactNode> = {
 export default function AddSectionModal({ open, onClose, onSelect }: Props) {
   return (
     <Modal open={open} onClose={onClose}>
-      <h2 className="mb-4 text-lg font-semibold text-gray-900">Add Section</h2>
+      <h2 className="mb-4 text-lg font-semibold text-app-ink">Add Section</h2>
       <div className="grid grid-cols-3 gap-3">
         {(SECTION_TYPES as unknown as string[]).map((type) => (
           <button
             key={type}
             onClick={() => { onSelect(type); onClose(); }}
-            className="flex flex-col items-center gap-2 rounded-lg border border-gray-200 p-4 text-sm text-gray-700 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+            className="flex flex-col items-center gap-2 rounded-lg border border-app-rule p-4 text-sm text-app-ink-2 transition-colors hover:border-app-primary-soft hover:bg-app-primary-soft hover:text-app-primary"
           >
             {SECTION_ICONS[type]}
             <span>{SECTION_LABELS[type] || type}</span>

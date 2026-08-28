@@ -20,7 +20,7 @@ export default function SectionEditorPanel({ instance, onChange, cvId }: Props) 
 
   return (
     <div
-      className={`rounded-lg border ${instance.enabled ? "border-gray-200" : "border-dashed border-gray-300"} bg-white p-4`}
+      className={`rounded-lg border ${instance.enabled ? "border-app-rule" : "border-dashed border-app-rule-strong"} bg-app-surface p-4`}
     >
       {instance.enabled && renderSectionEditor(
         instance.type,

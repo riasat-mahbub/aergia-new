@@ -31,7 +31,7 @@ export default function CvListPage() {
 
   const renderCvGroup = (title: string, cvs: typeof cvList) => (
     <section className="mb-8" aria-labelledby={`${title.toLowerCase().replace(/ /g, "-")}-heading`}>
-      <h2 id={`${title.toLowerCase().replace(/ /g, "-")}-heading`} className="mb-3 text-lg font-semibold text-gray-900">
+      <h2 id={`${title.toLowerCase().replace(/ /g, "-")}-heading`} className="mb-3 text-lg font-semibold text-app-ink">
         {title}
       </h2>
       <motion.div
@@ -60,11 +60,11 @@ export default function CvListPage() {
         animate={{ opacity: 1, y: 0 }}
         className="mb-6 flex items-center justify-between"
       >
-        <h1 className="text-2xl font-bold text-gray-900">My CVs</h1>
+        <h1 className="text-2xl font-bold text-app-ink">My CVs</h1>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowCreate(true)}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+            className="rounded-md bg-app-primary px-4 py-2 text-sm text-white hover:bg-app-primary-hover"
           >
             + New CV
           </button>
@@ -76,16 +76,16 @@ export default function CvListPage() {
           visually. Sits above the CV grid for first-time discoverability. */}
       <Link
         to="/dashboard/library"
-        className="mb-4 flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4 shadow-sm hover:border-gray-300"
+        className="mb-4 flex items-center justify-between rounded-lg border border-app-rule bg-app-surface p-4 shadow-sm hover:border-app-rule-strong"
       >
         <div className="flex items-start gap-3">
-          <div className="rounded-md bg-gray-100 p-2">
-            <LibraryIcon className="h-5 w-5 text-gray-700" />
+          <div className="rounded-md bg-app-surface-muted p-2">
+            <LibraryIcon className="h-5 w-5 text-app-ink-2" />
           </div>
           <div>
-            <h2 className="text-base font-semibold text-gray-900">Library</h2>
-            <p className="text-xs text-gray-500">Your reusable content. Pull into any CV.</p>
-            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
+            <h2 className="text-base font-semibold text-app-ink">Library</h2>
+            <p className="text-xs text-app-ink-3">Your reusable content. Pull into any CV.</p>
+            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-app-ink-3">
               {!libraryLoaded ? (
                 <span>—</span>
               ) : (
@@ -102,7 +102,7 @@ export default function CvListPage() {
             </div>
           </div>
         </div>
-        <ArrowRight className="h-4 w-4 text-gray-400" />
+        <ArrowRight className="h-4 w-4 text-app-ink-3" />
       </Link>
 
       <CreateCvModal open={showCreate} onClose={() => setShowCreate(false)} />

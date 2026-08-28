@@ -109,7 +109,7 @@ describe("ContentSectionList", () => {
     const trashButtons = screen.getAllByTitle("Delete");
     fireEvent.click(trashButtons[0]);
     // "Delete" is the button text and also appears in the heading. Match by class instead.
-    const confirmBtn = document.querySelector("button.bg-red-600") as HTMLButtonElement;
+    const confirmBtn = document.querySelector("button.bg-app-danger") as HTMLButtonElement;
     expect(confirmBtn).toBeTruthy();
     fireEvent.click(confirmBtn);
   });

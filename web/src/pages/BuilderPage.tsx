@@ -407,22 +407,22 @@ export default function BuilderPage() {
         animate={{ opacity: 1 }}
         className="flex h-screen items-center justify-center"
       >
-        <p className="text-gray-500">{isLoading ? "Loading CV..." : "CV not found"}</p>
+        <p className="text-app-ink-3">{isLoading ? "Loading CV..." : "CV not found"}</p>
       </motion.div>
     ) : currentCV ? (
       <div className="flex h-screen flex-col">
-        <header className="flex items-center justify-between border-b bg-white px-4 py-3">
+        <header className="flex items-center justify-between border-b bg-app-surface px-4 py-3">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate("/dashboard")} className="text-sm text-gray-500 hover:text-gray-700">
+            <button onClick={() => navigate("/dashboard")} className="text-sm text-app-ink-3 hover:text-app-ink-2">
               &larr; Back
             </button>
-            <h1 className="text-lg font-semibold text-gray-900">{currentCV!.title}</h1>
+            <h1 className="text-lg font-semibold text-app-ink">{currentCV!.title}</h1>
             {applicationContext && (
               <Link
                 to={`/dashboard/applications/${applicationContext.id}`}
                 title={APPLICATION_RELEVANCE_TOOLTIP}
                 aria-label={APPLICATION_RELEVANCE_TOOLTIP}
-                className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                className="rounded-full bg-app-primary-soft px-2.5 py-1 text-xs font-medium text-app-primary hover:bg-app-primary-soft"
               >
                 Relevance {"score" in applicationContext.relevance && typeof applicationContext.relevance.score === "number" ? `${applicationContext.relevance.score}%` : "—"}
               </Link>
@@ -431,17 +431,17 @@ export default function BuilderPage() {
           <div className="flex items-center gap-3">
             {hasUnsavedChanges && (
               <>
-                <span className="h-2 w-2 rounded-full bg-orange-500" aria-label="Unsaved changes" />
-                <span className="text-sm text-orange-600">Unsaved</span>
+                <span className="h-2 w-2 rounded-full bg-app-warning" aria-label="Unsaved changes" />
+                <span className="text-sm text-app-warning">Unsaved</span>
               </>
             )}
             {lastSaved && !isSaving && !showSavedFeedback && (
-              <span className="text-xs text-gray-400">Saved {formatLastSaved(lastSaved)}</span>
+              <span className="text-xs text-app-ink-3">Saved {formatLastSaved(lastSaved)}</span>
             )}
             <button
               onClick={handleSave}
               disabled={(!hasUnsavedChanges && !showSavedFeedback) || isSaving}
-              className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-md bg-app-primary px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-app-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSaving ? "Saving..." : showSavedFeedback ? "Saved!" : "Save"}
             </button>
@@ -455,15 +455,15 @@ export default function BuilderPage() {
           <motion.div
             initial={{ x: -20, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            className="flex w-1/2 flex-col overflow-hidden border-r bg-white"
+            className="flex w-1/2 flex-col overflow-hidden border-r bg-app-surface"
           >
-            <div className="flex border-b bg-gray-50">
+            <div className="flex border-b bg-app-canvas">
               <button
                 onClick={() => setActiveTab("content")}
                 className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
                   activeTab === "content"
-                    ? "border-b-2 border-blue-600 bg-white text-blue-700"
-                    : "text-gray-500 hover:text-gray-700"
+                    ? "border-b-2 border-app-primary bg-app-surface text-app-primary"
+                    : "text-app-ink-3 hover:text-app-ink-2"
                 }`}
               >
                 Content
@@ -472,8 +472,8 @@ export default function BuilderPage() {
                 onClick={() => setActiveTab("customize")}
                 className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
                   activeTab === "customize"
-                    ? "border-b-2 border-blue-600 bg-white text-blue-700"
-                    : "text-gray-500 hover:text-gray-700"
+                    ? "border-b-2 border-app-primary bg-app-surface text-app-primary"
+                    : "text-app-ink-3 hover:text-app-ink-2"
                 }`}
               >
                 Customize
@@ -510,10 +510,10 @@ export default function BuilderPage() {
             initial={{ x: 20, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ delay: 0.1 }}
-            className="w-1/2 overflow-y-auto bg-gray-100 p-6"
+            className="w-1/2 overflow-y-auto bg-app-surface-muted p-6"
           >
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-500">Preview</h2>
-            <div className="mx-auto max-w-[210mm] rounded bg-white shadow-sm">
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-app-ink-3">Preview</h2>
+            <div className="mx-auto max-w-[210mm] rounded bg-app-surface shadow-sm">
               <UserTemplateRenderer
                 instances={instances}
                 customizations={customizations}
@@ -529,7 +529,7 @@ export default function BuilderPage() {
         animate={{ opacity: 1 }}
         className="flex h-screen items-center justify-center"
       >
-        <p className="text-gray-500">CV not found</p>
+        <p className="text-app-ink-3">CV not found</p>
       </motion.div>
     )}
     </>
