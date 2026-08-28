@@ -173,7 +173,14 @@ class CVService:
             return None
 
         copied_metadata = dict(original.extra_metadata or {})
-        for key in ("application_id", "generated_by", "selected_sources", "extracted_keywords", "extracted_requirements"):
+        for key in (
+            "application_id",
+            "generated_by",
+            "selected_sources",
+            "extracted_keywords",
+            "extracted_requirements",
+            "fit_removed",
+        ):
             copied_metadata.pop(key, None)
 
         new_cv = CV(

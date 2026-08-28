@@ -6,6 +6,7 @@ import type { RequirementRelevanceResult } from "../../../lib/api/applications";
 const relevance: RequirementRelevanceResult = {
   status: "evaluated",
   score: 80,
+  coverage_score: 50,
   required_score: 100,
   preferred_score: 50,
   matched_weight: 4,
@@ -60,10 +61,33 @@ describe("RelevanceDrawer", () => {
     render(<RelevanceDrawer open relevance={relevance} onClose={vi.fn()} />);
 
     expect(screen.getByText((_, element) => element?.textContent?.replace(/\s+/g, " ").trim() === "1 of 2 requirements covered")).toBeInTheDocument();
+    expect(screen.getByText((_, element) => element?.textContent?.replace(/\s+/g, " ").trim() === "80% weighted relevance · 50% requirement coverage")).toBeInTheDocument();
     expect(screen.getAllByText("Python")).not.toHaveLength(0);
     expect(screen.getByText(/skills.*sections\[1\]\.data\[0\]\.items.*taxonomy/)).toBeInTheDocument();
     expect(screen.getByText("Rust")).toBeInTheDocument();
     expect(screen.getByText("No supporting CV evidence.")).toBeInTheDocument();
+  });
+
+  it("distinguishes a partial match from a missing requirement", () => {
+    render(
+      <RelevanceDrawer
+        open
+        relevance={{
+          ...relevance,
+          requirements: [
+            {
+              ...relevance.requirements[0],
+              covered: false,
+              score: 0.4,
+              best_evidence: { ...relevance.requirements[0].best_evidence!, score: 0.4 },
+            },
+          ],
+        }}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("40% partial")).toBeInTheDocument();
   });
 
   it("explains that a pending result is not a zero score", () => {

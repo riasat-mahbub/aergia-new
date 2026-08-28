@@ -61,6 +61,7 @@ function RequirementRelevance({ relevance }: { relevance: RequirementRelevanceRe
   return (
     <div className="space-y-4 py-6">
       <div className="rounded-md bg-app-canvas px-3 py-3 text-sm text-app-ink-2">
+        <p><strong className="text-app-ink">{relevance.score ?? "—"}%</strong> weighted relevance · <strong className="text-app-ink">{relevance.coverage_score ?? "—"}%</strong> requirement coverage</p>
         <p><strong className="text-app-ink">{relevance.covered_requirements}</strong> of <strong className="text-app-ink">{relevance.total_requirements}</strong> requirements covered</p>
         <p className="mt-1 text-xs text-app-ink-3">Required: {relevance.required_score ?? "—"}% · Preferred: {relevance.preferred_score ?? "—"}%</p>
       </div>
@@ -68,8 +69,8 @@ function RequirementRelevance({ relevance }: { relevance: RequirementRelevanceRe
         <article key={match.requirement.id} className="rounded-md border border-app-rule-soft bg-app-surface px-3 py-3 text-sm">
           <div className="flex items-start justify-between gap-3">
             <p className="font-medium text-app-ink">{match.requirement.text}</p>
-            <span className={match.covered ? "shrink-0 text-xs font-medium text-app-primary" : "shrink-0 text-xs font-medium text-app-ink-3"}>
-              {match.covered ? `${Math.round(match.score * 100)}%` : "Missing"}
+            <span className={match.covered ? "shrink-0 text-xs font-medium text-app-primary" : match.score > 0 ? "shrink-0 text-xs font-medium text-app-ink-2" : "shrink-0 text-xs font-medium text-app-ink-3"}>
+              {match.covered ? `${Math.round(match.score * 100)}% covered` : match.score > 0 ? `${Math.round(match.score * 100)}% partial` : "Missing"}
             </span>
           </div>
           <p className="mt-1 text-xs text-app-ink-3">{match.requirement.required ? "Required" : "Preferred"} · {match.requirement.type.replace("_", " ")}</p>

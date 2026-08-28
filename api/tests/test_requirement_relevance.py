@@ -1,8 +1,9 @@
-"""Contracts for requirement-v1 extraction, matching, and selection."""
+"""Contracts for requirement-v2 extraction, matching, and selection."""
 
 from app.services.relevance import (
     evaluate_requirement_relevance,
     extract_requirements,
+    requirement_row_removal_loss,
     select_requirement_library_rows,
 )
 
@@ -43,6 +44,7 @@ def test_constraints_use_experience_dates_and_degree_level():
     )
 
     assert result.score == 100
+    assert result.coverage_score == 100
     assert all(match.covered for match in result.requirements)
     assert {match.best_evidence.method for match in result.requirements if match.best_evidence} == {"constraint"}
 
@@ -84,3 +86,68 @@ def test_greedy_selection_avoids_duplicate_rows_after_coverage():
 
     assert [row.source_row_id for row in rows] == ["row-1"]
     assert rows[0].covered_requirement_ids == ("req-001",)
+
+
+def test_section_cues_classify_certifications_and_research():
+    requirements = extract_requirements(
+        "Network Engineer",
+        "CCNA certification required\nResearch publications preferred",
+    )
+
+    assert {item.type for item in requirements} == {"certification", "research"}
+    assert {item.canonical for item in requirements} == {"ccna", "research"}
+
+
+def test_education_is_a_baseline_and_job_evidence_drives_other_sections():
+    requirements = extract_requirements("Frontend Engineer", "React")
+    rows = select_requirement_library_rows(
+        requirements,
+        [
+            {"id": "education", "kind": "education", "payload": [{"id": "edu", "degree": "BSc"}]},
+            {"id": "skill", "kind": "skill", "payload": [{"id": "skill", "items": ["React"]}]},
+            {
+                "id": "project",
+                "kind": "project",
+                "payload": [{"id": "project", "name": "Dashboard", "tech_stack": ["React"]}],
+            },
+            {"id": "research", "kind": "research", "payload": [{"id": "research", "title": "History"}]},
+        ],
+    )
+
+    assert [row.kind for row in rows] == ["education", "skill", "project"]
+    assert rows[0].selection_reasons == ("baseline_education",)
+
+
+def test_specific_certification_and_research_evidence_can_drive_selection():
+    certification_requirements = extract_requirements("Network Engineer", "CCNA required")
+    certification_rows = select_requirement_library_rows(
+        certification_requirements,
+        [
+            {"id": "experience", "kind": "experience", "payload": [{"id": "exp", "description": "Networking"}]},
+            {"id": "certification", "kind": "certification", "payload": [{"id": "cert", "name": "CCNA"}]},
+        ],
+    )
+    assert [row.kind for row in certification_rows] == ["certification"]
+
+    research_requirements = extract_requirements("Research Scientist", "Research publications required")
+    research_rows = select_requirement_library_rows(
+        research_requirements,
+        [
+            {"id": "project", "kind": "project", "payload": [{"id": "project", "description": "Research"}]},
+            {"id": "research", "kind": "research", "payload": [{"id": "research", "title": "Research publication"}]},
+        ],
+    )
+    assert [row.kind for row in research_rows][0] == "research"
+
+
+def test_required_evidence_is_protected_from_fit_removal():
+    requirements = extract_requirements("Network Engineer", "CCNA required")
+    rows = select_requirement_library_rows(
+        requirements,
+        [
+            {"id": "certification", "kind": "certification", "payload": [{"id": "cert", "name": "CCNA"}]},
+        ],
+    )
+    certification = next(row for row in rows if row.kind == "certification")
+
+    assert requirement_row_removal_loss(requirements, certification, []) == float("inf")

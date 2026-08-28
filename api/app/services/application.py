@@ -23,7 +23,7 @@ from app.schemas.application import (
 from app.schemas.cv import CVCreate
 from app.services.cv import CVService
 from app.services.library import LibraryService
-from app.services.pdf import PDFService, pdf_page_count
+from app.services.pdf import PDFService, PDFUnavailableError, pdf_page_count
 from app.services.profile import ProfileService
 from app.services.relevance import (
     KEYWORD_EXTRACTION_ERROR,
@@ -36,6 +36,7 @@ from app.services.relevance import (
     score_requirement_skill_items,
     score_skill_items,
     select_requirement_library_rows,
+    requirement_row_removal_loss,
 )
 from app.services.quality import evaluate_cv_quality
 
@@ -54,17 +55,6 @@ _SECTION_ORDER: tuple[tuple[str, str, str], ...] = (
     ("projects", "Projects", "project"),
     ("research", "Research", "research"),
 )
-_REVERSE_FIT_PRIORITY = {
-    "research": 0,
-    "projects": 1,
-    "certifications": 2,
-    "experience": 3,
-    "skills": 4,
-    "languages": 5,
-    "education": 6,
-}
-
-
 @dataclass(frozen=True)
 class _SkillFitCandidate:
     row_index: int
@@ -256,7 +246,7 @@ class ApplicationService:
 
         try:
             selected = select_requirement_library_rows(requirements, library_entries)
-            sections, selected_after_fit, fits_one_page, page_count = await self._fit_sections(
+            sections, selected_after_fit, fits_one_page, page_count, fit_removed = await self._fit_sections(
                 profile.model_dump(exclude_none=True), selected, requirements
             )
             selected_sources = [
@@ -264,6 +254,8 @@ class ApplicationService:
                     "library_entry_id": row.library_entry_id,
                     "source_row_id": row.source_row_id,
                     "covered_requirements": list(row.covered_requirement_ids),
+                    "selection_gain": row.selection_gain,
+                    "selection_reasons": list(row.selection_reasons),
                 }
                 for row in selected_after_fit
             ]
@@ -272,6 +264,7 @@ class ApplicationService:
                 "generated_by": REQUIREMENT_ALGORITHM_VERSION,
                 "selected_sources": selected_sources,
                 "extracted_requirements": [requirement.model_dump() for requirement in requirements],
+                "fit_removed": fit_removed,
             }
             cv = await self.cv_service.create_cv(
                 user.id,
@@ -320,17 +313,21 @@ class ApplicationService:
         profile_data: dict[str, Any],
         selected_rows: list,
         keywords: list,
-    ) -> tuple[list[dict], list, bool, int | None]:
+    ) -> tuple[list[dict], list, bool | None, int | None, list[dict[str, Any]]]:
         sections, generated_ids = self._materialize_sections(profile_data, selected_rows)
         fit_rows = list(selected_rows)
         last_page_count: int | None = None
+        removed: list[dict[str, Any]] = []
         for attempt in range(MAX_FIT_PASSES):
-            pdf_bytes = await self.pdf_service.render_payload(
-                "generic-minimal", sections, {"spacing": "none"}
-            )
+            try:
+                pdf_bytes = await self.pdf_service.render_payload(
+                    "generic-minimal", sections, {"spacing": "none"}
+                )
+            except PDFUnavailableError:
+                return sections, fit_rows, None, None, removed
             last_page_count = pdf_page_count(pdf_bytes)
             if last_page_count == 1:
-                return sections, fit_rows, True, last_page_count
+                return sections, fit_rows, True, last_page_count, removed
             skill_candidates = self._skill_fit_candidates(keywords, fit_rows)
             if skill_candidates:
                 candidate = min(
@@ -348,6 +345,14 @@ class ApplicationService:
                 trimmed_payload = copy.deepcopy(row.payload)
                 items = list(trimmed_payload.get("items") or [])
                 if 0 <= candidate.item_index < len(items):
+                    removed.append(
+                        {
+                            "kind": "skill_item",
+                            "source_row_id": row.source_row_id,
+                            "item_index": candidate.item_index,
+                            "text": items[candidate.item_index],
+                        }
+                    )
                     del items[candidate.item_index]
                     trimmed_payload["items"] = items
                     trimmed_row = replace(row, payload=trimmed_payload)
@@ -357,21 +362,50 @@ class ApplicationService:
                 continue
             if not fit_rows or attempt == MAX_FIT_PASSES - 1:
                 break
-            remove_index = min(
-                range(len(fit_rows)),
-                key=lambda index: (
-                    fit_rows[index].normalized_score,
-                    _REVERSE_FIT_PRIORITY.get(fit_rows[index].section_type, 99),
-                    -fit_rows[index].order,
-                ),
-            )
+            education_count = sum(row.section_type == "education" for row in fit_rows)
+            non_education_indices = [
+                index for index, row in enumerate(fit_rows) if row.section_type != "education"
+            ]
+            education_indices = [
+                index
+                for index, row in enumerate(fit_rows)
+                if row.section_type == "education" and education_count > 1
+            ]
+            candidate_indices = non_education_indices or education_indices
+            scored_candidates: list[tuple[float, int, int]] = []
+            for index in candidate_indices:
+                candidate_row = fit_rows[index]
+                other_rows = [row for row_index, row in enumerate(fit_rows) if row_index != index]
+                loss = requirement_row_removal_loss(keywords, candidate_row, other_rows)
+                if loss != float("inf"):
+                    scored_candidates.append((loss, candidate_row.order, index))
+            if not scored_candidates:
+                # If all optional rows uniquely support required evidence, only
+                # extra education rows may still be trimmed.
+                for index in education_indices:
+                    candidate_row = fit_rows[index]
+                    other_rows = [row for row_index, row in enumerate(fit_rows) if row_index != index]
+                    loss = requirement_row_removal_loss(keywords, candidate_row, other_rows)
+                    if loss != float("inf"):
+                        scored_candidates.append((loss, candidate_row.order, index))
+            if not scored_candidates:
+                break
+            _loss, _order, remove_index = min(scored_candidates)
             row_to_remove = fit_rows.pop(remove_index)
+            removed.append(
+                {
+                    "kind": "row",
+                    "section_type": row_to_remove.section_type,
+                    "library_entry_id": row_to_remove.library_entry_id,
+                    "source_row_id": row_to_remove.source_row_id,
+                }
+            )
             self._remove_materialized_row(
                 sections,
                 row_to_remove.section_type,
                 generated_ids.pop(id(row_to_remove), None),
             )
-        return sections, fit_rows, False, last_page_count
+        return sections, fit_rows, False, last_page_count, removed
 
     @staticmethod
     def _skill_fit_candidates(keywords: list, fit_rows: list) -> list[_SkillFitCandidate]:

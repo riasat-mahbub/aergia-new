@@ -1,6 +1,6 @@
 """Deterministic requirement/keyword extraction, Library matching, and CV relevance.
 
-The ``requirement-v1`` contract is intentionally self-contained. It performs no
+The ``requirement-v2`` contract is intentionally self-contained. It performs no
 network, renderer, subprocess, or model inference. FTS5 is used only as an
 in-memory lexical ranker, so a saved job can be reproduced from its input text
 and the user's Library/CV snapshot. The older ``keyword-v1`` helpers remain
@@ -30,12 +30,25 @@ from app.schemas.application import (
 from app.services.relevance_taxonomy import ALIAS_TO_CANONICAL, TAXONOMY
 
 ALGORITHM_VERSION = "keyword-v1"
-REQUIREMENT_ALGORITHM_VERSION = "requirement-v1"
+REQUIREMENT_ALGORITHM_VERSION = "requirement-v2"
 MAX_KEYWORDS = 30
 MAX_REQUIREMENTS = 40
 ENTRY_RELEVANCE_THRESHOLD = 0.35
-MAX_FIT_PASSES = 8
+MAX_FIT_PASSES = 64
 REQUIREMENT_COVERAGE_THRESHOLD = 0.65
+MIN_SELECTION_GAIN = 0.03
+COMPLEMENTARY_EVIDENCE_BONUS = 0.18
+MAX_COMPLEMENTARY_SECTIONS = {
+    "hard_skill": 3,
+    "responsibility": 2,
+    "quantitative": 2,
+    "education": 2,
+    "certification": 2,
+    "language": 2,
+    "project": 2,
+    "research": 2,
+    "other": 2,
+}
 
 try:  # RapidFuzz is the production implementation; the fallback keeps tests portable.
     from rapidfuzz.fuzz import ratio as _rapidfuzz_ratio
@@ -176,6 +189,8 @@ class ScoredLibraryRow:
     normalized_score: float
     order: int
     covered_requirement_ids: tuple[str, ...] = ()
+    selection_gain: float = 0.0
+    selection_reasons: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -209,6 +224,34 @@ LIBRARY_KIND_TO_SECTION_TYPE: dict[str, str] = {
     "certification": "certifications",
     "language": "languages",
     "research": "research",
+}
+
+# These are evidence affinities, not a section hierarchy. They describe which
+# sections can naturally prove a requirement. A strong match in a lower-affinity
+# section can still win when it is the only or best available evidence.
+_REQUIREMENT_SECTION_AFFINITY: dict[str, dict[str, float]] = {
+    "hard_skill": {
+        "skills": 0.95,
+        "experience": 0.9,
+        "projects": 0.85,
+        "research": 0.45,
+    },
+    "responsibility": {
+        "experience": 1.0,
+        "projects": 0.8,
+        "research": 0.55,
+    },
+    "quantitative": {
+        "experience": 1.0,
+        "projects": 0.85,
+        "skills": 0.65,
+    },
+    "education": {"education": 1.0, "experience": 0.45},
+    "certification": {"certifications": 1.0, "experience": 0.75},
+    "language": {"languages": 1.0, "experience": 0.65},
+    "project": {"projects": 1.0, "experience": 0.85, "skills": 0.7},
+    "research": {"research": 1.0, "experience": 0.85, "projects": 0.6, "education": 0.5},
+    "other": {"experience": 0.8, "projects": 0.7, "skills": 0.65},
 }
 
 # These are deliberately closed.  Contact fields, dates, IDs, URLs, styles,
@@ -755,7 +798,7 @@ def calculate_relevance(
 
 
 # ---------------------------------------------------------------------------
-# requirement-v1
+# requirement-v2
 # ---------------------------------------------------------------------------
 
 
@@ -794,11 +837,98 @@ _DEGREE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("associate", re.compile(r"(?<!\w)(?:associate(?:'s)?|a\.?a\.?|a\.?s\.?)(?!\w)", re.IGNORECASE)),
 )
 _DEGREE_RANK = {"associate": 1, "bachelor": 2, "master": 3, "phd": 4}
+_CERTIFICATION_CUE_RE = re.compile(
+    r"\b(?:certificat(?:e|ion)|certified|licen[cs]e[sd]?|ccna|ccnp|cissp|pmp|comptia|itil)\b",
+    re.IGNORECASE,
+)
+_LANGUAGE_CUE_RE = re.compile(
+    r"\b(?:fluent|fluency|bilingual|multilingual|spoken|written|language proficiency|language skills)\b",
+    re.IGNORECASE,
+)
+_COMMON_LANGUAGE_NAMES = frozenset(
+    {
+        "arabic",
+        "chinese",
+        "dutch",
+        "english",
+        "french",
+        "german",
+        "hindi",
+        "italian",
+        "japanese",
+        "korean",
+        "mandarin",
+        "portuguese",
+        "russian",
+        "spanish",
+    }
+)
+_PROJECT_CUE_RE = re.compile(
+    r"\b(?:project|portfolio|side project|personal project|capstone|shipped product)\b",
+    re.IGNORECASE,
+)
+_RESEARCH_CUE_RE = re.compile(
+    r"\b(?:research|publication|published|laboratory|lab|thesis|academic|peer[- ]reviewed)\b",
+    re.IGNORECASE,
+)
 
 
 def _clean_requirement_line(line: str) -> str:
     cleaned = re.sub(r"^\s*(?:[-*•▪‣]|\d+[.)])\s*", "", line).strip()
     return re.sub(r"\s+", " ", cleaned)
+
+
+def _requirement_type_for_line(
+    line: str,
+    context: str | None,
+    taxonomy_hits: Sequence[tuple[str, str, str]],
+    *,
+    has_degree: bool,
+    has_years: bool,
+) -> str:
+    """Infer the evidence family a job line naturally needs.
+
+    This is deliberately a small, explainable cue map. It does not decide
+    which section must be selected: the selector still scores every row that
+    can support the requirement.
+    """
+
+    text = normalize_text(f"{context or ''} {line}")
+    if has_degree:
+        return "education"
+    if _CERTIFICATION_CUE_RE.search(text):
+        return "certification"
+    if _LANGUAGE_CUE_RE.search(text) or normalize_text(line) in _COMMON_LANGUAGE_NAMES:
+        return "language"
+    if _RESEARCH_CUE_RE.search(text):
+        return "research"
+    if _PROJECT_CUE_RE.search(text):
+        return "project"
+    if taxonomy_hits:
+        return taxonomy_hits[0][1]
+    if has_years:
+        return "quantitative"
+    return "other"
+
+
+def _free_text_subject(line: str, requirement_type: str) -> str:
+    """Remove section wording so bounded prose matches its useful subject."""
+
+    markers = {
+        "certification": r"\b(?:certificat(?:e|ion)|certified|licen[cs]e[sd]?)\b",
+        "language": r"\b(?:language proficiency|language skills|fluent|fluency|bilingual|multilingual|spoken|written)\b",
+        "project": r"\b(?:project|portfolio|side project|personal project|capstone|shipped product)\b",
+        "research": r"\b(?:publication|publications|published|laboratory|lab|thesis|academic|peer[- ]reviewed)\b",
+    }
+    subject = re.sub(markers.get(requirement_type, r"$^"), " ", line, flags=re.IGNORECASE)
+    subject = re.sub(
+        r"\b(?:required|preferred|desirable|optional|nice to have|bonus|plus)\b",
+        " ",
+        subject,
+        flags=re.IGNORECASE,
+    )
+    subject = re.sub(r"\s+", " ", subject).strip(" .,;:-")
+    return subject or line
 
 
 def _requirement_priority(source: str, line: str, context: str | None) -> tuple[bool, bool]:
@@ -918,6 +1048,15 @@ def extract_requirements(role: str, job_description: str) -> list[JobRequirement
         required, preferred = _requirement_priority(source, line, context)
         weight = _draft_weight(required, preferred)
         hits = _taxonomy_hits(line)
+        years_match = _YEARS_RE.search(line)
+        degree_level = next((level for level, pattern in _DEGREE_PATTERNS if pattern.search(line)), None)
+        line_type = _requirement_type_for_line(
+            line,
+            context,
+            hits,
+            has_degree=bool(degree_level or re.search(r"\bdegree\b", line, re.IGNORECASE)),
+            has_years=bool(years_match),
+        )
 
         for canonical, requirement_type, _alias in hits:
             key = ("concept", canonical)
@@ -927,7 +1066,7 @@ def extract_requirements(role: str, job_description: str) -> list[JobRequirement
                     text=canonical,
                     normalized=normalize_text(canonical),
                     canonical=canonical,
-                    requirement_type=requirement_type,
+                    requirement_type=line_type if line_type != "other" else requirement_type,
                     required=required or (existing.required if existing else False),
                     weight=max(weight, existing.weight if existing else 0.0),
                     constraint=None,
@@ -936,7 +1075,6 @@ def extract_requirements(role: str, job_description: str) -> list[JobRequirement
                 existing.required = existing.required or required
                 existing.weight = max(existing.weight, weight)
 
-        years_match = _YEARS_RE.search(line)
         if years_match:
             minimum = int(years_match.group(1))
             key = ("years", minimum)
@@ -956,7 +1094,6 @@ def extract_requirements(role: str, job_description: str) -> list[JobRequirement
                 existing.required = existing.required or required
                 existing.weight = max(existing.weight, weight)
 
-        degree_level = next((level for level, pattern in _DEGREE_PATTERNS if pattern.search(line)), None)
         if degree_level or re.search(r"\bdegree\b", line, re.IGNORECASE):
             key = ("degree", degree_level or normalize_text(line))
             existing = drafts.get(key)
@@ -981,14 +1118,15 @@ def extract_requirements(role: str, job_description: str) -> list[JobRequirement
             # A complete line is the bounded free-text unit.  This is useful
             # for a product name or responsibility absent from the taxonomy,
             # without generating every arbitrary JD n-gram.
-            key = ("text", normalize_text(line))
+            subject = _free_text_subject(line, line_type)
+            key = ("text", normalize_text(subject))
             drafts.setdefault(
                 key,
                 _RequirementDraft(
-                    text=line,
-                    normalized=normalize_text(line),
+                    text=subject,
+                    normalized=normalize_text(subject),
                     canonical=None,
-                    requirement_type="other",
+                    requirement_type=line_type,
                     required=required,
                     weight=weight,
                     constraint=None,
@@ -1292,6 +1430,7 @@ def not_evaluated_relevance(requirements: Iterable[JobRequirement | Mapping[str,
     return RequirementRelevanceResult(
         status="not_evaluated",
         score=None,
+        coverage_score=None,
         required_score=None,
         preferred_score=None,
         matched_weight=0.0,
@@ -1334,6 +1473,11 @@ def evaluate_requirement_relevance(
     return RequirementRelevanceResult(
         status="evaluated",
         score=round(100 * matched_weight / total_weight) if total_weight else 0,
+        coverage_score=(
+            round(100 * sum(item.requirement.weight for item in matches if item.covered) / total_weight)
+            if total_weight
+            else 0
+        ),
         required_score=component_score(lambda item: item.required),
         preferred_score=component_score(lambda item: not item.required),
         matched_weight=round(matched_weight, 4),
@@ -1345,88 +1489,257 @@ def evaluate_requirement_relevance(
     )
 
 
+def _section_affinity(requirement: JobRequirement, section_type: str) -> float:
+    """Return how naturally a section proves one requirement family."""
+
+    return _REQUIREMENT_SECTION_AFFINITY.get(requirement.type, {}).get(section_type, 0.0)
+
+
+def _matches_for_library_row(
+    requirements: Sequence[JobRequirement],
+    row: _LibraryRow,
+) -> list[_RequirementMatchData]:
+    experience_years = _years_from_rows([row.payload]) if row.kind == "experience" else None
+    return [
+        _match_requirement(requirement, row.fields, experience_years=experience_years)
+        for requirement in requirements
+    ]
+
+
+def _fields_for_scored_row(row: ScoredLibraryRow) -> tuple[LibraryField, ...]:
+    return _row_fields(
+        kind=row.kind,
+        row=row.payload,
+        entry_id=row.library_entry_id,
+        row_id=row.source_row_id,
+        row_path="payload[0]",
+    )
+
+
+def _selection_value(
+    row: _LibraryRow,
+    matches: Sequence[_RequirementMatchData],
+    best_scores: Mapping[str, float],
+    evidence_sections: Mapping[str, set[str]],
+    total_weight: float,
+) -> tuple[float, tuple[str, ...], tuple[str, ...]]:
+    """Score a row by new evidence and complementary proof.
+
+    The value is deliberately driven by the job requirements. Section
+    affinities explain what evidence means, but never impose a global section
+    ordering.
+    """
+
+    value = 0.0
+    newly_covered: list[str] = []
+    reasons: list[str] = []
+    for match in matches:
+        if match.score <= 0:
+            continue
+        requirement = match.requirement
+        affinity = _section_affinity(requirement, row.section_type)
+        if affinity <= 0:
+            continue
+        previous_score = best_scores.get(requirement.id, 0.0)
+        improvement = max(0.0, match.score - previous_score)
+        value += requirement.weight * improvement * affinity
+        if improvement > 0:
+            reasons.append(requirement.canonical or requirement.normalized)
+            if match.covered and previous_score < REQUIREMENT_COVERAGE_THRESHOLD:
+                newly_covered.append(requirement.id)
+
+        # A direct skill plus a project/experience example is useful even when
+        # both match the same requirement perfectly. Limit this to one extra
+        # section so duplicate Library rows do not inflate selection.
+        prior_sections = evidence_sections.get(requirement.id, set())
+        if (
+            match.score >= REQUIREMENT_COVERAGE_THRESHOLD
+            and prior_sections
+            and row.section_type not in prior_sections
+            and len(prior_sections) < MAX_COMPLEMENTARY_SECTIONS.get(requirement.type, 2)
+        ):
+            value += requirement.weight * match.score * affinity * COMPLEMENTARY_EVIDENCE_BONUS
+            reasons.append(f"complements:{requirement.canonical or requirement.normalized}")
+
+    return (
+        value / total_weight,
+        tuple(dict.fromkeys(newly_covered)),
+        tuple(dict.fromkeys(reasons)),
+    )
+
+
+def _record_selected_row(
+    selected: list[ScoredLibraryRow],
+    row: _LibraryRow,
+    matches: Sequence[_RequirementMatchData],
+    gain: float,
+    newly_covered: Sequence[str],
+    reasons: Sequence[str],
+    best_scores: dict[str, float],
+    evidence_sections: dict[str, set[str]],
+    total_weight: float,
+) -> None:
+    total_row_score = sum(item.requirement.weight * item.score for item in matches)
+    selected.append(
+        ScoredLibraryRow(
+            kind=row.kind,
+            section_type=row.section_type,
+            library_entry_id=row.library_entry_id,
+            source_row_id=row.source_row_id,
+            payload=row.payload,
+            score=round(total_row_score, 4),
+            normalized_score=round(total_row_score / total_weight, 4),
+            order=row.order,
+            covered_requirement_ids=tuple(newly_covered),
+            selection_gain=round(gain, 4),
+            selection_reasons=tuple(reasons),
+        )
+    )
+    for match in matches:
+        if match.score <= 0:
+            continue
+        best_scores[match.requirement.id] = max(best_scores.get(match.requirement.id, 0.0), match.score)
+        if match.score >= REQUIREMENT_COVERAGE_THRESHOLD:
+            evidence_sections.setdefault(match.requirement.id, set()).add(row.section_type)
+
+
 def select_requirement_library_rows(
     requirements: Iterable[JobRequirement | Mapping[str, object] | str],
     library_entries: Iterable[object],
 ) -> list[ScoredLibraryRow]:
-    """Greedily select Library rows by marginal weighted requirement coverage."""
+    """Select baseline education and then the highest-value job evidence.
+
+    Profile is materialized by the application service. Populated education is
+    selected as a baseline; every other row competes by marginal requirement
+    coverage, evidence affinity, and complementary proof.
+    """
+
     extracted = _coerce_requirements(requirements)
     rows = _library_rows(library_entries)
     if not extracted:
-        return []
-
-    row_matches: dict[int, list[_RequirementMatchData]] = {}
-    for row in rows:
-        row_matches[id(row)] = [
-            _match_requirement(
-                requirement,
-                row.fields,
-                experience_years=_years_from_rows([row.payload]) if row.kind == "experience" else None,
+        return [
+            ScoredLibraryRow(
+                kind=row.kind,
+                section_type=row.section_type,
+                library_entry_id=row.library_entry_id,
+                source_row_id=row.source_row_id,
+                payload=row.payload,
+                score=0.0,
+                normalized_score=0.0,
+                order=row.order,
+                selection_reasons=("baseline_education",),
             )
-            for requirement in extracted
+            for row in rows
+            if row.kind == "education" and row.fields
         ]
 
-    selected: list[ScoredLibraryRow] = []
-    covered: set[str] = set()
-    remaining = {id(row): row for row in rows}
     total_weight = sum(item.weight for item in extracted) or 1.0
-    while remaining:
-        choices: list[tuple[float, float, int, _LibraryRow, list[_RequirementMatchData]]] = []
-        for row in remaining.values():
-            matches = row_matches[id(row)]
-            new_matches = [item for item in matches if item.covered and item.requirement.id not in covered]
-            gain = sum(item.requirement.weight * item.score for item in new_matches)
-            total_row_score = sum(item.requirement.weight * item.score for item in matches)
-            if gain > 0:
-                choices.append((gain, total_row_score, -row.order, row, new_matches))
-        if not choices:
-            break
-        _gain, total_row_score, _order, row, new_matches = max(choices, key=lambda item: item[:3])
-        selected.append(
-            ScoredLibraryRow(
-                kind=row.kind,
-                section_type=row.section_type,
-                library_entry_id=row.library_entry_id,
-                source_row_id=row.source_row_id,
-                payload=row.payload,
-                score=round(total_row_score, 4),
-                normalized_score=round(total_row_score / total_weight, 4),
-                order=row.order,
-                covered_requirement_ids=tuple(item.requirement.id for item in new_matches),
-            )
-        )
-        covered.update(item.requirement.id for item in new_matches)
-        remaining.pop(id(row), None)
+    row_matches = {id(row): _matches_for_library_row(extracted, row) for row in rows}
+    selected: list[ScoredLibraryRow] = []
+    remaining = {id(row): row for row in rows}
+    best_scores: dict[str, float] = {}
+    evidence_sections: dict[str, set[str]] = {}
 
-    # A CV's sections carry different evidentiary meaning. Once the greedy
-    # pass has covered the requirements, retain the strongest relevant row for
-    # a kind that would otherwise disappear (for example, education can be
-    # relevant even when a project already covers the same technology). This
-    # is one row per kind, not a return to keyword-frequency selection.
-    selected_kinds = {row.kind for row in selected}
-    for row in sorted(remaining.values(), key=lambda item: item.order):
-        if row.kind in selected_kinds:
+    # Education is a stable CV baseline. Include every populated row before
+    # job-specific selection and let the fitter reduce it only as a last resort.
+    for row in rows:
+        if row.kind != "education" or not row.fields:
             continue
         matches = row_matches[id(row)]
-        covered_matches = [item for item in matches if item.covered]
-        if not covered_matches and row.kind != "education":
-            continue
-        total_row_score = sum(item.requirement.weight * item.score for item in matches)
-        selected.append(
-            ScoredLibraryRow(
-                kind=row.kind,
-                section_type=row.section_type,
-                library_entry_id=row.library_entry_id,
-                source_row_id=row.source_row_id,
-                payload=row.payload,
-                score=round(total_row_score, 4),
-                normalized_score=round(total_row_score / total_weight, 4),
-                order=row.order,
-                covered_requirement_ids=tuple(item.requirement.id for item in covered_matches),
-            )
+        _record_selected_row(
+            selected,
+            row,
+            matches,
+            0.0,
+            [match.requirement.id for match in matches if match.covered],
+            ("baseline_education",),
+            best_scores,
+            evidence_sections,
+            total_weight,
         )
-        selected_kinds.add(row.kind)
+        remaining.pop(id(row), None)
+
+    while remaining:
+        choices: list[tuple[float, float, int, _LibraryRow, list[_RequirementMatchData], tuple[str, ...], tuple[str, ...]]] = []
+        for row in remaining.values():
+            matches = row_matches[id(row)]
+            gain, newly_covered, reasons = _selection_value(
+                row,
+                matches,
+                best_scores,
+                evidence_sections,
+                total_weight,
+            )
+            total_row_score = sum(item.requirement.weight * item.score for item in matches)
+            if gain >= MIN_SELECTION_GAIN:
+                # There is no semantic section tie-breaker. Total evidence and
+                # then original Library order make equal choices reproducible.
+                choices.append((gain, total_row_score, -row.order, row, matches, newly_covered, reasons))
+        if not choices:
+            break
+        gain, _total_row_score, _order, row, matches, newly_covered, reasons = max(choices, key=lambda item: item[:3])
+        _record_selected_row(
+            selected,
+            row,
+            matches,
+            gain,
+            newly_covered,
+            reasons,
+            best_scores,
+            evidence_sections,
+            total_weight,
+        )
+        remaining.pop(id(row), None)
     return selected
+
+
+def requirement_row_removal_loss(
+    requirements: Iterable[JobRequirement | Mapping[str, object] | str],
+    candidate: ScoredLibraryRow,
+    other_rows: Iterable[ScoredLibraryRow],
+) -> float:
+    """Return relevance lost by removing a row from a fitted CV.
+
+    A row that uniquely covers a required requirement is protected with an
+    infinite loss. Otherwise the loss is the candidate's evidence that cannot
+    be reproduced by the remaining rows.
+    """
+
+    extracted = _coerce_requirements(requirements)
+    candidate_fields = _fields_for_scored_row(candidate)
+    candidate_matches = [
+        _match_requirement(
+            requirement,
+            candidate_fields,
+            experience_years=_years_from_rows([candidate.payload]) if candidate.kind == "experience" else None,
+        )
+        for requirement in extracted
+    ]
+    other_matches: list[list[_RequirementMatchData]] = []
+    for row in other_rows:
+        fields = _fields_for_scored_row(row)
+        other_matches.append(
+            [
+                _match_requirement(
+                    requirement,
+                    fields,
+                    experience_years=_years_from_rows([row.payload]) if row.kind == "experience" else None,
+                )
+                for requirement in extracted
+            ]
+        )
+
+    loss = 0.0
+    for index, match in enumerate(candidate_matches):
+        other_score = max((matches[index].score for matches in other_matches), default=0.0)
+        if match.requirement.required and match.covered and other_score < REQUIREMENT_COVERAGE_THRESHOLD:
+            return float("inf")
+        loss += (
+            match.requirement.weight
+            * max(0.0, match.score - other_score)
+            * _section_affinity(match.requirement, candidate.section_type)
+        )
+    return loss
 
 
 def score_requirement_skill_items(
@@ -1503,6 +1816,7 @@ __all__ = [
     "normalize_text",
     "score_cv_relevance",
     "score_requirement_skill_items",
+    "requirement_row_removal_loss",
     "score_library_rows",
     "score_skill_items",
     "select_requirement_library_rows",

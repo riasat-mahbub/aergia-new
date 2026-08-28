@@ -13,6 +13,10 @@ from app.services.renderer import HTMLDocumentRenderer, build_document, resolve
 from app.services.renderer._pdf_runtime import html_to_pdf
 
 
+class PDFUnavailableError(RuntimeError):
+    """Raised when the external Chromium runtime cannot render a PDF."""
+
+
 class PDFService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -38,7 +42,10 @@ class PDFService:
         renderer = HTMLDocumentRenderer()
         model = resolve(document, renderer, manifest, customizations_model)
         html = renderer.render(model)
-        return await html_to_pdf(html)
+        try:
+            return await html_to_pdf(html)
+        except Exception as exc:
+            raise PDFUnavailableError("PDF rendering is unavailable") from exc
 
     async def export_pdf(self, cv_id: str, user_id: str) -> bytes:
         cv = await self.cv_service.get_cv(cv_id, user_id)
@@ -55,4 +62,4 @@ def pdf_page_count(pdf_bytes: bytes) -> int:
         document.close()
 
 
-__all__ = ["PDFService", "pdf_page_count"]
+__all__ = ["PDFService", "PDFUnavailableError", "pdf_page_count"]
