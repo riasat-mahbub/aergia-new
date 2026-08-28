@@ -42,8 +42,8 @@ vi.mock("../../lib/api/client", () => ({
 
 function renderCvList() {
   const router = createMemoryRouter(
-    [{ path: "/dashboard", element: <AppLayout><CvListPage /></AppLayout> }],
-    { initialEntries: ["/dashboard"] }
+    [{ path: "/dashboard/cvs", element: <AppLayout><CvListPage /></AppLayout> }],
+    { initialEntries: ["/dashboard/cvs"] }
   );
   return render(<RouterProvider router={router} />);
 }
@@ -55,10 +55,10 @@ describe("CvListPage", () => {
 
   it("renders empty state when no CVs", () => {
     renderCvList();
-    expect(screen.getByText(/no cvs yet/i)).toBeDefined();
+    expect(screen.getByText(/no reusable cvs yet/i)).toBeDefined();
   });
 
-  it("renders CV cards when list is populated", async () => {
+  it("renders reusable CV cards and hides application-generated CVs", async () => {
     const cvList: CVListItem[] = [
       {
         id: "1",
@@ -108,16 +108,11 @@ describe("CvListPage", () => {
     renderCvList();
 
     await waitFor(() => {
-      expect(screen.getByText("Software Engineer CV")).toBeDefined();
       expect(screen.getByText("DevOps CV")).toBeDefined();
     });
-    expect(screen.getByRole("heading", { name: "Application CVs" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Other CVs" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Example Labs.*Platform Engineer/i })).toHaveAttribute(
-      "href",
-      "/dashboard/applications/app-1",
-    );
-    expect(screen.getByRole("heading", { name: "Other CVs" }).parentElement).toHaveTextContent("DevOps CV");
+    expect(screen.queryByText("Software Engineer CV")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Application CVs" })).not.toBeInTheDocument();
+    expect(screen.getByText(/Tailored application CVs live with their applications/)).toBeInTheDocument();
   });
 
   it("shows create dialog when clicking + New CV", async () => {
