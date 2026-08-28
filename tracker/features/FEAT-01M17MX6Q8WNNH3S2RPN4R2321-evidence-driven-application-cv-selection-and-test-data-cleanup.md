@@ -21,6 +21,7 @@ AFFECTS:
   files:
   - api/app/services/relevance.py
   - api/app/services/application.py
+  - api/app/services/cv.py
   - api/app/schemas/application.py
   - api/scripts/cleanup_application_artifacts.py
   - api/tests/conftest.py
@@ -48,8 +49,8 @@ Replace fixed section ordering with evidence-driven Library selection while pres
   evidence policy. Profile is materialized separately, education is a weak
   fallback, and the fit loop uses a fixed reverse section priority.
 - The local databases contain disposable application data. Generated CVs are
-  identified by an application relation or `metadata.application_id`; other
-  CVs must remain untouched.
+  identified only by the `applications.cv_id` relation because CV metadata is
+  user-editable; all unlinked CVs must remain untouched.
 
 
 ## Decision
@@ -63,7 +64,8 @@ Replace fixed section ordering with evidence-driven Library selection while pres
   proof decide the result; stable row order resolves exact ties.
 - New generation uses requirement-v2 while legacy results remain readable.
 - Application cleanup is transactional and explicit per database, with a
-  recoverable backup and dry-run mode. No production data migration is added.
+  recoverable backup and dry-run mode. Only relationally linked CVs are
+  removed; no production data migration is added.
 
 
 ## Implementation
