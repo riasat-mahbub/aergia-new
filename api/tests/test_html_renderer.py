@@ -751,6 +751,21 @@ def test_rich_text_bold_inline_renders_span():
     assert "bold" in html
 
 
+def test_rich_text_list_link_and_font_size_survive_html_rendering():
+    field = FieldBlock(
+        key="description", group="body", runs=[], rich_text=True,
+        blocks=[{
+            "type": "bullet_list",
+            "items": [{"text": "Read more", "style": {"bold": True, "font_size": "large", "link": "https://example.com"}}],
+        }],
+    )
+    html = _render_field_html(field)
+    assert '<ul><li><a href="https://example.com"' in html
+    assert "font-weight:700" in html
+    assert "font-size:1.125rem" in html
+    assert "Read more" in html
+
+
 def test_legacy_string_description_renders_unchanged():
     """Legacy string descriptions still render as before."""
     field = FieldBlock(key="description", group="body", runs=[TextRun(text="Legacy text")])

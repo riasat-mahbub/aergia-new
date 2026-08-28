@@ -14,6 +14,12 @@ describe("RichTextEditor accessibility and link controls", () => {
     expect(screen.getByRole("textbox", { name: "Rich text editor" })).toBeInTheDocument();
   });
 
+  it("shows guidance when a rich-text field is empty", () => {
+    render(<RichTextEditor value={[]} onChange={vi.fn()} />);
+
+    expect(screen.getByText("Write a concise description…")).toBeInTheDocument();
+  });
+
   it("opens an application-styled link dialog and validates unsafe URLs", async () => {
     const user = userEvent.setup();
     render(<RichTextEditor value={[{ type: "paragraph", items: [{ text: "Hello" }] }]} onChange={vi.fn()} />);

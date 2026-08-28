@@ -109,7 +109,7 @@ export default function ProjectsEditor({ data = [], onChange, context, mode = "s
               <RichTextEditor
                 value={entry.description}
                 onChange={(blocks) => update(i, "description", blocks)}
-                placeholder="Description"
+                placeholder="Describe the project, impact, and key details…"
               />
             </div>
             <div className="mt-2">

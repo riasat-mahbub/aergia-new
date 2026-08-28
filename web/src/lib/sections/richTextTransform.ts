@@ -32,6 +32,8 @@ const CSS_TO_FONT_SIZE: Record<string, FontSizeToken> = Object.fromEntries(
 ) as Record<string, FontSizeToken>;
 
 const SAFE_HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+const SAFE_PALETTE_REF = /^palette\.[a-z][a-z0-9_-]*$/;
+const PALETTE_CSS_REF = /^var\(--palette-([a-z][a-z0-9_-]*)\)$/;
 
 /** Decode only the inline CSS declarations emitted by this editor.
  *
@@ -53,6 +55,9 @@ function decodeStyle(styleValue: unknown): TextStyle | undefined {
       if (token) style.font_size = token;
     } else if (property === "color" && SAFE_HEX_COLOR.test(value)) {
       style.color = value;
+    } else if (property === "color") {
+      const paletteMatch = value.match(PALETTE_CSS_REF);
+      if (paletteMatch) style.color = `palette.${paletteMatch[1]}`;
     }
   }
   return Object.keys(style).length > 0 ? style : undefined;
@@ -176,6 +181,8 @@ function encodeStyle(style: TextStyle | undefined | null): string {
   }
   if (style.color && SAFE_HEX_COLOR.test(style.color)) {
     declarations.push(`color:${style.color}`);
+  } else if (style.color && SAFE_PALETTE_REF.test(style.color)) {
+    declarations.push(`color:var(--palette-${style.color.slice("palette.".length)})`);
   }
   return declarations.join(";");
 }
