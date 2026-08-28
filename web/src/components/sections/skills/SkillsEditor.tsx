@@ -8,9 +8,10 @@ interface Props {
   data: SkillGroup[] | undefined;
   onChange: (data: SkillGroup[]) => void;
   context?: { cvId: string; sectionId: string };
+  mode?: "section" | "library";
 }
 
-export default function SkillsEditor({ data = [], onChange, context }: Props) {
+export default function SkillsEditor({ data = [], onChange, context, mode = "section" }: Props) {
   const { entries, add, remove, update, move } = useFieldArray(data, onChange, () => ({
     id: `sk_${Date.now()}`,
     category: "",
@@ -33,6 +34,7 @@ export default function SkillsEditor({ data = [], onChange, context }: Props) {
         entries={entries}
         onRemove={remove}
         onMove={move}
+        compact={mode === "library"}
         getTitle={(e: any) => e.category || "New Skill Group"}
         onAddToLibrary={
           context
@@ -84,20 +86,22 @@ export default function SkillsEditor({ data = [], onChange, context }: Props) {
           </div>
         )}
       </SortableAccordionList>
-      <EntryAddRow
-        kind="skill"
-        addLabel="Skill Group"
-        onAddNew={add}
-        onPickFromLibrary={(picked) => {
-          if (!picked) return;
-          const incoming = Array.isArray(picked.data) ? picked.data : [];
-          const stamped = incoming.map((row) => ({
-            ...(row as Record<string, unknown>),
-            id: `sk_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-          }));
-          onChange([...entries, ...(stamped as SkillGroup[])]);
-        }}
-      />
+      {mode !== "library" && (
+        <EntryAddRow
+          kind="skill"
+          addLabel="Skill Group"
+          onAddNew={add}
+          onPickFromLibrary={(picked) => {
+            if (!picked) return;
+            const incoming = Array.isArray(picked.data) ? picked.data : [];
+            const stamped = incoming.map((row) => ({
+              ...(row as Record<string, unknown>),
+              id: `sk_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            }));
+            onChange([...entries, ...(stamped as SkillGroup[])]);
+          }}
+        />
+      )}
     </div>
   );
 }

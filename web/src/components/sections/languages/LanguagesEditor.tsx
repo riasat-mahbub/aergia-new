@@ -8,11 +8,12 @@ interface Props {
   data: LanguageEntry[] | undefined;
   onChange: (data: LanguageEntry[]) => void;
   context?: { cvId: string; sectionId: string };
+  mode?: "section" | "library";
 }
 
 const PROFICIENCIES = ["Native", "Fluent", "Advanced", "Intermediate", "Basic"];
 
-export default function LanguagesEditor({ data = [], onChange, context }: Props) {
+export default function LanguagesEditor({ data = [], onChange, context, mode = "section" }: Props) {
   const { entries, add, remove, update, move } = useFieldArray(data, onChange, () => ({
     id: `lang_${Date.now()}`,
     language: "",
@@ -25,6 +26,7 @@ export default function LanguagesEditor({ data = [], onChange, context }: Props)
         entries={entries}
         onRemove={remove}
         onMove={move}
+        compact={mode === "library"}
         getTitle={(e: any) => e.language || "New Language"}
         onAddToLibrary={
           context
@@ -54,20 +56,22 @@ export default function LanguagesEditor({ data = [], onChange, context }: Props)
           </div>
         )}
       </SortableAccordionList>
-      <EntryAddRow
-        kind="language"
-        addLabel="Language"
-        onAddNew={add}
-        onPickFromLibrary={(picked) => {
-          if (!picked) return;
-          const incoming = Array.isArray(picked.data) ? picked.data : [];
-          const stamped = incoming.map((row) => ({
-            ...(row as Record<string, unknown>),
-            id: `lang_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-          }));
-          onChange([...entries, ...(stamped as LanguageEntry[])]);
-        }}
-      />
+      {mode !== "library" && (
+        <EntryAddRow
+          kind="language"
+          addLabel="Language"
+          onAddNew={add}
+          onPickFromLibrary={(picked) => {
+            if (!picked) return;
+            const incoming = Array.isArray(picked.data) ? picked.data : [];
+            const stamped = incoming.map((row) => ({
+              ...(row as Record<string, unknown>),
+              id: `lang_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            }));
+            onChange([...entries, ...(stamped as LanguageEntry[])]);
+          }}
+        />
+      )}
     </div>
   );
 }

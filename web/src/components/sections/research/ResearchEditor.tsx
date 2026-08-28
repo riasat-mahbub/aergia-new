@@ -11,9 +11,10 @@ interface Props {
   data: ResearchEntry[] | undefined;
   onChange: (data: ResearchEntry[]) => void;
   context?: { cvId: string; sectionId: string };
+  mode?: "section" | "library";
 }
 
-export default function ResearchEditor({ data = [], onChange, context }: Props) {
+export default function ResearchEditor({ data = [], onChange, context, mode = "section" }: Props) {
   const { entries, add, remove, update, move } = useFieldArray(data, onChange, () => ({
     id: `research_${Date.now()}`,
     title: "",
@@ -30,6 +31,7 @@ export default function ResearchEditor({ data = [], onChange, context }: Props) 
         entries={entries}
         onRemove={remove}
         onMove={move}
+        compact={mode === "library"}
         onAddToLibrary={
           context
             ? (entryId) => {
@@ -111,20 +113,22 @@ export default function ResearchEditor({ data = [], onChange, context }: Props) 
           </div>
         )}
       </SortableAccordionList>
-      <EntryAddRow
-        kind="research"
-        addLabel="Research Paper"
-        onAddNew={add}
-        onPickFromLibrary={(picked) => {
-          if (!picked) return;
-          const incoming = Array.isArray(picked.data) ? picked.data : [];
-          const stamped = incoming.map((row) => ({
-            ...(row as Record<string, unknown>),
-            id: `research_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-          }));
-          onChange([...entries, ...(stamped as ResearchEntry[])]);
-        }}
-      />
+      {mode !== "library" && (
+        <EntryAddRow
+          kind="research"
+          addLabel="Research Paper"
+          onAddNew={add}
+          onPickFromLibrary={(picked) => {
+            if (!picked) return;
+            const incoming = Array.isArray(picked.data) ? picked.data : [];
+            const stamped = incoming.map((row) => ({
+              ...(row as Record<string, unknown>),
+              id: `research_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            }));
+            onChange([...entries, ...(stamped as ResearchEntry[])]);
+          }}
+        />
+      )}
     </div>
   );
 }

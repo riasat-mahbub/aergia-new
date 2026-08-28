@@ -110,6 +110,7 @@ export default function LibraryCreateModal({
                   style: null,
                 }}
                 onChange={(_id, newData) => setData(newData)}
+                mode={entry ? "library" : "section"}
               />
             </div>
             <footer className="mt-4 flex items-center justify-end gap-2">
