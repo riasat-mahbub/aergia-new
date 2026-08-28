@@ -73,6 +73,18 @@ def test_renders_doctype_and_body():
     assert "</body>" in html
 
 
+def test_renders_preview_page_flow_metadata_without_changing_document_structure():
+    html = HTMLDocumentRenderer().render(_model())
+    assert '<div class="zone" data-preview-zone="true" data-preview-zone-id="main"' in html
+    assert '<section id="p" data-preview-section="true" data-preview-section-id="p"' in html
+    assert 'data-preview-break-before="false"' in html
+    assert 'data-preview-heading-keeps-with-first="true"' in html
+    assert 'data-preview-entry="true" data-preview-entry-id="e1" data-preview-keep-together="true"' in html
+    entry_open = re.search(r'<div class="entry"[^>]*>', html)
+    assert entry_open is not None
+    assert entry_open.group(0).count(" style=") == 1
+
+
 def test_renders_css_vars_as_root_block():
     model = _model()
     assert "--accent: #aabbcc;" in HTMLDocumentRenderer().render(model)

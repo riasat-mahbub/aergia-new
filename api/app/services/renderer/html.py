@@ -732,6 +732,25 @@ def _keep_entry_together_decl(section: Section) -> str:
 
 _ENTRY_OPEN_RE = re.compile(r'(<div class="entry[^"]*")(?:( style="([^"]*)"))?()')
 
+
+def _add_entry_metadata(entry_html: str, entry_id: str, keep_together: bool) -> str:
+    """Add stable, non-visual metadata used by the live preview paginator."""
+
+    match = re.match(r'(<div class="entry[^"]*")( style="[^"]*")?', entry_html)
+    if not match:
+        return entry_html
+    prefix, style_attr = match.groups()
+    metadata = (
+        f' data-preview-entry="true"'
+        f' data-preview-entry-id="{attr(entry_id)}"'
+        f' data-preview-keep-together="{str(keep_together).lower()}"'
+    )
+    # Keep the existing style immediately after the class. The renderer's
+    # break-rule merger intentionally rewrites that attribute, and placing
+    # metadata between the class and style would make it emit a duplicate
+    # style attribute for keep-together entries.
+    return f"{prefix}{style_attr or ''}{metadata}{entry_html[match.end():]}"
+
 def _merge_entry_break_before(entry_html: str, decl: str) -> str:
     """Merge ``decl`` (e.g. ``"break-before:avoid"``) into the entry's
     existing ``style`` attribute so we never emit two ``style=`` on one
@@ -802,6 +821,7 @@ def _render_skills_inline_entry(entry: Entry) -> str:
 
 def _render_section(section: Section) -> str:
     policy = section.policy or SectionPolicy()
+    layout = section.layout or LayoutHints()
     sub_decl = _subsection_style_decl(section)
     layout_decl = _layout_style_decl(section)
     keep_first = _heading_keeps_with_first_decl(section)
@@ -822,6 +842,7 @@ def _render_section(section: Section) -> str:
     if section.type == "skills":
         for entry in section.entries:
             entry_html = _render_skills_inline_entry(entry)
+            entry_html = _add_entry_metadata(entry_html, entry.id, bool(keep_entry))
             if keep_entry:
                 entry_html = _merge_entry_break_before(entry_html, keep_entry)
             entries_html_parts.append(entry_html)
@@ -832,6 +853,7 @@ def _render_section(section: Section) -> str:
                 entry, section.subsection, chip_keys,
                 entry_layout=policy.entry_layout,
             )
+            entry_html = _add_entry_metadata(entry_html, entry.id, bool(keep_entry))
             if i == 0 and keep_first:
                 entry_html = _merge_entry_break_before(entry_html, keep_first)
             if keep_entry:
@@ -840,7 +862,12 @@ def _render_section(section: Section) -> str:
     entries_html = "".join(entries_html_parts)
 
     return (
-        f'<section id="{attr(section.id)}"{_style_attr(wrapper_style)}>'
+        f'<section id="{attr(section.id)}"'
+        f' data-preview-section="true"'
+        f' data-preview-section-id="{attr(section.id)}"'
+        f' data-preview-break-before="{str(bool(layout.break_before)).lower()}"'
+        f' data-preview-heading-keeps-with-first="{str(bool(layout.heading_keeps_with_first)).lower()}"'
+        f'{_style_attr(wrapper_style)}>'
         f"{heading_html}{entries_html}"
         f"</section>"
     )
@@ -862,7 +889,12 @@ def _render_zone(zone: ResolvedZone, sections_by_id) -> str:
         if section is None:
             continue
         panels.append(_render_section(section))
-    return f'<div class="zone"{_style_attr(style_str)}>{"".join(panels)}</div>'
+    return (
+        f'<div class="zone" data-preview-zone="true" data-preview-zone-id="{attr(zone.id)}"'
+        f'{_style_attr(style_str)}>'
+        f'{"".join(panels)}'
+        f'</div>'
+    )
 
 
 def _render_document(model: RenderModel, support: RendererSupport) -> str:

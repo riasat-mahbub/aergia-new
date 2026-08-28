@@ -513,7 +513,7 @@ export default function BuilderPage() {
             className="w-1/2 overflow-y-auto bg-app-surface-muted p-6"
           >
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-app-ink-3">Preview</h2>
-            <div className="mx-auto max-w-[210mm] rounded bg-app-surface shadow-sm">
+            <div className="w-full min-w-0">
               <UserTemplateRenderer
                 instances={instances}
                 customizations={customizations}

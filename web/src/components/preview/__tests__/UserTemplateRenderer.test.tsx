@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, act } from "@testing-library/react";
 import UserTemplateRenderer from "../UserTemplateRenderer";
+import { PAGE_WIDTH_PX } from "../pageGeometry";
 
 vi.mock("../../../lib/api/client", () => ({
   default: {
@@ -40,6 +41,20 @@ describe("UserTemplateRenderer — preview render payload (Phase 7 wire)", () =>
     );
     expect(getByTitle("User Template Preview")).toHaveAttribute("sandbox", "allow-same-origin");
     expect(getByTitle("User Template Preview")).not.toHaveAttribute("sandbox", expect.stringContaining("allow-scripts"));
+  });
+
+  it("keeps the iframe at the fixed A4 layout width", () => {
+    const { getByTitle } = render(
+      <UserTemplateRenderer
+        instances={INSTANCES}
+        manifest={MANIFEST}
+        customizations={{
+          layout: { zones: [{ id: "main", styles: { width: "full" } }], placement: { sec_profile: "main" } },
+        }}
+      />
+    );
+
+    expect(getByTitle("User Template Preview")).toHaveStyle({ width: `${PAGE_WIDTH_PX}px` });
   });
 
   it("passes customizations.layout through to the render endpoint verbatim", async () => {
