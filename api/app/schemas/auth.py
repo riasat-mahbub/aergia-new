@@ -43,15 +43,7 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
-class ChangePasswordRequest(BaseModel):
-    old_password: str = Field(min_length=8, max_length=MAX_PASSWORD_LENGTH)
-    new_password: str = Field(min_length=8, max_length=MAX_PASSWORD_LENGTH)
-
-    _password_byte_limit = field_validator("old_password", "new_password")(_validate_bcrypt_password_bytes)
-
-
 __all__ = [
-    "ChangePasswordRequest",
     "AuthMessageResponse",
     "LoginRequest",
     "RefreshRequest",

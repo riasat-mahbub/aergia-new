@@ -9,7 +9,6 @@ from app.schemas.auth import (
     LoginRequest,
     TokenResponse,
     RefreshRequest,
-    ChangePasswordRequest,
 )
 from app.config import get_settings
 from app.core.auth import ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME
@@ -107,22 +106,6 @@ async def logout(
     await service.logout(current_user.email)
     _clear_auth_cookies(response)
     return {"message": "Logged out successfully"}
-
-
-@router.post("/change-password", status_code=status.HTTP_200_OK)
-async def change_password(
-    response: Response,
-    body: ChangePasswordRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    service = AuthService(db)
-    try:
-        await service.change_password(current_user.email, body.old_password, body.new_password)
-        response.delete_cookie(REFRESH_COOKIE_NAME, path="/api/v1/auth")
-        return {"message": "Password changed successfully"}
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid current password") from exc
 
 
 @router.get("/session")
