@@ -24,7 +24,7 @@ def _register_login_ready_handler(
     pdf_body: bytes = b"%PDF-1.4\n% smoke",
     spa_html: str = '<!doctype html><html><body><div id="root"></div></body></html>',
     import_payload: dict | None = None,
-    library_state: dict[str, str] | None = None,
+    library_state: dict[str, object] | None = None,
 ) -> httpx.Response:
     """Return a single handler that simulates a healthy backend for the
     exact flow ``run_smoke`` performs."""
@@ -52,14 +52,120 @@ def _register_login_ready_handler(
             ]
         )
 
+    if path in {"/api/v1/profile", "/api/v1/profile/"} and method == "PUT":
+        return _ok_json(json.loads(request.content))
+
+    if path in {"/api/v1/profile", "/api/v1/profile/"} and method == "GET":
+        return _ok_json(
+            {
+                "name": "Smoke Applicant",
+                "title": "Platform Engineer",
+                "email": "smoke@example.com",
+                "phone": None,
+                "location": "Remote",
+                "site_text": None,
+                "site_url": None,
+                "summary": "Builds distributed systems.",
+                "photo_url": None,
+                "email_link": True,
+                "social_links": [],
+            }
+        )
+
+    if path == "/api/v1/applications" and method == "POST":
+        return _ok_json(
+            {
+                "id": "app_smoke",
+                "user_id": "smoke-user",
+                "cv_id": None,
+                "company": "Example Labs",
+                "role": "Platform Engineer",
+                "job_url": None,
+                "job_description": "Python FastAPI PostgreSQL Distributed systems",
+                "notes": None,
+                "status": "draft",
+                "applied_at": None,
+                "generation_status": "pending",
+                "generation_error": None,
+                "extracted_keywords": [],
+                "relevance": {},
+                "algorithm_version": "keyword-v1",
+                "fits_one_page": None,
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-01T00:00:00Z",
+            },
+            status_code=201,
+        )
+
+    if path == "/api/v1/applications/app_smoke/generate" and method == "POST":
+        return _ok_json(
+            {
+                "application": {
+                    "id": "app_smoke",
+                    "cv_id": "cv_tailored",
+                    "generation_status": "ready",
+                    "relevance": {
+                        "score": 80,
+                        "matched_keywords": ["Python", "FastAPI"],
+                        "missing_keywords": ["Rust"],
+                        "evidence": [{"keyword": "Python", "field_path": "skills"}],
+                    },
+                },
+                "cv_id": "cv_tailored",
+            }
+        )
+
+    if path == "/api/v1/applications/app_smoke" and method == "GET":
+        return _ok_json(
+            {
+                "id": "app_smoke",
+                "cv_id": "cv_tailored",
+                "generation_status": "ready",
+                "relevance": {
+                    "score": 80,
+                    "matched_keywords": ["Python", "FastAPI"],
+                    "missing_keywords": ["Rust"],
+                    "evidence": [],
+                },
+            }
+        )
+
+    if path == "/api/v1/cvs/cv_tailored" and method == "GET":
+        return _ok_json(
+            {
+                "id": "cv_tailored",
+                "title": "Example Labs — Platform Engineer",
+                "sections": [
+                    {"type": "profile", "data": {"name": "Smoke Applicant"}},
+                    {"type": "education", "data": [{"id": "edu"}]},
+                    {"type": "skills", "data": [{"id": "skill"}]},
+                    {"type": "experience", "data": [{"id": "experience"}]},
+                    {"type": "certifications", "data": [{"id": "certification"}]},
+                    {"type": "projects", "data": [{"id": "project"}]},
+                    {"type": "research", "data": [{"id": "research"}]},
+                ],
+                "extra_metadata": {
+                    "application_id": "app_smoke",
+                    "selected_sources": [{"library_entry_id": "lib_smoke", "source_row_id": "row"}],
+                },
+            }
+        )
+
     if path == "/api/v1/library" and method == "POST":
         payload = json.loads(request.content)
-        title = payload["payload"][0]["title"]
+        first = payload["payload"][0]
+        title = (
+            first.get("title")
+            or first.get("name")
+            or first.get("category")
+            or first.get("institution")
+            or "Library"
+        )
         if library_state is not None:
             library_state["title"] = title
         return _ok_json(
             {
-                "id": "lib_smoke",
+                "id": f"lib_{payload['kind']}",
                 "kind": payload["kind"],
                 "payload": payload["payload"],
             },

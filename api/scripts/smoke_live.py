@@ -152,6 +152,102 @@ def _smoke_library(client: httpx.Client, base_url: str, headers: dict) -> None:
     if r.json()["promoted"] != {}:
         raise AssertionError(f"re-promote should be a no-op; got {r.json()['promoted']!r}")
 
+def _smoke_application(client: httpx.Client, base_url: str, headers: dict) -> None:
+    """Exercise Profile → Library rows → generated application → linked CV."""
+    profile = client.put(
+        f"{base_url}/api/v1/profile",
+        json={
+            "name": "Smoke Applicant",
+            "title": "Platform Engineer",
+            "email": "smoke@example.com",
+            "phone": None,
+            "location": "Remote",
+            "site_text": None,
+            "site_url": None,
+            "summary": "Builds distributed systems.",
+            "photo_url": None,
+            "email_link": True,
+            "social_links": [],
+        },
+        headers=headers,
+    )
+    if profile.status_code != 200:
+        raise AssertionError(f"update profile failed: {profile.status_code} {profile.text[:200]}")
+
+    rows = (
+        ("education", [{"id": "edu-smoke", "institution": "Example University", "degree": "Platform Engineering"}]),
+        ("skill", [{"id": "skill-smoke", "category": "Backend", "items": ["Python", "FastAPI", "PostgreSQL"]}]),
+        ("experience", [{"id": "exp-smoke", "company": "Example Labs", "position": "Distributed Systems"}]),
+        ("certification", [{"id": "cert-smoke", "name": "Cloud Native"}]),
+        ("project", [{"id": "project-smoke", "name": "Platform", "tech_stack": ["Python"]}]),
+        ("research", [{"id": "research-smoke", "title": "Systems Research"}]),
+    )
+    for kind, payload in rows:
+        created = client.post(
+            f"{base_url}/api/v1/library",
+            json={"kind": kind, "payload": payload},
+            headers=headers,
+        )
+        if created.status_code != 201:
+            raise AssertionError(f"create {kind} Library row failed: {created.status_code} {created.text[:200]}")
+
+    created = client.post(
+        f"{base_url}/api/v1/applications",
+        json={
+            "company": "Example Labs",
+            "role": "Platform Engineer",
+            "job_description": (
+                "Build Python services with FastAPI and PostgreSQL.\n"
+                "Distributed systems and platform engineering experience.\n"
+                "Cloud Native systems research preferred."
+            ),
+        },
+        headers=headers,
+    )
+    if created.status_code != 201:
+        raise AssertionError(f"create application failed: {created.status_code} {created.text[:200]}")
+    application_id = created.json()["id"]
+
+    generated = client.post(
+        f"{base_url}/api/v1/applications/{application_id}/generate",
+        headers=headers,
+    )
+    if generated.status_code != 200:
+        raise AssertionError(f"generate application failed: {generated.status_code} {generated.text[:200]}")
+    generated_body = generated.json()
+    generated_application = generated_body.get("application") or {}
+    cv_id = generated_body.get("cv_id")
+    if generated_application.get("generation_status") != "ready" or not cv_id:
+        raise AssertionError(f"application generation was not ready: {generated_body!r}")
+    relevance = generated_application.get("relevance") or {}
+    if not relevance.get("matched_keywords") or "score" not in relevance:
+        raise AssertionError(f"generation relevance details missing: {generated_body!r}")
+
+    cv = client.get(f"{base_url}/api/v1/cvs/{cv_id}", headers=headers)
+    if cv.status_code != 200:
+        raise AssertionError(f"get generated CV failed: {cv.status_code} {cv.text[:200]}")
+    cv_body = cv.json()
+    sections = cv_body.get("sections") or []
+    expected_order = ["profile", "education", "skills", "experience", "certifications", "projects", "research"]
+    actual_order = [section.get("type") for section in sections if section.get("data")]
+    if actual_order != expected_order:
+        raise AssertionError(f"generated CV section order mismatch: {actual_order!r}")
+
+    preview = client.get(f"{base_url}/api/v1/cvs/{cv_id}/preview", headers=headers)
+    if preview.status_code != 200 or "<body" not in preview.text:
+        raise AssertionError(f"generated CV preview failed: {preview.status_code} {preview.text[:200]}")
+    exported = client.post(f"{base_url}/api/v1/cvs/{cv_id}/export/pdf", headers=headers)
+    if exported.status_code != 200 or not exported.content.startswith(b"%PDF"):
+        raise AssertionError(f"generated CV PDF export failed: {exported.status_code} {exported.content[:8]!r}")
+
+    detail = client.get(f"{base_url}/api/v1/applications/{application_id}", headers=headers)
+    if detail.status_code != 200:
+        raise AssertionError(f"get application detail failed: {detail.status_code} {detail.text[:200]}")
+    detail_body = detail.json()
+    if detail_body.get("id") != application_id or detail_body.get("cv_id") != cv_id:
+        raise AssertionError(f"application/CV ownership link mismatch: {detail_body!r}")
+
+
 def run_smoke(client: httpx.Client, base_url: str) -> None:
     _wait_for_ready(client, base_url)
     token = _register_and_login(client, base_url)
@@ -211,6 +307,9 @@ def run_smoke(client: httpx.Client, base_url: str) -> None:
 
     # Library smoke — promote-to-library + clone-into-CV + preview reflects it.
     _smoke_library(client, base_url, headers)
+    # Application smoke — singleton Profile + all generated section kinds +
+    # relevance and canonical preview/PDF paths.
+    _smoke_application(client, base_url, headers)
 
     r = client.get(f"{base_url}/")
     if r.status_code != 200:

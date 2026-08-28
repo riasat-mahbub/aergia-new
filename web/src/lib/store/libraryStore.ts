@@ -16,6 +16,7 @@ export function selectByKind(entries: LibraryEntry[]): Record<LibraryEntryKind, 
     project: [],
     certification: [],
     language: [],
+    research: [],
   };
   for (const e of entries) {
     // Defensive: an entry's kind may be unknown (legacy data, future
@@ -50,7 +51,7 @@ interface LibraryState {
     kind: LibraryEntryKind,
     payload: Array<Record<string, unknown>>,
   ) => Promise<LibraryEntry>;
-  update: (id: string, payload: Array<Record<string, unknown>>) => Promise<void>;
+  update: (id: string, payload: Array<Record<string, unknown>>) => Promise<LibraryEntry>;
   remove: (id: string) => Promise<void>;
 }
 export const useLibraryStore = create<LibraryState>((set) => ({
@@ -73,12 +74,12 @@ export const useLibraryStore = create<LibraryState>((set) => ({
     set((s) => ({ entries: [...s.entries, entry] }));
     return entry;
   },
-
   update: async (id, payload) => {
     const updated = await libraryApi.updateLibrary(id, payload);
     set((s) => ({
       entries: s.entries.map((e) => (e.id === id ? updated : e)),
     }));
+    return updated;
   },
 
   remove: async (id) => {

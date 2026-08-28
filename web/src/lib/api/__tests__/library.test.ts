@@ -10,6 +10,7 @@ describe("library section-kind mapping", () => {
     expect(libraryKindForSectionType("projects")).toBe("project");
     expect(libraryKindForSectionType("languages")).toBe("language");
     expect(libraryKindForSectionType("certifications")).toBe("certification");
+    expect(libraryKindForSectionType("research")).toBe("research");
   });
 
   it("maps library kinds to renderer section types", () => {
@@ -17,5 +18,6 @@ describe("library section-kind mapping", () => {
     expect(sectionTypeForLibraryKind("project")).toBe("projects");
     expect(sectionTypeForLibraryKind("language")).toBe("languages");
     expect(sectionTypeForLibraryKind("certification")).toBe("certifications");
+    expect(sectionTypeForLibraryKind("research")).toBe("research");
   });
 });

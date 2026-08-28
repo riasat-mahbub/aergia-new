@@ -80,6 +80,7 @@ def _derive_title(payload: list[dict], kind: str) -> str:
         "project": ("name",),
         "language": ("language", "name"),
         "certification": ("name",),
+        "research": ("title",),
     }
     if payload and isinstance(payload[0], dict):
         first = payload[0]

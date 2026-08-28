@@ -514,7 +514,9 @@ Library rows remain readable if ``SectionInstance.data`` gains new
 optional fields in the future.
 """
 
-LibraryEntryKindStr = Literal["experience", "education", "skill", "project", "certification", "language"]
+LibraryEntryKindStr = Literal[
+    "experience", "education", "skill", "project", "certification", "language", "research"
+]
 
 
 class LibraryEntryPayload(BaseModel):

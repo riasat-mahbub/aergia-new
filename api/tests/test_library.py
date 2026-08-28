@@ -24,6 +24,7 @@ def test_library_kind_mapping_round_trips_renderer_section_types():
         "projects": "project",
         "languages": "language",
         "certifications": "certification",
+        "research": "research",
     }
     assert {
         section: library_kind_for_section_type(section)
@@ -185,6 +186,7 @@ async def test_create_list_update_delete_entry(client, auth_headers, clean_libra
         ("project", "projects"),
         ("language", "languages"),
         ("certification", "certifications"),
+        ("research", "research"),
     ],
 )
 async def test_clone_maps_library_kind_to_renderer_section_type(
@@ -781,3 +783,57 @@ async def test_add_section_entry_to_library_missing_cv_404(client, auth_headers,
         headers=auth_headers,
     )
     assert resp.status_code == 404
+
+@pytest.mark.asyncio
+async def test_research_library_crud_clone_and_promotion(client, auth_headers, clean_library):
+    created = await client.post(
+        "/api/v1/library",
+        json={"kind": "research", "payload": [{"id": "r1", "title": "Systems Paper"}]},
+        headers=auth_headers,
+    )
+    assert created.status_code == 201
+    entry_id = created.json()["id"]
+
+    updated = await client.patch(
+        f"/api/v1/library/{entry_id}",
+        json={"payload": [{"id": "r1", "title": "Updated Systems Paper"}]},
+        headers=auth_headers,
+    )
+    assert updated.status_code == 200
+    clone = await client.post(f"/api/v1/library/{entry_id}/clone", headers=auth_headers)
+    assert clone.status_code == 200
+    assert clone.json()["section_instance"]["type"] == "research"
+    assert clone.json()["section_instance"]["data"] == [{"id": "r1", "title": "Updated Systems Paper"}]
+
+    cv = await client.post(
+        "/api/v1/cvs",
+        json={
+            "title": "Research CV",
+            "sections": [
+                {
+                    "id": "research-section",
+                    "type": "research",
+                    "title": "Research",
+                    "enabled": True,
+                    "data": [{"id": "r2", "title": "Promotable Paper"}],
+                }
+            ],
+        },
+        headers=auth_headers,
+    )
+    promoted = await client.post(
+        f"/api/v1/cvs/{cv.json()['id']}/promote-to-library",
+        headers=auth_headers,
+    )
+    assert promoted.status_code == 200
+    assert promoted.json()["promoted"]["research"] == 1
+
+    snapshot = await client.post(
+        f"/api/v1/cvs/{cv.json()['id']}/sections/research-section/entries/r2/add-to-library",
+        json={"kind": "research", "entry": {"id": "r2", "title": "Current Paper"}},
+        headers=auth_headers,
+    )
+    assert snapshot.status_code == 200
+    research_entries = await client.get("/api/v1/library?kind=research", headers=auth_headers)
+    assert research_entries.status_code == 200
+    assert any(entry["payload"] == [{"id": "r2", "title": "Current Paper"}] for entry in research_entries.json())
