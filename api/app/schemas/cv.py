@@ -33,7 +33,7 @@ class CVCreate(BaseModel):
     description: str | None = Field(default=None, max_length=500)
     template_id: str = Field(default="generic-modern", max_length=100)
     sections: list[SectionInstance] | dict = Field(default=DEFAULT_SECTIONS, max_length=100)
-    customizations: Customizations | dict | None = Field(default=None, max_length=100)
+    customizations: Customizations | dict | None = None
     extra_metadata: dict = Field(default_factory=dict, max_length=100)
 
 
@@ -42,7 +42,7 @@ class CVUpdate(BaseModel):
     description: str | None = Field(default=None, max_length=500)
     template_id: str | None = Field(default=None, max_length=100)
     sections: list[SectionInstance] | dict | None = Field(default=None, max_length=100)
-    customizations: Customizations | dict | None = Field(default=None, max_length=100)
+    customizations: Customizations | dict | None = None
 
 
 class CVResponse(BaseModel):
