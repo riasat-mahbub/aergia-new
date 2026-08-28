@@ -77,7 +77,8 @@ describe("ApplicationsPage", () => {
     expect(await screen.findByText("Example Labs")).toBeInTheDocument();
     expect(screen.getByText("Relevance 75%")).toBeInTheDocument();
     expect(screen.getByText("One-page fit")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /open linked cv/i })).toHaveAttribute("href", "/dashboard/builder/cv-1?application=ready-1");
+    expect(screen.getByRole("link", { name: /view application/i })).toHaveAttribute("href", "/dashboard/applications/ready-1");
+    expect(screen.getByText("CV ready")).toBeInTheDocument();
     expect(screen.getByLabelText("Status")).toHaveClass("w-full", "min-w-[10rem]", "sm:w-auto");
   });
 
@@ -94,6 +95,6 @@ describe("ApplicationsPage", () => {
 
     await user.click(screen.getByRole("button", { name: /generate cv/i }));
     await waitFor(() => expect(applicationApi.generateApplication).toHaveBeenCalledWith("pending-1"));
-    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/dashboard/builder/cv-2?application=pending-1"));
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/dashboard/applications/pending-1"));
   });
 });

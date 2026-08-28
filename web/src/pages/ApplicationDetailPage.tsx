@@ -13,9 +13,12 @@ import {
 import { useApplicationStore } from "../lib/store/applicationStore";
 import { useToastStore } from "../lib/store/uiStore";
 import { safeExternalUrl } from "../lib/security/safeUrl";
-import { STATUS_LABELS } from "./ApplicationsPage";
+import {
+  RELEVANCE_TOOLTIP,
+  STATUS_CLASSES,
+  STATUS_LABELS,
+} from "../components/applications/applicationPresentation";
 
-const RELEVANCE_TOOLTIP = "Weighted keyword coverage of this CV against the saved job description—not an ATS or hiring probability.";
 
 function isRelevanceResult(value: Application["relevance"]): value is RelevanceResult {
   return "score" in value && typeof value.score === "number";
@@ -133,18 +136,26 @@ export default function ApplicationDetailPage() {
       <Link to="/dashboard/applications" className="text-sm text-app-ink-3 hover:text-app-ink-2">&larr; Applications</Link>
       <header className="mt-4 flex flex-wrap items-start justify-between gap-4">
         <div>
+          <p className="text-xs font-medium uppercase tracking-[0.14em] text-app-primary">Application</p>
           <h1 className="text-2xl font-bold text-app-ink">{application.company}</h1>
           <p className="mt-1 text-lg text-app-ink-2">{application.role}</p>
         </div>
-        <select
-          aria-label="Application status"
-          value={application.status}
-          disabled={statusSaving}
-          onChange={(event) => handleStatusChange(event.target.value as ApplicationStatus)}
-          className="w-full min-w-[10rem] rounded-md border border-app-rule-strong px-3 py-2 text-sm sm:w-auto"
-        >
-          {APPLICATION_STATUSES.map((status) => <option key={status} value={status}>{STATUS_LABELS[status]}</option>)}
-        </select>
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+          <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_CLASSES[application.status]}`}>
+            {STATUS_LABELS[application.status]}
+          </span>
+          <label className="sr-only" htmlFor="application-status">Change status</label>
+          <select
+            id="application-status"
+            aria-label="Application status"
+            value={application.status}
+            disabled={statusSaving}
+            onChange={(event) => handleStatusChange(event.target.value as ApplicationStatus)}
+            className="w-full min-w-[10rem] rounded-md border border-app-rule-strong bg-app-surface px-3 py-2 text-sm sm:w-auto"
+          >
+            {APPLICATION_STATUSES.map((status) => <option key={status} value={status}>{STATUS_LABELS[status]}</option>)}
+          </select>
+        </div>
       </header>
 
       <div className="mt-6 grid gap-4 md:grid-cols-2">
