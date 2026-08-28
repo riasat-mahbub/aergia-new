@@ -10,6 +10,7 @@ backend-friendly.
 import type { SerializedEditorState } from "lexical";
 import type { RichTextBlock, RichTextItem, TextStyle } from "../../generated/schema";
 import { safeLinkUrl } from "../security/safeUrl";
+import { FONT_SIZE_CSS, type FontSizeToken } from "../../styles/tokens";
 
 // ---------------------------------------------------------------------------
 // Lexical → RichTextBlock[]
@@ -26,6 +27,37 @@ function decodeFormat(format: number): TextStyle | undefined {
   return Object.keys(style).length > 0 ? style : undefined;
 }
 
+const CSS_TO_FONT_SIZE: Record<string, FontSizeToken> = Object.fromEntries(
+  Object.entries(FONT_SIZE_CSS).map(([token, css]) => [css, token]),
+) as Record<string, FontSizeToken>;
+
+const SAFE_HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+/** Decode only the inline CSS declarations emitted by this editor.
+ *
+ * Lexical's style field is deliberately treated as an allowlist. Pasted or
+ * legacy markup may contain arbitrary CSS, but the wire model only supports
+ * the renderer's font-size tokens and safe hex colors.
+ */
+function decodeStyle(styleValue: unknown): TextStyle | undefined {
+  if (typeof styleValue !== "string" || !styleValue) return undefined;
+
+  const style: TextStyle = {};
+  for (const declaration of styleValue.split(";")) {
+    const separator = declaration.indexOf(":");
+    if (separator < 0) continue;
+    const property = declaration.slice(0, separator).trim().toLowerCase();
+    const value = declaration.slice(separator + 1).trim();
+    if (property === "font-size") {
+      const token = CSS_TO_FONT_SIZE[value];
+      if (token) style.font_size = token;
+    } else if (property === "color" && SAFE_HEX_COLOR.test(value)) {
+      style.color = value;
+    }
+  }
+  return Object.keys(style).length > 0 ? style : undefined;
+}
+
 /** Extract text items from Lexical inline children (text nodes and link wrappers). */
 function decodeChildren(children: unknown[]): RichTextItem[] {
   const items: RichTextItem[] = [];
@@ -34,9 +66,9 @@ function decodeChildren(children: unknown[]): RichTextItem[] {
     const node = child as Record<string, unknown>;
     if (node.type === "text" && typeof node.text === "string") {
       const format = typeof node.format === "number" ? node.format : 0;
-      const style = decodeFormat(format);
-      items.push({ text: node.text, ...(style ? { style } : {}) });
-    } else if (node.type === "link" && typeof node.url === "string") {
+      const style = { ...(decodeFormat(format) ?? {}), ...(decodeStyle(node.style) ?? {}) };
+      items.push({ text: node.text, ...(Object.keys(style).length > 0 ? { style } : {}) });
+    } else if ((node.type === "link" || node.type === "autolink") && typeof node.url === "string") {
       // LinkNode wraps text children; propagate its `url` to every child run.
       const safeUrl = safeLinkUrl(node.url);
       const linkChildren = (node.children ?? []) as unknown[];
@@ -45,10 +77,10 @@ function decodeChildren(children: unknown[]): RichTextItem[] {
         const inner = linkChild as Record<string, unknown>;
         if (inner.type !== "text" || typeof inner.text !== "string") continue;
         const format = typeof inner.format === "number" ? inner.format : 0;
-        const existing = decodeFormat(format);
+        const existing = { ...(decodeFormat(format) ?? {}), ...(decodeStyle(inner.style) ?? {}) };
         const style: TextStyle | undefined = safeUrl
-          ? { ...(existing ?? {}), link: safeUrl }
-          : existing;
+          ? { ...existing, link: safeUrl }
+          : Object.keys(existing).length > 0 ? existing : undefined;
         items.push({ text: inner.text, ...(style ? { style } : {}) });
       }
     }
@@ -59,10 +91,9 @@ function decodeChildren(children: unknown[]): RichTextItem[] {
 /** Flatten a list node's items into a single block's items list.
  *
  * Lexical's serialized list shape is ``list → listitem → text`` (the text
- * node sits directly under the listitem). Our encoder wraps each text run in
- * a ``listitem → paragraph → text`` shape so the rendered DOM matches
- * ``<li><p>...</p></li>``; we accept both shapes on decode so we can round-
- * trip our own output as well as Lexical's native output. */
+ * node sits directly under the listitem). The encoder keeps that native flat
+ * shape and accepts paragraph wrappers too so older editor state can still
+ * be loaded. */
 function flattenListItems(listNode: Record<string, unknown>): RichTextItem[] {
   const items: RichTextItem[] = [];
   const children = (listNode.children ?? []) as unknown[];
@@ -70,18 +101,23 @@ function flattenListItems(listNode: Record<string, unknown>): RichTextItem[] {
     if (!child || typeof child !== "object") continue;
     const item = child as Record<string, unknown>;
     const itemChildren = (item.children ?? []) as unknown[];
-    if (itemChildren.length === 1 && (itemChildren[0] as Record<string, unknown>)?.type === "text") {
-      // Native Lexical shape: listitem > text.
-      items.push(...decodeChildren(itemChildren));
-      continue;
-    }
-    // Our encoder shape: listitem > paragraph > text.
-    for (const paragraph of itemChildren) {
-      if (!paragraph || typeof paragraph !== "object") continue;
-      const para = paragraph as Record<string, unknown>;
-      const paraChildren = (para.children ?? []) as unknown[];
-      items.push(...decodeChildren(paraChildren));
-    }
+    const directRuns = decodeChildren(itemChildren);
+    const runs = directRuns.length > 0
+      ? directRuns
+      : itemChildren.flatMap((paragraph) => {
+          if (!paragraph || typeof paragraph !== "object") return [];
+          const para = paragraph as Record<string, unknown>;
+          return decodeChildren((para.children ?? []) as unknown[]);
+        });
+    if (runs.length === 0) continue;
+
+    // RichTextBlock's list contract is intentionally flat: one item is one
+    // saved run. If an imported/pasted Lexical item contains multiple runs,
+    // retain its text and the first run's supported style rather than
+    // accidentally turning one bullet into several bullets.
+    const first = runs[0];
+    const text = runs.map((run) => run.text).join("");
+    items.push({ text, ...(first.style ? { style: first.style } : {}) });
   }
   return items;
 }
@@ -132,6 +168,18 @@ function encodeFormat(style: TextStyle | undefined | null): number {
   return format;
 }
 
+function encodeStyle(style: TextStyle | undefined | null): string {
+  if (!style) return "";
+  const declarations: string[] = [];
+  if (style.font_size && FONT_SIZE_CSS[style.font_size]) {
+    declarations.push(`font-size:${FONT_SIZE_CSS[style.font_size]}`);
+  }
+  if (style.color && SAFE_HEX_COLOR.test(style.color)) {
+    declarations.push(`color:${style.color}`);
+  }
+  return declarations.join(";");
+}
+
 /** Convert RichTextItems to Lexical text/link nodes, grouping consecutive
  * linked runs under a single ``link`` wrapper. */
 function encodeTextNodes(items: RichTextItem[]): unknown[] {
@@ -153,7 +201,7 @@ function encodeTextNodes(items: RichTextItem[]): unknown[] {
       type: "text",
       text: item.text,
       format: encodeFormat(item.style),
-      style: "",
+      style: encodeStyle(item.style),
       detail: 0,
       mode: "normal",
       version: 1,
@@ -182,17 +230,9 @@ function encodeList(block: RichTextBlock): unknown {
     value: 1,
     checked: undefined,
     version: 1,
-    children: [
-      {
-        type: "text",
-        text: item.text,
-        format: encodeFormat(item.style),
-        style: "",
-        detail: 0,
-        mode: "normal",
-        version: 1,
-      },
-    ],
+    // Keep each list item as exactly one text run in the Lexical tree. A
+    // link wrapper is the only permitted inline container for that run.
+    children: encodeTextNodes([item]),
     direction: null,
     format: "",
     indent: 0,

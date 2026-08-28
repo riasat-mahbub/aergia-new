@@ -7,12 +7,23 @@ import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { ListNode, ListItemNode } from "@lexical/list";
 import { ListPlugin } from "@lexical/react/LexicalListPlugin";
-import { LinkNode } from "@lexical/link";
+import { AutoLinkNode, LinkNode, autoLinkEmailMatcher, autoLinkUrlMatcher } from "@lexical/link";
 import { LinkPlugin } from "@lexical/react/LexicalLinkPlugin";
+import { AutoLinkPlugin } from "@lexical/react/LexicalAutoLinkPlugin";
+import {
+  $getSelection,
+  COMMAND_PRIORITY_HIGH,
+  FORMAT_TEXT_COMMAND,
+  INDENT_CONTENT_COMMAND,
+  OUTDENT_CONTENT_COMMAND,
+  type TextFormatType,
+} from "lexical";
 import type { EditorState } from "lexical";
 import type { RichTextBlock } from "../../../generated/schema";
 import { lexicalToBlocks, blocksToLexical } from "../../../lib/sections/richTextTransform";
+import { safeLinkUrl } from "../../../lib/security/safeUrl";
 import RichTextToolbar from "./RichTextToolbar";
+import { listItemsInSelection, normalizeListTextFormat } from "./richTextEditorUtils";
 
 interface Props {
   value: RichTextBlock[] | string;
@@ -33,7 +44,23 @@ const theme = {
     ol: "editor-list-ol",
     listitem: "editor-listitem",
   },
+  link: "editor-link",
 };
+
+const safeAutoLinkMatchers = [
+  (text: string) => {
+    const match = autoLinkUrlMatcher(text);
+    if (!match) return null;
+    const url = safeLinkUrl(match.url);
+    return url ? { ...match, url } : null;
+  },
+  (text: string) => {
+    const match = autoLinkEmailMatcher(text);
+    if (!match) return null;
+    const url = safeLinkUrl(match.url);
+    return url ? { ...match, url } : null;
+  },
+];
 
 /** Sets initial editor state from the value prop on first mount. */
 function InitPlugin({ value }: { value: RichTextBlock[] | string }) {
@@ -107,7 +134,12 @@ function EditorInner({
       <div className="min-h-[4.5rem] px-2 py-1 text-sm">
         <RichTextPlugin
           contentEditable={
-            <ContentEditable className="outline-none" style={{ minHeight: "3rem" }} />
+            <ContentEditable
+              className="outline-none"
+              style={{ minHeight: "3rem" }}
+              aria-label="Rich text editor"
+              aria-multiline="true"
+            />
           }
           placeholder={
             <div className="pointer-events-none text-app-ink-3">{placeholder}</div>
@@ -117,23 +149,49 @@ function EditorInner({
       </div>
       <HistoryPlugin />
       <ListPlugin />
-      <LinkPlugin />
+      <FlatListFormattingPlugin />
+      <LinkPlugin validateUrl={(url) => Boolean(safeLinkUrl(url))} />
+      <AutoLinkPlugin matchers={safeAutoLinkMatchers} />
       <OnChangePlugin onChange={handleChange} />
       <InitPlugin value={value} />
     </>
   );
 }
 
+/** Keeps inline formatting on a flat list item as one logical run. */
+function FlatListFormattingPlugin() {
+  const [editor] = useLexicalComposerContext();
+
+  useEffect(() => {
+    const unregisterFormat = editor.registerCommand(
+      FORMAT_TEXT_COMMAND,
+      (format: TextFormatType) => normalizeListTextFormat($getSelection(), format),
+      COMMAND_PRIORITY_HIGH,
+    );
+    const guardNestedLists = (command: typeof INDENT_CONTENT_COMMAND | typeof OUTDENT_CONTENT_COMMAND) =>
+      editor.registerCommand(command, () => listItemsInSelection($getSelection()).length > 0, COMMAND_PRIORITY_HIGH);
+    const unregisterIndent = guardNestedLists(INDENT_CONTENT_COMMAND);
+    const unregisterOutdent = guardNestedLists(OUTDENT_CONTENT_COMMAND);
+    return () => {
+      unregisterFormat();
+      unregisterIndent();
+      unregisterOutdent();
+    };
+  }, [editor]);
+
+  return null;
+}
+
 export default function RichTextEditor({
   value,
   onChange,
-  placeholder = "Enter text...",
+  placeholder = "Write a concise description…",
 }: Props) {
   const initialConfig = {
     namespace: "CVRichText",
     theme,
     onError: (error: Error) => console.error("[RichTextEditor]", error),
-    nodes: [ListNode, ListItemNode, LinkNode],
+    nodes: [ListNode, ListItemNode, LinkNode, AutoLinkNode],
   };
   return (
     <div className="rich-text-editor rounded border border-app-rule focus-within:border-app-primary-soft">
