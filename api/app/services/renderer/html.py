@@ -26,6 +26,7 @@ from __future__ import annotations
 import html as _stdlib_html
 import re
 
+from app.core.safe_url import normalize_url
 from app.schema.models import (
     Entry,
     FieldBlock,
@@ -38,7 +39,10 @@ from app.schema.models import (
     SubsectionStyle,
     TextRun,
     TextStyle,
+    is_color_ref,
 )
+from app.services.renderer.palette import resolve_palette_ref
+from app.services.renderer.resolve import LINK_STYLES, PLAIN_LINK_STYLES, PRINT_STYLES
 from app.services.renderer.support import RendererSupport, SupportLevel
 from app.services.renderer.base import DocumentRenderer
 
@@ -50,6 +54,31 @@ _FONT_SIZE_TO_CSS: dict[str, str] = {
     "large": "1.125rem",
     "xl": "1.25rem",
 }
+
+_SPACING_TO_CSS: dict[str, str] = {
+    "none": "0",
+    "tight": "12px",
+    "comfortable": "24px",
+    "loose": "32px",
+    "spacious": "32px",
+    "compact": "20px",
+    "minimal": "0px",
+}
+_SAFE_SPACING = frozenset({
+    "0", "0px", "12px", "16px", "20px", "24px", "32px",
+    "var(--spacing-section, 16px)", "var(--spacing-section, 24px)",
+    "var(--spacing-subsection, 0px)", "var(--spacing-subsection, 16px)",
+})
+_SAFE_FONT_FAMILIES = frozenset({
+    "Inter", "Georgia", "Crimson", "system-ui", "sans-serif", "serif",
+    "Inter, system-ui, sans-serif", "Georgia, Crimson, serif",
+    "system-ui, sans-serif",
+    "ui-monospace, SFMono-Regular, Menlo, monospace",
+})
+_STYLE_UNSAFE_CHARS = re.compile(r"[\x00-\x1f\x7f\"'<>]")
+_CSS_VAR_NAMES = frozenset({
+    "--spacing-section", "--spacing-subsection", "--body-font", "--heading-font", "--accent",
+})
 
 
 # Brand icon table: name -> inline SVG markup (24x24, currentColor).
@@ -98,6 +127,48 @@ def attr(text: object) -> str:
     return _stdlib_html.escape(str(text), quote=True)
 
 
+def _safe_color(value: object) -> str:
+    if not is_color_ref(value):
+        return ""
+    resolved = resolve_palette_ref(str(value))
+    return resolved if re.fullmatch(r"#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?", resolved) else ""
+
+
+def _safe_spacing(value: object) -> str:
+    if not isinstance(value, str):
+        return ""
+    if value in _SPACING_TO_CSS:
+        return _SPACING_TO_CSS[value]
+    if value in _SAFE_SPACING:
+        return value
+    if re.fullmatch(r"(?:0|[1-9][0-9]?)px", value):
+        return value
+    return ""
+
+
+def _safe_font_family(value: object) -> str:
+    if not isinstance(value, str):
+        return ""
+    if value == "mono":
+        return "ui-monospace, SFMono-Regular, Menlo, monospace"
+    if value == "display":
+        return "Inter, system-ui, sans-serif"
+    return value if value in _SAFE_FONT_FAMILIES else ""
+
+
+def _style_attr(style: str | None) -> str:
+    """Return a safe serialized style attribute, or omit it entirely.
+
+    All user-controlled CSS values are validated before reaching this
+    helper.  The character check is a second defense for manually-created
+    RenderModels and future call sites that accidentally pass raw text.
+    """
+
+    if not style or _STYLE_UNSAFE_CHARS.search(style):
+        return ""
+    return f' style="{attr(style)}"'
+
+
 def _best_effort_comments(model: RenderModel, support: RendererSupport) -> str:
     if support.keep_with_next is SupportLevel.BEST_EFFORT:
         yield "<!-- best-effort: keep_with_next -->"
@@ -112,7 +183,20 @@ def _best_effort_comments(model: RenderModel, support: RendererSupport) -> str:
 def _render_css_vars(model: RenderModel) -> str:
     if not model.css_vars:
         return ""
-    lines = [f"  {k}: {v};" for k, v in model.css_vars.items() if v]
+    lines: list[str] = []
+    for key, value in model.css_vars.items():
+        if key not in _CSS_VAR_NAMES:
+            continue
+        if key in {"--accent"}:
+            safe_value = _safe_color(value)
+        elif key in {"--body-font", "--heading-font"}:
+            safe_value = _safe_font_family(value)
+        else:
+            safe_value = _safe_spacing(value)
+        if safe_value:
+            lines.append(f"  {key}: {safe_value};")
+    if not lines:
+        return ""
     return ":root {\n" + "\n".join(lines) + "\n}"
 
 
@@ -140,8 +224,9 @@ def _text_run_to_style(run: TextRun) -> str:
         decorations.append("line-through")
     if decorations:
         decls.append("text-decoration:" + " ".join(decorations))
-    if style.color:
-        decls.append(f"color:{style.color}")
+    color = _safe_color(style.color)
+    if color:
+        decls.append(f"color:{color}")
     if style.font_size and style.font_size in _FONT_SIZE_TO_CSS:
         decls.append(f"font-size:{_FONT_SIZE_TO_CSS[style.font_size]}")
     return _format_inline_style(decls)
@@ -160,14 +245,15 @@ def _render_text_run(run: TextRun) -> str:
 
     text = h(run.text)
     style = _text_run_to_style(run)
-    if run.style and run.style.link:
-        href = attr(run.style.link)
+    safe_link = normalize_url(run.style.link) if run.style and run.style.link else ""
+    if safe_link:
+        href = attr(safe_link)
         inner = f'{text}<span aria-hidden="true"> ↗</span>'
         if style:
-            return f'<a href="{href}" style="{style}">{inner}</a>'
+            return f'<a href="{href}"{_style_attr(style)}>{inner}</a>'
         return f'<a href="{href}">{inner}</a>'
     if style:
-        return f'<span style="{style}">{text}</span>'
+        return f'<span{_style_attr(style)}>{text}</span>'
     return text
 
 
@@ -207,8 +293,7 @@ def _render_field_block(
     # Rich text blocks: render as semantic HTML (p/ul/ol)
     if block.blocks:
         inner = _render_rich_text_blocks(block.blocks)
-        style = f' style="{extra_style}"' if extra_style else ""
-        return f'<div class="f-{attr(block.key)}"{style}>{inner}</div>'
+        return f'<div class="f-{attr(block.key)}"{_style_attr(extra_style)}>{inner}</div>'
 
     # Decide whether to hoist the URL onto the wrapper element. Only
     # social/chip fields need the icon+label (or pill) wrapped in a
@@ -226,7 +311,7 @@ def _render_field_block(
     if wants_external_anchor and block.runs:
         linked = [r for r in block.runs if r.style and r.style.link]
         if len(linked) == len(block.runs):
-            href = linked[0].style.link
+            href = normalize_url(linked[0].style.link)
             if href:
                 runs = [
                     r.model_copy(update={"style": r.style.model_copy(update={"link": None})})
@@ -241,8 +326,7 @@ def _render_field_block(
     # inline pill span instead of a block-level div. The pill style is
     # defined as a CSS rule in the renderer's <style> block.
     if chip_keys and block.key in chip_keys:
-        style = f' style="{extra_style}"' if extra_style else ""
-        body = f'<span class="f-chip"{style}>{inner}</span>'
+        body = f'<span class="f-chip"{_style_attr(extra_style)}>{inner}</span>'
         if href:
             return f'<a href="{attr(href)}" class="f-chip-link">{body}</a>'
         return body
@@ -251,13 +335,11 @@ def _render_field_block(
     # The block-level div layout would otherwise stack them vertically in
     # the contact row, which reads as the same column as the email/phone.
     if block.key == "social" or block.key.startswith("social_links."):
-        style = f' style="{extra_style}"' if extra_style else ""
-        body = f'<span class="f-social"{style}>{inner}</span>'
+        body = f'<span class="f-social"{_style_attr(extra_style)}>{inner}</span>'
         if href:
             return f'<a class="f-social-link" href="{attr(href)}">{body}</a>'
         return body
-    style = f' style="{extra_style}"' if extra_style else ""
-    return f'<div class="f-{attr(block.key)}"{style}>{inner}</div>'
+    return f'<div class="f-{attr(block.key)}"{_style_attr(extra_style)}>{inner}</div>'
 
 
 def _resolve_row_justify(subsection: SubsectionStyle | None) -> str:
@@ -353,7 +435,7 @@ def _render_title_row(fields, chip_keys=None) -> str:
         inner = "".join(
             _render_field_block(f, chip_keys=chip_keys) for f in fields
         )
-        return f'<div class="field-row" style="{base_style}">{inner}</div>'
+        return f'<div class="field-row"{_style_attr(base_style)}>{inner}</div>'
     cluster_parts: list[str] = []
     for idx, f in enumerate(fields):
         if f is rail_field:
@@ -368,7 +450,7 @@ def _render_title_row(fields, chip_keys=None) -> str:
         chip_keys=chip_keys,
     )
     inner = "".join(cluster_parts) + rail_html
-    return f'<div class="field-row" style="{base_style}">{inner}</div>'
+    return f'<div class="field-row"{_style_attr(base_style)}>{inner}</div>'
 
 
 def _render_paired_row(body_field, date_field, chip_keys=None) -> str:
@@ -396,7 +478,7 @@ def _render_paired_row(body_field, date_field, chip_keys=None) -> str:
         "display:grid;grid-template-columns:1fr auto;"
         "column-gap:0;align-items:start;"
     )
-    return f'<div class="field-row paired" style="{style}">{body_html}{date_html}</div>'
+    return f'<div class="field-row paired"{_style_attr(style)}>{body_html}{date_html}</div>'
 
 
 def _render_entry(
@@ -414,7 +496,10 @@ def _render_entry(
     # gives 12px; comfortable gives 16px. Old CVs that explicitly set
     # ``spacing_after`` on a section still win, so users who widened
     # the gap explicitly aren't overridden.
-    gap = (section_subsection.spacing_after if section_subsection else None) or "var(--spacing-subsection, 0px)"
+    gap = _safe_spacing(
+        (section_subsection.spacing_after if section_subsection else None)
+        or "var(--spacing-subsection, 0px)"
+    ) or "0px"
 
     title_row, paired, rest = _split_title_row(entry.fields, chip_keys)
 
@@ -445,7 +530,8 @@ def _render_entry(
         rows.append(_render_field_row(bucket, justify, chip_keys))
 
     fields_html = "".join(rows)
-    return f'<div class="entry" style="display:flex;flex-direction:column;gap:{gap};">{fields_html}</div>'
+    entry_style = f"display:flex;flex-direction:column;gap:{gap}"
+    return f'<div class="entry"{_style_attr(entry_style)}>{fields_html}</div>'
 
 
 # Field keys that always go in the right column of a two-column entry
@@ -483,7 +569,10 @@ def _render_entry_two_column(
     regardless of how tall the left column gets.
     """
 
-    gap = (section_subsection.spacing_after if section_subsection else None) or "var(--spacing-subsection, 0px)"
+    gap = _safe_spacing(
+        (section_subsection.spacing_after if section_subsection else None)
+        or "var(--spacing-subsection, 0px)"
+    ) or "0px"
 
     # Split fields by key: date + link go right, everything else goes left.
     right_fields: list[FieldBlock] = [f for f in entry.fields if f.key in _RIGHT_COLUMN_KEYS]
@@ -513,13 +602,13 @@ def _render_entry_two_column(
     ]
     right_html = "".join(right_parts)
 
+    entry_style = f"display:grid;grid-template-columns:5fr 1fr;column-gap:{gap};align-items:start"
+    left_style = f"display:flex;flex-direction:column;gap:{gap}"
+    right_style = "display:flex;flex-direction:column;gap:0;align-items:flex-end"
     return (
-        f'<div class="entry entry-two-col" style="'
-        f'display:grid;grid-template-columns:5fr 1fr;'
-        f'column-gap:{gap};align-items:start;'
-        f'">'
-        f'<div class="entry-left" style="display:flex;flex-direction:column;gap:{gap};">{left_html}</div>'
-        f'<div class="entry-right" style="display:flex;flex-direction:column;gap:0;align-items:flex-end;">{right_html}</div>'
+        f'<div class="entry entry-two-col"{_style_attr(entry_style)}>'
+        f'<div class="entry-left"{_style_attr(left_style)}>{left_html}</div>'
+        f'<div class="entry-right"{_style_attr(right_style)}>{right_html}</div>'
         f'</div>'
     )
 
@@ -543,9 +632,9 @@ def _render_field_row(
             _render_field_block(f, extra_style="margin-left:auto" if f is rail_field else None, chip_keys=chip_keys)
             for f in fields
         )
-        return f'<div class="field-row" style="{base_style}">{inner}</div>'
+        return f'<div class="field-row"{_style_attr(base_style)}>{inner}</div>'
     inner = "".join(_render_field_block(f, chip_keys=chip_keys) for f in fields)
-    return f'<div class="field-row" style="{base_style};justify-content:{justify}">{inner}</div>'
+    return f'<div class="field-row"{_style_attr(base_style + ";justify-content:" + justify)}>{inner}</div>'
 
 
 
@@ -561,14 +650,15 @@ def _render_heading(section: Section, policy: SectionPolicy | None) -> str:
     # the title row (a visible ~7px gap on project / research entries).
     base_margin = "0 0 0" if has_divider else "0 0 2px"
     style_parts = [f"margin:{base_margin}", "font-size:1rem", "font-weight:700"]
-    if color:
-        style_parts.append(f"color:{color}")
+    safe_color = _safe_color(color)
+    if safe_color:
+        style_parts.append(f"color:{safe_color}")
     if has_divider:
         # Legacy ``underline_section_titles`` flag: border-bottom under
         # the heading, padded so the rule does not crowd the text.
         style_parts.append("border-bottom:1px solid var(--accent,#1f2937)")
         style_parts.append("padding-bottom:4px")
-    return f'<h2 style="{";".join(style_parts)};">{h(section.title)}</h2>'
+    return f'<h2{_style_attr(";".join(style_parts))}>{h(section.title)}</h2>'
 
 
 def _subsection_style_decl(section: Section) -> str:
@@ -579,13 +669,21 @@ def _subsection_style_decl(section: Section) -> str:
     if sub.text_align:
         decls.append(f"text-align:{sub.text_align}")
     if sub.spacing_before:
-        decls.append(f"padding-top:{sub.spacing_before}")
+        spacing_before = _safe_spacing(sub.spacing_before)
+        if spacing_before:
+            decls.append(f"padding-top:{spacing_before}")
     if sub.spacing_after:
-        decls.append(f"margin-bottom:{sub.spacing_after}")
+        spacing_after = _safe_spacing(sub.spacing_after)
+        if spacing_after:
+            decls.append(f"margin-bottom:{spacing_after}")
     if sub.background_color:
-        decls.append(f"background-color:{sub.background_color}")
+        background_color = _safe_color(sub.background_color)
+        if background_color:
+            decls.append(f"background-color:{background_color}")
     if sub.section_color:
-        decls.append(f"color:{sub.section_color}")
+        section_color = _safe_color(sub.section_color)
+        if section_color:
+            decls.append(f"color:{section_color}")
     return _format_inline_style(decls)
 
 
@@ -595,7 +693,9 @@ def _layout_style_decl(section: Section) -> str:
     layout = section.layout or LayoutHints()
     decls: list[str] = []
     if layout.font_family:
-        decls.append(f"font-family:{layout.font_family}")
+        font_family = _safe_font_family(layout.font_family)
+        if font_family:
+            decls.append(f"font-family:{font_family}")
     if layout.break_before:
         decls.append("break-before:page")
     if layout.orphans:
@@ -651,7 +751,7 @@ def _merge_entry_break_before(entry_html: str, decl: str) -> str:
         declarations.append(decl)
     merged = _format_inline_style(declarations)
     if merged:
-        return f'{prefix} style="{merged}"{entry_html[match.end():]}'
+        return f'{prefix}{_style_attr(merged)}{entry_html[match.end():]}'
     return f'{prefix}{entry_html[match.end():]}'
 
 
@@ -688,7 +788,7 @@ def _render_skills_inline_entry(entry: Entry) -> str:
             inner = h(run.text)
             run_style = _text_run_to_style(run)
             if run_style:
-                tag_spans.append(f'<span class="f-tag" style="{run_style}">{inner}</span>')
+                tag_spans.append(f'<span class="f-tag"{_style_attr(run_style)}>{inner}</span>')
             else:
                 tag_spans.append(f'<span class="f-tag">{inner}</span>')
         if len(tag_spans) == 1:
@@ -740,27 +840,39 @@ def _render_section(section: Section) -> str:
     entries_html = "".join(entries_html_parts)
 
     return (
-        f'<section id="{attr(section.id)}" style="{wrapper_style}">'
+        f'<section id="{attr(section.id)}"{_style_attr(wrapper_style)}>'
         f"{heading_html}{entries_html}"
         f"</section>"
     )
 
 
 def _render_zone(zone: ResolvedZone, sections_by_id) -> str:
-    style_str = _format_inline_style([f"{k}:{v}" for k, v in zone.styles.items() if v])
+    safe_zone_decls: list[str] = []
+    for key, value in zone.styles.items():
+        if key == "width" and value in {"30%", "50%", "100%", "auto"}:
+            safe_zone_decls.append(f"width:{value}")
+        elif key == "padding" and _safe_spacing(value):
+            safe_zone_decls.append(f"padding:{_safe_spacing(value)}")
+        elif key == "background-color" and _safe_color(value):
+            safe_zone_decls.append(f"background-color:{_safe_color(value)}")
+    style_str = _format_inline_style(safe_zone_decls)
     panels: list[str] = []
     for section_id in zone.section_ids:
         section = sections_by_id.get(section_id)
         if section is None:
             continue
         panels.append(_render_section(section))
-    return f'<div class="zone" style="{style_str}">{"".join(panels)}</div>'
+    return f'<div class="zone"{_style_attr(style_str)}>{"".join(panels)}</div>'
 
 
 def _render_document(model: RenderModel, support: RendererSupport) -> str:
     best_effort = "\n".join(_best_effort_comments(model, support))
     css_vars_block = _render_css_vars(model)
     zones_html = "".join(_render_zone(zone, model.sections) for zone in model.zones)
+    body_font = _safe_font_family(model.body_font) or "system-ui, sans-serif"
+    heading_font = _safe_font_family(model.heading_font) or body_font
+    link_styles = model.link_styles if model.link_styles in {LINK_STYLES, PLAIN_LINK_STYLES} else PLAIN_LINK_STYLES
+    print_styles = model.print_styles if model.print_styles == PRINT_STYLES else PRINT_STYLES
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -770,12 +882,12 @@ def _render_document(model: RenderModel, support: RendererSupport) -> str:
     body {{
       margin: 0;
       padding: 0;
-      font-family: {attr(model.body_font)};
+      font-family: {body_font};
       color: var(--text, #374151);
       background: var(--bg, #ffffff);
     }}
     h1, h2, h3, h4, h5, h6 {{
-      font-family: {attr(model.heading_font)};
+      font-family: {heading_font};
     }}
     .f-name {{ font-size: 1.5rem; font-weight: 700; }}
     .f-title, .f-summary, .f-company, .f-description, .f-institution, .f-category, .f-venue, .f-issuer {{ font-size: 0.875rem; }}
@@ -815,7 +927,7 @@ def _render_document(model: RenderModel, support: RendererSupport) -> str:
     }}
     .field-row {{ display:flex; flex-wrap:wrap; align-items:baseline; column-gap:0; row-gap:0; }}
     .f-chip {{ display:inline-block; background:#eff6ff; padding:2px 6px; border-radius:4px; color:#1d4ed8; font-size:0.75rem; }}
-{model.link_styles}    {model.print_styles}
+{link_styles}    {print_styles}
   </style>
 {best_effort}
 </head>

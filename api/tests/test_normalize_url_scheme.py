@@ -41,11 +41,22 @@ def test_http_url_passes_through_unchanged():
     assert normalize_url_scheme("http://insecure.example.com") == "http://insecure.example.com"
 
 
-def test_other_schemes_pass_through_unchanged():
-    """mailto:, tel:, ftp:, etc. are legitimate URL schemes and must survive."""
+def test_contact_schemes_pass_through_unchanged():
+    """mailto: and tel: are supported contact-link schemes."""
     assert normalize_url_scheme("mailto:foo@bar.com") == "mailto:foo@bar.com"
     assert normalize_url_scheme("tel:+1234567890") == "tel:+1234567890"
-    assert normalize_url_scheme("ftp://files.example.com") == "ftp://files.example.com"
+
+
+def test_unsafe_schemes_are_omitted():
+    assert normalize_url_scheme("javascript:alert(1)") == ""
+    assert normalize_url_scheme("data:text/html,hello") == ""
+    assert normalize_url_scheme("vbscript:msgbox(1)") == ""
+
+
+def test_malformed_urls_are_omitted():
+    assert normalize_url_scheme("https://") == ""
+    assert normalize_url_scheme("https://example.com/with space") == ""
+    assert normalize_url_scheme("\x01https://example.com") == ""
 
 
 def test_whitespace_around_input_is_stripped():

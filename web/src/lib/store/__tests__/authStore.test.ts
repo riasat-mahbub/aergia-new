@@ -3,68 +3,62 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("../../api/client", () => ({
   default: {
     post: vi.fn(),
+    get: vi.fn(),
   },
 }));
 
 import client from "../../api/client";
 import { useAuthStore } from "../authStore";
 
-const mockClient = vi.mocked(client.post);
+const mockPost = vi.mocked(client.post);
+const mockGet = vi.mocked(client.get);
 
 describe("authStore", () => {
   beforeEach(() => {
     useAuthStore.setState({
-      accessToken: null,
-      refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
     });
     localStorage.clear();
+    sessionStorage.clear();
     vi.clearAllMocks();
   });
 
   describe("login", () => {
-    it("should set tokens and isAuthenticated on success", async () => {
-      mockClient.mockResolvedValueOnce({
-        data: { access_token: "abc", refresh_token: "def", token_type: "bearer" },
-      });
+    it("marks the session authenticated without persisting tokens", async () => {
+      mockPost.mockResolvedValueOnce({ data: { message: "Logged in" } });
 
       await useAuthStore.getState().login("test@example.com", "password");
 
-      const state = useAuthStore.getState();
-      expect(state.accessToken).toBe("abc");
-      expect(state.refreshToken).toBe("def");
-      expect(state.isAuthenticated).toBe(true);
-      expect(localStorage.getItem("access_token")).toBe("abc");
-      expect(localStorage.getItem("refresh_token")).toBe("def");
+      expect(useAuthStore.getState().isAuthenticated).toBe(true);
+      expect(localStorage.getItem("access_token")).toBeNull();
+      expect(localStorage.getItem("refresh_token")).toBeNull();
+      expect(mockPost).toHaveBeenCalledWith("/auth/login", { email: "test@example.com", password: "password" });
     });
 
     it("should throw on login failure", async () => {
-      mockClient.mockRejectedValueOnce(new Error("Invalid credentials"));
+      mockPost.mockRejectedValueOnce(new Error("Invalid credentials"));
 
       await expect(
         useAuthStore.getState().login("test@example.com", "wrong")
       ).rejects.toThrow();
 
-      const state = useAuthStore.getState();
-      expect(state.isAuthenticated).toBe(false);
-      expect(state.isLoading).toBe(false);
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
+      expect(useAuthStore.getState().isLoading).toBe(false);
     });
   });
 
   describe("register", () => {
-    it("should not set tokens on register", async () => {
-      mockClient.mockResolvedValueOnce({ data: undefined });
+    it("does not authenticate after registration", async () => {
+      mockPost.mockResolvedValueOnce({ data: undefined });
 
       await useAuthStore.getState().register("test@example.com", "password");
 
-      const state = useAuthStore.getState();
-      expect(state.accessToken).toBeNull();
-      expect(state.isAuthenticated).toBe(false);
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
     });
 
     it("should throw on register failure", async () => {
-      mockClient.mockRejectedValueOnce(new Error("Email exists"));
+      mockPost.mockRejectedValueOnce(new Error("Email exists"));
 
       await expect(
         useAuthStore.getState().register("exists@example.com", "password")
@@ -73,63 +67,49 @@ describe("authStore", () => {
   });
 
   describe("logout", () => {
-    it("should clear tokens and set isAuthenticated false", async () => {
-      useAuthStore.setState({
-        accessToken: "abc",
-        refreshToken: "def",
-        isAuthenticated: true,
-      });
-      localStorage.setItem("access_token", "abc");
-      localStorage.setItem("refresh_token", "def");
-
-      mockClient.mockResolvedValueOnce({ data: undefined });
+    it("clears the in-memory session and legacy storage keys", async () => {
+      useAuthStore.setState({ isAuthenticated: true });
+      localStorage.setItem("access_token", "legacy-access");
+      localStorage.setItem("refresh_token", "legacy-refresh");
+      mockPost.mockResolvedValueOnce({ data: undefined });
 
       await useAuthStore.getState().logout();
 
-      const state = useAuthStore.getState();
-      expect(state.accessToken).toBeNull();
-      expect(state.refreshToken).toBeNull();
-      expect(state.isAuthenticated).toBe(false);
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
       expect(localStorage.getItem("access_token")).toBeNull();
       expect(localStorage.getItem("refresh_token")).toBeNull();
     });
 
-    it("should clear tokens even if server call fails", async () => {
-      useAuthStore.setState({
-        accessToken: "abc",
-        refreshToken: "def",
-        isAuthenticated: true,
-      });
-      localStorage.setItem("access_token", "abc");
-
-      mockClient.mockRejectedValueOnce(new Error("Network error"));
+    it("clears the session even if the server call fails", async () => {
+      useAuthStore.setState({ isAuthenticated: true });
+      mockPost.mockRejectedValueOnce(new Error("Network error"));
 
       await useAuthStore.getState().logout();
 
-      const state = useAuthStore.getState();
-      expect(state.accessToken).toBeNull();
-      expect(state.isAuthenticated).toBe(false);
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
     });
   });
 
   describe("hydrate", () => {
-    it("should restore auth state from localStorage", () => {
-      localStorage.setItem("access_token", "stored_token");
-      localStorage.setItem("refresh_token", "stored_refresh");
+    it("restores auth state from the HttpOnly-cookie session check", async () => {
+      localStorage.setItem("access_token", "legacy-token");
+      localStorage.setItem("refresh_token", "legacy-refresh");
+      mockGet.mockResolvedValueOnce({ data: { authenticated: true } });
 
-      useAuthStore.getState().hydrate();
+      await useAuthStore.getState().hydrate();
 
-      const state = useAuthStore.getState();
-      expect(state.accessToken).toBe("stored_token");
-      expect(state.refreshToken).toBe("stored_refresh");
-      expect(state.isAuthenticated).toBe(true);
+      expect(useAuthStore.getState().isAuthenticated).toBe(true);
+      expect(localStorage.getItem("access_token")).toBeNull();
+      expect(localStorage.getItem("refresh_token")).toBeNull();
+      expect(mockGet).toHaveBeenCalledWith("/auth/session");
     });
 
-    it("should set isAuthenticated false when no token", () => {
-      useAuthStore.getState().hydrate();
+    it("sets isAuthenticated false when the cookie session is absent", async () => {
+      mockGet.mockResolvedValueOnce({ data: { authenticated: false } });
 
-      const state = useAuthStore.getState();
-      expect(state.isAuthenticated).toBe(false);
+      await useAuthStore.getState().hydrate();
+
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
     });
   });
 });

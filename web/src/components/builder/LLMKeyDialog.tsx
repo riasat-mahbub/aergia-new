@@ -34,8 +34,8 @@ const PROVIDERS: LLMProviderKey[] = ["openai", "anthropic", "gemini", "groq"];
  *
  * Three rules baked in:
  *
- *  1. Keys are stored in sessionStorage only — never localStorage, never
- *     a module cache. Tab-scoped lifetime.
+ *  1. Keys are held in page memory only — never localStorage or
+ *     sessionStorage.
  *  2. Inputs render as ``type="password"`` with provider-specific
  *     ``autoComplete`` so password managers don't cross-fill.
  *  3. A persistent (NOT toast) security warning sits at the top of the
@@ -43,7 +43,7 @@ const PROVIDERS: LLMProviderKey[] = ["openai", "anthropic", "gemini", "groq"];
  *
  * Controlled-input state for the mismatch warning. The parent uses
  * ``key={open ? 1 : 0}`` (a small wrapper component) to remount the
- * tree on every open, seeding the buffer from sessionStorage.
+ * tree on every open, seeding the buffer from the in-memory store.
  */
 export default function LLMKeyDialog({ open, onClose }: Props) {
   return open ? (
@@ -55,6 +55,12 @@ function LLMKeyDialogBody({ onClose }: { onClose: () => void }) {
   const addToast = useToastStore((s) => s.addToast);
   const [values, setValues] = useState<LLMKeyMap>(() => loadKeys());
 
+  const handleClose = () => {
+    forgetAllKeys();
+    setValues({});
+    onClose();
+  };
+
   const handleSave = (e: FormEvent) => {
     e.preventDefault();
     saveKeys(values);
@@ -63,7 +69,7 @@ function LLMKeyDialogBody({ onClose }: { onClose: () => void }) {
         && (values[k as LLMProviderKey] ?? "").trim().length > 0
     );
     if (savedProviders.length === 0) {
-      addToast("API keys cleared from this browser tab.", "info");
+      addToast("API keys cleared from memory.", "info");
     } else {
       const labels = savedProviders
         .map((p) => PROVIDER_LABEL[p as LLMProviderKey])
@@ -76,7 +82,7 @@ function LLMKeyDialogBody({ onClose }: { onClose: () => void }) {
   const handleForgetAll = () => {
     forgetAllKeys();
     setValues({});
-    addToast("API keys cleared from this browser tab.", "info");
+    addToast("API keys cleared from memory.", "info");
   };
 
   const handleForgetOne = (provider: LLMProviderKey) => {
@@ -85,13 +91,13 @@ function LLMKeyDialogBody({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Modal open onClose={onClose}>
+    <Modal open onClose={handleClose}>
       <form onSubmit={handleSave} className="space-y-4">
         <div className="flex items-start justify-between">
           <h2 className="text-lg font-semibold text-gray-900">LLM API keys</h2>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             aria-label="Close"
             className="rounded p-1 text-gray-500 hover:bg-gray-100"
           >
@@ -100,9 +106,9 @@ function LLMKeyDialogBody({ onClose }: { onClose: () => void }) {
         </div>
 
         <p className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          Your API keys are stored only in this browser tab&rsquo;s
-          sessionStorage and sent directly to the provider each import.
-          They are NOT saved across sessions or to any server.
+          Your API keys are stored only in memory and sent directly to the
+          provider during the next import. They are NOT saved to browser
+          storage or to any server.
         </p>
 
         <div className="space-y-3">
@@ -171,7 +177,7 @@ function LLMKeyDialogBody({ onClose }: { onClose: () => void }) {
           </button>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="rounded border border-gray-300 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
           >
             Cancel

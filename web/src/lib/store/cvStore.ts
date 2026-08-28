@@ -2,7 +2,7 @@ import { create } from "zustand";
 import * as cvsApi from "../api/cvs";
 
 
-interface CVState {
+export interface CVState {
   cvList: cvsApi.CVListItem[];
   currentCV: cvsApi.CVDetail | null;
   isLoading: boolean;

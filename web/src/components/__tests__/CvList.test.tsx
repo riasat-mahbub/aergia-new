@@ -4,6 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import CvListPage from "../../pages/CvListPage";
 import AppLayout from "../common/AppLayout";
+import type { CVState } from "../../lib/store/cvStore";
+import type { CVListItem } from "../../lib/api/cvs";
 
 const mockFetchCVs = vi.fn();
 const mockCreateCV = vi.fn();
@@ -57,14 +59,48 @@ describe("CvListPage", () => {
   });
 
   it("renders CV cards when list is populated", async () => {
-    const cvList = [
-      { id: "1", title: "Software Engineer CV", template_id: "generic-modern", created_at: "2026-01-01", updated_at: "2026-01-02" },
-      { id: "2", title: "DevOps CV", template_id: "generic-minimal", created_at: "2026-01-03", updated_at: "2026-01-04" },
+    const cvList: CVListItem[] = [
+      {
+        id: "1",
+        title: "Software Engineer CV",
+        template_id: "generic-modern",
+        created_at: "2026-01-01",
+        updated_at: "2026-01-02",
+        application: {
+          id: "app-1",
+          company: "Example Labs",
+          role: "Platform Engineer",
+          status: "interview",
+          generation_status: "ready",
+          applied_at: "2026-01-01",
+        },
+      },
+      {
+        id: "2",
+        title: "DevOps CV",
+        template_id: "generic-minimal",
+        created_at: "2026-01-03",
+        updated_at: "2026-01-04",
+      },
     ];
 
     vi.mocked(await import("../../lib/store/cvStore")).useCVStore.mockImplementation(
-      (selector: any) => {
-        const state = { cvList, isLoading: false, fetchCVs: mockFetchCVs, createCV: mockCreateCV, deleteCV: mockDeleteCV, copyCV: mockCopyCV };
+      (selector: (state: CVState) => unknown) => {
+        const state = {
+          cvList,
+          currentCV: null,
+          isLoading: false,
+          isSaving: false,
+          lastSaved: null,
+          fetchCVs: mockFetchCVs,
+          createCV: mockCreateCV,
+          deleteCV: mockDeleteCV,
+          copyCV: mockCopyCV,
+          loadCV: vi.fn(),
+          setIsSaving: vi.fn(),
+          setLastSaved: vi.fn(),
+          patchCurrentCV: vi.fn(),
+        } satisfies CVState;
         return selector ? selector(state) : state;
       }
     );
@@ -75,6 +111,13 @@ describe("CvListPage", () => {
       expect(screen.getByText("Software Engineer CV")).toBeDefined();
       expect(screen.getByText("DevOps CV")).toBeDefined();
     });
+    expect(screen.getByRole("heading", { name: "Application CVs" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Other CVs" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Example Labs.*Platform Engineer/i })).toHaveAttribute(
+      "href",
+      "/dashboard/applications/app-1",
+    );
+    expect(screen.getByRole("heading", { name: "Other CVs" }).parentElement).toHaveTextContent("DevOps CV");
   });
 
   it("shows create dialog when clicking + New CV", async () => {

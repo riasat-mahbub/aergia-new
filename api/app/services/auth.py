@@ -1,8 +1,16 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.models.user import User
-from app.core.auth import hash_password, verify_password, hash_token, verify_token_hash, create_access_token, create_refresh_token, verify_token
+from app.core.auth import (
+    create_access_token,
+    create_refresh_token,
+    hash_password,
+    hash_token,
+    verify_password,
+    verify_refresh_token,
+    verify_token_hash,
+)
 from app.schemas.auth import RegisterRequest, LoginRequest
 
 
@@ -36,7 +44,7 @@ class AuthService:
         return access_token, refresh_token, user
 
     async def refresh(self, raw_refresh_token: str) -> tuple[str, str]:
-        email = verify_token(raw_refresh_token)
+        email = verify_refresh_token(raw_refresh_token)
         if not email:
             raise ValueError("Invalid or expired refresh token")
 
@@ -53,7 +61,13 @@ class AuthService:
 
         new_access_token = create_access_token(user.email)
         new_refresh_token = create_refresh_token(user.email)
-        user.refresh_token_hash = hash_token(new_refresh_token)
+        rotated = await self.db.execute(
+            update(User)
+            .where(User.id == user.id, User.refresh_token_hash == user.refresh_token_hash)
+            .values(refresh_token_hash=hash_token(new_refresh_token))
+        )
+        if rotated.rowcount != 1:
+            raise ValueError("Invalid or expired refresh token")
         await self.db.flush()
         return new_access_token, new_refresh_token
 

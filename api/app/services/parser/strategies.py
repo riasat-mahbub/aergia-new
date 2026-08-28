@@ -104,28 +104,29 @@ class LLMStrategy:
     async def structure_async(
         self, extracted: ExtractedDocument
     ) -> tuple[list[SectionInstance], ConfidenceReport]:
-        if self._adapter is None:
-            raise RuntimeError(
-                "LLMStrategy.structure_async called without a bound adapter "
-                "(use orchestrator._resolve_provider)"
+        try:
+            if self._adapter is None:
+                raise RuntimeError(
+                    "LLMStrategy.structure_async called without a bound adapter "
+                    "(use orchestrator._resolve_provider)"
+                )
+
+            sections = await self._adapter.structure(
+                plain_text=extracted.plain_text,
+                api_key=self._api_key,
+                section_schema=_section_instance_array_schema(),
+                hints=None,
             )
 
-        sections = await self._adapter.structure(
-            plain_text=extracted.plain_text,
-            api_key=self._api_key,
-            section_schema=_section_instance_array_schema(),
-            hints=None,
-        )
-
-        # Provider success → confidence is high; consumers don't get
-        # per-field confidence from the LLM yet (a future PR can request
-        # structured per-field confidence from the model).
-        confidence = ConfidenceReport(fields=[], overall_level="high")
-
-        # Drop the key eagerly — do not wait for garbage collection.
-        self._api_key = ""
-
-        return sections, confidence
+            # Provider success → confidence is high; consumers don't get
+            # per-field confidence from the LLM yet (a future PR can request
+            # structured per-field confidence from the model).
+            confidence = ConfidenceReport(fields=[], overall_level="high")
+            return sections, confidence
+        finally:
+            # Clear on success, provider error, cancellation, and validation
+            # failure. Do not wait for garbage collection or object teardown.
+            self._api_key = ""
 
     # ---------------------------------------------------------------------------
     # Backwards-compat shim — call sites using the old synchronous protocol

@@ -61,6 +61,20 @@ async def test_llm_strategy_without_bound_adapter_raises_clear_error():
         await s.structure_async(extracted)
 
 
+async def test_llm_strategy_clears_api_key_when_adapter_fails():
+    from app.services.parser.keys import LLMProvider
+
+    class FailingAdapter:
+        async def structure(self, **_kwargs):
+            raise RuntimeError("provider failed")
+
+    s = LLMStrategy(LLMProvider.OPENAI, "sk-secret-marker")
+    s.bind_adapter(FailingAdapter())
+    with pytest.raises(RuntimeError, match="provider failed"):
+        await s.structure_async(_empty_extracted())
+    assert s._api_key == ""
+
+
 def test_llm_strategy_sync_structure_raises_typeerror():
     from app.services.parser.keys import LLMProvider
     from app.services.parser.schemas import ExtractedDocument

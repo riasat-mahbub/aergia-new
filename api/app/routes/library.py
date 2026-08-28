@@ -111,5 +111,5 @@ async def clone_library_entry(
     try:
         section = await service.clone_to_section_instance(entry_id, current_user.id)
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND) from exc
     return LibraryCloneResponse(section_instance=section)

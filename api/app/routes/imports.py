@@ -8,11 +8,9 @@ the editor and saves via the existing ``POST /api/v1/cvs`` flow.
 When the multipart request includes ``provider`` + ``api_key`` form
 fields, the orchestrator may route through a vendor LLM. The key
 lives in memory only for the lifetime of the request; it is dropped
-when the adapter's async client is closed and never reaches a log
-line (every vendor error passes through ``redact()`` first). The
-route also applies ``redact()`` to any ``InvalidAPIKeyError``
-message body — belt-and-suspenders so a misbehaving adapter cannot
-leak the key into the 401 response body.
+when the adapter's async client is closed and never reaches a log line.
+Provider failures use fixed public messages so a vendor SDK cannot leak a
+key or transport detail into a response body.
 
 Status code map:
 
@@ -33,12 +31,14 @@ from fastapi import (
     File,
     Form,
     HTTPException,
+    Request,
     UploadFile,
     status,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user
+from app.core.rate_limit import limiter
 from app.db.session import get_db
 from app.models.user import User
 from app.services.parser import (
@@ -51,7 +51,7 @@ from app.services.parser import (
     parse_cv,
 )
 from app.services.parser.extract import UnsupportedFormatError
-from app.services.parser.keys import LLMProvider, redact as _redact
+from app.services.parser.keys import LLMProvider
 
 
 router = APIRouter(prefix="/cvs/import", tags=["imports"])
@@ -62,7 +62,9 @@ MAX_BYTES = 15 * 1024 * 1024  # 15MB
 
 
 @router.post("/pdf", response_model=ParseResult)
+@limiter.limit("5/minute")
 async def import_pdf(
+    request: Request,
     file: UploadFile = File(...),
     api_key: str | None = Form(default=None),
     provider: str | None = Form(default=None),
@@ -72,14 +74,14 @@ async def import_pdf(
     if file.content_type not in ALLOWED_MIME:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported file type: {file.content_type}. Allowed: pdf",
+            detail="Unsupported document format",
         )
 
-    raw = await file.read()
+    raw = await file.read(MAX_BYTES + 1)
     if len(raw) > MAX_BYTES:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File too large. Maximum {MAX_BYTES // (1024 * 1024)}MB",
+            detail="Uploaded document is too large",
         )
 
     provider_enum: LLMProvider | None = None
@@ -90,8 +92,19 @@ async def import_pdf(
             allowed = ", ".join(p.value for p in LLMProvider)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unsupported provider: {provider!r}. Allowed: {allowed}",
+                detail=f"Unsupported provider. Allowed: {allowed}",
             )
+
+    if api_key and provider_enum is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A provider is required when an API key is supplied",
+        )
+    if api_key is not None and len(api_key) > 512:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid API key",
+        )
 
     if api_key and provider_enum is not None:
         try:
@@ -99,18 +112,12 @@ async def import_pdf(
         except UnknownProviderError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    "Unrecognised API key prefix. Supported prefixes: "
-                    "sk- (OpenAI), sk-ant- (Anthropic), AIza (Gemini), gsk_ (Groq)."
-                ),
+                detail="Unrecognised API key format",
             )
         if detected != provider_enum:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    f"API key shape does not match declared provider "
-                    f"{provider_enum.value!r}."
-                ),
+                detail="API key format does not match the selected provider",
             )
 
     try:
@@ -120,21 +127,22 @@ async def import_pdf(
             provider=provider_enum,
             api_key=api_key,
         )
-    except InvalidAPIKeyError as e:
-        # Adapter redacts by contract; route redacts again as a safety net.
+    except InvalidAPIKeyError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=_redact(str(e)),
+            detail="The provider rejected this API key",
         )
-    except EmptyInputError as e:
+    except EmptyInputError:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The uploaded document contains no readable text",
         )
-    except UnsupportedFormatError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except ExtractionFailedError as e:
+    except UnsupportedFormatError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported document format")
+    except ExtractionFailedError:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Unable to read the uploaded document",
         )
 
 

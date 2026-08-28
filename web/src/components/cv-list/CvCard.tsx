@@ -1,4 +1,5 @@
 import { motion } from "motion/react";
+import { Link } from "react-router-dom";
 import type { CVListItem } from "../../lib/api/cvs";
 
 const TEMPLATE_COLORS: Record<string, string> = {
@@ -41,6 +42,17 @@ export default function CvCard({ cv, onEdit, onCopy, onDelete }: CvCardProps) {
               </span>
               <span className="text-xs text-gray-400">Updated {date}</span>
             </div>
+            {cv.application && (
+              <Link
+                to={`/dashboard/applications/${cv.application.id}`}
+                className="mt-3 flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-blue-700 hover:text-blue-900 hover:underline"
+              >
+                <span className="inline-flex shrink-0 items-center rounded-full bg-blue-50 px-2 py-0.5 font-medium">
+                  Application CV
+                </span>
+                <span className="truncate">{cv.application.company} · {cv.application.role}</span>
+              </Link>
+            )}
           </div>
         </div>
         <div className="mt-4 flex gap-2">

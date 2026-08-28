@@ -35,6 +35,19 @@ class TestAuthSchemas:
         assert data.old_password == "oldpass12"
         assert data.new_password == "newpass12"
 
+    def test_password_minimum_is_eight_characters(self):
+        with pytest.raises(ValidationError):
+            RegisterRequest(email="user@example.com", password="1234567")
+        with pytest.raises(ValidationError):
+            ChangePasswordRequest(old_password="12345678", new_password="1234567")
+
+    def test_password_rejects_more_than_bcrypts_utf8_byte_limit(self):
+        long_utf8_password = "😀" * 19  # 76 UTF-8 bytes, but only 19 characters
+        with pytest.raises(ValidationError):
+            RegisterRequest(email="user@example.com", password=long_utf8_password)
+        with pytest.raises(ValidationError):
+            ChangePasswordRequest(old_password="12345678", new_password=long_utf8_password)
+
 
 class TestCVSchemas:
     def test_cv_create_valid(self):

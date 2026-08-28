@@ -86,6 +86,14 @@ def test_escapes_user_provided_text():
     assert "&lt;script&gt;" in html
 
 
+def test_style_values_cannot_break_out_of_style_attribute():
+    """A hostile color must be rejected before HTML serialization."""
+    import pytest
+
+    with pytest.raises(ValueError):
+        TextStyle(color='red" onmouseover="alert(1)')
+
+
 def test_profile_section_omits_h2_when_show_title_is_false():
     model = _model()
     html = HTMLDocumentRenderer().render(model)

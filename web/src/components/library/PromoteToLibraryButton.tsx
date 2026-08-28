@@ -44,11 +44,8 @@ export default function PromoteToLibraryButton({
         addToast(`Added ${formatPromoted(resp.promoted)} to your Library.`, "success");
       }
       await fetchAll();
-    } catch (e) {
-      addToast(
-        `Promote failed: ${e instanceof Error ? e.message : "unknown error"}`,
-        "error",
-      );
+    } catch {
+      addToast("Unable to promote this CV to the Library", "error");
     } finally {
       setBusy(false);
     }

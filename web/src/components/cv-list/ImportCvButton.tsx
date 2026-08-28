@@ -7,7 +7,12 @@ import ImportCvModal from "./ImportCvModal";
 import { importPDF } from "../../lib/api/imports";
 import { useToastStore } from "../../lib/store/uiStore";
 import { useCVStore } from "../../lib/store/cvStore";
-import { useLLMKeys, pickActiveProvider, type LLMProviderKey } from "../../lib/llm/keys";
+import {
+  forgetAllKeys,
+  useLLMKeys,
+  pickActiveProvider,
+  type LLMProviderKey,
+} from "../../lib/llm/keys";
 
 const PROVIDER_DISPLAY_NAME: Record<LLMProviderKey, string> = {
   openai: "OpenAI",
@@ -20,8 +25,8 @@ const PROVIDER_DISPLAY_NAME: Record<LLMProviderKey, string> = {
  * Header cluster: `Import CV` button + settings cog + LLM key dialog +
  * the pre-file modal.
  *
- * Label is `Import CV · <Provider>` when a key is stored in
- * sessionStorage (live via `useLLMKeys`). Clicking the button opens
+ * Label is `Import CV · <Provider>` when a key is held in memory
+ * (live via `useLLMKeys`). Clicking the button opens
  * the modal; the modal's `onSubmit` runs the import → create →
  * navigate pipeline.
  */
@@ -92,7 +97,10 @@ export default function ImportCvButton() {
       <ImportCvModal
         open={open}
         onClose={() => {
-          if (!busy) setOpen(false);
+          if (!busy) {
+            forgetAllKeys();
+            setOpen(false);
+          }
         }}
         onSubmit={handleSubmit}
       />

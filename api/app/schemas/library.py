@@ -12,7 +12,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.schema.models import LibraryEntryKindStr, SectionInstance
 
@@ -37,13 +37,13 @@ class LibraryEntryCreate(BaseModel):
     """Request body to create a Library entry."""
 
     kind: LibraryEntryKind
-    payload: list[dict] = []
+    payload: list[dict] = Field(default_factory=list, max_length=100)
 
 
 class LibraryEntryUpdate(BaseModel):
     """Request body to mutate a Library entry's payload."""
 
-    payload: list[dict]
+    payload: list[dict] = Field(max_length=100)
 
 
 class LibraryEntryResponse(BaseModel):
@@ -108,7 +108,7 @@ class AddEntryToLibraryRequest(BaseModel):
     """
 
     kind: LibraryEntryKind
-    entry: dict
+    entry: dict = Field(max_length=100)
 
 
 

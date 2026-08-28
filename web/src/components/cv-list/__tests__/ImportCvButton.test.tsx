@@ -11,7 +11,7 @@ import {
 } from "react-router-dom";
 
 import ImportCvButton from "../ImportCvButton";
-import { forgetAllKeys, saveKeys } from "../../../lib/llm/keys";
+import { forgetAllKeys, loadKeys, saveKeys } from "../../../lib/llm/keys";
 
 const mockImportPDF = vi.fn();
 const mockCreateCV = vi.fn();
@@ -113,7 +113,7 @@ describe("ImportCvButton", () => {
     renderButton();
     fireEvent.click(screen.getByTitle("Configure LLM API keys"));
     expect(
-      screen.getByText(/stored only in this browser tab/, { exact: false })
+      screen.getByText(/stored only in memory/, { exact: false })
     ).toBeTruthy();
   });
 
@@ -123,6 +123,17 @@ describe("ImportCvButton", () => {
     expect(screen.getByText(/Cancel/)).toBeTruthy();
     expect(screen.getByLabelText("Title")).toBeTruthy();
     expect(screen.getByLabelText("Template")).toBeTruthy();
+  });
+
+  it("clears in-memory LLM keys when the import modal is canceled", () => {
+    saveKeys({ openai: "sk-cancel-key" });
+    renderButton();
+
+    fireEvent.click(screen.getByText("Import CV · OpenAI"));
+    expect(loadKeys()).toEqual({ openai: "sk-cancel-key" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(loadKeys()).toEqual({});
   });
 
   it("on success: invokes importPDF, createCV with sections, navigates to the new builder route", async () => {

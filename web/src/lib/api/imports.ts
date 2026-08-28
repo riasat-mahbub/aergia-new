@@ -1,6 +1,7 @@
 import client from "./client";
 import type { SectionInstance } from "../sections/types";
 import {
+  forgetAllKeys,
   loadKeys,
   pickActiveProvider,
   type LLMProviderKey,
@@ -33,8 +34,8 @@ export interface ParseResult {
  * CV builder UI. No persistence happens here — the user saves via the
  * normal `POST /api/v1/cvs` flow.
  *
- * When a key for one of the four supported providers is stored in
- * `sessionStorage` (see `web/src/lib/llm/keys.ts`), the matching
+ * When a key for one of the four supported providers is present in the
+ * in-memory key store (see `web/src/lib/llm/keys.ts`), the matching
  * (provider, api_key) pair is sent as multipart form fields. If no
  * key is set, the orchestrator runs the existing regex path.
  *
@@ -53,9 +54,15 @@ export async function importPDF(file: File): Promise<ParseResult> {
       fd.append("api_key", key);
     }
   }
-  const { data } = await client.post("/cvs/import/pdf", fd, {
-    headers: { "Content-Type": "multipart/form-data" },
-    timeout: 120_000,
-  });
-  return data as ParseResult;
+  try {
+    const { data } = await client.post("/cvs/import/pdf", fd, {
+      headers: { "Content-Type": "multipart/form-data" },
+      timeout: 120_000,
+    });
+    return data as ParseResult;
+  } finally {
+    // A key is needed for one request only; a retry must explicitly re-enter
+    // it instead of leaving a credential available in page memory.
+    forgetAllKeys();
+  }
 }

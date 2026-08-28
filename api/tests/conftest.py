@@ -15,6 +15,11 @@ os.environ["DATABASE_URL"] = os.environ["API_TEST_DB_URL"]
 
 # Set test environment before any app imports to disable rate limiting
 os.environ["ENVIRONMENT"] = "test"
+# Integration tests retain the legacy bearer/body transport while the
+# production configuration exercises the HttpOnly cookie transport.
+os.environ["ALLOW_BEARER_TOKENS"] = "true"
+os.environ["EXPOSE_TOKENS_IN_RESPONSE"] = "true"
+os.environ["CSRF_PROTECTION_ENABLED"] = "false"
 
 from app.app import app
 from app.db.seed import seed_templates

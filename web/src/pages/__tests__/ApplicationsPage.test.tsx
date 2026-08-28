@@ -78,7 +78,7 @@ describe("ApplicationsPage", () => {
     expect(screen.getByText("Relevance 75%")).toBeInTheDocument();
     expect(screen.getByText("One-page fit")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /open linked cv/i })).toHaveAttribute("href", "/dashboard/builder/cv-1?application=ready-1");
-    expect(screen.getByLabelText("Status")).toBeInTheDocument();
+    expect(screen.getByLabelText("Status")).toHaveClass("w-full", "min-w-[10rem]", "sm:w-auto");
   });
 
   it("filters cards by status and retries pending generation", async () => {

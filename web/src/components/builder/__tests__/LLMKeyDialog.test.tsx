@@ -25,7 +25,7 @@ describe("LLMKeyDialog", () => {
     mockAddToast.mockReset();
   });
 
-  it("renders four inputs with type=password and provider-specific autoComplete", () => {
+  it("renders four inputs with type=password and autocomplete disabled", () => {
     render(<LLMKeyDialog open onClose={() => undefined} />);
 
     const inputByProvider = (name: string) =>
@@ -38,10 +38,10 @@ describe("LLMKeyDialog", () => {
 
     expect(openai).toBeTruthy();
     expect(openai.type).toBe("password");
-    expect(openai.getAttribute("autocomplete")).toBe("current-password");
+    expect(openai.getAttribute("autocomplete")).toBe("off");
 
     expect(anthropic.type).toBe("password");
-    expect(anthropic.getAttribute("autocomplete")).toBe("current-password");
+    expect(anthropic.getAttribute("autocomplete")).toBe("off");
 
     expect(gemini.type).toBe("password");
     expect(gemini.getAttribute("autocomplete")).toBe("off");
@@ -53,11 +53,11 @@ describe("LLMKeyDialog", () => {
   it("renders the persistent security warning text in the DOM", () => {
     render(<LLMKeyDialog open onClose={() => undefined} />);
     expect(
-      screen.getByText(/stored only in this browser tab/, { exact: false })
+      screen.getByText(/stored only in memory/, { exact: false })
     ).toBeTruthy();
   });
 
-  it("Save updates sessionStorage and fires the success toast with the stored providers", () => {
+  it("Save updates memory only and fires the success toast with the stored providers", () => {
     render(<LLMKeyDialog open onClose={() => undefined} />);
 
     const openai = document.querySelector(
@@ -68,16 +68,15 @@ describe("LLMKeyDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: /Save/ }));
 
     expect(loadKeys()).toEqual({ openai: "sk-round-trip" });
-    expect(window.sessionStorage.getItem(STORAGE_KEY)).toBe(
-      JSON.stringify({ openai: "sk-round-trip" })
-    );
+    expect(window.sessionStorage.getItem(STORAGE_KEY)).toBeNull();
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
     expect(mockAddToast).toHaveBeenCalledWith(
       "Saved API keys for: OpenAI",
       "success"
     );
   });
 
-  it("Forget all wipes sessionStorage in one call and fires the info toast", () => {
+  it("Forget all wipes memory in one call and fires the info toast", () => {
     saveKeys({ openai: "sk-still-here", gemini: "AIza-still-here" });
     render(<LLMKeyDialog open onClose={() => undefined} />);
 
@@ -85,7 +84,7 @@ describe("LLMKeyDialog", () => {
 
     expect(window.sessionStorage.getItem(STORAGE_KEY)).toBeNull();
     expect(mockAddToast).toHaveBeenCalledWith(
-      "API keys cleared from this browser tab.",
+      "API keys cleared from memory.",
       "info"
     );
   });
@@ -98,19 +97,11 @@ describe("LLMKeyDialog", () => {
     fireEvent.click(forgetGemini);
 
     expect(loadKeys()).toEqual({ openai: "sk-keep" });
-    expect(
-      (window.sessionStorage.getItem(STORAGE_KEY) ?? "{}").includes(
-        "sk-keep"
-      )
-    ).toBe(true);
-    expect(
-      (window.sessionStorage.getItem(STORAGE_KEY) ?? "{}").includes(
-        "AIza-forget"
-      )
-    ).toBe(false);
+    expect(window.sessionStorage.getItem(STORAGE_KEY)).toBeNull();
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
-  it("Cancel leaves sessionStorage untouched", () => {
+  it("Cancel clears the in-memory keys", () => {
     saveKeys({ openai: "sk-keep-on-cancel" });
     render(<LLMKeyDialog open onClose={() => undefined} />);
 
@@ -123,7 +114,7 @@ describe("LLMKeyDialog", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Cancel/ }));
 
-    expect(loadKeys()).toEqual({ openai: "sk-keep-on-cancel" });
+    expect(loadKeys()).toEqual({});
   });
 
   it("detects a typed-in-wrong-slot mismatch inline but Save still works", async () => {

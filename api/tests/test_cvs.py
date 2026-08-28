@@ -1,6 +1,11 @@
 """T6-T8: Pytest: CV CRUD flow, copy, and data isolation"""
 
+from uuid import uuid4
+
 import pytest
+
+from app.db.session import async_session
+from app.models.application import Application
 
 
 @pytest.fixture
@@ -97,6 +102,91 @@ async def test_cv_copy_independent(client, auth_headers):
 
 
 @pytest.mark.asyncio
+async def test_cv_list_includes_owned_application_summary_and_keeps_copies_unlinked(client, auth_headers):
+    ordinary = await client.post(
+        "/api/v1/cvs",
+        json={"title": "Ordinary CV", "extra_metadata": {"application_id": "forged"}},
+        headers=auth_headers,
+    )
+    assert ordinary.status_code == 201
+    ordinary_id = ordinary.json()["id"]
+
+    linked = await client.post(
+        "/api/v1/cvs",
+        json={
+            "title": "Tailored CV",
+            "extra_metadata": {
+                "application_id": "legacy-app",
+                "generated_by": "keyword-v1",
+                "selected_sources": [],
+                "extracted_keywords": [],
+            },
+        },
+        headers=auth_headers,
+    )
+    assert linked.status_code == 201
+    linked_id = linked.json()["id"]
+    application = await client.post(
+        "/api/v1/applications",
+        json={"company": "Example Labs", "role": "Platform Engineer", "job_description": "Python"},
+        headers=auth_headers,
+    )
+    assert application.status_code == 201
+    application_id = application.json()["id"]
+
+    async with async_session() as session:
+        application_row = await session.get(Application, application_id)
+        assert application_row is not None
+        application_row.cv_id = linked_id
+        await session.commit()
+
+    copied = await client.post(f"/api/v1/cvs/{linked_id}/copy", headers=auth_headers)
+    assert copied.status_code == 200
+    assert copied.json()["extra_metadata"] == {}
+
+    listed = await client.get("/api/v1/cvs", headers=auth_headers)
+    assert listed.status_code == 200
+    by_id = {item["id"]: item for item in listed.json()}
+    assert by_id[ordinary_id]["application"] is None
+    assert by_id[ordinary_id].get("extra_metadata") is None
+    assert by_id[linked_id]["application"] == {
+        "id": application_id,
+        "company": "Example Labs",
+        "role": "Platform Engineer",
+        "status": "draft",
+        "generation_status": "pending",
+        "applied_at": None,
+    }
+    assert by_id[copied.json()["id"]]["application"] is None
+
+
+@pytest.mark.asyncio
+async def test_cv_list_does_not_expose_another_users_application_summary(client, auth_headers):
+    foreign_email = f"foreign-cv-{uuid4().hex}@example.com"
+    await client.post("/api/v1/auth/register", json={"email": foreign_email, "password": "testpass123"})
+    foreign_login = await client.post(
+        "/api/v1/auth/login", json={"email": foreign_email, "password": "testpass123"}
+    )
+    foreign_headers = {"Authorization": f"Bearer {foreign_login.json()['access_token']}"}
+    owner_cv = await client.post("/api/v1/cvs", json={"title": "Owner CV"}, headers=auth_headers)
+    foreign_application = await client.post(
+        "/api/v1/applications",
+        json={"company": "Foreign Co", "role": "Engineer", "job_description": "Python"},
+        headers=foreign_headers,
+    )
+
+    async with async_session() as session:
+        application_row = await session.get(Application, foreign_application.json()["id"])
+        assert application_row is not None
+        application_row.cv_id = owner_cv.json()["id"]
+        await session.commit()
+
+    listed = await client.get("/api/v1/cvs", headers=auth_headers)
+    owner_item = next(item for item in listed.json() if item["id"] == owner_cv.json()["id"])
+    assert owner_item["application"] is None
+
+
+@pytest.mark.asyncio
 async def test_cv_data_isolation(client):
     """T8: CV data isolation by user_id - users cannot access each other's CVs"""
 
@@ -135,8 +225,6 @@ async def test_cv_data_isolation(client):
     # User B cannot copy it
     copy_b = await client.post(f"/api/v1/cvs/{cv_a_id}/copy", headers=headers_b)
     assert copy_b.status_code == 404
-
-
 
 
 

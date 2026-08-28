@@ -34,6 +34,8 @@ describe("LibraryProfileCard", () => {
     render(<LibraryProfileCard profile={profile} onSave={onSave} />);
 
     await user.click(screen.getByRole("button", { name: /^edit$/i }));
+    expect(screen.getByTestId("library-profile-editor")).toHaveClass("w-full", "min-w-0");
+    expect(screen.getByTestId("library-profile-editor")).not.toHaveClass("w-[min(640px,90vw)]");
     const name = screen.getAllByRole("textbox")[0];
     await user.clear(name);
     await user.type(name, "Grace Hopper");

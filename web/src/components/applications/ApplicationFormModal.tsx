@@ -37,15 +37,7 @@ function formFromApplication(application: Application | null | undefined): FormS
 }
 
 function errorDetail(error: unknown): string {
-  if (typeof error === "object" && error !== null && "response" in error) {
-    const response = error.response;
-    if (typeof response === "object" && response !== null && "data" in response) {
-      const data = response.data;
-      if (typeof data === "object" && data !== null && "detail" in data && typeof data.detail === "string") {
-        return data.detail;
-      }
-    }
-  }
+  void error;
   return "Unable to save this application. Please try again.";
 }
 
@@ -132,8 +124,8 @@ export default function ApplicationFormModal({
   };
 
   return (
-    <Modal open={open} onClose={busy ? () => undefined : onClose}>
-      <form onSubmit={handleSubmit} className="max-h-[85vh] w-[min(720px,90vw)] overflow-y-auto">
+    <Modal open={open} onClose={busy ? () => undefined : onClose} size="wide">
+      <form onSubmit={handleSubmit} className="max-h-[85vh] w-full min-w-0 overflow-x-hidden overflow-y-auto">
         <header className="mb-5">
           <h2 className="text-xl font-semibold text-gray-900">
             {editing ? "Edit application" : "Track an application"}

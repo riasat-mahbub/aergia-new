@@ -110,7 +110,7 @@ function ApplicationCard({ application, retrying, onRetry, onDelete }: Applicati
           Delete
         </button>
       </div>
-      {application.generation_error && <p className="mt-3 text-xs text-red-700">{application.generation_error}</p>}
+      {application.generation_error && <p className="mt-3 text-xs text-red-700">CV generation failed. Please retry.</p>}
     </article>
   );
 }
@@ -140,7 +140,7 @@ export default function ApplicationsPage() {
     if (result.application.generation_status === "ready" && result.cv_id) {
       navigate(`/dashboard/builder/${result.cv_id}?application=${result.application.id}`);
     } else if (result.application.generation_status === "failed") {
-      addToast(result.application.generation_error || "CV generation failed", "error");
+      addToast("CV generation failed. Please retry.", "error");
     }
   };
 
@@ -178,9 +178,9 @@ export default function ApplicationsPage() {
         </button>
       </header>
 
-      <div className="mb-6 flex items-center gap-3">
-        <label htmlFor="application-status-filter" className="text-sm font-medium text-gray-700">Status</label>
-        <select id="application-status-filter" value={filter} onChange={(event) => setFilter(event.target.value as ApplicationStatus | "all")} className="rounded-md border border-gray-300 px-3 py-2 text-sm">
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <label htmlFor="application-status-filter" className="shrink-0 text-sm font-medium text-gray-700">Status</label>
+        <select id="application-status-filter" value={filter} onChange={(event) => setFilter(event.target.value as ApplicationStatus | "all")} className="w-full min-w-[10rem] rounded-md border border-gray-300 px-3 py-2 text-sm sm:w-auto">
           <option value="all">All statuses</option>
           {APPLICATION_STATUSES.map((status) => <option key={status} value={status}>{STATUS_LABELS[status]}</option>)}
         </select>

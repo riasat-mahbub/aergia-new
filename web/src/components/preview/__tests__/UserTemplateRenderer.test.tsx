@@ -28,6 +28,20 @@ beforeEach(() => {
 });
 
 describe("UserTemplateRenderer — preview render payload (Phase 7 wire)", () => {
+  it("allows same-origin DOM measurement without allowing scripts", () => {
+    const { getByTitle } = render(
+      <UserTemplateRenderer
+        instances={INSTANCES}
+        manifest={MANIFEST}
+        customizations={{
+          layout: { zones: [{ id: "main", styles: { width: "full" } }], placement: { sec_profile: "main" } },
+        }}
+      />
+    );
+    expect(getByTitle("User Template Preview")).toHaveAttribute("sandbox", "allow-same-origin");
+    expect(getByTitle("User Template Preview")).not.toHaveAttribute("sandbox", expect.stringContaining("allow-scripts"));
+  });
+
   it("passes customizations.layout through to the render endpoint verbatim", async () => {
     const customizations = {
       accent_color: "#aabbcc",
@@ -47,7 +61,11 @@ describe("UserTemplateRenderer — preview render payload (Phase 7 wire)", () =>
 
     expect(mockPost).toHaveBeenCalledTimes(1);
     const [url, rawPayload] = mockPost.mock.calls[0];
-    const payload = rawPayload as Record<string, any>;
+    const payload = rawPayload as {
+      manifest: unknown;
+      cv_sections: unknown;
+      customizations: unknown;
+    };
     expect(url).toBe("/render/html");
     expect(payload.manifest).toEqual(MANIFEST);
     expect(payload.manifest).not.toHaveProperty("layout_config");
@@ -75,7 +93,11 @@ describe("UserTemplateRenderer — preview render payload (Phase 7 wire)", () =>
 
     expect(mockPost).toHaveBeenCalledTimes(1);
     const [, rawPayload] = mockPost.mock.calls[0];
-    const payload = rawPayload as Record<string, any>;
+    const payload = rawPayload as {
+      manifest: unknown;
+      cv_sections: unknown;
+      customizations: { layout: { placement?: unknown } };
+    };
     expect(payload.manifest).toBeNull();
     expect(payload.cv_sections).toEqual(INSTANCES);
     expect(payload.customizations.layout.placement).toEqual({ sec_profile: "main" });

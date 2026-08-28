@@ -21,6 +21,7 @@ import {
   ListOrdered,
   Link,
 } from "lucide-react";
+import { safeLinkUrl } from "../../../lib/security/safeUrl";
 
 interface Props {
   editor: LexicalEditor;
@@ -102,7 +103,12 @@ export default function RichTextToolbar({ editor }: Props) {
   const insertLink = () => {
     const url = window.prompt("Link URL (leave blank to remove)", "https://");
     if (url === null) return;
-    editor.dispatchCommand(TOGGLE_LINK_COMMAND, url === "" ? null : url);
+    if (url.trim() === "") {
+      editor.dispatchCommand(TOGGLE_LINK_COMMAND, null);
+      return;
+    }
+    const safeUrl = safeLinkUrl(url);
+    if (safeUrl) editor.dispatchCommand(TOGGLE_LINK_COMMAND, safeUrl);
   };
 
   return (

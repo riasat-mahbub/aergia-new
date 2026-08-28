@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
+import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.schemas.cv import CVCreate, CVUpdate, CVResponse, CVListItem
+from app.schemas.cv import CVApplicationSummary, CVCreate, CVUpdate, CVResponse, CVListItem
 from app.schemas.library import AddEntryToLibraryRequest, AddEntryToLibraryResponse, PromoteToLibraryResponse
 from app.services.cv import CVLinkedToApplicationError, CVService
 from app.services.cv import coerce_customizations
@@ -11,11 +12,13 @@ from app.services.pdf import PDFService
 from app.services.renderer import HTMLDocumentRenderer, build_document, resolve
 from app.routes.render import strip_anchor_hrefs
 from app.core.deps import get_current_user
+from app.core.rate_limit import limiter
 from app.models.user import User
 
 NOT_FOUND = "CV not found"
 
 router = APIRouter()
+logger = logging.getLogger("aergia.cvs")
 
 @router.get("", response_model=list[CVListItem])
 async def list_cvs(
@@ -23,8 +26,29 @@ async def list_cvs(
     db: AsyncSession = Depends(get_db),
 ):
     service = CVService(db)
-    cvs = await service.list_cvs(current_user.id)
-    return [CVListItem.model_validate(cv) for cv in cvs]
+    cv_pairs = await service.list_cv_summaries(current_user.id)
+    return [
+        CVListItem(
+            id=cv.id,
+            title=cv.title,
+            template_id=cv.template_id,
+            created_at=cv.created_at,
+            updated_at=cv.updated_at,
+            application=(
+                CVApplicationSummary(
+                    id=application.id,
+                    company=application.company,
+                    role=application.role,
+                    status=application.status,
+                    generation_status=application.generation_status,
+                    applied_at=application.applied_at,
+                )
+                if application
+                else None
+            ),
+        )
+        for cv, application in cv_pairs
+    ]
 
 
 @router.post("", response_model=CVResponse, status_code=status.HTTP_201_CREATED)
@@ -98,7 +122,9 @@ async def copy_cv(
 
 
 @router.get("/{cv_id}/preview")
+@limiter.limit("10/minute")
 async def preview_cv(
+    request: Request,
     cv_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -109,34 +135,35 @@ async def preview_cv(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
 
 
-    template_data = await service.get_template_data(cv.template_id)
-
-    manifest = (template_data or {}).get("manifest", {})
-
-    from app.schema.models import TemplateManifest
-
     try:
-        manifest_model = TemplateManifest.model_validate(manifest)
-    except Exception:
-        manifest_model = None
+        template_data = await service.get_template_data(cv.template_id)
+        manifest = (template_data or {}).get("manifest", {})
 
-    # Pass the manifest through so template policy_overrides apply the same
-    # way they do in the live preview (/render/html).
-    document = build_document(cv, manifest_model)
-    customizations_model = coerce_customizations(cv.customizations)
-    renderer = HTMLDocumentRenderer()
-    model = resolve(document, renderer, manifest_model, customizations_model)
-    html = renderer.render(model)
+        from app.schema.models import TemplateManifest
+
+        manifest_model = TemplateManifest.model_validate(manifest)
+        document = build_document(cv, manifest_model)
+        customizations_model = coerce_customizations(cv.customizations)
+        renderer = HTMLDocumentRenderer()
+        model = resolve(document, renderer, manifest_model, customizations_model)
+        html = renderer.render(model)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("cv_preview_failed", extra={"exception_type": type(exc).__name__})
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unable to render CV preview",
+        ) from exc
+
     # Preview is rendered inside a sandboxed iframe. Neutralize hrefs so the
-    # links are visible (with the .f-link arrow) but clicking never navigates
-    # the preview away from the CV while editing. The exported PDF keeps the
-    # real hrefs and produces clickable links.
+    # links are visible but cannot navigate the editing surface.
     html = strip_anchor_hrefs(html)
     return {"html": html}
 
 
 @router.post("/{cv_id}/export/pdf")
+@limiter.limit("5/minute")
 async def export_cv_pdf(
+    request: Request,
     cv_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -144,8 +171,14 @@ async def export_cv_pdf(
     service = PDFService(db)
     try:
         pdf_bytes = await service.export_pdf(cv_id, current_user.id)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="CV not found") from exc
+    except Exception as exc:  # noqa: BLE001
+        logger.error("cv_pdf_export_failed", extra={"exception_type": type(exc).__name__})
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unable to export CV",
+        ) from exc
 
     return StreamingResponse(
         iter([pdf_bytes]),
@@ -172,7 +205,7 @@ async def promote_cv_to_library(
     try:
         result = await lib_service.promote_cv_to_library(cv_id, current_user.id)
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND) from exc
     return PromoteToLibraryResponse(
         library_id=result.library_id,
         promoted=result.promoted,
@@ -219,9 +252,10 @@ async def add_section_entry_to_library(
             or "does not match section kind" in msg
         ):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=msg
-            )
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg)
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Section is not eligible for the Library",
+            ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND) from exc
     return AddEntryToLibraryResponse(
         library_id=result.library_id,
         entry_id=result.entry_id,
