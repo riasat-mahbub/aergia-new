@@ -16,6 +16,7 @@ three-axis style onto the section.
 from __future__ import annotations
 
 from app.schema.models import (
+    DateStyle,
     Document,
     LayoutHints,
     Section,
@@ -74,6 +75,11 @@ def build_section_style(
     subsection = SubsectionStyle.model_validate(subsection_dict) if subsection_dict else _default_subsection(instance_type)
     layout_dict = base.get("layout") or {}
     layout = LayoutHints.model_validate(layout_dict) if layout_dict else _default_layout(instance_type)
+    # Date-bearing builders format their fields before the resolver runs, so
+    # the default must be present on the layout at builder time as well as in
+    # the final resolved model.
+    if layout.date_style is None:
+        layout = layout.model_copy(update={"date_style": DateStyle()})
     policy_dict = base.get("policy")
     explicit_policy = SectionPolicy.model_validate(policy_dict) if policy_dict else None
 

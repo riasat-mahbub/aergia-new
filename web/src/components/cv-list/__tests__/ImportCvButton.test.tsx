@@ -54,6 +54,13 @@ vi.mock("../../../lib/api/templates", () => ({
       preview_image_url: null,
       manifest: null,
     },
+    {
+      id: "generic-minimal",
+      name: "Minimal",
+      description: null,
+      preview_image_url: null,
+      manifest: null,
+    },
   ]),
 }));
 
@@ -175,7 +182,7 @@ describe("ImportCvButton", () => {
     await waitFor(() =>
       expect(mockCreateCV).toHaveBeenCalledWith(
         "Senior CV",
-        "generic-modern",
+        "generic-minimal",
         sections
       )
     );

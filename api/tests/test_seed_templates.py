@@ -25,8 +25,8 @@ def test_classic_template_spacing_is_compact():
     assert _manifest(CLASSIC_ID).layout_defaults.spacing == "compact"
 
 
-def test_minimal_template_spacing_is_minimal():
-    assert _manifest(MINIMAL_ID).layout_defaults.spacing == "minimal"
+def test_minimal_template_spacing_is_none():
+    assert _manifest(MINIMAL_ID).layout_defaults.spacing == "none"
 
 
 def test_minimal_seed_overrides_skills_to_inline():

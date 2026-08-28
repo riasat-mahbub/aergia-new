@@ -1,24 +1,46 @@
-"""Deterministic keyword extraction, Library matching, and CV relevance.
+"""Deterministic requirement/keyword extraction, Library matching, and CV relevance.
 
-The ``keyword-v1`` contract is intentionally self-contained.  It performs no
-network, database, renderer, subprocess, or taxonomy lookups so a saved job can
-be reproduced from its input text and the user's Library snapshot.
+The ``requirement-v1`` contract is intentionally self-contained. It performs no
+network, renderer, subprocess, or model inference. FTS5 is used only as an
+in-memory lexical ranker, so a saved job can be reproduced from its input text
+and the user's Library/CV snapshot. The older ``keyword-v1`` helpers remain
+available for reading legacy results.
 """
 
 from __future__ import annotations
 
 import re
+import sqlite3
 import unicodedata
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from difflib import SequenceMatcher
+from datetime import date, datetime
 from math import log2
 
-from app.schemas.application import ExtractedKeyword, MatchEvidence, RelevanceResult
+from app.schemas.application import (
+    ExtractedKeyword,
+    JobRequirement,
+    MatchEvidence,
+    RequirementEvidence,
+    RequirementMatch,
+    RequirementRelevanceResult,
+    RelevanceResult,
+)
+from app.services.relevance_taxonomy import ALIAS_TO_CANONICAL, TAXONOMY
 
 ALGORITHM_VERSION = "keyword-v1"
+REQUIREMENT_ALGORITHM_VERSION = "requirement-v1"
 MAX_KEYWORDS = 30
+MAX_REQUIREMENTS = 40
 ENTRY_RELEVANCE_THRESHOLD = 0.35
 MAX_FIT_PASSES = 8
+REQUIREMENT_COVERAGE_THRESHOLD = 0.65
+
+try:  # RapidFuzz is the production implementation; the fallback keeps tests portable.
+    from rapidfuzz.fuzz import ratio as _rapidfuzz_ratio
+except ImportError:  # pragma: no cover - exercised only in minimal environments
+    _rapidfuzz_ratio = None
 
 KEYWORD_EXTRACTION_ERROR = "Job description does not contain enough text to extract keywords"
 
@@ -153,6 +175,19 @@ class ScoredLibraryRow:
     score: float
     normalized_score: float
     order: int
+    covered_requirement_ids: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ScoredSkillItem:
+    """Keyword contribution for one item inside a skill group."""
+
+    library_entry_id: str | None
+    source_row_id: str | None
+    item_index: int
+    text: str
+    score: float
+    order: int
 
 
 @dataclass(frozen=True)
@@ -182,6 +217,7 @@ _LIBRARY_FIELDS: dict[str, tuple[str, ...]] = {
     "education": ("institution", "degree", "gpa", "summary"),
     "skill": ("category", "items"),
     "experience": ("company", "position", "location", "description"),
+    "language": ("language", "proficiency", "level"),
     "certification": ("name", "issuer"),
     "project": ("name", "description", "tech_stack"),
     "research": ("title", "publication_value", "description"),
@@ -434,6 +470,8 @@ def flatten_cv_fields(sections: Sequence[object] | Mapping[str, object]) -> list
     for section_index, raw_section in enumerate(sections):
         if not isinstance(raw_section, Mapping):
             continue
+        if raw_section.get("enabled") is False:
+            continue
         section_type = str(raw_section.get("type", ""))
         if section_type == "profile":
             data = raw_section.get("data")
@@ -606,6 +644,52 @@ def select_relevant_library_rows(
     return [row for row in scored if row.score > 0 and row.normalized_score >= threshold]
 
 
+def score_skill_items(
+    keywords: Iterable[ExtractedKeyword | Mapping[str, object] | str],
+    row: ScoredLibraryRow,
+) -> list[ScoredSkillItem]:
+    """Score individual skill items for deterministic fit trimming.
+
+    A skill group is selected at row level, but its individual items can have
+    very different relevance. Keeping this calculation separate lets the fit
+    loop remove low-value chips before dropping an entire library row.
+    """
+
+    if row.kind != "skill" or not isinstance(row.payload.get("items"), list):
+        return []
+    extracted = _coerce_keywords(keywords)
+    scored: list[ScoredSkillItem] = []
+    for item_index, raw_item in enumerate(row.payload["items"]):
+        text = _field_text(raw_item)
+        if not text:
+            continue
+        item_tokens = _field_tokens(
+            LibraryField(
+                section_type="skills",
+                library_entry_id=row.library_entry_id,
+                source_row_id=row.source_row_id,
+                field_path=f"items[{item_index}]",
+                text=text,
+            )
+        )
+        score = 0.0
+        for keyword in extracted:
+            keyword_tokens = tuple(normalize_text(keyword.normalized).split())
+            if keyword_tokens and _contains_sequence(item_tokens, keyword_tokens):
+                score += keyword.weight
+        scored.append(
+            ScoredSkillItem(
+                library_entry_id=row.library_entry_id,
+                source_row_id=row.source_row_id,
+                item_index=item_index,
+                text=text,
+                score=score,
+                order=row.order,
+            )
+        )
+    return scored
+
+
 def _cv_fields_with_profile(
     sections: Sequence[object] | Mapping[str, object], profile: Mapping[str, object] | object | None,
 ) -> list[LibraryField]:
@@ -670,11 +754,726 @@ def calculate_relevance(
     )
 
 
+# ---------------------------------------------------------------------------
+# requirement-v1
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _RequirementDraft:
+    text: str
+    normalized: str
+    canonical: str | None
+    requirement_type: str
+    required: bool
+    weight: float
+    constraint: dict[str, object] | None
+
+
+@dataclass(frozen=True)
+class _RequirementMatchData:
+    requirement: JobRequirement
+    covered: bool
+    score: float
+    matched_by: tuple[str, ...]
+    evidence: RequirementEvidence | None
+
+
+@dataclass(frozen=True)
+class _FieldMatch:
+    field: LibraryField
+    score: float
+    method: str
+
+
+_YEARS_RE = re.compile(r"\b(\d+)\+?\s*(?:years?|yrs?)\b", re.IGNORECASE)
+_DEGREE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("phd", re.compile(r"\b(?:ph\.?d\.?|doctorate|doctoral)\b", re.IGNORECASE)),
+    ("master", re.compile(r"(?<!\w)(?:master(?:'s)?|msc|m\.?s\.?|mba)(?!\w)", re.IGNORECASE)),
+    ("bachelor", re.compile(r"(?<!\w)(?:bachelor(?:'s)?|bsc|b\.?s\.?|undergraduate)(?!\w)", re.IGNORECASE)),
+    ("associate", re.compile(r"(?<!\w)(?:associate(?:'s)?|a\.?a\.?|a\.?s\.?)(?!\w)", re.IGNORECASE)),
+)
+_DEGREE_RANK = {"associate": 1, "bachelor": 2, "master": 3, "phd": 4}
+
+
+def _clean_requirement_line(line: str) -> str:
+    cleaned = re.sub(r"^\s*(?:[-*•▪‣]|\d+[.)])\s*", "", line).strip()
+    return re.sub(r"\s+", " ", cleaned)
+
+
+def _requirement_priority(source: str, line: str, context: str | None) -> tuple[bool, bool]:
+    """Return required/preferred flags without treating a negated heading as required."""
+    text = normalize_text(f"{context or ''} {line}")
+    optional = re.search(r"\b(?:not required|not necessary|optional|nice to have|bonus|plus)\b", text)
+    preferred = bool(optional or re.search(r"\b(?:preferred|desirable|advantage)\b", text))
+    required = not preferred
+    if source == "role":
+        # A role can help identify a skill, but should not make a title match
+        # outweigh actual qualification requirements.
+        required = False
+    if re.search(r"\b(?:required|must have|must be able|you will need|what you need)\b", text):
+        required = True
+        preferred = False
+    if optional:
+        required = False
+        preferred = True
+    return required, preferred
+
+
+def _taxonomy_hits(text: str) -> list[tuple[str, str, str]]:
+    """Find canonical concepts once, preferring longer aliases within a concept."""
+    tokens = tokenize(text)
+    hits: list[tuple[int, str, str, str]] = []
+    for canonical, (requirement_type, aliases) in TAXONOMY.items():
+        best: tuple[int, int, str] | None = None
+        for alias in sorted(aliases, key=lambda value: len(tokenize(value)), reverse=True):
+            alias_tokens = tokenize(alias)
+            if not alias_tokens:
+                continue
+            for index in range(len(tokens) - len(alias_tokens) + 1):
+                if tuple(tokens[index : index + len(alias_tokens)]) == tuple(alias_tokens):
+                    candidate = (index, -len(alias_tokens), alias)
+                    if best is None or candidate[:2] < best[:2]:
+                        best = candidate
+                    break
+        if best is not None:
+            hits.append((best[0], canonical, requirement_type, best[2]))
+    hits.sort(key=lambda item: (item[0], -len(tokenize(item[3])), item[1]))
+    seen: set[str] = set()
+    unique_hits: list[tuple[str, str, str]] = []
+    for _index, canonical, requirement_type, alias in hits:
+        if canonical in seen:
+            continue
+        seen.add(canonical)
+        unique_hits.append((canonical, requirement_type, alias))
+    return unique_hits
+
+
+def _taxonomy_aliases(canonical: str | None) -> tuple[str, ...]:
+    if not canonical:
+        return ()
+    return TAXONOMY.get(canonical, ("", ()))[1]
+
+
+def _is_requirement_heading(lines: Sequence[str], index: int) -> bool:
+    """Recognize section labels without mistaking a one-line JD for a heading."""
+    stripped = lines[index].strip().rstrip(":")
+    if not stripped:
+        return False
+    normalized = normalize_text(stripped)
+    if lines[index].strip().endswith(":"):
+        return True
+    known_headings = (
+        "requirements",
+        "qualifications",
+        "minimum qualifications",
+        "preferred qualifications",
+        "required skills",
+        "preferred skills",
+        "nice to have",
+        "bonus",
+        "responsibilities",
+        "what you bring",
+        "what you need",
+        "about the role",
+    )
+    return normalized in known_headings
+
+
+def _requirement_lines(role: str, job_description: str) -> Iterable[tuple[str, str, str | None, bool]]:
+    role_text = role or ""
+    if role_text.strip():
+        for line in role_text.splitlines() or [role_text]:
+            yield "role", line, None, False
+
+    jd_text = job_description or ""
+    lines = jd_text.splitlines() or ([jd_text] if jd_text else [])
+    current_context: str | None = None
+    for index, line in enumerate(lines):
+        is_heading = _is_requirement_heading(lines, index)
+        if is_heading and line.strip():
+            current_context = line.strip().rstrip(":").strip()
+        yield "job_description", line, current_context, is_heading
+
+
+def _draft_weight(required: bool, preferred: bool) -> float:
+    if required:
+        return 2.0
+    if preferred:
+        return 1.0
+    return 0.75
+
+
+def extract_requirements(role: str, job_description: str) -> list[JobRequirement]:
+    """Parse a job into atomic taxonomy, constraint, and bounded free-text requirements."""
+    drafts: dict[tuple[object, ...], _RequirementDraft] = {}
+    allow_role_fallback = not bool((job_description or "").strip())
+    for source, raw_line, context, is_heading in _requirement_lines(role, job_description):
+        line = _clean_requirement_line(raw_line)
+        if not line or is_heading:
+            continue
+        tokens = _filtered_tokens(line, 0)
+        if not tokens:
+            continue
+        required, preferred = _requirement_priority(source, line, context)
+        weight = _draft_weight(required, preferred)
+        hits = _taxonomy_hits(line)
+
+        for canonical, requirement_type, _alias in hits:
+            key = ("concept", canonical)
+            existing = drafts.get(key)
+            if existing is None or (required and not existing.required):
+                drafts[key] = _RequirementDraft(
+                    text=canonical,
+                    normalized=normalize_text(canonical),
+                    canonical=canonical,
+                    requirement_type=requirement_type,
+                    required=required or (existing.required if existing else False),
+                    weight=max(weight, existing.weight if existing else 0.0),
+                    constraint=None,
+                )
+            elif existing is not None:
+                existing.required = existing.required or required
+                existing.weight = max(existing.weight, weight)
+
+        years_match = _YEARS_RE.search(line)
+        if years_match:
+            minimum = int(years_match.group(1))
+            key = ("years", minimum)
+            existing = drafts.get(key)
+            constraint = {"kind": "years_experience", "minimum": minimum}
+            if existing is None:
+                drafts[key] = _RequirementDraft(
+                    text=line,
+                    normalized=normalize_text(line),
+                    canonical=None,
+                    requirement_type="quantitative",
+                    required=required,
+                    weight=weight,
+                    constraint=constraint,
+                )
+            else:
+                existing.required = existing.required or required
+                existing.weight = max(existing.weight, weight)
+
+        degree_level = next((level for level, pattern in _DEGREE_PATTERNS if pattern.search(line)), None)
+        if degree_level or re.search(r"\bdegree\b", line, re.IGNORECASE):
+            key = ("degree", degree_level or normalize_text(line))
+            existing = drafts.get(key)
+            constraint = {"kind": "degree_level", "minimum": degree_level} if degree_level else None
+            if existing is None:
+                drafts[key] = _RequirementDraft(
+                    text=line,
+                    normalized=normalize_text(line),
+                    canonical=None,
+                    requirement_type="education",
+                    required=required,
+                    weight=weight,
+                    constraint=constraint,
+                )
+            else:
+                existing.required = existing.required or required
+                existing.weight = max(existing.weight, weight)
+
+        if (
+            source == "job_description" or allow_role_fallback
+        ) and not hits and not years_match and not degree_level and not re.search(r"\bdegree\b", line, re.IGNORECASE):
+            # A complete line is the bounded free-text unit.  This is useful
+            # for a product name or responsibility absent from the taxonomy,
+            # without generating every arbitrary JD n-gram.
+            key = ("text", normalize_text(line))
+            drafts.setdefault(
+                key,
+                _RequirementDraft(
+                    text=line,
+                    normalized=normalize_text(line),
+                    canonical=None,
+                    requirement_type="other",
+                    required=required,
+                    weight=weight,
+                    constraint=None,
+                ),
+            )
+
+    if not drafts:
+        raise KeywordExtractionError(KEYWORD_EXTRACTION_ERROR)
+
+    ordered = list(drafts.values())[:MAX_REQUIREMENTS]
+    return [
+        JobRequirement(
+            id=f"req-{index:03d}",
+            text=draft.text,
+            normalized=draft.normalized,
+            canonical=draft.canonical,
+            type=draft.requirement_type,  # type: ignore[arg-type]
+            required=draft.required,
+            weight=draft.weight,
+            constraint=draft.constraint,
+        )
+        for index, draft in enumerate(ordered, start=1)
+    ]
+
+
+def _coerce_requirements(requirements: Iterable[JobRequirement | Mapping[str, object] | str]) -> list[JobRequirement]:
+    result: list[JobRequirement] = []
+    for index, requirement in enumerate(requirements, start=1):
+        if isinstance(requirement, JobRequirement):
+            result.append(requirement)
+        elif isinstance(requirement, str):
+            normalized = normalize_text(requirement)
+            canonical = ALIAS_TO_CANONICAL.get(normalized)
+            requirement_type = TAXONOMY.get(canonical, ("other", ()))[0] if canonical else "other"
+            result.append(
+                JobRequirement(
+                    id=f"req-{index:03d}",
+                    text=requirement,
+                    normalized=normalized,
+                    canonical=canonical,
+                    type=requirement_type,  # type: ignore[arg-type]
+                    required=True,
+                    weight=2.0,
+                )
+            )
+        else:
+            result.append(JobRequirement.model_validate(requirement))
+    return result
+
+
+def _fts_terms(text: str) -> list[str]:
+    # FTS5 receives safe alphanumeric terms. Taxonomy matching above retains
+    # technical punctuation such as C++, .NET, and CI/CD.
+    terms: list[str] = []
+    for token in tokenize(text):
+        terms.extend(re.findall(r"[a-z0-9]+", token))
+    return [term for term in terms if term not in _STOPWORDS and len(term) > 1]
+
+
+def _best_fts_match(requirement: JobRequirement, fields: Sequence[LibraryField]) -> _FieldMatch | None:
+    terms = _fts_terms(requirement.text)
+    if not terms or not fields:
+        return None
+    connection = sqlite3.connect(":memory:")
+    try:
+        connection.execute("CREATE VIRTUAL TABLE relevance_fields USING fts5(field_index UNINDEXED, text)")
+        connection.executemany(
+            "INSERT INTO relevance_fields(field_index, text) VALUES (?, ?)",
+            [(index, field.text) for index, field in enumerate(fields)],
+        )
+        query = " OR ".join(f'"{term.replace(chr(34), "")}"' for term in terms)
+        rows = connection.execute(
+            "SELECT field_index, bm25(relevance_fields) FROM relevance_fields "
+            "WHERE relevance_fields MATCH ? ORDER BY bm25(relevance_fields), field_index LIMIT 25",
+            (query,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return None
+    finally:
+        connection.close()
+
+    best: _FieldMatch | None = None
+    best_index = -1
+    required_terms = set(terms)
+    for index, _rank in rows:
+        field_terms = set(_fts_terms(fields[index].text))
+        overlap = len(required_terms & field_terms) / len(required_terms)
+        if len(required_terms) > 1 and overlap < 0.75:
+            continue
+        score = min(0.95, 0.55 + 0.4 * overlap)
+        candidate = _FieldMatch(field=fields[index], score=score, method="fts5")
+        if best is None or (candidate.score, -index) > (best.score, -best_index):
+            best = candidate
+            best_index = index
+    return best
+
+
+def _fuzzy_ratio(left: str, right: str) -> float:
+    if _rapidfuzz_ratio is not None:
+        return float(_rapidfuzz_ratio(left, right)) / 100.0
+    return SequenceMatcher(None, left, right).ratio()
+
+
+def _best_fuzzy_match(requirement: JobRequirement, fields: Sequence[LibraryField]) -> _FieldMatch | None:
+    aliases = _taxonomy_aliases(requirement.canonical) or (requirement.text,)
+    best: _FieldMatch | None = None
+    for field in fields[:200]:
+        field_tokens = _field_tokens(field)
+        for alias in aliases:
+            alias_tokens = tokenize(alias)
+            if not alias_tokens or len(" ".join(alias_tokens)) < 4:
+                continue
+            width = len(alias_tokens)
+            for index in range(max(0, len(field_tokens) - width + 1)):
+                value = " ".join(field_tokens[index : index + width])
+                ratio = _fuzzy_ratio(" ".join(alias_tokens), value)
+                if ratio < 0.9:
+                    continue
+                candidate = _FieldMatch(field=field, score=0.8 + 0.15 * (ratio - 0.9) / 0.1, method="fuzzy")
+                if best is None or candidate.score > best.score:
+                    best = candidate
+    return best
+
+
+def _degree_rank(text: str) -> int:
+    return max((_DEGREE_RANK[level] for level, pattern in _DEGREE_PATTERNS if pattern.search(text)), default=0)
+
+
+def _parse_date(value: object) -> date | None:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if not isinstance(value, str) or not value.strip():
+        return None
+    candidate = value.strip()
+    try:
+        if re.fullmatch(r"\d{4}", candidate):
+            return date(int(candidate), 1, 1)
+        if re.fullmatch(r"\d{4}-\d{2}", candidate):
+            return date.fromisoformat(f"{candidate}-01")
+        return date.fromisoformat(candidate[:10])
+    except ValueError:
+        return None
+
+
+def _years_from_rows(rows: Iterable[Mapping[str, object]]) -> float:
+    intervals: list[tuple[date, date]] = []
+    today = date.today()
+    for row in rows:
+        start = _parse_date(row.get("start_date"))
+        if start is None:
+            continue
+        end = today if row.get("current") else (_parse_date(row.get("end_date")) or today)
+        if end >= start:
+            intervals.append((start, end))
+    if not intervals:
+        return 0.0
+    intervals.sort()
+    merged: list[list[date]] = []
+    for start, end in intervals:
+        if merged and start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+    return sum((end - start).days for start, end in merged) / 365.25
+
+
+def _years_from_fields(fields: Sequence[LibraryField]) -> float:
+    values = [int(match.group(1)) for field in fields for match in _YEARS_RE.finditer(field.text)]
+    return float(max(values, default=0))
+
+
+def _years_from_sections(sections: Sequence[object] | Mapping[str, object] | None) -> float:
+    if isinstance(sections, Mapping):
+        sections = sections.get("sections", [])  # type: ignore[assignment]
+    if not isinstance(sections, Sequence) or isinstance(sections, (str, bytes)):
+        return 0.0
+    rows: list[Mapping[str, object]] = []
+    for section in sections:
+        if (
+            not isinstance(section, Mapping)
+            or section.get("enabled") is False
+            or section.get("type") != "experience"
+        ):
+            continue
+        data = section.get("data")
+        if isinstance(data, list):
+            rows.extend(row for row in data if isinstance(row, Mapping))
+    return _years_from_rows(rows)
+
+
+def _constraint_match(
+    requirement: JobRequirement,
+    fields: Sequence[LibraryField],
+    experience_years: float | None,
+) -> _FieldMatch | None:
+    constraint = requirement.constraint or {}
+    kind = constraint.get("kind")
+    if kind == "years_experience":
+        years = experience_years if experience_years is not None else _years_from_fields(fields)
+        minimum = float(constraint.get("minimum", 0))
+        if years < minimum:
+            return None
+        field = next((field for field in fields if field.section_type == "experience"), fields[0] if fields else None)
+        if field is None:
+            field = LibraryField(
+                section_type="experience",
+                library_entry_id=None,
+                source_row_id=None,
+                field_path="experience.duration",
+                text=f"{years:.1f} years of experience",
+            )
+        return _FieldMatch(field=field, score=1.0, method="constraint")
+    if kind == "degree_level":
+        minimum = _DEGREE_RANK.get(str(constraint.get("minimum", "")).casefold(), 0)
+        for field in fields:
+            if field.field_path.endswith(".degree") and _degree_rank(field.text) >= minimum:
+                return _FieldMatch(field=field, score=1.0, method="constraint")
+        return None
+    return None
+
+
+def _best_match(
+    requirement: JobRequirement,
+    fields: Sequence[LibraryField],
+    *,
+    experience_years: float | None = None,
+) -> _FieldMatch | None:
+    constrained = _constraint_match(requirement, fields, experience_years)
+    if requirement.constraint:
+        return constrained
+
+    aliases = _taxonomy_aliases(requirement.canonical)
+    if aliases:
+        for field in fields:
+            field_tokens = _field_tokens(field)
+            for alias in aliases:
+                alias_tokens = tokenize(alias)
+                if _contains_sequence(field_tokens, alias_tokens):
+                    return _FieldMatch(field=field, score=1.0, method="taxonomy")
+    else:
+        requirement_tokens = tokenize(requirement.normalized or requirement.text)
+        for field in fields:
+            if _contains_sequence(_field_tokens(field), requirement_tokens):
+                return _FieldMatch(field=field, score=1.0, method="fts5")
+
+    lexical = _best_fts_match(requirement, fields)
+    if lexical is not None:
+        return lexical
+    return _best_fuzzy_match(requirement, fields)
+
+
+def _to_evidence(match: _FieldMatch) -> RequirementEvidence:
+    field = match.field
+    return RequirementEvidence(
+        section_type=field.section_type,
+        library_entry_id=field.library_entry_id,
+        source_row_id=field.source_row_id,
+        field_path=field.field_path,
+        snippet=_snippet(field.text),
+        method=match.method,  # type: ignore[arg-type]
+        score=round(match.score, 4),
+    )
+
+
+def _match_requirement(
+    requirement: JobRequirement,
+    fields: Sequence[LibraryField],
+    *,
+    experience_years: float | None = None,
+) -> _RequirementMatchData:
+    match = _best_match(requirement, fields, experience_years=experience_years)
+    score = match.score if match else 0.0
+    return _RequirementMatchData(
+        requirement=requirement,
+        covered=score >= REQUIREMENT_COVERAGE_THRESHOLD,
+        score=round(score, 4),
+        matched_by=(match.method,) if match else (),
+        evidence=_to_evidence(match) if match else None,
+    )
+
+
+def _match_to_schema(match: _RequirementMatchData) -> RequirementMatch:
+    return RequirementMatch(
+        requirement=match.requirement,
+        covered=match.covered,
+        score=match.score,
+        matched_by=list(match.matched_by),
+        best_evidence=match.evidence,
+    )
+
+
+def not_evaluated_relevance(requirements: Iterable[JobRequirement | Mapping[str, object] | str]) -> RequirementRelevanceResult:
+    extracted = _coerce_requirements(requirements)
+    matches = [
+        _match_to_schema(_RequirementMatchData(requirement=item, covered=False, score=0.0, matched_by=(), evidence=None))
+        for item in extracted
+    ]
+    total_weight = sum(item.weight for item in extracted)
+    return RequirementRelevanceResult(
+        status="not_evaluated",
+        score=None,
+        required_score=None,
+        preferred_score=None,
+        matched_weight=0.0,
+        total_weight=total_weight,
+        covered_requirements=0,
+        total_requirements=len(extracted),
+        requirements=matches,
+        algorithm_version=REQUIREMENT_ALGORITHM_VERSION,
+    )
+
+
+def evaluate_requirement_relevance(
+    requirements: Iterable[JobRequirement | Mapping[str, object] | str],
+    sections: Sequence[object] | Mapping[str, object] | None = None,
+    *,
+    fields: Iterable[LibraryField] | None = None,
+    profile: Mapping[str, object] | object | None = None,
+) -> RequirementRelevanceResult:
+    """Evaluate each atomic requirement against its strongest CV evidence."""
+    extracted = _coerce_requirements(requirements)
+    matching_fields = list(fields) if fields is not None else _cv_fields_with_profile(sections or [], profile)
+    experience_years = _years_from_sections(sections)
+    if experience_years <= 0:
+        experience_years = _years_from_fields(matching_fields)
+    matches = [
+        _match_requirement(item, matching_fields, experience_years=experience_years)
+        for item in extracted
+    ]
+
+    total_weight = sum(item.requirement.weight for item in matches)
+    matched_weight = sum(item.requirement.weight * item.score for item in matches)
+
+    def component_score(predicate) -> int | None:
+        component = [item for item in matches if predicate(item.requirement)]
+        denominator = sum(item.requirement.weight for item in component)
+        if not denominator:
+            return None
+        return round(100 * sum(item.requirement.weight * item.score for item in component) / denominator)
+
+    return RequirementRelevanceResult(
+        status="evaluated",
+        score=round(100 * matched_weight / total_weight) if total_weight else 0,
+        required_score=component_score(lambda item: item.required),
+        preferred_score=component_score(lambda item: not item.required),
+        matched_weight=round(matched_weight, 4),
+        total_weight=round(total_weight, 4),
+        covered_requirements=sum(1 for item in matches if item.covered),
+        total_requirements=len(matches),
+        requirements=[_match_to_schema(item) for item in matches],
+        algorithm_version=REQUIREMENT_ALGORITHM_VERSION,
+    )
+
+
+def select_requirement_library_rows(
+    requirements: Iterable[JobRequirement | Mapping[str, object] | str],
+    library_entries: Iterable[object],
+) -> list[ScoredLibraryRow]:
+    """Greedily select Library rows by marginal weighted requirement coverage."""
+    extracted = _coerce_requirements(requirements)
+    rows = _library_rows(library_entries)
+    if not extracted:
+        return []
+
+    row_matches: dict[int, list[_RequirementMatchData]] = {}
+    for row in rows:
+        row_matches[id(row)] = [
+            _match_requirement(
+                requirement,
+                row.fields,
+                experience_years=_years_from_rows([row.payload]) if row.kind == "experience" else None,
+            )
+            for requirement in extracted
+        ]
+
+    selected: list[ScoredLibraryRow] = []
+    covered: set[str] = set()
+    remaining = {id(row): row for row in rows}
+    total_weight = sum(item.weight for item in extracted) or 1.0
+    while remaining:
+        choices: list[tuple[float, float, int, _LibraryRow, list[_RequirementMatchData]]] = []
+        for row in remaining.values():
+            matches = row_matches[id(row)]
+            new_matches = [item for item in matches if item.covered and item.requirement.id not in covered]
+            gain = sum(item.requirement.weight * item.score for item in new_matches)
+            total_row_score = sum(item.requirement.weight * item.score for item in matches)
+            if gain > 0:
+                choices.append((gain, total_row_score, -row.order, row, new_matches))
+        if not choices:
+            break
+        _gain, total_row_score, _order, row, new_matches = max(choices, key=lambda item: item[:3])
+        selected.append(
+            ScoredLibraryRow(
+                kind=row.kind,
+                section_type=row.section_type,
+                library_entry_id=row.library_entry_id,
+                source_row_id=row.source_row_id,
+                payload=row.payload,
+                score=round(total_row_score, 4),
+                normalized_score=round(total_row_score / total_weight, 4),
+                order=row.order,
+                covered_requirement_ids=tuple(item.requirement.id for item in new_matches),
+            )
+        )
+        covered.update(item.requirement.id for item in new_matches)
+        remaining.pop(id(row), None)
+
+    # A CV's sections carry different evidentiary meaning. Once the greedy
+    # pass has covered the requirements, retain the strongest relevant row for
+    # a kind that would otherwise disappear (for example, education can be
+    # relevant even when a project already covers the same technology). This
+    # is one row per kind, not a return to keyword-frequency selection.
+    selected_kinds = {row.kind for row in selected}
+    for row in sorted(remaining.values(), key=lambda item: item.order):
+        if row.kind in selected_kinds:
+            continue
+        matches = row_matches[id(row)]
+        covered_matches = [item for item in matches if item.covered]
+        if not covered_matches and row.kind != "education":
+            continue
+        total_row_score = sum(item.requirement.weight * item.score for item in matches)
+        selected.append(
+            ScoredLibraryRow(
+                kind=row.kind,
+                section_type=row.section_type,
+                library_entry_id=row.library_entry_id,
+                source_row_id=row.source_row_id,
+                payload=row.payload,
+                score=round(total_row_score, 4),
+                normalized_score=round(total_row_score / total_weight, 4),
+                order=row.order,
+                covered_requirement_ids=tuple(item.requirement.id for item in covered_matches),
+            )
+        )
+        selected_kinds.add(row.kind)
+    return selected
+
+
+def score_requirement_skill_items(
+    requirements: Iterable[JobRequirement | Mapping[str, object] | str],
+    row: ScoredLibraryRow,
+) -> list[ScoredSkillItem]:
+    """Score skill chips by the requirement weight they support."""
+    if row.kind != "skill" or not isinstance(row.payload.get("items"), list):
+        return []
+    extracted = _coerce_requirements(requirements)
+    scored: list[ScoredSkillItem] = []
+    for item_index, raw_item in enumerate(row.payload["items"]):
+        text = _field_text(raw_item)
+        if not text:
+            continue
+        field = LibraryField(
+            section_type="skills",
+            library_entry_id=row.library_entry_id,
+            source_row_id=row.source_row_id,
+            field_path=f"items[{item_index}]",
+            text=text,
+        )
+        score = sum(
+            requirement.weight * _match_requirement(requirement, [field]).score
+            for requirement in extracted
+        )
+        scored.append(
+            ScoredSkillItem(
+                library_entry_id=row.library_entry_id,
+                source_row_id=row.source_row_id,
+                item_index=item_index,
+                text=text,
+                score=round(score, 4),
+                order=row.order,
+            )
+        )
+    return scored
+
+
 # Explicit aliases keep the service vocabulary discoverable without creating a
 # second implementation or changing the versioned algorithm.
 extract_job_keywords = extract_keywords
 select_library_rows = select_relevant_library_rows
 score_cv_relevance = calculate_relevance
+extract_job_requirements = extract_requirements
+calculate_requirement_relevance = evaluate_requirement_relevance
+select_library_rows_by_requirements = select_requirement_library_rows
 
 
 __all__ = [
@@ -685,8 +1484,16 @@ __all__ = [
     "LibraryField",
     "MAX_FIT_PASSES",
     "MAX_KEYWORDS",
+    "MAX_REQUIREMENTS",
+    "REQUIREMENT_ALGORITHM_VERSION",
+    "REQUIREMENT_COVERAGE_THRESHOLD",
     "ScoredLibraryRow",
+    "ScoredSkillItem",
     "calculate_relevance",
+    "calculate_requirement_relevance",
+    "evaluate_requirement_relevance",
+    "extract_job_requirements",
+    "extract_requirements",
     "extract_job_keywords",
     "extract_keywords",
     "flatten_cv_fields",
@@ -695,8 +1502,13 @@ __all__ = [
     "flatten_profile_fields",
     "normalize_text",
     "score_cv_relevance",
+    "score_requirement_skill_items",
     "score_library_rows",
+    "score_skill_items",
+    "select_requirement_library_rows",
+    "select_library_rows_by_requirements",
     "select_library_rows",
     "select_relevant_library_rows",
     "tokenize",
+    "not_evaluated_relevance",
 ]

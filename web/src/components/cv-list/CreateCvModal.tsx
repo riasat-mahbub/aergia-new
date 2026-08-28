@@ -19,7 +19,7 @@ export default function CreateCvModal({ open, onClose }: Props) {
   const navigate = useNavigate();
   const { createCV } = useCVStore();
   const [title, setTitle] = useState("");
-  const [templateId, setTemplateId] = useState("generic-modern");
+  const [templateId, setTemplateId] = useState("generic-minimal");
   const [systemTemplates, setSystemTemplates] = useState<TemplateOption[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -27,7 +27,7 @@ export default function CreateCvModal({ open, onClose }: Props) {
     if (open) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- modal open reset; see Phase 9 lint debt
       setTitle("");
-      setTemplateId("generic-modern");
+      setTemplateId("generic-minimal");
       fetchSystemTemplates().then(setSystemTemplates).catch(() => {});
     }
   }, [open]);

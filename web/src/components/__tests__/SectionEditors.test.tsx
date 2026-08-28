@@ -89,6 +89,23 @@ describe("SkillsEditor", () => {
     render(<SkillsEditor data={[]} onChange={vi.fn()} />);
     expect(screen.getByText(/add skill group/i)).toBeDefined();
   });
+
+  it("removes an individual skill without removing its category", () => {
+    const onChange = vi.fn();
+    render(
+      <SkillsEditor
+        data={[{ id: "skills-1", category: "Backend", items: ["Python", "FastAPI"] }]}
+        onChange={onChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Backend"));
+    fireEvent.click(screen.getByRole("button", { name: "Remove Python" }));
+
+    expect(onChange).toHaveBeenLastCalledWith([
+      { id: "skills-1", category: "Backend", items: ["FastAPI"] },
+    ]);
+  });
 });
 
 describe("LanguagesEditor", () => {

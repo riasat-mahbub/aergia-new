@@ -8,7 +8,8 @@ import {
   APPLICATION_STATUSES,
   type Application,
   type ApplicationStatus,
-  type RelevanceResult,
+  type CVQualityResult,
+  type RelevanceAnalysis,
 } from "../lib/api/applications";
 import { useApplicationStore } from "../lib/store/applicationStore";
 import { useToastStore } from "../lib/store/uiStore";
@@ -17,11 +18,17 @@ import {
   RELEVANCE_TOOLTIP,
   STATUS_CLASSES,
   STATUS_LABELS,
+  formatFollowUpDate,
+  isFollowUpOverdue,
 } from "../components/applications/applicationPresentation";
 
 
-function isRelevanceResult(value: Application["relevance"]): value is RelevanceResult {
+function isRelevanceResult(value: Application["relevance"]): value is RelevanceAnalysis {
   return "score" in value && typeof value.score === "number";
+}
+
+function isQualityResult(value: Application["quality"]): value is CVQualityResult {
+  return Boolean(value && "status" in value && "issues" in value && Array.isArray(value.issues));
 }
 
 function sectionTypes(cv: CVDetail | null): string[] {
@@ -54,7 +61,6 @@ export default function ApplicationDetailPage() {
   const [statusSaving, setStatusSaving] = useState(false);
   const [linkedCV, setLinkedCV] = useState<CVDetail | null>(null);
   const [jobExpanded, setJobExpanded] = useState(false);
-  const [relevanceExpanded, setRelevanceExpanded] = useState(false);
 
   useEffect(() => {
     if (id) fetch(id);
@@ -76,9 +82,6 @@ export default function ApplicationDetailPage() {
   }, [application?.cv_id]);
 
   const relevance = application && isRelevanceResult(application.relevance) ? application.relevance : null;
-  const hasRelevanceDetails = Boolean(
-    relevance && (relevance.matched_keywords.length > 0 || relevance.missing_keywords.length > 0 || relevance.evidence.length > 0),
-  );
   const sections = useMemo(() => sectionTypes(linkedCV), [linkedCV]);
   const sourceCount = selectedSourceCount(linkedCV);
 
@@ -144,6 +147,9 @@ export default function ApplicationDetailPage() {
           <p className="text-xs font-medium uppercase tracking-[0.14em] text-app-primary">Application</p>
           <h1 className="text-2xl font-bold text-app-ink">{application.company}</h1>
           <p className="mt-1 text-lg text-app-ink-2">{application.role}</p>
+          <p className={`mt-2 text-sm ${isFollowUpOverdue(application.next_follow_up_at) ? "font-medium text-app-danger" : "text-app-ink-3"}`}>
+            {application.next_follow_up_at ? `Next follow-up: ${formatFollowUpDate(application.next_follow_up_at)}` : "No follow-up scheduled"}
+          </p>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_CLASSES[application.status]}`}>
@@ -184,8 +190,8 @@ export default function ApplicationDetailPage() {
           </button>
         </section>
 
-        <section className={`flex flex-col overflow-hidden rounded-lg border border-app-rule bg-app-surface p-5 shadow-sm ${relevanceExpanded ? "" : "h-60 md:h-64"}`}>
-          <div id="application-relevance-details" className="relative min-h-0 flex-1 overflow-hidden">
+        <section className="flex flex-col overflow-hidden rounded-lg border border-app-rule bg-app-surface p-5 shadow-sm">
+          <div className="relative min-h-0 flex-1 overflow-hidden">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-app-ink-3">Relevance</h2>
@@ -194,31 +200,8 @@ export default function ApplicationDetailPage() {
               {application.fits_one_page !== null && <span className={application.fits_one_page ? "text-sm text-app-primary" : "text-sm text-app-warning"}>{application.fits_one_page ? "One-page fit" : "Could not fit one page without rewriting content"}</span>}
             </div>
             <p className="mt-3 text-xs text-app-ink-3">{RELEVANCE_TOOLTIP}</p>
-            {relevance && (
-              <>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {relevance.matched_keywords.map((keyword) => <span key={`matched-${keyword}`} className="rounded-full bg-app-primary-soft px-2 py-1 text-xs text-app-primary">{keyword}</span>)}
-                  {relevance.missing_keywords.map((keyword) => <span key={`missing-${keyword}`} className="rounded-full bg-app-surface-muted px-2 py-1 text-xs text-app-ink-2">Missing: {keyword}</span>)}
-                </div>
-                <div className="mt-4 space-y-2">
-                  {relevance.evidence.map((item, index) => <div key={`${item.keyword}-${item.field_path}-${index}`} className="rounded bg-app-canvas px-3 py-2 text-xs text-app-ink-2"><strong>{item.keyword}</strong> · {item.section_type} · {item.field_path}<br />{item.snippet}</div>)}
-                </div>
-              </>
-            )}
-            {!relevanceExpanded && hasRelevanceDetails && <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-app-surface to-transparent" />}
+            {application.cv_id && <Link to={`/dashboard/builder/${application.cv_id}?application=${application.id}`} className="mt-4 inline-flex text-sm font-medium text-app-primary hover:text-app-primary-hover">Open the linked CV to inspect matched, missing, and source evidence</Link>}
           </div>
-          {hasRelevanceDetails && (
-            <button
-              type="button"
-              aria-expanded={relevanceExpanded}
-              aria-controls="application-relevance-details"
-              onClick={() => setRelevanceExpanded((expanded) => !expanded)}
-              className="mt-3 inline-flex shrink-0 items-center gap-1 self-start text-sm font-medium text-app-primary hover:text-app-primary-hover"
-            >
-              {relevanceExpanded ? "See less" : "See more"}
-              {relevanceExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </button>
-          )}
         </section>
       </div>
 
@@ -229,6 +212,15 @@ export default function ApplicationDetailPage() {
             <p className="mt-2 text-sm text-app-ink-2">{linkedCV?.title || `${application.company} — ${application.role}`}</p>
             {sections.length > 0 && <p className="mt-2 text-xs text-app-ink-3">Sections: {sections.join(" → ")}</p>}
             {sourceCount !== null && <p className="mt-2 text-xs text-app-ink-3">Selected Library rows: {sourceCount}</p>}
+            {isQualityResult(application.quality) && (
+              <div className="mt-4 rounded-md bg-app-canvas px-3 py-3">
+                <p className={`text-sm font-medium ${application.quality.status === "error" ? "text-app-danger" : application.quality.status === "warning" ? "text-app-warning" : "text-app-primary"}`}>
+                  Quality checks: {application.quality.status === "pass" ? "Passed" : `${application.quality.issues.length} issue${application.quality.issues.length === 1 ? "" : "s"}`}
+                </p>
+                {application.quality.page_count !== null && <p className="mt-1 text-xs text-app-ink-3">Rendered pages: {application.quality.page_count}</p>}
+                {application.quality.issues.length > 0 && <ul className="mt-2 space-y-1 text-xs text-app-ink-2">{application.quality.issues.map((issue, index) => <li key={`${issue.code}-${index}`}>{issue.message}</li>)}</ul>}
+              </div>
+            )}
             <div className="mt-4 flex flex-wrap gap-2">
               <Link to={`/dashboard/builder/${application.cv_id}?application=${application.id}`} className="inline-flex items-center gap-1 rounded-md bg-app-primary px-3 py-2 text-sm font-medium text-white hover:bg-app-primary-hover">Open/Edit CV <Pencil className="h-3.5 w-3.5" /></Link>
               <button type="button" onClick={handleExport} className="inline-flex items-center gap-1 rounded-md border border-app-rule-strong px-3 py-2 text-sm font-medium text-app-ink-2 hover:bg-app-surface-muted"><Download className="h-3.5 w-3.5" /> Export PDF</button>
@@ -240,6 +232,21 @@ export default function ApplicationDetailPage() {
             <button type="button" onClick={handleRetry} disabled={retrying} className="mt-4 inline-flex items-center gap-1 rounded-md border border-app-primary-soft px-3 py-2 text-sm font-medium text-app-primary hover:bg-app-primary-soft disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${retrying ? "animate-spin" : ""}`} /> {retrying ? "Generating…" : "Retry generation"}</button>
           </>
         )}
+      </section>
+
+      <section className="mt-4 rounded-lg border border-app-rule bg-app-surface p-5 shadow-sm">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-app-ink-3">Status history</h2>
+        {(application.status_history ?? []).length > 0 ? (
+          <ol className="mt-4 space-y-3 border-l border-app-rule pl-4">
+            {(application.status_history ?? []).map((event) => (
+              <li key={event.id} className="relative text-sm text-app-ink-2">
+                <span className="absolute -left-[1.3rem] top-1.5 h-2 w-2 rounded-full bg-app-primary" />
+                <span className="font-medium text-app-ink">{event.from_status ? `${STATUS_LABELS[event.from_status]} → ` : "Started as "}{STATUS_LABELS[event.to_status]}</span>
+                <span className="ml-2 text-xs text-app-ink-3">{formatFollowUpDate(event.changed_at.slice(0, 10))}</span>
+              </li>
+            ))}
+          </ol>
+        ) : <p className="mt-2 text-sm text-app-ink-2">No status changes recorded yet.</p>}
       </section>
 
       <div className="mt-6 flex justify-end gap-2">

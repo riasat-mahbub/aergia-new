@@ -42,14 +42,14 @@ export const DATE_STYLE_OPTIONS: ReadonlyArray<{
   label: string;
   rangeSep: string;
 }> = [
-  { value: "YYYY-MM", label: "YYYY-MM (default)", rangeSep: " – " },
+  { value: "YYYY-MM", label: "YYYY-MM", rangeSep: " – " },
   { value: "YYYY/MM", label: "YYYY/MM", rangeSep: "/" },
   { value: "MM/YYYY", label: "MM/YYYY", rangeSep: "/" },
   { value: "MM-YYYY", label: "MM-YYYY", rangeSep: "-" },
   { value: "MM.YYYY", label: "MM.YYYY", rangeSep: "." },
   { value: "YYYY.MM", label: "YYYY.MM", rangeSep: "." },
   { value: "Mon YYYY", label: "Mon YYYY (e.g. Mar 2021)", rangeSep: " – " },
-  { value: "Month YYYY", label: "Month YYYY (e.g. March 2021)", rangeSep: " – " },
+  { value: "Month YYYY", label: "Month YYYY (default; e.g. March 2021)", rangeSep: " – " },
   { value: "YYYY", label: "YYYY", rangeSep: " – " },
   { value: "Mon-YYYY", label: "Mon-YYYY (e.g. Mar-2021)", rangeSep: "-" },
 ];

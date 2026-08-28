@@ -21,6 +21,7 @@ const EMPTY_FORM = {
   job_description: "",
   job_url: "",
   notes: "",
+  next_follow_up_at: "",
 };
 
 type FormState = typeof EMPTY_FORM;
@@ -33,6 +34,7 @@ function formFromApplication(application: Application | null | undefined): FormS
     job_description: application.job_description,
     job_url: application.job_url ?? "",
     notes: application.notes ?? "",
+    next_follow_up_at: application.next_follow_up_at ?? "",
   };
 }
 
@@ -90,6 +92,7 @@ export default function ApplicationFormModal({
           job_description: jobDescription,
           job_url: form.job_url.trim() || null,
           notes: form.notes.trim() || null,
+          next_follow_up_at: form.next_follow_up_at || null,
         };
         const saved = await update(initialApplication.id, changes);
         onSaved?.(saved);
@@ -104,6 +107,7 @@ export default function ApplicationFormModal({
         job_description: jobDescription,
         job_url: form.job_url.trim() || undefined,
         notes: form.notes.trim() || undefined,
+        ...(form.next_follow_up_at ? { next_follow_up_at: form.next_follow_up_at } : {}),
       });
       onSaved?.(created);
       setPhase("Generating tailored CV…");
@@ -184,6 +188,15 @@ export default function ApplicationFormModal({
               value={form.notes}
               onChange={(event) => setField("notes", event.target.value)}
               rows={3}
+              className="mt-1 w-full rounded-md border border-app-rule-strong px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="block text-sm font-medium text-app-ink-2">
+            Next follow-up <span className="font-normal text-app-ink-3">(optional)</span>
+            <input
+              type="date"
+              value={form.next_follow_up_at}
+              onChange={(event) => setField("next_follow_up_at", event.target.value)}
               className="mt-1 w-full rounded-md border border-app-rule-strong px-3 py-2 text-sm"
             />
           </label>

@@ -31,7 +31,7 @@ DEFAULT_SECTIONS: list[dict] = [
 class CVCreate(BaseModel):
     title: str = Field(max_length=255)
     description: str | None = Field(default=None, max_length=500)
-    template_id: str = Field(default="generic-modern", max_length=100)
+    template_id: str = Field(default="generic-minimal", max_length=100)
     sections: list[SectionInstance] | dict = Field(default=DEFAULT_SECTIONS, max_length=100)
     customizations: Customizations | dict | None = None
     extra_metadata: dict = Field(default_factory=dict, max_length=100)

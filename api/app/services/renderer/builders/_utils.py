@@ -48,14 +48,14 @@ MONTH_NAMES = [
 # Canonical list of date-format presets. Mirrors the dropdown in
 # ``web/src/components/sections/DateField.tsx``.
 DATE_STYLE_OPTIONS: list[tuple[str, str, str]] = [
-    ("YYYY-MM", "YYYY-MM (default)", " \u2013 "),
+    ("YYYY-MM", "YYYY-MM", " \u2013 "),
     ("YYYY/MM", "YYYY/MM", "/"),
     ("MM/YYYY", "MM/YYYY", "/"),
     ("MM-YYYY", "MM-YYYY", "-"),
     ("MM.YYYY", "MM.YYYY", "."),
     ("YYYY.MM", "YYYY.MM", "."),
     ("Mon YYYY", "Mon YYYY (e.g. Mar 2021)", " \u2013 "),
-    ("Month YYYY", "Month YYYY (e.g. March 2021)", " \u2013 "),
+    ("Month YYYY", "Month YYYY (default; e.g. March 2021)", " \u2013 "),
     ("YYYY", "YYYY", " \u2013 "),
     ("Mon-YYYY", "Mon-YYYY (e.g. Mar-2021)", "-"),
 ]

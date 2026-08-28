@@ -84,18 +84,18 @@ describe("ApplicationDetailPage", () => {
     renderPage();
 
     expect(await screen.findByText("Example Labs")).toBeInTheDocument();
-    expect(screen.getByText("80%", { selector: "p" })).toHaveAttribute("title", "Weighted keyword coverage of this CV against the saved job description—not an ATS or hiring probability.");
-    expect(screen.getAllByText("Python").length).toBeGreaterThan(0);
-    expect(screen.getByText("Missing: PostgreSQL")).toBeInTheDocument();
+    expect(screen.getByText("80%", { selector: "p" })).toHaveAttribute("title", "Weighted job-requirement coverage of this CV—not an ATS or hiring probability.");
+    expect(screen.getByText("Python FastAPI distributed systems")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /open the linked cv/i })).toHaveAttribute("href", "/dashboard/builder/cv-1?application=app-1");
     expect(screen.getByText("Selected Library rows: 1")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /open\/edit cv/i })).toHaveAttribute("href", "/dashboard/builder/cv-1?application=app-1");
     expect(screen.getByText("Could not fit one page without rewriting content")).toBeInTheDocument();
     expect(screen.getByLabelText("Application status")).toHaveClass("w-full", "min-w-[10rem]", "sm:w-auto");
-    expect(screen.getAllByRole("button", { name: "See more" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "See more" })).toHaveLength(1);
     expect(screen.getByRole("heading", { name: "Job" }).closest("section")).toHaveClass("h-60", "md:h-64");
   });
 
-  it("expands the bounded job and relevance panels on demand", async () => {
+  it("expands the bounded job panel while keeping relevance analysis on the builder", async () => {
     const user = userEvent.setup();
     renderPage();
 
@@ -105,8 +105,7 @@ describe("ApplicationDetailPage", () => {
     await user.click(seeMoreButtons[0]);
     expect(screen.getByRole("button", { name: "See less" })).toHaveAttribute("aria-expanded", "true");
 
-    await user.click(seeMoreButtons[1]);
-    expect(screen.getAllByRole("button", { name: "See less" })).toHaveLength(2);
+    expect(screen.getByRole("link", { name: /open the linked cv/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /open\/edit cv/i })).toBeInTheDocument();
   });
 

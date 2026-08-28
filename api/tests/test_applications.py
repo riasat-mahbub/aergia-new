@@ -28,6 +28,7 @@ async def test_application_crud_and_applied_date_transition(client):
             "job_description": " Python FastAPI PostgreSQL ",
             "job_url": " https://example.com/jobs/1 ",
             "notes": "Keep this note",
+            "next_follow_up_at": "2026-02-15",
             "cv_id": "must-not-be-set",
             "extracted_keywords": [{"text": "fake"}],
         },
@@ -41,6 +42,8 @@ async def test_application_crud_and_applied_date_transition(client):
     assert body["status"] == "draft"
     assert body["generation_status"] == "pending"
     assert body["cv_id"] is None
+    assert body["next_follow_up_at"] == "2026-02-15"
+    assert [(event["from_status"], event["to_status"]) for event in body["status_history"]] == [(None, "draft")]
     application_id = body["id"]
 
     applied = await client.patch(
@@ -51,6 +54,10 @@ async def test_application_crud_and_applied_date_transition(client):
     assert applied.status_code == 200
     applied_at = applied.json()["applied_at"]
     assert applied_at is not None
+    assert [(event["from_status"], event["to_status"]) for event in applied.json()["status_history"]] == [
+        (None, "draft"),
+        ("draft", "applied"),
+    ]
 
     later = await client.patch(
         f"/api/v1/applications/{application_id}",
@@ -59,6 +66,19 @@ async def test_application_crud_and_applied_date_transition(client):
     )
     assert later.status_code == 200
     assert later.json()["applied_at"] == applied_at
+
+    follow_up = await client.patch(
+        f"/api/v1/applications/{application_id}",
+        headers=headers,
+        json={"next_follow_up_at": "2026-03-01"},
+    )
+    assert follow_up.status_code == 200
+    assert follow_up.json()["next_follow_up_at"] == "2026-03-01"
+    assert [(event["from_status"], event["to_status"]) for event in follow_up.json()["status_history"]] == [
+        (None, "draft"),
+        ("draft", "applied"),
+        ("applied", "interview"),
+    ]
 
     override = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
     overridden = await client.patch(

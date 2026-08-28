@@ -73,8 +73,8 @@ def test_customizations_all_fields_optional():
     assert c.per_section == {}
 
 
-def test_layout_defaults_spacing_default_is_comfortable():
-    assert LayoutDefaults().spacing == "comfortable"
+def test_layout_defaults_spacing_default_is_none():
+    assert LayoutDefaults().spacing == "none"
 
 
 def test_text_style_defaults_are_false():
@@ -106,7 +106,7 @@ def test_render_model_round_trips():
 
 
 def test_date_style_defaults():
-    assert DateStyle().key == "YYYY-MM"
+    assert DateStyle().key == "Month YYYY"
     assert DateStyle().range_sep == " \u2013 "
 
 

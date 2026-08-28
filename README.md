@@ -213,7 +213,7 @@ are the manifest's choices.
 - **`placement`** — which section types go in which zone. The
   "modern" template puts profile + skills in the sidebar, everything
   else in main.
-- **`layout_defaults.spacing`** — `compact | comfortable | minimal`.
+- **`layout_defaults.spacing`** — `none | compact | comfortable | minimal`.
   Sets the gap between sections and between fields.
 - **`policy_overrides.by_type`** — per-section overrides of
   renderer defaults. Example: `{"skills": {"skill_variant": "inline"}}`

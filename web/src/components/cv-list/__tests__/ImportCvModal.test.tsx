@@ -163,7 +163,7 @@ describe("ImportCvModal", () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
     const arg = onSubmit.mock.calls[0][0];
     expect(arg.title).toBe("Senior CV");
-    expect(arg.templateId).toBe("generic-modern");
+    expect(arg.templateId).toBe("generic-minimal");
     expect(arg.file).toBe(file);
   });
 

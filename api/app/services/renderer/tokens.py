@@ -35,9 +35,10 @@ PADDING_TOKEN_VALUES: dict[str, str] = {
 # Spacing design tokens (CSS variables the renderer emits). The
 # ``layout_defaults.spacing`` enum maps to these pairs; the renderer
 # is the only place these values live.
-SpacingToken = Literal["compact", "comfortable", "minimal"]
+SpacingToken = Literal["none", "compact", "comfortable", "minimal"]
 SPACING_TOKEN_VALUES: dict[str, tuple[str, str]] = {
     # layout_defaults.spacing -> (--spacing-section, --spacing-subsection)
+    "none": ("0px", "0px"),
     "compact": ("20px", "0px"),
     "comfortable": ("24px", "16px"),
     # minimal: section gap stays at 16px (visible separation between

@@ -48,6 +48,6 @@ class TestCVSchemas:
 
     def test_cv_create_defaults(self):
         data = CVCreate(title="My CV")
-        assert data.template_id == "generic-modern"
+        assert data.template_id == "generic-minimal"
         assert data.sections == DEFAULT_SECTIONS
         assert data.customizations is None

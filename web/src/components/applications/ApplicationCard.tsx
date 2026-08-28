@@ -4,6 +4,8 @@ import { Link } from "react-router-dom";
 import type { Application } from "../../lib/api/applications";
 import {
   formatApplicationDate,
+  formatFollowUpDate,
+  isFollowUpOverdue,
   relevanceScore,
   RELEVANCE_TOOLTIP,
   STATUS_CLASSES,
@@ -61,6 +63,11 @@ export default function ApplicationCard({ application, retrying, onRetry, onDele
             {application.applied_at ? `Applied ${formatApplicationDate(application.applied_at)}` : "Not applied"}
           </span>
           <span>Updated {formatApplicationDate(application.updated_at)}</span>
+          <span className={isFollowUpOverdue(application.next_follow_up_at) ? "font-medium text-app-danger" : ""}>
+            {application.next_follow_up_at
+              ? `Follow up ${formatFollowUpDate(application.next_follow_up_at)}`
+              : "No follow-up set"}
+          </span>
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2 rounded-md bg-app-canvas px-3 py-2.5 text-xs">
