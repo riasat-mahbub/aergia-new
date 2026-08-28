@@ -23,7 +23,7 @@ interface EntryAddRowProps {
  * Bottom row of every entry-based section editor. Renders two parallel
  * buttons: one to add a blank item, one to pull an entry from the
  * user's Library. The library button is omitted for ineligible kinds
- * (profile, summary, research, extras).
+ * (profile, summary, extras).
  */
 export default function EntryAddRow({
   kind,

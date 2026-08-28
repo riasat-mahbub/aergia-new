@@ -19,6 +19,7 @@ const TITLE_FIELDS: Record<string, readonly string[]> = {
   project: ["name"],
   language: ["language", "name"],
   certification: ["name"],
+  research: ["title"],
 };
 
 function firstText(payload: Record<string, unknown>, fields: readonly string[]): string | null {
@@ -65,6 +66,8 @@ function deriveMeta(entry: LibraryEntry): string {
     details = [Array.isArray(items) ? items.filter((item): item is string => typeof item === "string").join(", ") : null];
   } else if (entry.kind === "project") {
     details = [range];
+  } else if (entry.kind === "research") {
+    details = [firstText(payload, ["publication_value"]), range];
   }
   return details.filter((value): value is string => Boolean(value)).join(" · ");
 }

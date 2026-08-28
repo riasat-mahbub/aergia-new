@@ -31,7 +31,7 @@ class LibraryEntryKind(str, Enum):
     PROJECT = "project"
     CERTIFICATION = "certification"
     LANGUAGE = "language"
-
+    RESEARCH = "research"
 
 class LibraryEntryCreate(BaseModel):
     """Request body to create a Library entry."""
@@ -145,6 +145,7 @@ SECTION_TYPE_TO_LIBRARY_KIND: dict[str, LibraryEntryKindStr] = {
     "projects": "project",
     "languages": "language",
     "certifications": "certification",
+    "research": "research",
     # Accept legacy singular section names while old CV rows are migrated
     # naturally through the next write.
     "skill": "skill",
@@ -159,6 +160,7 @@ LIBRARY_KIND_TO_SECTION_TYPE: dict[str, str] = {
     "project": "projects",
     "language": "languages",
     "certification": "certifications",
+    "research": "research",
 }
 
 

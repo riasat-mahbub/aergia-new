@@ -1,7 +1,7 @@
 import { type ReactNode } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "../../lib/store/authStore";
-import { FileText, Settings, LogOut, Library } from "lucide-react";
+import { FileText, Settings, LogOut, Library, BriefcaseBusiness } from "lucide-react";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -51,6 +51,15 @@ export default function AppLayout({ children }: AppLayoutProps) {
             >
               <Library className="h-4 w-4" />
               Library
+            </Link>
+          )}
+          {!isBuilder && (
+            <Link
+              to="/dashboard/applications"
+              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700"
+            >
+              <BriefcaseBusiness className="h-4 w-4" />
+              Applications
             </Link>
           )}
         </div>
