@@ -6,8 +6,10 @@ import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { ListNode, ListItemNode } from "@lexical/list";
+import { $isListItemNode } from "@lexical/list";
 import { ListPlugin } from "@lexical/react/LexicalListPlugin";
 import { AutoLinkNode, LinkNode, autoLinkEmailMatcher, autoLinkUrlMatcher } from "@lexical/link";
+import { TOGGLE_LINK_COMMAND } from "@lexical/link";
 import { LinkPlugin } from "@lexical/react/LexicalLinkPlugin";
 import { AutoLinkPlugin } from "@lexical/react/LexicalAutoLinkPlugin";
 import {
@@ -16,6 +18,8 @@ import {
   FORMAT_TEXT_COMMAND,
   INDENT_CONTENT_COMMAND,
   OUTDENT_CONTENT_COMMAND,
+  PASTE_COMMAND,
+  $isRangeSelection,
   type TextFormatType,
 } from "lexical";
 import type { EditorState } from "lexical";
@@ -24,6 +28,9 @@ import { lexicalToBlocks, blocksToLexical } from "../../../lib/sections/richText
 import { safeLinkUrl } from "../../../lib/security/safeUrl";
 import RichTextToolbar from "./RichTextToolbar";
 import { listItemsInSelection, normalizeListTextFormat } from "./richTextEditorUtils";
+import { setListItemsLink } from "./richTextEditorUtils";
+import { sanitizeRichTextHtml } from "./richTextPaste";
+import { $generateNodesFromDOM } from "@lexical/html";
 
 interface Props {
   value: RichTextBlock[] | string;
@@ -150,8 +157,9 @@ function EditorInner({
       <HistoryPlugin />
       <ListPlugin />
       <FlatListFormattingPlugin />
+      <PasteCleanupPlugin />
       <LinkPlugin validateUrl={(url) => Boolean(safeLinkUrl(url))} />
-      <AutoLinkPlugin matchers={safeAutoLinkMatchers} />
+      <AutoLinkPlugin matchers={safeAutoLinkMatchers} excludeParents={[$isListItemNode]} />
       <OnChangePlugin onChange={handleChange} />
       <InitPlugin value={value} />
     </>
@@ -172,12 +180,53 @@ function FlatListFormattingPlugin() {
       editor.registerCommand(command, () => listItemsInSelection($getSelection()).length > 0, COMMAND_PRIORITY_HIGH);
     const unregisterIndent = guardNestedLists(INDENT_CONTENT_COMMAND);
     const unregisterOutdent = guardNestedLists(OUTDENT_CONTENT_COMMAND);
+    const unregisterListLinks = editor.registerCommand(
+      TOGGLE_LINK_COMMAND,
+      (payload) => {
+        const selection = $getSelection();
+        if (listItemsInSelection(selection).length === 0) return false;
+        if (payload === null) return setListItemsLink(selection, null);
+        const rawUrl = typeof payload === "string" ? payload : payload.url;
+        const safeUrl = safeLinkUrl(rawUrl);
+        return safeUrl ? setListItemsLink(selection, safeUrl) : false;
+      },
+      COMMAND_PRIORITY_HIGH,
+    );
     return () => {
       unregisterFormat();
       unregisterIndent();
       unregisterOutdent();
+      unregisterListLinks();
     };
   }, [editor]);
+
+  return null;
+}
+
+/** Import only the allowlisted HTML produced by the paste sanitizer. */
+function PasteCleanupPlugin() {
+  const [editor] = useLexicalComposerContext();
+
+  useEffect(() => editor.registerCommand(
+    PASTE_COMMAND,
+    (event) => {
+      const clipboard = event as ClipboardEvent;
+      const html = clipboard.clipboardData?.getData("text/html");
+      if (!html) return false;
+      const sanitized = sanitizeRichTextHtml(html);
+      if (!sanitized || typeof DOMParser === "undefined") return false;
+      const document = new DOMParser().parseFromString(sanitized, "text/html");
+      event.preventDefault();
+      editor.update(() => {
+        const selection = $getSelection();
+        if (!$isRangeSelection(selection)) return;
+        const nodes = $generateNodesFromDOM(editor, document);
+        if (nodes.length > 0) selection.insertNodes(nodes);
+      });
+      return true;
+    },
+    COMMAND_PRIORITY_HIGH,
+  ), [editor]);
 
   return null;
 }
