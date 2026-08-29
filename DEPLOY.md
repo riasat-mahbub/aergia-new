@@ -4,7 +4,7 @@
 
 - A VPS with Docker and Docker Compose installed
 - Minimum 1 vCPU, 1GB RAM, 20GB SSD
-- A domain name (optional, for HTTPS)
+- A domain name and HTTPS termination (required for production auth cookies)
 
 ## Quick Start
 
@@ -20,9 +20,11 @@ cd /opt/aergia
 cp .env.example .env
 # Edit .env — generate a strong SECRET_KEY:
 #   python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+# Do not leave SECRET_KEY empty or use the example placeholder.
 
 # 4. Start the service
 docker compose up -d
+# The container runs `alembic upgrade head` before starting Uvicorn.
 
 # 5. Verify it's running
 curl http://localhost:8000/healthz
@@ -36,7 +38,8 @@ curl http://localhost:8000/healthz
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `SECRET_KEY` | **Yes** | `change-me-in-production` | JWT signing key (generate with `secrets.token_urlsafe(32)`) |
+| `SECRET_KEY` | **Yes** | — | JWT signing key (generate with `secrets.token_urlsafe(32)`) |
+| `ENVIRONMENT` | Fixed by Compose | `production` | Enables production security settings |
 
 Database configuration is automatic — SQLite stores data in `/app/data/aergia.db` (Docker volume).
 
@@ -85,6 +88,10 @@ docker run --rm -v aergia_uploads_data:/source -v $(pwd):/backup alpine tar czf 
 ```
 
 ## HTTPS & DDoS Protection
+
+Production mode marks authentication cookies as `Secure`, so serve the app
+through HTTPS before signing in. The direct port-8000 check is suitable for a
+local health check; use the HTTPS domain for the application.
 
 ### Option 1: Cloudflare Tunnel (recommended — includes DDoS protection)
 
