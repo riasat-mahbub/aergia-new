@@ -25,4 +25,14 @@ class TestLimiter:
 if settings.environment == "test":
     limiter = TestLimiter()  # type: ignore
 else:
-    limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
+    # The supported deployment currently runs one API process. Keep the
+    # storage choice explicit so a later multi-worker deployment must make the
+    # shared-storage decision deliberately instead of silently relying on the
+    # process-local default.
+    limiter = Limiter(
+        key_func=get_remote_address,
+        default_limits=["100/minute"],
+        headers_enabled=True,
+        storage_uri="memory://",
+        key_style="url",
+    )

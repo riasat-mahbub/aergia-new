@@ -11,9 +11,9 @@ from app.schemas.auth import (
     RefreshRequest,
 )
 from app.config import get_settings
-from app.core.auth import ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME
+from app.core.auth import ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME, verify_refresh_token
 from app.services.auth import AuthService
-from app.core.deps import get_current_user, get_optional_current_user
+from app.core.deps import get_optional_current_user
 from app.models.user import User
 
 router = APIRouter()
@@ -97,17 +97,23 @@ async def refresh(
 
 
 @router.post("/logout", status_code=status.HTTP_200_OK)
+@limiter.limit("10/minute")
 async def logout(
+    request: Request,
     response: Response,
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    raw_refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
+    email = current_user.email if current_user else verify_refresh_token(raw_refresh_token or "")
     service = AuthService(db)
-    await service.logout(current_user.email)
+    if email:
+        await service.logout(email, raw_refresh_token)
     _clear_auth_cookies(response)
     return {"message": "Logged out successfully"}
 
 
 @router.get("/session")
-async def session(current_user: User | None = Depends(get_optional_current_user)):
+@limiter.limit("60/minute")
+async def session(request: Request, current_user: User | None = Depends(get_optional_current_user)):
     return {"authenticated": current_user is not None}

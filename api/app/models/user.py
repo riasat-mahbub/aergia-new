@@ -26,3 +26,4 @@ class User(Base):
     applications = relationship("Application", back_populates="user", cascade=CASCADE_ALL)
     cvs = relationship("CV", back_populates="user", cascade=CASCADE_ALL)
     libraries = relationship("Library", back_populates="user", cascade=CASCADE_ALL)
+    auth_sessions = relationship("AuthSession", back_populates="user", cascade=CASCADE_ALL)

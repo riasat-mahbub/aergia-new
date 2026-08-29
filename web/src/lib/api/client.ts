@@ -19,6 +19,25 @@ function hasMutatingMethod(method: string | undefined): boolean {
   return method !== undefined && ["post", "put", "patch", "delete"].includes(method.toLowerCase());
 }
 
+let refreshPromise: Promise<void> | null = null;
+
+export function refreshSession(): Promise<void> {
+  if (refreshPromise) return refreshPromise;
+
+  const csrfToken = readCookie("aergia_csrf");
+  refreshPromise = axios.post(
+    "/api/v1/auth/refresh",
+    null,
+    {
+      withCredentials: true,
+      headers: csrfToken ? { "X-CSRF-Token": csrfToken } : undefined,
+    },
+  ).then(() => undefined).finally(() => {
+    refreshPromise = null;
+  });
+  return refreshPromise;
+}
+
 client.interceptors.request.use((config) => {
   if (hasMutatingMethod(config.method)) {
     const csrfToken = readCookie("aergia_csrf");
@@ -41,15 +60,7 @@ client.interceptors.response.use(
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isAuthRequest) {
       originalRequest._retry = true;
       try {
-        const csrfToken = readCookie("aergia_csrf");
-        await axios.post(
-          "/api/v1/auth/refresh",
-          null,
-          {
-            withCredentials: true,
-            headers: csrfToken ? { "X-CSRF-Token": csrfToken } : undefined,
-          },
-        );
+        await refreshSession();
         return client(originalRequest);
       } catch {
         localStorage.removeItem("access_token");

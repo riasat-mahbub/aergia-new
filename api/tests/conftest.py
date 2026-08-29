@@ -35,10 +35,8 @@ from app.db.session import async_session  # noqa: E402
 
 
 # Ensure the test DB has the schema applied. ASGITransport doesn't run app
-# lifespan, and the temporary test DB starts empty — Alembic is the source of truth, so
-# we invoke it once here via the venv CLI (the local `alembic/` package
-# shadows `from alembic import command` AND `python -m alembic`, so we must
-# exec the alembic entry-point script directly).
+# lifespan, and the temporary test DB starts empty — Alembic is the source of
+# truth, so we invoke it once here via the venv CLI.
 def _apply_migrations() -> None:
     import shutil
     import subprocess

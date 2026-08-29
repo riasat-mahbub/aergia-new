@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from app.config import get_settings
 from app.core.rate_limit import limiter
@@ -101,6 +102,10 @@ app = FastAPI(
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+if getattr(limiter, "enabled", False):
+    # SlowAPI only applies default_limits through its middleware. Decorated
+    # routes still retain their more specific limits.
+    app.add_middleware(SlowAPIMiddleware)
 
 # Security headers middleware
 @app.middleware("http")

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import client from "../api/client";
+import client, { refreshSession } from "../api/client";
 import { forgetAllKeys } from "../llm/keys";
 
 interface AuthState {
@@ -12,6 +12,9 @@ interface AuthState {
   hydrate: () => Promise<void>;
 }
 
+let hydrationPromise: Promise<void> | null = null;
+let authOperation = 0;
+
 function clearLegacyTokenStorage() {
   localStorage.removeItem("access_token");
   localStorage.removeItem("refresh_token");
@@ -21,18 +24,33 @@ export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
   isLoading: false,
 
-  hydrate: async () => {
-    clearLegacyTokenStorage();
-    set({ isLoading: true });
-    try {
-      const { data } = await client.get("/auth/session");
-      set({ isAuthenticated: data?.authenticated === true, isLoading: false });
-    } catch {
-      set({ isAuthenticated: false, isLoading: false });
-    }
+  hydrate: () => {
+    if (hydrationPromise) return hydrationPromise;
+
+    const operation = ++authOperation;
+    hydrationPromise = (async () => {
+      clearLegacyTokenStorage();
+      set({ isLoading: true });
+      try {
+        const { data } = await client.get("/auth/session");
+        if (data?.authenticated === true) {
+          if (operation === authOperation) set({ isAuthenticated: true, isLoading: false });
+          return;
+        }
+
+        await refreshSession();
+        if (operation === authOperation) set({ isAuthenticated: true, isLoading: false });
+      } catch {
+        if (operation === authOperation) set({ isAuthenticated: false, isLoading: false });
+      }
+    })().finally(() => {
+      hydrationPromise = null;
+    });
+    return hydrationPromise;
   },
 
   login: async (email: string, password: string) => {
+    authOperation += 1;
     set({ isLoading: true });
     try {
       await client.post("/auth/login", { email, password });
@@ -55,6 +73,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
+    authOperation += 1;
     try {
       await client.post("/auth/logout");
     } catch {
