@@ -22,6 +22,7 @@ def _validate_bcrypt_password_bytes(value: str) -> str:
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=MAX_PASSWORD_LENGTH)
+    turnstile_token: str | None = Field(default=None, max_length=2048)
 
     _password_byte_limit = field_validator("password")(_validate_bcrypt_password_bytes)
 
@@ -29,6 +30,16 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(max_length=MAX_PASSWORD_LENGTH)
+
+
+class RegistrationConfigResponse(BaseModel):
+    """Public registration settings; never expose the verification secret."""
+
+    turnstile_site_key: str | None = None
+    turnstile_required: bool
+    turnstile_action: str
+
+
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
@@ -46,6 +57,7 @@ class RefreshRequest(BaseModel):
 __all__ = [
     "AuthMessageResponse",
     "LoginRequest",
+    "RegistrationConfigResponse",
     "RefreshRequest",
     "RegisterRequest",
     "TokenResponse",

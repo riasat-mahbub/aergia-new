@@ -21,6 +21,7 @@ cp .env.example .env
 # Edit .env — generate a strong SECRET_KEY:
 #   python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 # Do not leave SECRET_KEY empty or use the example placeholder.
+# Set the Turnstile site/secret keys and the public hostname as well.
 
 # 4. Start the service
 docker compose up -d
@@ -41,8 +42,18 @@ curl http://localhost:8000/healthz
 |---|---|---|---|
 | `SECRET_KEY` | **Yes** | — | JWT signing key (generate with `secrets.token_urlsafe(32)`) |
 | `ENVIRONMENT` | Fixed by Compose | `production` | Enables production security settings |
+| `TURNSTILE_SITE_KEY` | **Yes** | — | Public site key for the registration widget |
+| `TURNSTILE_SECRET_KEY` | **Yes** | — | Server-only Turnstile verification secret |
+| `TURNSTILE_EXPECTED_HOSTNAME` | **Yes** | — | Public hostname returned by Turnstile |
+| `TURNSTILE_EXPECTED_ACTION` | No | `register` | Expected Turnstile action |
+| `TURNSTILE_VERIFICATION_TIMEOUT_SECONDS` | No | `3.0` | Bounded server-side provider timeout |
+| `TRUSTED_PROXY_IPS` | No | empty | Exact immediate proxy IPs/CIDRs allowed to supply `X-Forwarded-For` |
+| `FORWARDED_ALLOW_IPS` | No | empty | Exact Uvicorn proxy peers for forwarded scheme/host handling |
 
 Database configuration is automatic — SQLite stores data in `/app/data/aergia.db` (Docker volume).
+The limiter uses process-local memory storage and the supplied deployment runs one
+Uvicorn process. Adding workers or API replicas requires choosing shared limiter
+storage before relying on the configured limits across the fleet.
 
 ## Managing the App
 
@@ -101,6 +112,14 @@ local health check; use the HTTPS domain for the application.
 3. Run: `cloudflared tunnel --url http://localhost:8000`
 
 Cloudflare's free tier includes DDoS mitigation, rate limiting, WAF, and automatic HTTPS.
+
+The Compose file exposes the API only on loopback. With a tunnel or reverse
+proxy, set `TRUSTED_PROXY_IPS` to the actual immediate peer seen by the API
+and set `FORWARDED_ALLOW_IPS` to the same explicitly known peer set when
+forwarded scheme/host handling is required. Leave both empty when there is no
+proxy. Never use `*` and never trust an arbitrary client-supplied
+`X-Forwarded-For`; the application ignores that header unless the immediate
+peer is configured.
 
 ### Option 2: Caddy (automatic HTTPS)
 

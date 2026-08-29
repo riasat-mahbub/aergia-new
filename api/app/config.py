@@ -1,3 +1,5 @@
+from ipaddress import ip_network
+
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
@@ -16,6 +18,14 @@ class Settings(BaseSettings):
     allow_bearer_tokens: bool = False
     expose_tokens_in_response: bool = False
     csrf_protection_enabled: bool = True
+    turnstile_site_key: str = ""
+    turnstile_secret_key: str = ""
+    turnstile_expected_hostname: str = ""
+    turnstile_expected_action: str = "register"
+    turnstile_verification_timeout_seconds: float = 3.0
+    turnstile_bypass: bool = False
+    trusted_proxy_ips: str = ""
+    forwarded_allow_ips: str = ""
 
     model_config = {"env_file": ".env", "extra": "allow"}
 
@@ -27,6 +37,55 @@ class Settings(BaseSettings):
         if normalized not in allowed:
             raise ValueError(f"environment must be one of {sorted(allowed)}")
         return normalized
+
+    @field_validator(
+        "turnstile_site_key",
+        "turnstile_secret_key",
+        "turnstile_expected_hostname",
+        "turnstile_expected_action",
+        mode="before",
+    )
+    @classmethod
+    def normalize_turnstile_text(cls, value: object) -> str:
+        return str(value).strip()
+
+    @field_validator("turnstile_verification_timeout_seconds")
+    @classmethod
+    def validate_turnstile_timeout(cls, value: float) -> float:
+        if not 0.1 <= value <= 10.0:
+            raise ValueError("turnstile verification timeout must be between 0.1 and 10 seconds")
+        return value
+
+    @field_validator("trusted_proxy_ips")
+    @classmethod
+    def normalize_trusted_proxy_ips(cls, value: str) -> str:
+        networks: list[str] = []
+        for item in value.split(","):
+            candidate = item.strip()
+            if not candidate:
+                continue
+            try:
+                networks.append(str(ip_network(candidate, strict=False)))
+            except ValueError as exc:
+                raise ValueError(f"invalid trusted proxy network: {candidate}") from exc
+        return ",".join(networks)
+
+    @field_validator("forwarded_allow_ips")
+    @classmethod
+    def validate_forwarded_allow_ips(cls, value: str) -> str:
+        peers = [item.strip() for item in value.split(",") if item.strip()]
+        if "*" in peers:
+            raise ValueError("FORWARDED_ALLOW_IPS must contain known proxy addresses, not '*'")
+        return ",".join(peers)
+
+    @property
+    def turnstile_configured(self) -> bool:
+        return bool(
+            self.turnstile_site_key
+            and self.turnstile_secret_key
+            and self.turnstile_expected_hostname
+            and self.turnstile_expected_action
+        )
 
 
 _settings: Settings | None = None
@@ -45,5 +104,12 @@ def get_settings() -> Settings:
         if env == "production" and (_settings.allow_bearer_tokens or _settings.expose_tokens_in_response):
             raise RuntimeError(
                 "ALLOW_BEARER_TOKENS and EXPOSE_TOKENS_IN_RESPONSE must both be false in production."
+            )
+        if _settings.turnstile_bypass and env not in {"development", "test"}:
+            raise RuntimeError("TURNSTILE_BYPASS is only permitted in development or test environments.")
+        if env == "production" and not _settings.turnstile_configured:
+            raise RuntimeError(
+                "TURNSTILE_SITE_KEY, TURNSTILE_SECRET_KEY, TURNSTILE_EXPECTED_HOSTNAME, and "
+                "TURNSTILE_EXPECTED_ACTION must be configured in production."
             )
     return _settings

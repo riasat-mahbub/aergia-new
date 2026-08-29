@@ -6,6 +6,7 @@ from app.db.session import get_db
 from app.schemas.auth import (
     AuthMessageResponse,
     RegisterRequest,
+    RegistrationConfigResponse,
     LoginRequest,
     TokenResponse,
     RefreshRequest,
@@ -15,6 +16,7 @@ from app.core.auth import ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME, verify_refres
 from app.services.auth import AuthService
 from app.core.deps import get_optional_current_user
 from app.models.user import User
+from app.services.turnstile import TurnstileRejected, verify_turnstile
 
 router = APIRouter()
 settings = get_settings()
@@ -49,13 +51,36 @@ def _clear_auth_cookies(response: Response) -> None:
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 @limiter.limit("10/minute")
-async def register(request: Request, body: RegisterRequest, db: AsyncSession = Depends(get_db)):
+async def register(
+    request: Request,
+    response: Response,
+    body: RegisterRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        await verify_turnstile(body.turnstile_token)
+    except TurnstileRejected as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Security verification failed",
+        ) from exc
+
     service = AuthService(db)
     try:
         await service.register(body)
         return None
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered") from exc
+
+
+@router.get("/registration-config", response_model=RegistrationConfigResponse)
+async def registration_config():
+    required = not (settings.turnstile_bypass and settings.environment in {"development", "test"})
+    return RegistrationConfigResponse(
+        turnstile_site_key=settings.turnstile_site_key if required and settings.turnstile_configured else None,
+        turnstile_required=required,
+        turnstile_action=settings.turnstile_expected_action,
+    )
 
 
 @router.post("/login", response_model=TokenResponse | AuthMessageResponse)
@@ -115,5 +140,9 @@ async def logout(
 
 @router.get("/session")
 @limiter.limit("60/minute")
-async def session(request: Request, current_user: User | None = Depends(get_optional_current_user)):
+async def session(
+    request: Request,
+    response: Response,
+    current_user: User | None = Depends(get_optional_current_user),
+):
     return {"authenticated": current_user is not None}

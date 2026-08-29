@@ -23,6 +23,7 @@ os.environ["DATABASE_URL"] = os.environ["API_TEST_DB_URL"]
 
 # Set test environment before any app imports to disable rate limiting
 os.environ["ENVIRONMENT"] = "test"
+os.environ["TURNSTILE_BYPASS"] = "true"
 # Integration tests retain the legacy bearer/body transport while the
 # production configuration exercises the HttpOnly cookie transport.
 os.environ["ALLOW_BEARER_TOKENS"] = "true"

@@ -232,6 +232,9 @@ def _register_login_ready_handler(
             headers={"content-type": "application/pdf"},
         )
 
+    if path.startswith("/api/v1/cvs/") and method == "DELETE":
+        return httpx.Response(204)
+
     if path == "/api/v1/cvs" and method == "POST":
         return _ok_json(
             {"id": "cv_smoke", "title": "Smoke CV", "template_id": "generic-modern"},

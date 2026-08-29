@@ -1,9 +1,11 @@
+import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "react-router-dom";
 import { registerSchema, type RegisterFormData } from "../../lib/validators/auth";
 import { useAuthStore } from "../../lib/store/authStore";
-import { useState } from "react";
+import { getRegistrationConfig, type RegistrationConfig } from "../../lib/api/auth";
+import TurnstileWidget from "./TurnstileWidget";
 
 export default function RegisterForm() {
   const navigate = useNavigate();
@@ -11,6 +13,42 @@ export default function RegisterForm() {
   const isLoading = useAuthStore((s) => s.isLoading);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [config, setConfig] = useState<RegistrationConfig | null>(null);
+  const [configError, setConfigError] = useState(false);
+  const [configLoading, setConfigLoading] = useState(true);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [widgetError, setWidgetError] = useState(false);
+  const [widgetResetKey, setWidgetResetKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getRegistrationConfig()
+      .then((registrationConfig) => {
+        if (!cancelled) {
+          setConfig(registrationConfig);
+          setConfigError(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setConfigError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setConfigLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleTurnstileToken = useCallback((token: string) => {
+    setTurnstileToken(token || null);
+    setWidgetError(false);
+  }, []);
+
+  const handleTurnstileError = useCallback(() => {
+    setTurnstileToken(null);
+    setWidgetError(true);
+  }, []);
 
   const {
     register,
@@ -22,12 +60,18 @@ export default function RegisterForm() {
 
   const onSubmit = async (data: RegisterFormData) => {
     setError(null);
+    if (!config || configError || (config.turnstile_required && !turnstileToken)) {
+      setError("Please complete the security verification.");
+      return;
+    }
     try {
-      await registerUser(data.email, data.password);
+      await registerUser(data.email, data.password, turnstileToken ?? undefined);
       setSuccess(true);
       setTimeout(() => navigate("/login"), 2000);
     } catch {
       setError("Registration failed. Email may already be in use.");
+      setTurnstileToken(null);
+      setWidgetResetKey((key) => key + 1);
     }
   };
 
@@ -76,6 +120,24 @@ export default function RegisterForm() {
         />
         {errors.confirmPassword && <p className="mt-1 text-sm text-app-danger">{errors.confirmPassword.message}</p>}
       </div>
+
+      {configLoading && <p className="text-sm text-app-ink-3">Loading security verification...</p>}
+      {config?.turnstile_site_key && !configLoading && (
+        <TurnstileWidget
+          siteKey={config.turnstile_site_key}
+          action={config.turnstile_action}
+          resetKey={widgetResetKey}
+          onToken={handleTurnstileToken}
+          onError={handleTurnstileError}
+        />
+      )}
+      {!configLoading && configError && (
+        <p className="text-sm text-app-danger" role="alert">Security verification is unavailable.</p>
+      )}
+      {!configLoading && config?.turnstile_required && !config.turnstile_site_key && !configError && (
+        <p className="text-sm text-app-danger" role="alert">Security verification is unavailable.</p>
+      )}
+      {widgetError && <p className="text-sm text-app-danger" role="alert">Please retry the security verification.</p>}
 
       {error && <p className="text-sm text-app-danger">{error}</p>}
 

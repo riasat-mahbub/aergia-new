@@ -40,6 +40,10 @@ def _has_table(connection: sqlite3.Connection, table: str) -> bool:
     return row is not None
 
 
+def _has_column(connection: sqlite3.Connection, table: str, column: str) -> bool:
+    return any(row[1] == column for row in connection.execute(f"PRAGMA table_info({table})"))
+
+
 def _count(connection: sqlite3.Connection, table: str) -> int:
     return int(connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
 
@@ -113,6 +117,17 @@ def cleanup_database(
                 connection.execute(
                     f"DELETE FROM cvs WHERE id IN ({placeholders})",
                     candidate_ids,
+                )
+            if (
+                _has_table(connection, "users")
+                and _has_column(connection, "users", "application_count")
+                and _has_column(connection, "users", "cv_count")
+            ):
+                connection.execute(
+                    "UPDATE users SET application_count = "
+                    "(SELECT COUNT(*) FROM applications WHERE applications.user_id = users.id), "
+                    "cv_count = "
+                    "(SELECT COUNT(*) FROM cvs WHERE cvs.user_id = users.id AND cvs.is_active = 1)"
                 )
             connection.commit()
         except Exception:

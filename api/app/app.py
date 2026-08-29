@@ -9,13 +9,13 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from app.config import get_settings
-from app.core.rate_limit import limiter
+from app.core.abuse import log_abuse_event
 from app.core.auth import ACCESS_COOKIE_NAME, CSRF_COOKIE_NAME, REFRESH_COOKIE_NAME
+from app.core.rate_limit import get_rate_limit_key, limiter
 from app.db.session import async_session
 from app.db.seed import seed_templates
 from app.routes.auth import router as auth_router
@@ -54,13 +54,17 @@ def _content_security_policy() -> str:
     if settings.environment == "production":
         return (
             "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; "
-            "form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
-            "img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'"
+            "form-action 'self'; script-src 'self' https://challenges.cloudflare.com; "
+            "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; "
+            "connect-src 'self' https://challenges.cloudflare.com; "
+            "frame-src 'self' https://challenges.cloudflare.com"
         )
     return (
         "default-src 'self' http://localhost:5173; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; "
-        "form-action 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; "
-        "img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' http://localhost:5173 ws://localhost:5173"
+        "form-action 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com; "
+        "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; "
+        "connect-src 'self' http://localhost:5173 ws://localhost:5173 https://challenges.cloudflare.com; "
+        "frame-src 'self' https://challenges.cloudflare.com"
     )
 
 
@@ -101,7 +105,19 @@ app = FastAPI(
 )
 
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+async def rate_limit_exceeded_handler(request: Request, _exc: RateLimitExceeded):
+    event = (
+        "registration_rate_limited"
+        if request.url.path == "/api/v1/auth/register"
+        else "rate_limited"
+    )
+    log_abuse_event(event, route=request.url.path, client_key=get_rate_limit_key(request))
+    return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded"})
+
+
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 if getattr(limiter, "enabled", False):
     # SlowAPI only applies default_limits through its middleware. Decorated
     # routes still retain their more specific limits.

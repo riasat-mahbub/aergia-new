@@ -32,6 +32,7 @@ from fastapi import (
     Form,
     HTTPException,
     Request,
+    Response,
     UploadFile,
     status,
 )
@@ -65,6 +66,7 @@ MAX_BYTES = 15 * 1024 * 1024  # 15MB
 @limiter.limit("5/minute")
 async def import_pdf(
     request: Request,
+    response: Response,
     file: UploadFile = File(...),
     api_key: str | None = Form(default=None),
     provider: str | None = Form(default=None),
