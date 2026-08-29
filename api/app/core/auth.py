@@ -3,6 +3,7 @@
 import hashlib
 import hmac
 from datetime import datetime, timedelta, timezone
+from typing import Any
 from uuid import uuid4
 
 import bcrypt
@@ -40,7 +41,17 @@ def verify_token_hash(token: str, stored_hash: str) -> bool:
     return hmac.compare_digest(hash_token(token), stored_hash)
 
 
-def _create_token(email: str, token_type: str, audience: str, expires_delta: timedelta) -> str:
+def refresh_token_expires_at() -> datetime:
+    return datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days)
+
+
+def _create_token(
+    email: str,
+    token_type: str,
+    audience: str,
+    expires_delta: timedelta,
+    session_id: str | None = None,
+) -> str:
     expires = datetime.now(timezone.utc) + expires_delta
     to_encode = {
         "sub": email,
@@ -51,28 +62,32 @@ def _create_token(email: str, token_type: str, audience: str, expires_delta: tim
         "iss": JWT_ISSUER,
         "aud": audience,
     }
+    if session_id is not None:
+        to_encode["sid"] = session_id
     return jwt.encode(to_encode, settings.secret_key, algorithm="HS256")
 
 
-def create_access_token(email: str) -> str:
+def create_access_token(email: str, session_id: str | None = None) -> str:
     return _create_token(
         email,
         "access",
         ACCESS_TOKEN_AUDIENCE,
         timedelta(minutes=settings.access_token_expire_minutes),
+        session_id=session_id,
     )
 
 
-def create_refresh_token(email: str) -> str:
+def create_refresh_token(email: str, session_id: str | None = None) -> str:
     return _create_token(
         email,
         "refresh",
         REFRESH_TOKEN_AUDIENCE,
         timedelta(days=settings.refresh_token_expire_days),
+        session_id=session_id,
     )
 
 
-def _verify_token(token: str, token_type: str, audience: str) -> str | None:
+def _decode_token(token: str, token_type: str, audience: str) -> dict[str, Any] | None:
     try:
         payload = jwt.decode(
             token,
@@ -84,9 +99,16 @@ def _verify_token(token: str, token_type: str, audience: str) -> str | None:
         if payload.get("typ") != token_type:
             return None
         subject = payload.get("sub")
-        return subject if isinstance(subject, str) and subject else None
+        if not isinstance(subject, str) or not subject:
+            return None
+        return payload
     except (jwt.PyJWTError, TypeError, ValueError):
         return None
+
+
+def _verify_token(token: str, token_type: str, audience: str) -> str | None:
+    payload = _decode_token(token, token_type, audience)
+    return payload.get("sub") if payload else None
 
 
 def verify_access_token(token: str) -> str | None:
@@ -95,6 +117,12 @@ def verify_access_token(token: str) -> str | None:
 
 def verify_refresh_token(token: str) -> str | None:
     return _verify_token(token, "refresh", REFRESH_TOKEN_AUDIENCE)
+
+
+def decode_refresh_token(token: str) -> dict[str, Any] | None:
+    """Return validated refresh claims for session lookup."""
+
+    return _decode_token(token, "refresh", REFRESH_TOKEN_AUDIENCE)
 
 
 def verify_token(token: str) -> str | None:
