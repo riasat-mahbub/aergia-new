@@ -1,328 +1,115 @@
-# Aergia CV Builder
+# Aergia
 
-A single-user CV builder. You sign in, edit a CV in a schematic
-editor, pick a template, customize the look, and export to PDF. The
-whole app is one FastAPI process serving a React SPA; the same
-HTML-first renderer drives both the live preview and the PDF.
+Aergia is a private workspace for building professional CVs, keeping your
+best career material reusable, and preparing applications.
 
-## What you get
+You can use it to create several versions of your CV, import an existing PDF,
+track the jobs you are applying for, and export a polished PDF when you are
+ready to apply.
 
-- **Schematic editor.** A panel-based editor where you add sections
-  (Experience, Education, Projects, Research, Skills, Languages,
-  Certifications) and fill in fields. No raw HTML, no formatting
-  toolbar — the editor mirrors the data model.
-- **Three system templates** that share the same renderer:
-  - **Modern** — two-column with a narrow sidebar (profile + skills)
-    and a wide main column for everything else.
-  - **Classic** — single-column, compact spacing.
-  - **Minimal** — single-column, loose spacing.
-- **Customize panel** for per-CV adjustments: accent color, fonts,
-  heading divider, per-section spacing. Edits are live in the
-  preview.
-- **PDF export** via Chromium print, with real clickable link
-  annotations on the URLs you provide.
+## What you can do
 
-## How it works (the user-facing flow)
+- **Build multiple CVs.** Create reusable CV drafts and versions from scratch.
+  Add Profile, Experience, Education, Skills, Projects, Languages,
+  Certifications, Research, or Extras sections.
+- **Start from an existing CV.** Import a PDF and review the extracted content
+  in the editor before using it as a new CV.
+- **Choose your look.** Use Modern, Classic, or Minimal templates, then adjust
+  colors, fonts, section order, spacing, and layout.
+- **Reuse your best work.** Save experiences, skills, projects, education,
+  certifications, languages, and research in the Library. Pull those entries
+  into any CV or promote content from an existing CV into the Library.
+- **Track applications.** Save a company, role, job description, job link,
+  notes, status, and next follow-up date in one place.
+- **Create a tailored CV.** A tracked application can generate an editable CV
+  using your profile and Library content. Aergia also shows requirement
+  coverage, supporting evidence, and a one-page fit check.
+- **Preview and export.** The live preview and downloaded PDF use the same
+  document rendering, and links in the PDF remain clickable.
 
-```
-                  ┌──────────────────────────────────────────────┐
-                  │                                              │
-   sign in ──────►│  Dashboard (list of CVs)                    │
-                  │                                              │
-                  └────────────────┬─────────────────────────────┘
-                                   │  open / new
-                                   ▼
-                  ┌──────────────────────────────────────────────┐
-                  │                                              │
-                  │  Builder page                                │
-                  │  ┌──────────────┐  ┌──────────────────────┐  │
-                  │  │ Section list │  │  Live preview        │  │
-                  │  │ • Experience │  │  ┌────────────────┐  │  │
-                  │  │ • Education  │  │  │  Same HTML the  │  │  │
-                  │  │ • Projects   │  │  │  PDF uses       │  │  │
-                  │  │ • Research   │  │  └────────────────┘  │  │
-                  │  │ • Skills     │  │  (sandboxed iframe)   │  │
-                  │  └──────────────┘  └──────────────────────┘  │
-                  │  ┌──────────────┐                            │
-                  │  │ Customize    │  ← accent color, fonts,   │
-                  │  │ panel        │    per-section spacing     │
-                  │  └──────────────┘                            │
-                  └────────────────┬─────────────────────────────┘
-                                   │  click "Export PDF"
-                                   ▼
-                  ┌──────────────────────────────────────────────┐
-                  │                                              │
-                  │  PDF download                                │
-                  │  • Page-sized HTML rendered by Chromium     │
-                  │  • Real clickable URLs as link annotations   │
-                  │  • Same content as the preview               │
-                  │                                              │
-                  └──────────────────────────────────────────────┘
-```
+## A simple workflow
 
-The preview and the PDF are **the same render** — what you see is
-what you get. No "export will look slightly different" surprises.
-
-## The data flow (what happens when you save)
-
-When you change a field, here's the round trip:
-
-```
-   ┌──────────┐    save     ┌──────────────────┐
-   │  React   │────────────►│  POST /cvs/{id}   │
-   │  editor  │             │  (FastAPI)        │
-   └──────────┘             └────────┬─────────┘
-       ▲                            │
-       │  GET /cvs/{id} (re-render)  │
-       │  or PATCH                   ▼
-       │                  ┌──────────────────┐
-       │                  │  Validate via     │
-       │                  │  Pydantic schema  │
-       │                  └────────┬─────────┘
-       │                           │
-       │                           ▼
-       │                  ┌──────────────────┐
-       │                  │  Save to          │
-       │                  │  SQLite (JSONB)   │
-       │                  └────────┬─────────┘
-       │                           │
-       │   preview / export         ▼
-       │                  ┌──────────────────┐
-       └──────────────────│  Re-render via    │
-                          │  the renderer     │
-                          └──────────────────┘
-```
-
-The CV is stored as JSON in SQLite. Each save round-trips through
-Pydantic validation, so invalid data (missing required fields,
-wrong types) is rejected at the boundary.
-
-## How a CV becomes a PDF
-
-This is the part the rest of the system hangs off:
-
-```
-   CV (JSONB)                                    Template (manifest)
-       │                                                │
-       │   ┌─────────────────────┐                    │
-       └─►│  build_document(cv)   │                    │
-          │  (one builder per      │                    │
-          │   section type)        │                    │
-          └──────────┬────────────┘                    │
-                     │                                 │
-                     ▼                                 │
-          ┌─────────────────────┐                    │
-          │  Document (typed     │                    │
-          │  AST)                │                    │
-          └──────────┬──────────┘                    │
-                     │                                 │
-                     │     ┌──────────────────────────┘
-                     │     │
-                     ▼     ▼
-          ┌─────────────────────┐
-          │  resolve(document,   │
-          │  renderer,           │
-          │  manifest,           │
-          │  customizations)     │
-          │                      │
-          │  Apply:              │
-          │  • manifest defaults │
-          │  • user customizations│
-          │  • per-section       │
-          │    overrides         │
-          └──────────┬──────────┘
-                     │
-                     ▼
-          ┌─────────────────────┐
-          │  RenderModel         │
-          │  (fully resolved;    │
-          │   no defaults left)  │
-          └──────────┬──────────┘
-                     │
-                     ▼
-          ┌─────────────────────┐
-          │  HTMLDocumentRenderer│
-          │  .render(model)      │
-          │  → HTML5 + CSS       │
-          └──────────┬──────────┘
-                     │
-                     ├──────────────┐
-                     │              │
-                     ▼              ▼
-          ┌──────────────┐  ┌────────────────────┐
-          │  Live preview│  │  html_to_pdf()      │
-          │  (sandboxed  │  │  via Playwright     │
-          │   iframe)    │  │  Chromium           │
-          └──────────────┘  └─────────┬──────────┘
-                                        │
-                                        ▼
-                                  ┌──────────┐
-                                  │  PDF     │
-                                  └──────────┘
-```
-
-The renderer is **almost stupid** — it reads the resolved model and
-emits HTML. No decisions, no defaults, no "what does the user want".
-Every choice is made upstream, in the resolver. This is what keeps
-the preview and the PDF identical.
-
-The live preview and the PDF share everything **except one step**: the
-preview neutralizes `<a href>` to `#` so the sandboxed iframe can't
-navigate away while you edit. The PDF keeps the real hrefs, so
-Chromium's print engine produces clickable link annotations.
+1. Create an account and open the Dashboard.
+2. Add your shared profile details in **Settings**.
+3. Open **CVs** and create a CV, or import an existing PDF.
+4. Fill in your sections, reorder them, choose a template, and customize the
+   appearance.
+5. Check the live preview and select **Export PDF**.
+6. For a specific job, open **Applications**, choose **Track application**,
+   paste the job description, and generate a tailored CV.
 
 ## Templates
 
-A template is a JSON manifest — a small file that declares the
-template's taste. The renderer reads it; the CSS values it produces
-are the manifest's choices.
+- **Modern** — a two-column layout with a sidebar for profile-style content.
+- **Classic** — a compact single-column layout.
+- **Minimal** — a spacious single-column layout.
 
-```json
-{
-  "manifest_version": 2,
-  "name": "Modern",
-  "description": "Two-column layout with accent color header and light sidebar",
-  "zones": [
-    {"id": "sidebar", "styles": {"width": "narrow", "padding": "comfortable"}},
-    {"id": "main",    "styles": {"width": "full",    "padding": "comfortable"}}
-  ],
-  "placement": {
-    "profile": "sidebar",
-    "experience": "main",
-    "education": "main",
-    "skills": "main",
-    "projects": "main",
-    "languages": "main",
-    "certifications": "main",
-    "research": "main"
-  },
-  "layout_defaults": {"spacing": "comfortable"},
-  "policy_overrides": {"by_type": {}},
-  "global_styles": {
-    "accent_color": "#2563eb",
-    "body_font": "Inter, system-ui, sans-serif",
-    "heading_font": "Inter, system-ui, sans-serif"
-  }
-}
-```
+The template controls the starting design. Your CV customizations can then
+adjust the look without changing the content itself.
 
-### What each key means
+## The Library and tailored CVs
 
-- **`zones`** — layout regions with their width/padding. `narrow`
-  is about a third, `half` is half, `full` is the rest.
-- **`placement`** — which section types go in which zone. The
-  "modern" template puts profile + skills in the sidebar, everything
-  else in main.
-- **`layout_defaults.spacing`** — `none | compact | comfortable | minimal`.
-  Sets the gap between sections and between fields.
-- **`policy_overrides.by_type`** — per-section overrides of
-  renderer defaults. Example: `{"skills": {"skill_variant": "inline"}}`
-  renders the skills section as one line of text instead of chips.
-- **`global_styles`** — accent color, body and heading fonts.
-  These are the defaults; the customize panel lets you override
-  them per CV.
+The Library is your reusable source material. Keep strong versions of your
+experience, projects, skills, and other sections there, then choose what fits
+each CV or application.
 
-The resolver layers everything in this order: **renderer defaults →
-manifest defaults → user customizations → per-section overrides**.
-The renderer never has to think.
+When you generate a tailored CV for an application, Aergia creates a normal
+editable CV snapshot. Later changes to the Library or job description do not
+silently rewrite that CV. Edit it in the Builder, or generate again explicitly
+when you want a new version.
 
-## Customizing a CV
+The relevance score is a guide to weighted job-requirement coverage. It is not
+an ATS score or a prediction of hiring success. Open the linked CV to inspect
+the matched requirements, missing requirements, and source evidence.
 
-The customize panel sits alongside the editor. It exposes three
-groups, one per style axis:
+## Importing a PDF
 
-```
-   ┌─────────────────────────────┐
-   │  Section policy              │
-   │  ◻ Show title               │
-   │  ◻ Heading divider           │
-   │  Skills layout: [Default ▼]  │  ← per-type override
-   │                              │
-   │  Subsection                  │
-   │  Text align: [left ▼]        │
-   │                              │
-   │  Layout                      │
-   │  Font family: [sans ▼]       │
-   └─────────────────────────────┘
-```
+PDF import extracts content into editable sections so you can correct names,
+dates, formatting, and classifications before sending the CV anywhere.
 
-Each control writes to the CV's customization object, which the
-resolver merges with the template defaults. Edits are live — the
-preview re-renders on every change.
+The default parser works without an external service. You can optionally
+configure an OpenAI, Anthropic, Gemini, or Groq key in **Settings** for
+AI-assisted parsing. A key is held in memory for the import, used for that
+request, and then cleared; it is not saved to browser storage or to your
+Aergia account.
 
-## Getting started
+Always review imported content. Complex layouts, scanned PDFs, and unusual
+formatting may need manual corrections.
 
-### Run it locally (development)
+## Privacy and account security
+
+Aergia is designed to be self-hosted, so the operator controls the instance
+and its storage. Production deployments use secure authentication cookies and
+should be served over HTTPS.
+
+Password recovery is not currently available. Keep your account password in a
+safe place or contact the instance operator if you need help.
+
+## Self-hosting
+
+If you are using an existing Aergia instance, you can skip this section. To
+run your own production instance, see [`DEPLOY.md`](DEPLOY.md).
+
+The production container:
+
+- runs database migrations automatically before starting the app;
+- stores the SQLite database and uploaded images in Docker volumes; and
+- binds its local port to `127.0.0.1:8000` so a host-based Cloudflare Tunnel
+  can be used without exposing the app directly to the Internet.
+
+For the documented Cloudflare setup, the tunnel target is:
 
 ```bash
-git clone <repo>
-cd aergia
-./dev.sh                # SQLite + uvicorn :8000 --reload + Vite :5173
-# open http://localhost:5173
+cloudflared tunnel --url http://localhost:8000
 ```
 
-`./dev.sh` brings up:
-- A SQLite database at `data/aergia.db` (auto-created, no setup)
-- The FastAPI backend on `:8000` with auto-reload
-- The Vite dev server on `:5173` (proxies `/api` → `:8000`)
+Set a real `SECRET_KEY` in `.env` before starting the container. The app is
+available through the HTTPS hostname configured for the tunnel.
 
-Open `http://localhost:5173` and the app is running.
+## Documentation status
 
-For a production-like run (no Vite dev server, frontend served by
-FastAPI from `web/dist`):
-
-```bash
-./dev.sh --build
-```
-
-For the full hardening gate (tests + lint + smoke + production build
-+ live render check):
-
-```bash
-./dev.sh --smoke
-```
-
-### Deploy
-
-See [`DEPLOY.md`](DEPLOY.md) for the Docker + `.env` + domain setup.
-
-## Project structure
-
-```
-api/         FastAPI backend (Python ≥ 3.12, Pydantic, SQLAlchemy 2 async, aiosqlite, Alembic)
-web/         React 19 + Vite 6 + Tailwind + Zustand frontend
-docs/        Per-feature plans, visual diffs against the golden CV
-tracker/     Project knowledge graph (what's done, planned, proposed)
-dev.sh       Single command to bring the whole stack up
-```
-
-## Common dev commands
-
-| Command | What it does |
-|---|---|
-| `./dev.sh` | SQLite + backend (`:8000`, reload) + Vite (`:5173`) |
-| `./dev.sh --build` | Production-like: built frontend served by FastAPI |
-| `./dev.sh --smoke` | Full hardening gate (tests + lint + smoke + build) |
-| `cd api && .venv/bin/python -m pytest` | Backend tests |
-| `cd web && npm run test` | Frontend tests |
-| `cd web && npm run codegen` | Regenerate `web/src/generated/schema.ts` from the Pydantic models |
-| `cd web && npm run codegen:check` | Drift guard — must stay green in CI |
-| `cd api && .venv/bin/python -m ruff check .` | Backend lint |
-
-## Where to go next
-
-- **Deploying?** Read [`DEPLOY.md`](DEPLOY.md).
-- **Want to add a new section type?** The Pydantic models in
-  `api/app/schema/models.py` are the source of truth. Add the
-  field shape, write a builder in `api/app/services/renderer/builders/`,
-  add a TS type via `npm run codegen`, and the editor + preview +
-  PDF all light up automatically.
-- **Want to add a new template?** Write a manifest (see the schema
-  above), drop it in the seed, and the three system-template slots
-  in the template picker populate on next start.
-- **Tracking what's done or planned?** The project uses a
-  file-based knowledge graph in `tracker/`. The CLI is the source
-  of truth — see [`tracker/README.md`](tracker/README.md).
-- **Visual regression against a reference PDF?**
-  [`docs/profile-vs-golden.md`](docs/profile-vs-golden.md) is the
-  current side-by-side comparison.
+- [`DEPLOY.md`](DEPLOY.md) is the current operator guide.
+- `docs/plans/` contains active internal implementation plans, not user
+  instructions.
+- `tracker-legacy/` contains historical tracker exports and is not part of the
+  current user workflow.

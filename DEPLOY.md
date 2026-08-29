@@ -31,7 +31,8 @@ curl http://localhost:8000/healthz
 # Expected: {"status":"ok","app":"Aergia CV Builder","version":"0.1.0"}
 
 # 6. Open in browser
-# http://your-vps-ip:8000
+# https://your-domain.com
+# Port 8000 is loopback-only; access the app through the HTTPS tunnel.
 ```
 
 ## Environment Variables
