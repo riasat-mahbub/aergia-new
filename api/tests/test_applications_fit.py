@@ -17,7 +17,7 @@ async def _auth_headers(client) -> dict[str, str]:
 
 
 @pytest.mark.asyncio
-async def test_fit_removes_lowest_row_with_reverse_section_priority(client, monkeypatch):
+async def test_fit_removes_lowest_relevance_row_and_preserves_required_evidence(client, monkeypatch):
     headers = await _auth_headers(client)
     profile = await client.put(
         "/api/v1/profile",
@@ -47,7 +47,7 @@ async def test_fit_removes_lowest_row_with_reverse_section_priority(client, monk
     created = await client.post(
         "/api/v1/applications",
         headers=headers,
-        json={"company": "Fit Co", "role": "Engineer", "job_description": "Python\nResearch"},
+        json={"company": "Fit Co", "role": "Engineer", "job_description": "Python\nResearch preferred"},
     )
     application_id = created.json()["id"]
     calls = 0

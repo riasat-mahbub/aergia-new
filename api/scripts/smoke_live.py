@@ -208,7 +208,9 @@ def _smoke_application(client: httpx.Client, base_url: str, headers: dict[str, s
             "job_description": (
                 "Build Python services with FastAPI and PostgreSQL.\n"
                 "Distributed systems and platform engineering experience.\n"
-                "Cloud Native systems research preferred."
+                "Cloud Native certification preferred.\n"
+                "Platform project.\n"
+                "Systems research publication preferred."
             ),
         },
         headers=headers,

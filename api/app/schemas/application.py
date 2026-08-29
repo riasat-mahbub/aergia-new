@@ -36,7 +36,17 @@ class RelevanceResult(BaseModel):
     algorithm_version: str
 
 
-RequirementType = Literal["hard_skill", "responsibility", "quantitative", "education", "other"]
+RequirementType = Literal[
+    "hard_skill",
+    "responsibility",
+    "quantitative",
+    "education",
+    "certification",
+    "language",
+    "project",
+    "research",
+    "other",
+]
 
 
 class JobRequirement(BaseModel):
@@ -77,6 +87,8 @@ class RequirementRelevanceResult(BaseModel):
 
     status: Literal["not_evaluated", "evaluated"]
     score: int | None
+    # Added after requirement-v1. Optional keeps old persisted results readable.
+    coverage_score: int | None = None
     required_score: int | None = None
     preferred_score: int | None = None
     matched_weight: float = 0.0

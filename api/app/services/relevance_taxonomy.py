@@ -97,9 +97,19 @@ RESPONSIBILITY_ALIASES: dict[str, tuple[str, ...]] = {
     "kanban": ("kanban",),
 }
 
+CERTIFICATION_ALIASES: dict[str, tuple[str, ...]] = {
+    "ccna": ("ccna",),
+    "ccnp": ("ccnp",),
+    "cissp": ("cissp",),
+    "pmp": ("pmp",),
+    "comptia": ("comptia", "comp tia"),
+    "itil": ("itil",),
+}
+
 TAXONOMY: dict[str, tuple[str, tuple[str, ...]]] = {
     **{canonical: ("hard_skill", aliases) for canonical, aliases in HARD_SKILL_ALIASES.items()},
     **{canonical: ("responsibility", aliases) for canonical, aliases in RESPONSIBILITY_ALIASES.items()},
+    **{canonical: ("certification", aliases) for canonical, aliases in CERTIFICATION_ALIASES.items()},
 }
 
 ALIAS_TO_CANONICAL: dict[str, str] = {
@@ -111,6 +121,7 @@ ALIAS_TO_CANONICAL: dict[str, str] = {
 
 __all__ = [
     "ALIAS_TO_CANONICAL",
+    "CERTIFICATION_ALIASES",
     "HARD_SKILL_ALIASES",
     "RESPONSIBILITY_ALIASES",
     "TAXONOMY",

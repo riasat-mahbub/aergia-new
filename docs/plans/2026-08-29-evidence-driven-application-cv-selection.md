@@ -31,10 +31,11 @@ possible. Rows that uniquely support a required requirement are protected.
 ## Data cleanup
 
 Disposable application data is cleaned from the explicit local databases after
-backups. Applications, status history, linked generated CVs, and orphaned CVs
-with `metadata.application_id` are removed. Unrelated CVs, users, templates,
-and Library entries remain. The smoke database is skipped when it has no
-application schema.
+backups. Applications, status history, and CVs referenced by
+`applications.cv_id` are removed. CV metadata is user-editable and is not
+trusted as provenance, so every unlinked CV remains, including one carrying an
+old or forged `metadata.application_id`. Users, templates, and Library entries
+remain. The smoke database is skipped when it has no application schema.
 
 ## Verification
 

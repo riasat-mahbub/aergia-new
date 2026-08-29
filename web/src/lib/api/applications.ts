@@ -41,7 +41,7 @@ export interface RelevanceResult {
   algorithm_version: string;
 }
 
-export type RequirementType = "hard_skill" | "responsibility" | "quantitative" | "education" | "other";
+export type RequirementType = "hard_skill" | "responsibility" | "quantitative" | "education" | "certification" | "language" | "project" | "research" | "other";
 
 export interface JobRequirement {
   id: string;
@@ -75,6 +75,7 @@ export interface RequirementMatch {
 export interface RequirementRelevanceResult {
   status: "not_evaluated" | "evaluated";
   score: number | null;
+  coverage_score?: number | null;
   required_score?: number | null;
   preferred_score?: number | null;
   matched_weight: number;
