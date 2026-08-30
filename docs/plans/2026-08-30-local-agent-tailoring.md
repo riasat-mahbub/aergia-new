@@ -221,3 +221,246 @@ and no LLM invocation.
 - Run the focused protocol tests independently before attempting the full
   smoke gate, because the current environment has known database/test-runtime
   instability.
+
+## Full implementation execution plan
+
+The prototype is the protocol boundary. The remaining work should be delivered
+in independently testable slices, with each slice preserving the rule that
+generative inference and provider credentials stay outside Aergia production.
+
+### Phase 0 — Make the verification baseline trustworthy
+
+Do this before widening the patch contract. The current environment cannot run
+the async SQLite integration tests because `aiosqlite.connect()` hangs under the
+available Python runtime, and the repository's documented schema-codegen script
+is absent. A schema-heavy change should not proceed while those gates are
+ambiguous.
+
+Tasks:
+
+1. Establish and document a supported Python test runtime (prefer the declared
+   Python 3.12 path) and a reproducible async SQLite setup.
+2. Make `api/tests/test_tailoring.py` run from a fresh database, then add the
+   full protocol flow to the normal backend test command.
+3. Restore or replace the in-tree Pydantic-to-TypeScript codegen check before
+   changing rich-text models. Generated frontend types must remain derived,
+   never hand-edited.
+4. Record the existing full-frontend lint baseline separately from new work;
+   changed files must introduce no new lint errors.
+
+Exit gate: the fixed-patch create → exchange → evidence → submit → apply →
+score flow passes on a fresh database, and schema/codegen checks are usable.
+
+### Phase 2 — Expand patch semantics safely
+
+#### Contract and targeting
+
+Keep protocol version 1 for additive operations and expose the server's
+supported operation set in the evidence packet. Bump the protocol only for a
+breaking wire-shape change. The CLI must choose only operations advertised by
+the server, so a published agent can work against an older deployment.
+
+Replace implicit array paths with explicit targets:
+
+- `rewrite_rich_text`: section ID, entry ID, and an allowlisted field (`description`
+  or `summary`) containing canonical `RichTextBlock[]`.
+- `remove_bullet`: section ID, entry ID, rich-text field, and stable block/item
+  IDs.
+- `reorder_bullets`: section ID, entry ID, field, and the complete ordered list
+  of stable item IDs.
+- `remove_entry`: section ID and entry ID.
+- `reorder_entries`: section ID and the complete ordered list of entry IDs.
+- `add_library_entry`: authoritative Library entry ID plus source row ID, with
+  the target section inferred and checked from the Library kind.
+
+The current AST has rich-text blocks/items but no stable IDs for bullet items.
+Add canonical IDs with a compatibility normalizer/backfill before enabling
+bullet operations. Require exact permutations for reorder operations; reject
+duplicates, missing IDs, unknown IDs, and array-index-only targets.
+
+#### Protected policy
+
+Create one server-owned policy table/module that maps section type and field to
+`protected`, `editable prose`, `reorder/remove`, or `not patchable`. Reject
+disallowed paths rather than silently dropping them. At minimum:
+
+- protect names, employers, titles, institutions, dates, locations, degrees,
+  certifications, publication metadata, URLs, verified metrics, counts,
+  percentages, currencies, and structured technology claims;
+- permit only descriptive prose rewrites in explicitly allowlisted fields;
+- permit removing/reordering existing entries or bullets without changing their
+  facts;
+- permit Library insertion only by copying a server-fetched authoritative row;
+- reject styles, customizations, IDs, arbitrary metadata, profile identity
+  fields, and unknown section types.
+
+The policy must be exercised against every current section type, including
+`profile`, `experience`, `education`, `skills`, `projects`, `languages`,
+`certifications`, `research`, and `extras`.
+
+#### Concurrency and provenance
+
+Add a monotonic CV revision and a canonical SHA-256 snapshot hash. The evidence
+packet and patch carry the base revision/hash. Submission uses a compare-and-
+swap update and rejects a stale CV with no CV, relevance, or audit mutation.
+The hash should cover the authoritative CV document state relevant to the
+operation, not a client-provided timestamp.
+
+Do not use `CV.extra_metadata` as provenance; the existing code treats that JSON
+as user-editable. Add a server-owned provenance representation (a small table
+or protected JSON owned by the tailoring service) recording source kind,
+Library entry/row IDs, target field paths, and the submitted evidence scope.
+Every rewrite must declare evidence references. The server resolves each
+reference to the current user's CV/Library snapshot and rejects references
+outside the packet or references whose Library source changed after evidence
+creation.
+
+Submission order:
+
+```text
+validate protocol/session/base snapshot
+  → copy CV sections
+  → apply all operations to the copy
+  → validate canonical AST and protected policy
+  → run server fact checks
+  → compare-and-swap CV revision
+  → persist provenance, gaps, before/after relevance, and session result
+```
+
+All writes must be one transaction. A failed operation, fact check, stale
+revision, or relevance calculation leaves the previous CV and score intact.
+
+Exit gate: every operation has contract fixtures, server unit tests, stale and
+concurrent-submit tests, protected-field rejection tests, copy-on-write tests,
+and a full rollback test.
+
+### Phase 3 — Add Career-Ops safety tools
+
+Use Career-Ops as a source of safety behavior, not as a data model. Its JD gap
+checker is explicitly zero-LLM and distinguishes `existing`,
+`supportedByResume`, and `gap`; it also reports inconclusive extraction rather
+than treating an empty result as a clean check. Its fact verifier normalizes
+markup and numbers before checking metrics, employer/title, and technology
+claims. These behaviors are the useful parts to adapt. [JD gap checker](https://raw.githubusercontent.com/santifer/career-ops/main/jd-skill-gap.mjs),
+[fact verifier](https://raw.githubusercontent.com/santifer/career-ops/main/verify-cv-facts.mjs)
+
+Tasks:
+
+1. Add a local Node tool that converts `job.json` and the canonical CV AST into
+   the JD checker input, preserving the raw JD and the inconclusive states.
+2. Add an Aergia AST adapter that flattens rich text without treating styles or
+   IDs as evidence. Keep Library entry ID and source row ID alongside every
+   extracted field.
+3. Add the fact verifier locally with Aergia source inputs, then implement the
+   important server-side checks in Python or another server-native module. Do
+   not make the server trust a local tool result or spawn an agent to validate.
+4. Define a language-neutral fact-result contract with `pass`, `fail`, and
+   `inconclusive` findings. A local pass is advisory; an inconclusive or failed
+   server check blocks submission.
+5. Add fixtures for changed percentages, currencies, counts, employer/title or
+   technology claims, rich-text markup, Unicode/number normalization, supported
+   paraphrases, and unrelated Library evidence.
+6. Add an attribution file containing the Career-Ops MIT notice and retain
+   required source notices for substantially adapted code. The upstream license
+   requires the copyright and permission notice in copies or substantial
+   portions. [MIT license](https://raw.githubusercontent.com/santifer/career-ops/main/LICENSE)
+
+The agent must still read the complete raw JD. The JD checker is a guardrail,
+not a replacement for model reasoning or Aergia's stored requirement analysis.
+
+Exit gate: local and server fixtures agree on supported/unsupported facts; a
+false numeric or employer claim is rejected before any database write; an
+inconclusive JD/fact result is visible and cannot be mistaken for a pass.
+
+### Phase 4 — Build the manual agent workspace
+
+Split the current fixed CLI into explicit commands:
+
+```text
+prepare <code>  → exchange, fetch evidence, create workspace, print `codex .`
+validate        → run bounded local JD/patch/fact checks
+submit          → validate again, then submit exactly one valid patch
+```
+
+The workspace contains `SKILL.md`, read-only `source/` JSON files, writable
+`output/tailoring-patch.json`, and local `tools/` wrappers. `SKILL.md` must
+require full-JD/CV/Library review, evidence selection, gap reporting, patch
+validation, fact validation, repair, and submission only after all checks pass.
+
+Do not spawn Codex, Claude Code, OpenCode, or any other agent. Codex support is
+manual first: print the workspace path and `codex .`. Document the equivalent
+manual invocation for Claude Code and OpenCode against the same workspace.
+
+Use a 0700 temporary workspace, restrictive source/output permissions, bounded
+file sizes and repair attempts, no secrets in filenames/logs, and cleanup on
+submit, expiry, cancellation, failure, and interruption. The session capability
+must not be written into `SKILL.md` or source files. A manual workspace needs a
+long enough but still short TTL; the UI and CLI must clearly show expiry and
+provide a fresh-session retry path.
+
+Exit gate: a human can run the workspace with Codex, write a patch manually,
+run the tools, repair a deliberately invalid patch within the limit, and submit
+only the valid result. No provider SDK or credential is present in `agent/` or
+the server.
+
+### Phase 5 — Finish UI lifecycle and hardening
+
+Add a browser-authenticated session status/cancel path and make the UI model
+the state machine (`created`, `exchanged`, `submitted`, `cancelled`,
+`expired`). Show the one-time code and command once, an expiry countdown, and
+clear retry instructions without displaying the capability.
+
+Persist a bounded tailoring result containing:
+
+- before and after relevance snapshots using the same stored requirements;
+- score/coverage delta and matched/missing requirement summary;
+- applied operation summary and provenance references;
+- reported gaps and validation warnings;
+- failure/stale/cancel reason where applicable.
+
+Handle stale CV, changed JD/requirements, changed Library source, expiry,
+replay, cancellation, rate limits, malformed JSON, protected-field attempts,
+and server fact failures as distinct user-visible outcomes. Never show a
+success state until the transaction and relevance update have committed.
+
+Add backend, CLI, frontend, and live acceptance coverage for the complete flow.
+The most valuable live test uses a fixed patch and a fresh database; the LLM
+workspace is tested separately with a fixture patch, so CI never needs model
+credentials.
+
+Exit gate: the UI can start, monitor, cancel, retry, and complete a tailoring
+session; the result shows before/after relevance and gaps; all failure paths
+leave authoritative data unchanged.
+
+## Delivery order and review boundaries
+
+Deliver four reviewable implementation changes after the baseline gate:
+
+1. **Patch contract and safety boundary** — operations, stable rich-text IDs,
+   policy, revision/hash, provenance, server transaction, and backend fixtures.
+2. **Safety tooling** — Career-Ops adaptations, Aergia AST adapters, server
+   fact checks, attribution, and shared fixtures.
+3. **Workspace/CLI** — prepare/validate/submit commands, `SKILL.md`, tools,
+   cleanup, bounded repair, and Codex-first documentation.
+4. **Lifecycle/UI hardening** — session state/cancel/retry, result persistence,
+   stale handling, before/after relevance, end-to-end tests, and release docs.
+
+Each change must pass its own focused tests and leave the fixed protocol flow
+working. Do not combine the first real LLM-assisted run with a schema or
+security migration; validate the deterministic path first.
+
+## Revised estimate
+
+| Work | Estimate |
+|---|---:|
+| Verification baseline and integration harness | 0.5–1 day |
+| Patch semantics, policy, concurrency, provenance | 3–4 days |
+| Career-Ops adaptation, server checks, fixtures | 3–4 days |
+| Workspace, CLI, skill, manual agent workflow | 2–3 days |
+| UI lifecycle, audit/result state, tests, hardening | 2–3 days |
+| **Total robust implementation** | **10.5–15 focused engineer-days** |
+
+The original 9–15 day estimate remains reasonable if the baseline repair is
+small and provenance is implemented as a compact server-owned representation.
+The lower bound is not realistic if rich-text IDs, server-side fact checks, or
+stale-write testing are deferred.
