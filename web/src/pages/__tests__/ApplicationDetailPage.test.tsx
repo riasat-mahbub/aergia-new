@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import ApplicationDetailPage from "../ApplicationDetailPage";
 import { useApplicationStore } from "../../lib/store/applicationStore";
+import { useToastStore } from "../../lib/store/uiStore";
 import type { Application } from "../../lib/api/applications";
 
 vi.mock("../../lib/api/applications", () => ({
@@ -63,6 +64,7 @@ const application: Application = {
 
 beforeEach(() => {
   useApplicationStore.setState({ applications: [], currentApplication: null, isLoading: false, isSaving: false, loaded: false });
+  useToastStore.setState({ toasts: [] });
   vi.clearAllMocks();
   vi.mocked(applicationApi.getApplication).mockResolvedValue(application);
   vi.mocked(cvsApi.fetchCV).mockResolvedValue({
@@ -151,5 +153,60 @@ describe("ApplicationDetailPage", () => {
     expect(screen.getByRole("status")).toHaveTextContent("test-session-code");
     expect(screen.getByRole("status")).toHaveTextContent("Copy this prompt and paste it into Codex, Claude Code, or OpenCode");
     expect(screen.getByRole("button", { name: /copy prompt/i })).toBeInTheDocument();
+  });
+
+  it("announces when the tailored CV has been applied", async () => {
+    const user = userEvent.setup();
+    vi.mocked(tailoringApi.createTailoringSession).mockResolvedValue({
+      protocol_version: 1,
+      session_id: "session-2",
+      application_id: "app-1",
+      cv_id: "cv-1",
+      code: "test-session-code",
+      session_url: "http://localhost:8000/agent/tailor/session-2",
+      prompt: "Use the Aergia tailoring skill for this session",
+      status: "created",
+      expires_at: "2026-08-30T20:00:00Z",
+    });
+    vi.mocked(tailoringApi.getTailoringSessionStatus).mockResolvedValue({
+      protocol_version: 1,
+      session_id: "session-2",
+      application_id: "app-1",
+      cv_id: "cv-1",
+      status: "applied",
+      expires_at: "2026-08-30T20:00:00Z",
+      created_at: "2026-08-30T19:45:00Z",
+      exchanged_at: "2026-08-30T19:46:00Z",
+      submitted_at: "2026-08-30T19:50:00Z",
+      updated_at: "2026-08-30T19:50:01Z",
+      attempts: 1,
+      reported_gaps: [],
+      result: {
+        protocol_version: 1,
+        session_id: "session-2",
+        application_id: "app-1",
+        cv_id: "cv-1",
+        base_revision: 1,
+        new_revision: 2,
+        applied_operations: ["replace_description"],
+        gaps: [],
+        provenance: [],
+        before_relevance: { score: 60 },
+        relevance: { score: 80 },
+      },
+    });
+    renderPage();
+
+    await screen.findByText("Example Labs");
+    await user.click(screen.getByRole("button", { name: /llm tailoring/i }));
+
+    await waitFor(() => expect(useToastStore.getState().toasts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          message: "Your tailored CV is ready. Relevance has been updated.",
+          type: "success",
+        }),
+      ]),
+    ));
   });
 });
