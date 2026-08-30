@@ -70,7 +70,10 @@ fi
 # shellcheck disable=SC1091
 source "$API_DIR/.venv/bin/activate"
 cd "$API_DIR"
-pip install -q -e ".[test]"
+# Local runtime exercises application extraction, so install the pinned model
+# extra as well as the model-free test dependencies. The model itself remains
+# lazy and is downloaded only when the first application is processed.
+pip install -q -e ".[test,model]"
 
 # Install Playwright browsers if missing
 if [ ! -d "$HOME/.cache/ms-playwright" ]; then

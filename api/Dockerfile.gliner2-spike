@@ -1,0 +1,34 @@
+# Ephemeral benchmark image: this layers an independently configurable model
+# on the production runtime for resource comparisons. Production itself is
+# pinned to GLiNER2.5-small in api/Dockerfile.
+# The image is based on the exact production runtime so model resource
+# measurements include FastAPI's Python dependencies and Playwright libraries.
+
+ARG BASE_IMAGE=aergia-api:gliner2-spike-base
+FROM ${BASE_IMAGE}
+
+ARG GLINER2_VERSION=2.0.0
+ARG GLINER2_MODEL=fastino/gliner2.5-small-v1
+ARG GLINER2_MODEL_REVISION=
+ARG TORCH_VERSION=2.9.1+cpu
+ARG TRANSFORMERS_VERSION=4.51.3
+
+ENV GLINER2_MODEL=${GLINER2_MODEL}
+ENV GLINER2_MODEL_REVISION=${GLINER2_MODEL_REVISION}
+ENV HF_HOME=/opt/huggingface
+
+RUN python -m pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu \
+      --no-deps "torch==${TORCH_VERSION}" && \
+    python -m pip install --no-cache-dir \
+      "transformers==${TRANSFORMERS_VERSION}" "protobuf>=4.25,<6" sentencepiece && \
+    python -m pip install --no-cache-dir "gliner2[local]==${GLINER2_VERSION}" && \
+    python -c 'import os; from gliner2 import AutoExtractor; kwargs = {}; revision = os.environ.get("GLINER2_MODEL_REVISION"); kwargs["revision"] = revision if revision else None; kwargs = {key: value for key, value in kwargs.items() if value is not None}; AutoExtractor.from_pretrained(os.environ["GLINER2_MODEL"], **kwargs)'
+
+# Copy explicitly so the spike can also be built from a cached production
+# image that predates the current working tree.
+COPY api/scripts/gliner2_spike.py /app/scripts/gliner2_spike.py
+COPY api/scripts/gliner2_spike_lib.py /app/scripts/gliner2_spike_lib.py
+COPY api/scripts/gliner2_jobs.json /app/scripts/gliner2_jobs.json
+
+WORKDIR /app
+ENTRYPOINT ["python", "-m", "scripts.gliner2_spike"]

@@ -30,7 +30,7 @@ class Application(Base):
     extracted_keywords: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     relevance: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     quality: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
-    algorithm_version: Mapped[str] = mapped_column(String(32), nullable=False, default="requirement-v1")
+    algorithm_version: Mapped[str] = mapped_column(String(64), nullable=False, default="gliner2.5-small-v1")
     fits_one_page: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)

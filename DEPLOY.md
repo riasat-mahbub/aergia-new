@@ -3,7 +3,10 @@
 ## Prerequisites
 
 - A VPS with Docker and Docker Compose installed
-- Minimum 1 vCPU, 1GB RAM, 20GB SSD
+- Recommended: 2+ vCPUs, 8GB RAM, and 20GB SSD for the resident GLiNER2.5-small
+  model plus Chromium/Python headroom
+- Absolute small-model floor: about 3GB RAM and one serialized CPU; this is a
+  constrained fallback rather than the recommended production target
 - A domain name and HTTPS termination (required for production auth cookies)
 
 ## Quick Start
@@ -59,6 +62,15 @@ deployment.
 The limiter uses process-local memory storage and the supplied deployment runs one
 Uvicorn process. Adding workers or API replicas requires choosing shared limiter
 storage before relying on the configured limits across the fleet.
+
+## GLiNER2 resource notes
+
+The image contains the pinned `fastino/gliner2.5-small-v1` artifact. The API
+loads it lazily and allows one model inference at a time. Keep the default
+single Uvicorn worker on small hosts; each additional worker can load another
+model copy. The model is CPU-only, so 2+ vCPUs and 8GB RAM are the preferred
+production target. A 3GB/1-vCPU host is the practical lower bound for short
+serialized requests, with less headroom for Chromium or long job descriptions.
 
 ## Managing the App
 

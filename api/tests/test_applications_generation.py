@@ -101,7 +101,7 @@ async def test_generation_creates_ordered_editable_cv_with_fresh_copies(client, 
     assert cv["template_id"] == "generic-minimal"
     assert cv["customizations"]["spacing"] == "none"
     assert cv["extra_metadata"]["application_id"] == application_id
-    assert cv["extra_metadata"]["generated_by"] == "requirement-v2"
+    assert cv["extra_metadata"]["generated_by"] == "gliner2.5-small-v1"
     assert cv["extra_metadata"]["extracted_requirements"]
     assert len({section["id"] for section in cv["sections"]}) == len(cv["sections"])
     row_ids = [row["id"] for section in cv["sections"] if isinstance(section["data"], list) for row in section["data"]]

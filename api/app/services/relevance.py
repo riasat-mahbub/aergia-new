@@ -1,9 +1,11 @@
-"""Deterministic requirement/keyword extraction, Library matching, and CV relevance.
+"""Requirement extraction boundary, deterministic Library matching, and CV relevance.
 
-The ``requirement-v2`` contract is intentionally self-contained. It performs no
-network, renderer, subprocess, or model inference. FTS5 is used only as an
-in-memory lexical ranker, so a saved job can be reproduced from its input text
-and the user's Library/CV snapshot. The older ``keyword-v1`` helpers remain
+The production requirement boundary delegates to the configured GLiNER2.5-small
+extractor. Matching remains deterministic and performs no model inference:
+FTS5 is used only as an in-memory lexical ranker, so a saved job can be
+reproduced from its extracted requirements and the user's Library/CV snapshot.
+The former deterministic ``requirement-v2`` parser remains available as an
+explicit comparison helper, while the older ``keyword-v1`` helpers remain
 available for reading legacy results.
 """
 
@@ -27,10 +29,16 @@ from app.schemas.application import (
     RequirementRelevanceResult,
     RelevanceResult,
 )
+from app.services import requirement_extractor as _requirement_extractor
+from app.services.requirement_extractor import (
+    REQUIREMENT_EXTRACTOR_VERSION,
+    RequirementExtractionError,
+)
 from app.services.relevance_taxonomy import ALIAS_TO_CANONICAL, TAXONOMY
 
 ALGORITHM_VERSION = "keyword-v1"
-REQUIREMENT_ALGORITHM_VERSION = "requirement-v2"
+REQUIREMENT_ALGORITHM_VERSION = REQUIREMENT_EXTRACTOR_VERSION
+REQUIREMENT_EXTRACTION_ERROR = _requirement_extractor.REQUIREMENT_EXTRACTION_ERROR
 MAX_KEYWORDS = 30
 MAX_REQUIREMENTS = 40
 ENTRY_RELEVANCE_THRESHOLD = 0.35
@@ -836,7 +844,7 @@ _DEGREE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("bachelor", re.compile(r"(?<!\w)(?:bachelor(?:'s)?|bsc|b\.?s\.?|undergraduate)(?!\w)", re.IGNORECASE)),
     ("associate", re.compile(r"(?<!\w)(?:associate(?:'s)?|a\.?a\.?|a\.?s\.?)(?!\w)", re.IGNORECASE)),
 )
-_DEGREE_RANK = {"associate": 1, "bachelor": 2, "master": 3, "phd": 4}
+_DEGREE_RANK = {"associate": 1, "bachelor": 2, "master": 3, "phd": 4, "doctorate": 4}
 _CERTIFICATION_CUE_RE = re.compile(
     r"\b(?:certificat(?:e|ion)|certified|licen[cs]e[sd]?|ccna|ccnp|cissp|pmp|comptia|itil)\b",
     re.IGNORECASE,
@@ -985,6 +993,31 @@ def _taxonomy_aliases(canonical: str | None) -> tuple[str, ...]:
     return TAXONOMY.get(canonical, ("", ()))[1]
 
 
+def _requirement_search_text(requirement: JobRequirement) -> str:
+    """Keep the complete source requirement alongside semantic concepts."""
+    source = requirement.normalized or requirement.text
+    concepts = tuple(concept.strip() for concept in requirement.concepts if concept.strip())
+    return " ".join(dict.fromkeys((source, *concepts)))
+
+
+def _requirement_aliases(requirement: JobRequirement) -> tuple[str, ...]:
+    """Resolve canonical concepts and retain model-provided concepts for matching."""
+    aliases: list[str] = []
+    values = ((requirement.canonical,) if requirement.canonical else ()) + tuple(requirement.concepts)
+    for value in values:
+        normalized = normalize_text(value)
+        canonical = value if value in TAXONOMY else ALIAS_TO_CANONICAL.get(normalized)
+        if canonical:
+            aliases.extend(_taxonomy_aliases(canonical))
+        elif value.strip():
+            aliases.append(value)
+    return tuple(dict.fromkeys(alias for alias in aliases if alias.strip()))
+
+
+def _requirement_label(requirement: JobRequirement) -> str:
+    return requirement.canonical or (requirement.concepts[0] if requirement.concepts else None) or requirement.normalized
+
+
 def _is_requirement_heading(lines: Sequence[str], index: int) -> bool:
     """Recognize section labels without mistaking a one-line JD for a heading."""
     stripped = lines[index].strip().rstrip(":")
@@ -1034,8 +1067,8 @@ def _draft_weight(required: bool, preferred: bool) -> float:
     return 0.75
 
 
-def extract_requirements(role: str, job_description: str) -> list[JobRequirement]:
-    """Parse a job into atomic taxonomy, constraint, and bounded free-text requirements."""
+def extract_requirements_v2(role: str, job_description: str) -> list[JobRequirement]:
+    """Parse requirements deterministically for comparison and test fixtures only."""
     drafts: dict[tuple[object, ...], _RequirementDraft] = {}
     allow_role_fallback = not bool((job_description or "").strip())
     for source, raw_line, context, is_heading in _requirement_lines(role, job_description):
@@ -1152,6 +1185,21 @@ def extract_requirements(role: str, job_description: str) -> list[JobRequirement
     ]
 
 
+def extract_requirements(role: str, job_description: str) -> list[JobRequirement]:
+    """Extract requirements with the sole production GLiNER2.5-small backend.
+
+    This wrapper deliberately does not fall back to ``extract_requirements_v2``.
+    Callers need to surface model availability failures instead of persisting a
+    silently different interpretation of the job description.
+    """
+    try:
+        return _requirement_extractor.get_requirement_extractor().extract(role, job_description)
+    except RequirementExtractionError:
+        raise
+    except Exception as exc:  # pragma: no cover - defensive boundary
+        raise RequirementExtractionError() from exc
+
+
 def _coerce_requirements(requirements: Iterable[JobRequirement | Mapping[str, object] | str]) -> list[JobRequirement]:
     result: list[JobRequirement] = []
     for index, requirement in enumerate(requirements, start=1):
@@ -1187,7 +1235,7 @@ def _fts_terms(text: str) -> list[str]:
 
 
 def _best_fts_match(requirement: JobRequirement, fields: Sequence[LibraryField]) -> _FieldMatch | None:
-    terms = _fts_terms(requirement.text)
+    terms = _fts_terms(_requirement_search_text(requirement))
     if not terms or not fields:
         return None
     connection = sqlite3.connect(":memory:")
@@ -1231,7 +1279,7 @@ def _fuzzy_ratio(left: str, right: str) -> float:
 
 
 def _best_fuzzy_match(requirement: JobRequirement, fields: Sequence[LibraryField]) -> _FieldMatch | None:
-    aliases = _taxonomy_aliases(requirement.canonical) or (requirement.text,)
+    aliases = _requirement_aliases(requirement) or (requirement.text,)
     best: _FieldMatch | None = None
     for field in fields[:200]:
         field_tokens = _field_tokens(field)
@@ -1324,30 +1372,53 @@ def _constraint_match(
     fields: Sequence[LibraryField],
     experience_years: float | None,
 ) -> _FieldMatch | None:
-    constraint = requirement.constraint or {}
-    kind = constraint.get("kind")
-    if kind == "years_experience":
-        years = experience_years if experience_years is not None else _years_from_fields(fields)
-        minimum = float(constraint.get("minimum", 0))
-        if years < minimum:
-            return None
-        field = next((field for field in fields if field.section_type == "experience"), fields[0] if fields else None)
-        if field is None:
-            field = LibraryField(
-                section_type="experience",
-                library_entry_id=None,
-                source_row_id=None,
-                field_path="experience.duration",
-                text=f"{years:.1f} years of experience",
-            )
-        return _FieldMatch(field=field, score=1.0, method="constraint")
-    if kind == "degree_level":
-        minimum = _DEGREE_RANK.get(str(constraint.get("minimum", "")).casefold(), 0)
-        for field in fields:
-            if field.field_path.endswith(".degree") and _degree_rank(field.text) >= minimum:
-                return _FieldMatch(field=field, score=1.0, method="constraint")
+    constraints = requirement.constraints or ([requirement.constraint] if requirement.constraint else [])
+    structured = [
+        constraint
+        for constraint in constraints
+        if constraint.get("kind") in {"years_experience", "degree_level"}
+    ]
+    if not structured:
+        # Certification constraints are retained as provenance, but matching
+        # still uses the existing lexical/taxonomy path because the matcher has
+        # no separate certification-credential index.
         return None
-    return None
+
+    matched: _FieldMatch | None = None
+    for constraint in structured:
+        kind = constraint.get("kind")
+        if kind == "years_experience":
+            years = experience_years if experience_years is not None else _years_from_fields(fields)
+            minimum = float(constraint.get("minimum", 0))
+            if years < minimum:
+                return None
+            field = next(
+                (field for field in fields if field.section_type == "experience"),
+                fields[0] if fields else None,
+            )
+            if field is None:
+                field = LibraryField(
+                    section_type="experience",
+                    library_entry_id=None,
+                    source_row_id=None,
+                    field_path="experience.duration",
+                    text=f"{years:.1f} years of experience",
+                )
+            matched = _FieldMatch(field=field, score=1.0, method="constraint")
+        elif kind == "degree_level":
+            minimum = _DEGREE_RANK.get(str(constraint.get("minimum", "")).casefold(), 0)
+            field = next(
+                (
+                    field
+                    for field in fields
+                    if field.field_path.endswith(".degree") and _degree_rank(field.text) >= minimum
+                ),
+                None,
+            )
+            if field is None:
+                return None
+            matched = _FieldMatch(field=field, score=1.0, method="constraint")
+    return matched
 
 
 def _best_match(
@@ -1356,11 +1427,12 @@ def _best_match(
     *,
     experience_years: float | None = None,
 ) -> _FieldMatch | None:
-    constrained = _constraint_match(requirement, fields, experience_years)
-    if requirement.constraint:
+    constraints = requirement.constraints or ([requirement.constraint] if requirement.constraint else [])
+    if any(constraint.get("kind") in {"years_experience", "degree_level"} for constraint in constraints):
+        constrained = _constraint_match(requirement, fields, experience_years)
         return constrained
 
-    aliases = _taxonomy_aliases(requirement.canonical)
+    aliases = _requirement_aliases(requirement)
     if aliases:
         for field in fields:
             field_tokens = _field_tokens(field)
@@ -1369,7 +1441,7 @@ def _best_match(
                 if _contains_sequence(field_tokens, alias_tokens):
                     return _FieldMatch(field=field, score=1.0, method="taxonomy")
     else:
-        requirement_tokens = tokenize(requirement.normalized or requirement.text)
+        requirement_tokens = tokenize(_requirement_search_text(requirement))
         for field in fields:
             if _contains_sequence(_field_tokens(field), requirement_tokens):
                 return _FieldMatch(field=field, score=1.0, method="fts5")
@@ -1544,7 +1616,7 @@ def _selection_value(
         improvement = max(0.0, match.score - previous_score)
         value += requirement.weight * improvement * affinity
         if improvement > 0:
-            reasons.append(requirement.canonical or requirement.normalized)
+            reasons.append(_requirement_label(requirement))
             if match.covered and previous_score < REQUIREMENT_COVERAGE_THRESHOLD:
                 newly_covered.append(requirement.id)
 
@@ -1559,7 +1631,7 @@ def _selection_value(
             and len(prior_sections) < MAX_COMPLEMENTARY_SECTIONS.get(requirement.type, 2)
         ):
             value += requirement.weight * match.score * affinity * COMPLEMENTARY_EVIDENCE_BONUS
-            reasons.append(f"complements:{requirement.canonical or requirement.normalized}")
+            reasons.append(f"complements:{_requirement_label(requirement)}")
 
     return (
         value / total_weight,
@@ -1798,8 +1870,10 @@ __all__ = [
     "MAX_FIT_PASSES",
     "MAX_KEYWORDS",
     "MAX_REQUIREMENTS",
+    "REQUIREMENT_EXTRACTION_ERROR",
     "REQUIREMENT_ALGORITHM_VERSION",
     "REQUIREMENT_COVERAGE_THRESHOLD",
+    "RequirementExtractionError",
     "ScoredLibraryRow",
     "ScoredSkillItem",
     "calculate_relevance",
@@ -1807,6 +1881,7 @@ __all__ = [
     "evaluate_requirement_relevance",
     "extract_job_requirements",
     "extract_requirements",
+    "extract_requirements_v2",
     "extract_job_keywords",
     "extract_keywords",
     "flatten_cv_fields",

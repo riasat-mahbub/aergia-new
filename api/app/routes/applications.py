@@ -22,7 +22,11 @@ from app.services.application import (
     ApplicationService,
     ProfileRequiredError,
 )
-from app.services.relevance import KEYWORD_EXTRACTION_ERROR
+from app.services.relevance import (
+    KEYWORD_EXTRACTION_ERROR,
+    REQUIREMENT_EXTRACTION_ERROR,
+    RequirementExtractionError,
+)
 from app.services.quotas import QuotaExceededError, QuotaResource
 
 router = APIRouter()
@@ -56,6 +60,11 @@ async def create_application(
                 detail="Application limit reached",
             ) from exc
         raise
+    except RequirementExtractionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=REQUIREMENT_EXTRACTION_ERROR,
+        ) from exc
     return _response(application)
 
 
@@ -81,6 +90,11 @@ async def update_application(
     service = ApplicationService(db)
     try:
         application = await service.update_application(application_id, current_user.id, data)
+    except RequirementExtractionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=REQUIREMENT_EXTRACTION_ERROR,
+        ) from exc
     except ValueError as exc:
         if str(exc) == KEYWORD_EXTRACTION_ERROR:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=KEYWORD_EXTRACTION_ERROR) from exc
@@ -127,6 +141,11 @@ async def generate_application_cv(
                 detail="CV limit reached",
             ) from exc
         raise
+    except RequirementExtractionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=REQUIREMENT_EXTRACTION_ERROR,
+        ) from exc
     except ValueError as exc:
         if str(exc) == KEYWORD_EXTRACTION_ERROR:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=KEYWORD_EXTRACTION_ERROR) from exc
@@ -143,6 +162,11 @@ async def recompute_application_relevance(
     service = ApplicationService(db)
     try:
         application = await service.recompute_relevance(application_id, current_user.id)
+    except RequirementExtractionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=REQUIREMENT_EXTRACTION_ERROR,
+        ) from exc
     except ValueError as exc:
         if str(exc) == KEYWORD_EXTRACTION_ERROR:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=KEYWORD_EXTRACTION_ERROR) from exc

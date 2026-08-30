@@ -42,6 +42,7 @@ export interface RelevanceResult {
 }
 
 export type RequirementType = "hard_skill" | "responsibility" | "quantitative" | "education" | "certification" | "language" | "project" | "research" | "other";
+export type RequirementImportance = "required" | "preferred" | "unknown";
 
 export interface JobRequirement {
   id: string;
@@ -52,6 +53,14 @@ export interface JobRequirement {
   required: boolean;
   weight: number;
   constraint?: Record<string, unknown> | null;
+  importance?: RequirementImportance | null;
+  concepts?: string[];
+  constraints?: Array<Record<string, unknown>>;
+  source_start?: number | null;
+  source_end?: number | null;
+  confidence?: number;
+  extractor?: string;
+  extractor_version?: string;
 }
 
 export interface RequirementEvidence {

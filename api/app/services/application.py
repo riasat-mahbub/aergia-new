@@ -26,10 +26,8 @@ from app.services.library import LibraryService
 from app.services.pdf import PDFService, PDFUnavailableError, pdf_page_count
 from app.services.profile import ProfileService
 from app.services.relevance import (
-    KEYWORD_EXTRACTION_ERROR,
     MAX_FIT_PASSES,
     REQUIREMENT_ALGORITHM_VERSION,
-    KeywordExtractionError,
     evaluate_requirement_relevance,
     extract_requirements,
     not_evaluated_relevance,
@@ -106,6 +104,9 @@ class ApplicationService:
         return application
 
     async def create_application(self, user_id: str, data: ApplicationCreate) -> Application:
+        # Extraction is part of application creation. A model failure must
+        # abort the request rather than creating a row with an empty result.
+        requirements = extract_requirements(data.role, data.job_description)
         application = Application(
             user_id=user_id,
             company=data.company,
@@ -119,13 +120,7 @@ class ApplicationService:
             algorithm_version=REQUIREMENT_ALGORITHM_VERSION,
             status_history=[],
         )
-        try:
-            requirements = extract_requirements(data.role, data.job_description)
-            application.relevance = not_evaluated_relevance(requirements).model_dump(mode="json")
-        except KeywordExtractionError:
-            # Keep creation permissive; generation will return the actionable
-            # extraction error if a future parser cannot find requirements.
-            application.relevance = {}
+        application.relevance = not_evaluated_relevance(requirements).model_dump(mode="json")
         await QuotaService(self.db).reserve(user_id, QuotaResource.APPLICATION)
         self.db.add(application)
         await self.db.flush()
@@ -201,14 +196,7 @@ class ApplicationService:
         return application
 
     async def _recompute(self, application: Application, user_id: str) -> None:
-        try:
-            requirements = extract_requirements(application.role, application.job_description)
-        except KeywordExtractionError:
-            application.relevance = {}
-            application.algorithm_version = REQUIREMENT_ALGORITHM_VERSION
-            application.updated_at = datetime.now(timezone.utc)
-            await self.db.flush()
-            return
+        requirements = extract_requirements(application.role, application.job_description)
         cv = await self.cv_service.get_cv(application.cv_id, user_id) if application.cv_id else None
         if cv is None:
             relevance = not_evaluated_relevance(requirements)
@@ -239,10 +227,7 @@ class ApplicationService:
             raise ProfileRequiredError(PROFILE_REQUIRED)
 
         library_entries = await self.library_service.list_entries(user_id)
-        try:
-            requirements = extract_requirements(application.role, application.job_description)
-        except KeywordExtractionError:
-            raise ValueError(KEYWORD_EXTRACTION_ERROR) from None
+        requirements = extract_requirements(application.role, application.job_description)
 
         application.generation_status = "pending"
         application.generation_error = None

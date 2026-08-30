@@ -33,6 +33,8 @@ os.environ["CSRF_PROTECTION_ENABLED"] = "false"
 from app.app import app  # noqa: E402
 from app.db.seed import seed_templates  # noqa: E402
 from app.db.session import async_session  # noqa: E402
+from app.services import requirement_extractor as requirement_extractor_module  # noqa: E402
+from app.services.relevance import extract_requirements_v2  # noqa: E402
 
 
 # Ensure the test DB has the schema applied. ASGITransport doesn't run app
@@ -63,6 +65,22 @@ def _seed_templates():
 
 
 _seed_templates()
+
+
+class _DeterministicRequirementTestDouble:
+    """Keep request tests model-free; production never selects this parser."""
+
+    def extract(self, role: str, job_description: str):
+        return extract_requirements_v2(role, job_description)
+
+
+@pytest.fixture(autouse=True)
+def model_free_requirement_extractor(monkeypatch):
+    monkeypatch.setattr(
+        requirement_extractor_module,
+        "get_requirement_extractor",
+        lambda: _DeterministicRequirementTestDouble(),
+    )
 
 
 @pytest.fixture
