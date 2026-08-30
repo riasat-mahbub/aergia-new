@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 MAX_PASSWORD_LENGTH = 128
 MAX_BCRYPT_PASSWORD_BYTES = 72
+AccountTier = Literal["free", "premium"]
 
 
 def _validate_bcrypt_password_bytes(value: str) -> str:
@@ -50,15 +53,22 @@ class AuthMessageResponse(BaseModel):
     message: str
 
 
+class SessionResponse(BaseModel):
+    authenticated: bool
+    account_tier: AccountTier | None = None
+
+
 class RefreshRequest(BaseModel):
     refresh_token: str
 
 
 __all__ = [
     "AuthMessageResponse",
+    "AccountTier",
     "LoginRequest",
     "RegistrationConfigResponse",
     "RefreshRequest",
     "RegisterRequest",
+    "SessionResponse",
     "TokenResponse",
 ]

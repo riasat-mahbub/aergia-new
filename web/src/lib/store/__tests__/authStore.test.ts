@@ -19,6 +19,7 @@ describe("authStore", () => {
   beforeEach(() => {
     useAuthStore.setState({
       isAuthenticated: false,
+      accountTier: null,
       isLoading: false,
     });
     localStorage.clear();
@@ -29,10 +30,12 @@ describe("authStore", () => {
   describe("login", () => {
     it("marks the session authenticated without persisting tokens", async () => {
       mockPost.mockResolvedValueOnce({ data: { message: "Logged in" } });
+      mockGet.mockResolvedValueOnce({ data: { authenticated: true, account_tier: "premium" } });
 
       await useAuthStore.getState().login("test@example.com", "password");
 
       expect(useAuthStore.getState().isAuthenticated).toBe(true);
+      expect(useAuthStore.getState().accountTier).toBe("premium");
       expect(localStorage.getItem("access_token")).toBeNull();
       expect(localStorage.getItem("refresh_token")).toBeNull();
       expect(mockPost).toHaveBeenCalledWith("/auth/login", { email: "test@example.com", password: "password" });
@@ -46,6 +49,7 @@ describe("authStore", () => {
       ).rejects.toThrow();
 
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
+      expect(useAuthStore.getState().accountTier).toBeNull();
       expect(useAuthStore.getState().isLoading).toBe(false);
     });
   });
@@ -57,6 +61,7 @@ describe("authStore", () => {
       await useAuthStore.getState().register("test@example.com", "password");
 
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
+      expect(useAuthStore.getState().accountTier).toBeNull();
     });
 
     it("includes the Turnstile token when provided", async () => {
@@ -90,6 +95,7 @@ describe("authStore", () => {
       await useAuthStore.getState().logout();
 
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
+      expect(useAuthStore.getState().accountTier).toBeNull();
       expect(localStorage.getItem("access_token")).toBeNull();
       expect(localStorage.getItem("refresh_token")).toBeNull();
     });
@@ -108,11 +114,12 @@ describe("authStore", () => {
     it("restores auth state from the HttpOnly-cookie session check", async () => {
       localStorage.setItem("access_token", "legacy-token");
       localStorage.setItem("refresh_token", "legacy-refresh");
-      mockGet.mockResolvedValueOnce({ data: { authenticated: true } });
+      mockGet.mockResolvedValueOnce({ data: { authenticated: true, account_tier: "free" } });
 
       await useAuthStore.getState().hydrate();
 
       expect(useAuthStore.getState().isAuthenticated).toBe(true);
+      expect(useAuthStore.getState().accountTier).toBe("free");
       expect(localStorage.getItem("access_token")).toBeNull();
       expect(localStorage.getItem("refresh_token")).toBeNull();
       expect(mockGet).toHaveBeenCalledWith("/auth/session");
@@ -125,20 +132,23 @@ describe("authStore", () => {
       await useAuthStore.getState().hydrate();
 
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
+      expect(useAuthStore.getState().accountTier).toBeNull();
     });
 
     it("refreshes an expired access session during hydration", async () => {
       mockGet.mockResolvedValueOnce({ data: { authenticated: false } });
       mockRefreshSession.mockResolvedValueOnce();
+      mockGet.mockResolvedValueOnce({ data: { authenticated: true, account_tier: "premium" } });
 
       await useAuthStore.getState().hydrate();
 
       expect(useAuthStore.getState().isAuthenticated).toBe(true);
+      expect(useAuthStore.getState().accountTier).toBe("premium");
       expect(mockRefreshSession).toHaveBeenCalledTimes(1);
     });
 
     it("coalesces concurrent hydration calls", async () => {
-      let resolveSession: ((value: { data: { authenticated: boolean } }) => void) | undefined;
+      let resolveSession: ((value: { data: { authenticated: boolean; account_tier: "free" | "premium" | null } }) => void) | undefined;
       mockGet.mockReturnValueOnce(new Promise((resolve) => {
         resolveSession = resolve;
       }));
@@ -147,13 +157,13 @@ describe("authStore", () => {
       const second = useAuthStore.getState().hydrate();
 
       expect(first).toBe(second);
-      resolveSession?.({ data: { authenticated: true } });
+      resolveSession?.({ data: { authenticated: true, account_tier: "free" } });
       await first;
       expect(mockGet).toHaveBeenCalledTimes(1);
     });
 
     it("does not let stale hydration overwrite a later login", async () => {
-      let resolveSession: ((value: { data: { authenticated: boolean } }) => void) | undefined;
+      let resolveSession: ((value: { data: { authenticated: boolean; account_tier: "free" | "premium" | null } }) => void) | undefined;
       mockGet.mockReturnValueOnce(new Promise((resolve) => {
         resolveSession = resolve;
       }));
@@ -161,7 +171,7 @@ describe("authStore", () => {
       mockPost.mockResolvedValueOnce({ data: { message: "Logged in" } });
 
       await useAuthStore.getState().login("test@example.com", "password");
-      resolveSession?.({ data: { authenticated: false } });
+      resolveSession?.({ data: { authenticated: false, account_tier: null } });
       await hydration;
 
       expect(useAuthStore.getState().isAuthenticated).toBe(true);

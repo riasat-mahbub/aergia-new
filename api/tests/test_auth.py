@@ -20,7 +20,7 @@ async def test_auth_full_flow(client):
     assert login_resp.status_code == 200
     session_resp = await client.get("/api/v1/auth/session")
     assert session_resp.status_code == 200
-    assert session_resp.json() == {"authenticated": True}
+    assert session_resp.json() == {"authenticated": True, "account_tier": "free"}
     data = login_resp.json()
     assert "access_token" in data
     assert "refresh_token" in data

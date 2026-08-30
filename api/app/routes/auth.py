@@ -10,6 +10,7 @@ from app.schemas.auth import (
     LoginRequest,
     TokenResponse,
     RefreshRequest,
+    SessionResponse,
 )
 from app.config import get_settings
 from app.core.auth import ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME, verify_refresh_token
@@ -138,11 +139,14 @@ async def logout(
     return {"message": "Logged out successfully"}
 
 
-@router.get("/session")
+@router.get("/session", response_model=SessionResponse)
 @limiter.limit("60/minute")
 async def session(
     request: Request,
     response: Response,
     current_user: User | None = Depends(get_optional_current_user),
 ):
-    return {"authenticated": current_user is not None}
+    return SessionResponse(
+        authenticated=current_user is not None,
+        account_tier=current_user.account_tier if current_user is not None else None,
+    )
