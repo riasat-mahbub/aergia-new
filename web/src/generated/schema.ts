@@ -1,5 +1,5 @@
 // This file is generated. Do not edit by hand.
-// Source: api/app/schema/models.py (sha256:5e4c67fb1f340db1)
+// Source: api/app/schema/models.py (sha256:f15ac968f6aa5fb4)
 
 export interface CVLayout {
   "placement"?: Record<string, string>;
@@ -91,11 +91,13 @@ export interface ResolvedZone {
 }
 
 export interface RichTextBlock {
+  "id"?: (string) | null;
   "items"?: Array<RichTextItem>;
   "type"?: ("paragraph" | "bullet_list" | "numbered_list");
 }
 
 export interface RichTextItem {
+  "id"?: (string) | null;
   "style"?: (TextStyle) | null;
   "text": string;
 }

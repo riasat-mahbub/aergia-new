@@ -21,6 +21,7 @@ from app.services.tailoring import (
     TailoringExpiredError,
     TailoringNotFoundError,
     TailoringPatchError,
+    TailoringStaleError,
     TailoringService,
     TailoringUnauthorizedError,
     TailoringUnavailableError,
@@ -39,6 +40,8 @@ def _raise_service_error(exc: Exception) -> None:
     if isinstance(exc, TailoringExpiredError):
         raise HTTPException(status_code=status.HTTP_410_GONE, detail="Tailoring session expired") from exc
     if isinstance(exc, TailoringConflictError):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    if isinstance(exc, TailoringStaleError):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     if isinstance(exc, TailoringPatchError):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc

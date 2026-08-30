@@ -14,6 +14,7 @@ from app.services.relevance import (
     extract_requirements,
 )
 from app.services.quotas import QuotaResource, QuotaService
+from app.services.rich_text import normalize_rich_text_ids
 
 def coerce_customizations(raw: dict | None) -> Customizations:
     """Validate raw DB customizations against the canonical Customizations
@@ -83,6 +84,7 @@ class CVService:
     async def create_cv(self, user_id: str, data: CVCreate) -> CV:
         raw_sections = data.sections if isinstance(data.sections, list) else []
         sections = [s.model_dump() if hasattr(s, "model_dump") else s for s in raw_sections]
+        sections, _ = normalize_rich_text_ids(sections)
         customizations = (
             data.customizations.model_dump(exclude_none=True)
             if data.customizations is not None and hasattr(data.customizations, "model_dump")
@@ -120,14 +122,19 @@ class CVService:
             return None
 
         update_data = data.model_dump(exclude_unset=True)
-        # Convert ValidatedSectionInstance objects to plain dicts for DB storage
-        if "sections" in update_data and isinstance(update_data["sections"], list):
-            update_data["sections"] = [
-                s.model_dump() if hasattr(s, "model_dump") else s
-                for s in update_data["sections"]
-            ]
+        # Convert validated section instances to plain dicts and canonicalize
+        # legacy rich-text blocks before storing them. This keeps stable IDs
+        # durable across normal editor saves as well as tailoring writes.
+        if "sections" in update_data:
+            if isinstance(update_data["sections"], list):
+                update_data["sections"] = [
+                    s.model_dump() if hasattr(s, "model_dump") else s
+                    for s in update_data["sections"]
+                ]
+            update_data["sections"], _ = normalize_rich_text_ids(update_data["sections"])
         for key, value in update_data.items():
             setattr(cv, key, value)
+        cv.revision = (cv.revision or 1) + 1
         cv.updated_at = datetime.now(timezone.utc)
         await self.db.flush()
         await self._refresh_linked_application_relevance(cv)
@@ -185,7 +192,7 @@ class CVService:
         title = f"{original.title} (Copy)"
         description = original.description
         template_id = original.template_id
-        sections = original.sections
+        sections, _ = normalize_rich_text_ids(original.sections)
         customizations = original.customizations
         await QuotaService(self.db).reserve(user_id, QuotaResource.CV)
         new_cv = CV(

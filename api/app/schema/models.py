@@ -140,6 +140,10 @@ class TextStyle(BaseModel):
 class RichTextItem(BaseModel):
     """A single inline run of styled text inside a rich-text block."""
 
+    # Optional on legacy documents; the CV normalizer fills this before a
+    # document participates in tailoring patches. Stable IDs let bullet
+    # operations target logical items rather than array positions.
+    id: str | None = Field(default=None, max_length=128)
     text: str = Field(max_length=20_000)
     style: TextStyle | None = None
 
@@ -152,6 +156,8 @@ class RichTextBlock(BaseModel):
     or a list (one item per entry in ``items``).
     """
 
+    # Optional on legacy documents; required in tailoring patch values.
+    id: str | None = Field(default=None, max_length=128)
     type: Literal["paragraph", "bullet_list", "numbered_list"] = "paragraph"
     items: list[RichTextItem] = Field(default_factory=list, max_length=100)
 

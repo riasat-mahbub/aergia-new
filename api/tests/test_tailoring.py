@@ -118,6 +118,8 @@ async def test_tailoring_protocol_create_exchange_evidence_submit_apply_score(cl
         headers={"X-Aergia-Tailoring-Capability": capability},
         json={
             "protocol_version": 1,
+            "base_revision": evidence_body["base_revision"],
+            "base_hash": evidence_body["base_hash"],
             "changes": [
                 {
                     "operation": "replace_description",
@@ -169,12 +171,20 @@ async def test_tailoring_rejects_invalid_target_atomically_and_allows_no_token(c
 
     no_capability = await client.get("/api/v1/tailoring/evidence")
     assert no_capability.status_code == 401
+    evidence = await client.get(
+        "/api/v1/tailoring/evidence",
+        headers={"X-Aergia-Tailoring-Capability": capability},
+    )
+    assert evidence.status_code == 200
+    evidence_body = evidence.json()
 
     invalid = await client.post(
         "/api/v1/tailoring/submit",
         headers={"X-Aergia-Tailoring-Capability": capability},
         json={
             "protocol_version": 1,
+            "base_revision": evidence_body["base_revision"],
+            "base_hash": evidence_body["base_hash"],
             "changes": [
                 {
                     "operation": "replace_description",

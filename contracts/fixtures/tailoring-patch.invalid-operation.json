@@ -1,5 +1,7 @@
 {
   "protocol_version": 1,
+  "base_revision": 1,
+  "base_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "changes": [
     {
       "operation": "rewrite_rich_text",

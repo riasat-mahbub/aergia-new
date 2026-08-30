@@ -10,6 +10,10 @@
     "application_id",
     "cv_id",
     "expires_at",
+    "base_revision",
+    "base_hash",
+    "requirements_hash",
+    "supported_operations",
     "job",
     "cv",
     "profile",
@@ -22,10 +26,19 @@
     "application_id": {"type": "string", "minLength": 1, "maxLength": 36},
     "cv_id": {"type": "string", "minLength": 1, "maxLength": 36},
     "expires_at": {"type": "string", "format": "date-time"},
+    "base_revision": {"type": "integer", "minimum": 1},
+    "base_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "requirements_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "supported_operations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {"type": "string", "minLength": 1, "maxLength": 64}
+    },
     "job": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["company", "role", "job_url", "description"],
+      "required": ["company", "role", "description"],
       "properties": {
         "company": {"type": "string", "maxLength": 255},
         "role": {"type": "string", "maxLength": 255},
@@ -50,10 +63,11 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "kind", "payload"],
+        "required": ["id", "kind", "content_hash", "payload"],
         "properties": {
-          "id": {"type": "string", "minLength": 1, "maxLength": 36},
+          "id": {"type": "string", "minLength": 1, "maxLength": 128},
           "kind": {"type": "string", "maxLength": 32},
+          "content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
           "payload": {"type": "array", "maxItems": 100, "items": {"type": "object"}}
         }
       }
