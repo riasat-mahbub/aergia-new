@@ -14,6 +14,7 @@ from app.services.relevance import (
     evaluate_requirement_relevance,
     extract_requirements,
 )
+from app.services.quotas import QuotaResource, QuotaService
 
 def coerce_customizations(raw: dict | None) -> Customizations:
     """Validate raw DB customizations against the canonical Customizations
@@ -88,6 +89,7 @@ class CVService:
             if data.customizations is not None and hasattr(data.customizations, "model_dump")
             else (data.customizations or {})
         )
+        await QuotaService(self.db).reserve(user_id, QuotaResource.CV)
 
         # A new CV inherits the template's zone layout so the editor opens
         # with zones and every section is assignable. The frontend migrates
@@ -165,6 +167,7 @@ class CVService:
         cv.is_active = False
         cv.updated_at = datetime.now(timezone.utc)
         await self.db.flush()
+        await QuotaService(self.db).release(user_id, QuotaResource.CV)
         return True
 
     async def copy_cv(self, cv_id: str, user_id: str) -> CV | None:
@@ -183,13 +186,19 @@ class CVService:
         ):
             copied_metadata.pop(key, None)
 
+        title = f"{original.title} (Copy)"
+        description = original.description
+        template_id = original.template_id
+        sections = original.sections
+        customizations = original.customizations
+        await QuotaService(self.db).reserve(user_id, QuotaResource.CV)
         new_cv = CV(
             user_id=user_id,
-            title=f"{original.title} (Copy)",
-            description=original.description,
-            template_id=original.template_id,
-            sections=original.sections,
-            customizations=original.customizations,
+            title=title,
+            description=description,
+            template_id=template_id,
+            sections=sections,
+            customizations=customizations,
             extra_metadata=copied_metadata,
         )
         self.db.add(new_cv)

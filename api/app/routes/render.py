@@ -20,7 +20,7 @@ import base64
 import logging
 import re
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
 from app.models.user import User
@@ -91,6 +91,7 @@ def _build_document_from_request(request: RenderRequest) -> tuple[Document, Temp
 @limiter.limit("30/minute")
 async def render_ast(
     request: Request,
+    response: Response,
     payload: RenderRequest,
     current_user: User = Depends(get_current_user),
 ):
@@ -111,6 +112,7 @@ async def render_ast(
 @limiter.limit("30/minute")
 async def render_html(
     request: Request,
+    response: Response,
     payload: RenderRequest,
     current_user: User = Depends(get_current_user),
 ):
@@ -136,6 +138,7 @@ async def render_html(
 @limiter.limit("5/minute")
 async def render_pdf(
     request: Request,
+    response: Response,
     payload: RenderRequest,
     current_user: User = Depends(get_current_user),
 ):

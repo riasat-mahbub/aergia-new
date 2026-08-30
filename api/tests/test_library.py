@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pytest
 import sqlalchemy
+from uuid import uuid4
 
 from app.db.session import async_session
 from app.models.library import Library, LibraryEntry
@@ -45,7 +46,7 @@ def test_add_entry_route_is_registered_as_post():
 
 @pytest.fixture
 async def auth_headers(client):
-    email = "library-test@example.com"
+    email = f"library-test-{uuid4().hex}@example.com"
     password = "testpass123"
     await client.post("/api/v1/auth/register", json={"email": email, "password": password})
     resp = await client.post("/api/v1/auth/login", json={"email": email, "password": password})
@@ -54,7 +55,7 @@ async def auth_headers(client):
 
 @pytest.fixture
 async def other_auth_headers(client):
-    email = "library-other@example.com"
+    email = f"library-other-{uuid4().hex}@example.com"
     password = "testpass123"
     await client.post("/api/v1/auth/register", json={"email": email, "password": password})
     resp = await client.post("/api/v1/auth/login", json={"email": email, "password": password})
@@ -82,7 +83,7 @@ async def user_id(client):
     service-level tests). Creating the user via the API here keeps the
     fixture self-sufficient.
     """
-    email = "library-test@example.com"
+    email = f"library-test-{uuid4().hex}@example.com"
     password = "testpass123"
     await client.post("/api/v1/auth/register", json={"email": email, "password": password})
     async with async_session() as db:

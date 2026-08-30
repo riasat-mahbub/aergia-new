@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, String, Boolean, DateTime
+from sqlalchemy import JSON, String, Boolean, DateTime, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -15,6 +15,8 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     refresh_token_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     profile_data: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    application_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cv_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(

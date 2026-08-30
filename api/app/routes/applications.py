@@ -1,6 +1,6 @@
 """Authenticated application tracker routes."""
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user
@@ -23,6 +23,7 @@ from app.services.application import (
     ProfileRequiredError,
 )
 from app.services.relevance import KEYWORD_EXTRACTION_ERROR
+from app.services.quotas import QuotaExceededError, QuotaResource
 
 router = APIRouter()
 
@@ -46,7 +47,15 @@ async def create_application(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    application = await ApplicationService(db).create_application(current_user.id, data)
+    try:
+        application = await ApplicationService(db).create_application(current_user.id, data)
+    except QuotaExceededError as exc:
+        if exc.resource is QuotaResource.APPLICATION:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Application limit reached",
+            ) from exc
+        raise
     return _response(application)
 
 
@@ -97,6 +106,7 @@ async def delete_application(
 @limiter.limit("5/minute")
 async def generate_application_cv(
     request: Request,
+    response: Response,
     application_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -110,6 +120,13 @@ async def generate_application_cv(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PROFILE_REQUIRED) from exc
     except ApplicationGenerationConflictError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=APPLICATION_ALREADY_GENERATED) from exc
+    except QuotaExceededError as exc:
+        if exc.resource is QuotaResource.CV:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="CV limit reached",
+            ) from exc
+        raise
     except ValueError as exc:
         if str(exc) == KEYWORD_EXTRACTION_ERROR:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=KEYWORD_EXTRACTION_ERROR) from exc

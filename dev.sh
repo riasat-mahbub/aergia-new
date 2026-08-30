@@ -105,7 +105,19 @@ UVICORN_OPTS=(--host 0.0.0.0 --port 8000)
 if [ "$PROD" = false ]; then
     UVICORN_OPTS+=(--reload)
 fi
-export ENVIRONMENT="${ENVIRONMENT:-development}"
+if [ "$PROD" = true ]; then
+    export ENVIRONMENT="${ENVIRONMENT:-production}"
+else
+    export ENVIRONMENT="${ENVIRONMENT:-development}"
+fi
+export FORWARDED_ALLOW_IPS="${FORWARDED_ALLOW_IPS:-}"
+if [ "$ENVIRONMENT" != "production" ]; then
+    # Local development has no Turnstile credentials by default. This is an
+    # explicit non-production bypass and can be disabled when testing the
+    # real integration with TURNSTILE_BYPASS=false.
+    export TURNSTILE_BYPASS="${TURNSTILE_BYPASS:-true}"
+fi
+UVICORN_OPTS+=(--forwarded-allow-ips "$FORWARDED_ALLOW_IPS")
 uvicorn app.main:app "${UVICORN_OPTS[@]}" &
 API_PID=$!
 

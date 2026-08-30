@@ -23,7 +23,7 @@ CUSTOMIZATIONS_PAYLOAD = {
 @pytest.fixture
 async def auth_headers(client):
     """Register a test user and return auth headers."""
-    email = "cv-test@example.com"
+    email = f"cv-test-{uuid4().hex}@example.com"
     password = "testpass123"
 
     await client.post("/api/v1/auth/register", json={"email": email, "password": password})
@@ -270,5 +270,4 @@ async def test_cv_data_isolation(client):
     # User B cannot copy it
     copy_b = await client.post(f"/api/v1/cvs/{cv_a_id}/copy", headers=headers_b)
     assert copy_b.status_code == 404
-
 

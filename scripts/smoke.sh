@@ -66,6 +66,7 @@ trap cleanup EXIT INT TERM
 export DATABASE_URL="sqlite+aiosqlite:///$TMP_DIR/aergia-smoke.db"
 export API_TEST_DB_URL="$DATABASE_URL"
 export ENVIRONMENT=test
+export TURNSTILE_BYPASS=true
 
 # ── Stage 1: backend pytest ──────────────────────────────────────────
 echo "=== Smoke: backend pytest ==="

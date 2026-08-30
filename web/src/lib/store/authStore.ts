@@ -7,7 +7,7 @@ interface AuthState {
   isLoading: boolean;
 
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, turnstileToken?: string) => Promise<void>;
   logout: () => Promise<void>;
   hydrate: () => Promise<void>;
 }
@@ -61,10 +61,12 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  register: async (email: string, password: string) => {
+  register: async (email: string, password: string, turnstileToken?: string) => {
     set({ isLoading: true });
     try {
-      await client.post("/auth/register", { email, password });
+      const payload: { email: string; password: string; turnstile_token?: string } = { email, password };
+      if (turnstileToken) payload.turnstile_token = turnstileToken;
+      await client.post("/auth/register", payload);
       set({ isLoading: false });
     } catch (error) {
       set({ isLoading: false });

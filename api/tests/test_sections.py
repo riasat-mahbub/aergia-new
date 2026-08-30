@@ -1,12 +1,15 @@
 """T13-T15: Pytest: section data storage, ordering, and validation"""
 
+from uuid import uuid4
+
 import pytest
 
 
 @pytest.fixture
 async def auth_headers(client):
-    await client.post("/api/v1/auth/register", json={"email": "sectest@example.com", "password": "testpass12"})
-    resp = await client.post("/api/v1/auth/login", json={"email": "sectest@example.com", "password": "testpass12"})
+    email = f"sectest-{uuid4().hex}@example.com"
+    await client.post("/api/v1/auth/register", json={"email": email, "password": "testpass12"})
+    resp = await client.post("/api/v1/auth/login", json={"email": email, "password": "testpass12"})
     data = resp.json()
     return {"Authorization": f"Bearer {data['access_token']}"}
 

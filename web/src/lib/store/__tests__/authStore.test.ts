@@ -59,6 +59,18 @@ describe("authStore", () => {
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
     });
 
+    it("includes the Turnstile token when provided", async () => {
+      mockPost.mockResolvedValueOnce({ data: undefined });
+
+      await useAuthStore.getState().register("test@example.com", "password", "turnstile-token");
+
+      expect(mockPost).toHaveBeenCalledWith("/auth/register", {
+        email: "test@example.com",
+        password: "password",
+        turnstile_token: "turnstile-token",
+      });
+    });
+
     it("should throw on register failure", async () => {
       mockPost.mockRejectedValueOnce(new Error("Email exists"));
 

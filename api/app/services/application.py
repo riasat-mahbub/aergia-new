@@ -39,6 +39,7 @@ from app.services.relevance import (
     requirement_row_removal_loss,
 )
 from app.services.quality import evaluate_cv_quality
+from app.services.quotas import QuotaExceededError, QuotaResource, QuotaService
 
 APPLICATION_NOT_FOUND = "Application not found"
 APPLICATION_ALREADY_GENERATED = "Application already has a generated CV"
@@ -125,6 +126,7 @@ class ApplicationService:
             # Keep creation permissive; generation will return the actionable
             # extraction error if a future parser cannot find requirements.
             application.relevance = {}
+        await QuotaService(self.db).reserve(user_id, QuotaResource.APPLICATION)
         self.db.add(application)
         await self.db.flush()
         history = ApplicationStatusHistory(
@@ -188,6 +190,7 @@ class ApplicationService:
             return False
         await self.db.delete(application)
         await self.db.flush()
+        await QuotaService(self.db).release(user_id, QuotaResource.APPLICATION)
         return True
 
     async def recompute_relevance(self, application_id: str, user_id: str) -> Application | None:
@@ -222,7 +225,8 @@ class ApplicationService:
         await self.db.flush()
 
     async def generate_cv(self, application_id: str, user: User) -> GeneratedApplication:
-        application = await self.get_application(application_id, user.id)
+        user_id = user.id
+        application = await self.get_application(application_id, user_id)
         if application is None:
             raise LookupError(APPLICATION_NOT_FOUND)
         if application.cv_id is not None or application.generation_status == "ready":
@@ -234,7 +238,7 @@ class ApplicationService:
         if not profile.name or not profile.name.strip():
             raise ProfileRequiredError(PROFILE_REQUIRED)
 
-        library_entries = await self.library_service.list_entries(user.id)
+        library_entries = await self.library_service.list_entries(user_id)
         try:
             requirements = extract_requirements(application.role, application.job_description)
         except KeywordExtractionError:
@@ -242,7 +246,6 @@ class ApplicationService:
 
         application.generation_status = "pending"
         application.generation_error = None
-        await self.db.flush()
 
         try:
             selected = select_requirement_library_rows(requirements, library_entries)
@@ -259,24 +262,30 @@ class ApplicationService:
                 }
                 for row in selected_after_fit
             ]
+            application_id_value = application.id
+            application_company = application.company
+            application_role = application.role
             extra_metadata = {
-                "application_id": application.id,
+                "application_id": application_id_value,
                 "generated_by": REQUIREMENT_ALGORITHM_VERSION,
                 "selected_sources": selected_sources,
                 "extracted_requirements": [requirement.model_dump() for requirement in requirements],
                 "fit_removed": fit_removed,
             }
             cv = await self.cv_service.create_cv(
-                user.id,
+                user_id,
                 CVCreate(
-                    title=f"{application.company} — {application.role}",
-                    description=f"Tailored for {application.role} at {application.company}",
+                    title=f"{application_company} — {application_role}",
+                    description=f"Tailored for {application_role} at {application_company}",
                     template_id="generic-minimal",
                     sections=sections,
                     customizations={"spacing": "none"},
                     extra_metadata=extra_metadata,
                 ),
             )
+            application = await self.get_application(application_id_value, user_id)
+            if application is None:
+                raise LookupError(APPLICATION_NOT_FOUND)
             # Score the materialized snapshot, not the Library rows used to
             # create it. Manual Builder edits therefore affect the score while
             # Library edits never rewrite an existing generated CV.
@@ -299,14 +308,23 @@ class ApplicationService:
             application.updated_at = datetime.now(timezone.utc)
             await self.db.flush()
             return GeneratedApplication(application=application, cv_id=cv.id)
+        except QuotaExceededError:
+            raise
         except Exception:
-            application.generation_status = "failed"
-            application.generation_error = GENERATION_FAILED
-            application.cv_id = None
-            application.quality = {}
-            application.updated_at = datetime.now(timezone.utc)
+            # Generation and its quota reservation are one unit of work. A
+            # failed render, CV insert, or final application update must undo
+            # both before recording a retryable failure in a fresh transaction.
+            await self.db.rollback()
+            failed_application = await self.get_application(application_id, user_id)
+            if failed_application is None:
+                raise
+            failed_application.generation_status = "failed"
+            failed_application.generation_error = GENERATION_FAILED
+            failed_application.cv_id = None
+            failed_application.quality = {}
+            failed_application.updated_at = datetime.now(timezone.utc)
             await self.db.flush()
-            return GeneratedApplication(application=application, cv_id=None)
+            return GeneratedApplication(application=failed_application, cv_id=None)
 
     async def _fit_sections(
         self,

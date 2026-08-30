@@ -8,7 +8,10 @@ settings = get_settings()
 engine = create_async_engine(
     settings.database_url,
     echo=False,
-    connect_args={"check_same_thread": False},
+    # Quota reservations use SQLite's short-lived BEGIN IMMEDIATE write
+    # transaction. Give concurrent requests time to wait for that lock rather
+    # than failing immediately with ``database is locked``.
+    connect_args={"check_same_thread": False, "timeout": 30},
 )
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

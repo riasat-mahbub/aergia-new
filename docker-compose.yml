@@ -11,12 +11,19 @@ services:
     environment:
       - SECRET_KEY=${SECRET_KEY:?SECRET_KEY must be set}
       - ENVIRONMENT=production
+      - TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY:?TURNSTILE_SITE_KEY must be set}
+      - TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY:?TURNSTILE_SECRET_KEY must be set}
+      - TURNSTILE_EXPECTED_HOSTNAME=${TURNSTILE_EXPECTED_HOSTNAME:?TURNSTILE_EXPECTED_HOSTNAME must be set}
+      - TURNSTILE_EXPECTED_ACTION=${TURNSTILE_EXPECTED_ACTION:-register}
+      - TURNSTILE_VERIFICATION_TIMEOUT_SECONDS=${TURNSTILE_VERIFICATION_TIMEOUT_SECONDS:-3.0}
+      - TRUSTED_PROXY_IPS=${TRUSTED_PROXY_IPS:-}
+      - FORWARDED_ALLOW_IPS=${FORWARDED_ALLOW_IPS:-}
     command:
       - sh
       - -c
       - |
         alembic upgrade head && \
-        exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+        exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --forwarded-allow-ips "$FORWARDED_ALLOW_IPS"
     restart: unless-stopped
 
 volumes:

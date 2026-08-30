@@ -32,7 +32,6 @@ import httpx
 
 from app.core.auth import ACCESS_COOKIE_NAME, CSRF_COOKIE_NAME, REFRESH_COOKIE_NAME
 
-
 EXPECTED_TEMPLATES = ("generic-modern", "generic-classic", "generic-minimal")
 
 
@@ -41,7 +40,7 @@ def _register_and_login(client: httpx.Client, base_url: str) -> dict[str, str]:
     password = "smoke-test-123"
     r = client.post(
         f"{base_url}/api/v1/auth/register",
-        json={"email": email, "password": password},
+        json={"email": email, "password": password, "turnstile_token": "smoke-bypass"},
     )
     if r.status_code not in (200, 201):
         # 409 is tolerated: previous runs may have left orphan users.
@@ -160,6 +159,10 @@ def _smoke_library(client: httpx.Client, base_url: str, headers: dict[str, str])
         raise AssertionError(f"promote re-run failed: {r.status_code} {r.text[:200]}")
     if r.json()["promoted"] != {}:
         raise AssertionError(f"re-promote should be a no-op; got {r.json()['promoted']!r}")
+
+    deleted = client.delete(f"{base_url}/api/v1/cvs/{cv_id}", headers=headers)
+    if deleted.status_code != 204:
+        raise AssertionError(f"delete library smoke CV failed: {deleted.status_code} {deleted.text[:200]}")
 
 def _smoke_application(client: httpx.Client, base_url: str, headers: dict[str, str]) -> None:
     """Exercise Profile → Library rows → generated application → linked CV."""
@@ -313,6 +316,11 @@ def run_smoke(client: httpx.Client, base_url: str) -> None:
         if not r.content.startswith(b"%PDF"):
             raise AssertionError(
                 f"export PDF for {template_id} returned non-PDF body: {r.content[:8]!r}"
+            )
+        deleted = client.delete(f"{base_url}/api/v1/cvs/{cv_id}", headers=headers)
+        if deleted.status_code != 204:
+            raise AssertionError(
+                f"delete smoke CV for {template_id} failed: {deleted.status_code} {deleted.text[:200]}"
             )
     # Import route smoke (PDF → typed ParseResult).
     _smoke_import_pdf(client, base_url, headers)

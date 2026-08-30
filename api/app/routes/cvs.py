@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import StreamingResponse
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +9,7 @@ from app.schemas.library import AddEntryToLibraryRequest, AddEntryToLibraryRespo
 from app.services.cv import CVLinkedToApplicationError, CVService
 from app.services.cv import coerce_customizations
 from app.services.pdf import PDFService
+from app.services.quotas import QuotaExceededError
 from app.services.renderer import HTMLDocumentRenderer, build_document, resolve
 from app.routes.render import strip_anchor_hrefs
 from app.core.deps import get_current_user
@@ -58,7 +59,13 @@ async def create_cv(
     db: AsyncSession = Depends(get_db),
 ):
     service = CVService(db)
-    cv = await service.create_cv(current_user.id, data)
+    try:
+        cv = await service.create_cv(current_user.id, data)
+    except QuotaExceededError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="CV limit reached",
+        ) from exc
     return CVResponse.model_validate(cv)
 
 
@@ -115,7 +122,13 @@ async def copy_cv(
     db: AsyncSession = Depends(get_db),
 ):
     service = CVService(db)
-    new_cv = await service.copy_cv(cv_id, current_user.id)
+    try:
+        new_cv = await service.copy_cv(cv_id, current_user.id)
+    except QuotaExceededError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="CV limit reached",
+        ) from exc
     if not new_cv:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
     return CVResponse.model_validate(new_cv)
@@ -125,6 +138,7 @@ async def copy_cv(
 @limiter.limit("10/minute")
 async def preview_cv(
     request: Request,
+    response: Response,
     cv_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -164,6 +178,7 @@ async def preview_cv(
 @limiter.limit("5/minute")
 async def export_cv_pdf(
     request: Request,
+    response: Response,
     cv_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
