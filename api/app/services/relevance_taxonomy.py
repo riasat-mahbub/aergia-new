@@ -100,7 +100,11 @@ RESPONSIBILITY_ALIASES: dict[str, tuple[str, ...]] = {
 CERTIFICATION_ALIASES: dict[str, tuple[str, ...]] = {
     "ccna": ("ccna",),
     "ccnp": ("ccnp",),
+    "ccie": ("ccie",),
     "cissp": ("cissp",),
+    "cka": ("cka", "certified kubernetes administrator"),
+    "ckad": ("ckad", "certified kubernetes application developer"),
+    "cks": ("cks", "certified kubernetes security specialist"),
     "pmp": ("pmp",),
     "comptia": ("comptia", "comp tia"),
     "itil": ("itil",),

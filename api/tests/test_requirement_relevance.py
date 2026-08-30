@@ -6,6 +6,12 @@ from app.services.relevance import (
     requirement_row_removal_loss,
     select_requirement_library_rows,
 )
+from app.services.requirement_extractor import requirements_from_model_output, to_job_requirements
+
+
+def _span(source: str, value: str) -> dict[str, object]:
+    start = source.index(value)
+    return {"text": value, "start": start, "end": start + len(value), "confidence": 0.9}
 
 
 def test_extraction_is_atomic_and_respects_required_preferred_and_negation():
@@ -62,6 +68,91 @@ def test_fuzzy_spelling_is_bounded_and_explainable():
     assert match.best_evidence.method == "fuzzy"
 
 
+def test_demonstrated_skill_evidence_outweighs_a_skills_list_match():
+    requirements = extract_requirements("Engineer", "Python")
+    skills_result = evaluate_requirement_relevance(
+        requirements,
+        [{"type": "skills", "enabled": True, "data": [{"items": ["Python"]}]}],
+    )
+    project_result = evaluate_requirement_relevance(
+        requirements,
+        [{"type": "projects", "enabled": True, "data": [{"name": "API", "description": "Built Python service"}]}],
+    )
+
+    assert project_result.requirements[0].score > skills_result.requirements[0].score
+    assert project_result.score == 100
+    assert skills_result.score == 85
+
+
+def test_logical_any_group_accepts_one_selected_skill_but_not_an_unrelated_one():
+    source = "You need either Python or Kotlin."
+    extracted = requirements_from_model_output(
+        source,
+        {
+            "entities": {
+                "candidate_requirement": [_span(source, source)],
+                "hard_skill": [_span(source, "Python"), _span(source, "Kotlin")],
+            }
+        },
+    )
+    requirements = to_job_requirements(extracted)
+
+    kotlin = evaluate_requirement_relevance(
+        requirements,
+        [{"type": "skills", "enabled": True, "data": [{"items": ["Kotlin"]}]}],
+    )
+    unrelated = evaluate_requirement_relevance(
+        requirements,
+        [{"type": "skills", "enabled": True, "data": [{"items": ["Java"]}]}],
+    )
+
+    assert kotlin.requirements[0].covered is True
+    assert unrelated.requirements[0].covered is False
+
+
+def test_logical_all_group_retains_partial_credit_without_calling_it_covered():
+    source = "Python and AWS experience required."
+    extracted = requirements_from_model_output(
+        source,
+        {
+            "entities": {
+                "candidate_requirement": [_span(source, source)],
+                "hard_skill": [_span(source, "Python"), _span(source, "AWS")],
+            }
+        },
+    )
+    requirements = to_job_requirements(extracted)
+    result = evaluate_requirement_relevance(
+        requirements,
+        [{"type": "skills", "enabled": True, "data": [{"items": ["Python"]}]}],
+    )
+
+    assert 0 < result.requirements[0].score < 0.65
+    assert result.requirements[0].covered is False
+
+
+def test_years_below_minimum_can_rank_but_cannot_be_covered():
+    requirements = extract_requirements("Engineer", "5+ years of experience")
+    result = evaluate_requirement_relevance(
+        requirements,
+        [{"type": "experience", "enabled": True, "data": [{"description": "3 years of experience"}]}],
+    )
+
+    assert 0 < result.requirements[0].score < 0.65
+    assert result.requirements[0].covered is False
+
+
+def test_lower_degree_level_receives_partial_credit_without_full_coverage():
+    requirements = extract_requirements("Engineer", "Master's degree required")
+    result = evaluate_requirement_relevance(
+        requirements,
+        [{"type": "education", "enabled": True, "data": [{"degree": "Bachelor of Science"}]}],
+    )
+
+    assert 0 < result.requirements[0].score < 0.65
+    assert result.requirements[0].covered is False
+
+
 def test_disabled_sections_do_not_provide_relevance_evidence():
     requirements = extract_requirements("Engineer", "Python")
     result = evaluate_requirement_relevance(
@@ -114,7 +205,7 @@ def test_education_is_a_baseline_and_job_evidence_drives_other_sections():
         ],
     )
 
-    assert [row.kind for row in rows] == ["education", "skill", "project"]
+    assert [row.kind for row in rows] == ["education", "project"]
     assert rows[0].selection_reasons == ("baseline_education",)
 
 
