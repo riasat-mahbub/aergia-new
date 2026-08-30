@@ -1,8 +1,10 @@
-"""Local-agent tailoring session lifecycle and Phase 1 patch application."""
+"""Local-agent tailoring sessions and server-side patch application."""
 
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 import secrets
 from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
@@ -21,27 +23,55 @@ from app.models.user import User
 from app.schema.models import SectionInstance
 from app.schemas.application import JobRequirement
 from app.schemas.tailoring import (
+    AddLibraryEntryChange,
     PROTOCOL_VERSION,
+    RemoveBulletChange,
+    RemoveEntryChange,
+    ReorderBulletsChange,
+    ReorderEntriesChange,
     ReportGapChange,
     ReplaceDescriptionChange,
+    RewriteRichTextChange,
     TailoringCodeExchange,
     TailoringEvidencePacket,
+    TailoringEvidenceRef,
     TailoringExchangeResponse,
     TailoringJob,
     TailoringLibraryEntry,
     TailoringPatch,
+    TailoringProvenance,
     TailoringReportedGap,
     TailoringSessionCreateResponse,
     TailoringSubmitResponse,
 )
 from app.services.profile import ProfileService
 from app.services.relevance import REQUIREMENT_ALGORITHM_VERSION, evaluate_requirement_relevance
+from app.services.rich_text import normalize_rich_text_ids
+from app.services.tailoring_policy import (
+    LIBRARY_KIND_TO_SECTION_TYPE,
+    TailoringPolicyError,
+    entry_by_id,
+    section_by_id,
+    validate_document_delta,
+    validate_rich_text_target,
+)
 
 TAILORING_SESSION_TTL = timedelta(minutes=15)
 TAILORING_SESSION_CREATED = "created"
 TAILORING_SESSION_EXCHANGED = "exchanged"
 TAILORING_SESSION_SUBMITTED = "submitted"
 TAILORING_SESSION_EXPIRED = "expired"
+
+TAILORING_SUPPORTED_OPERATIONS = (
+    "replace_description",
+    "rewrite_rich_text",
+    "remove_bullet",
+    "reorder_bullets",
+    "remove_entry",
+    "reorder_entries",
+    "add_library_entry",
+    "report_gap",
+)
 
 
 class TailoringNotFoundError(LookupError):
@@ -54,6 +84,10 @@ class TailoringUnauthorizedError(PermissionError):
 
 class TailoringExpiredError(PermissionError):
     """A tailoring session has passed its expiry time."""
+
+
+class TailoringStaleError(RuntimeError):
+    """The CV, requirements, or evidence source changed after exchange."""
 
 
 class TailoringConflictError(RuntimeError):
@@ -80,6 +114,46 @@ def _as_utc(value: datetime) -> datetime:
     """Normalize SQLite's timezone-naive datetime values for comparisons."""
 
     return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+
+
+def _content_hash(value: Any) -> str:
+    payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def cv_snapshot_hash(cv: CV) -> str:
+    """Hash the authoritative CV state relevant to a tailoring patch.
+
+    User-editable ``extra_metadata`` is intentionally excluded; it is not a
+    provenance store and does not change the rendered CV document.
+    """
+
+    return _content_hash(
+        {
+            "title": cv.title,
+            "description": cv.description,
+            "template_id": cv.template_id,
+            "customizations": cv.customizations or {},
+            "sections": cv.sections or [],
+            "is_active": bool(cv.is_active),
+        }
+    )
+
+
+def requirements_snapshot_hash(requirements: list[JobRequirement]) -> str:
+    return _content_hash([requirement.model_dump(mode="json") for requirement in requirements])
+
+
+def library_entry_content_hash(entry: LibraryEntry | Mapping[str, Any]) -> str:
+    if isinstance(entry, Mapping):
+        entry_id = entry.get("id")
+        kind = entry.get("kind")
+        payload = entry.get("payload") or []
+    else:
+        entry_id = entry.id
+        kind = entry.kind
+        payload = entry.payload or []
+    return _content_hash({"id": entry_id, "kind": kind, "payload": payload})
 
 
 def _sections_from_payload(payload: Any) -> list[dict[str, Any]]:
@@ -124,7 +198,7 @@ def _stored_requirements(application: Application) -> list[JobRequirement]:
 
 
 class TailoringService:
-    """Own the scoped capability flow and atomic Phase 1 patch transaction."""
+    """Own the scoped capability flow and atomic patch transaction."""
 
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -148,6 +222,15 @@ class TailoringService:
             raise TailoringConflictError("Tailoring target is no longer available")
         return application, cv
 
+    async def _library_entries(self, user_id: str) -> list[LibraryEntry]:
+        result = await self.db.execute(
+            select(LibraryEntry)
+            .join(Library, LibraryEntry.library_id == Library.id)
+            .where(Library.user_id == user_id)
+            .order_by(LibraryEntry.created_at.asc())
+        )
+        return list(result.scalars().all())
+
     async def create_session(
         self, application_id: str, user_id: str
     ) -> tuple[TailoringSessionCreateResponse, TailoringSession]:
@@ -160,10 +243,25 @@ class TailoringService:
         cv = await self._owned_cv(application.cv_id, user_id)
         if cv is None:
             raise TailoringUnavailableError("The linked CV is not available for local tailoring")
-        _stored_requirements(application)
+        requirements = _stored_requirements(application)
+
+        # Legacy CVs may contain rich-text blocks without stable IDs. Make the
+        # canonicalization part of session creation so the evidence hash and
+        # the first patch target the same persisted document.
+        normalized_sections, normalized = normalize_rich_text_ids(cv.sections or [])
+        now = _utcnow()
+        if normalized:
+            cv.sections = normalized_sections
+            cv.revision = (cv.revision or 1) + 1
+            cv.updated_at = now
+
+        library_entries = await self._library_entries(user_id)
+        library_snapshot = {
+            entry.id: library_entry_content_hash(entry)
+            for entry in library_entries
+        }
 
         code = secrets.token_urlsafe(32)
-        now = _utcnow()
         session = TailoringSession(
             user_id=user_id,
             application_id=application.id,
@@ -171,6 +269,10 @@ class TailoringService:
             code_hash=hash_token(code),
             status=TAILORING_SESSION_CREATED,
             expires_at=now + TAILORING_SESSION_TTL,
+            base_cv_revision=cv.revision or 1,
+            base_cv_hash=cv_snapshot_hash(cv),
+            base_requirements_hash=requirements_snapshot_hash(requirements),
+            library_snapshot=library_snapshot,
         )
         self.db.add(session)
         await self.db.flush()
@@ -249,28 +351,50 @@ class TailoringService:
             raise TailoringUnauthorizedError("Invalid tailoring capability")
         return session
 
+    async def _assert_snapshot_is_current(
+        self,
+        session: TailoringSession,
+        application: Application,
+        cv: CV,
+        requirements: list[JobRequirement],
+        library_entries: list[LibraryEntry],
+    ) -> None:
+        if not session.base_cv_revision or not session.base_cv_hash or not session.base_requirements_hash:
+            raise TailoringStaleError("Tailoring session predates the current patch protocol; start a new session")
+        if cv.revision != session.base_cv_revision or cv_snapshot_hash(cv) != session.base_cv_hash:
+            raise TailoringStaleError("The linked CV changed; start a new tailoring session")
+        if requirements_snapshot_hash(requirements) != session.base_requirements_hash:
+            raise TailoringStaleError("The application requirements changed; start a new tailoring session")
+
+        current_library_snapshot = {
+            entry.id: library_entry_content_hash(entry)
+            for entry in library_entries
+        }
+        if current_library_snapshot != (session.library_snapshot or {}):
+            raise TailoringStaleError("The Library changed; start a new tailoring session")
+
+        if application.cv_id != cv.id:
+            raise TailoringConflictError("Tailoring target is no longer available")
+
     async def evidence(self, capability: str | None) -> TailoringEvidencePacket:
         session = await self._session_for_capability(capability)
         application, cv = await self._target_for_session(session)
         requirements = _stored_requirements(application)
+        library_entries = await self._library_entries(session.user_id)
+        await self._assert_snapshot_is_current(session, application, cv, requirements, library_entries)
         user = await self.db.get(User, session.user_id)
         if user is None:
             raise TailoringUnauthorizedError("Invalid tailoring session owner")
         profile = await ProfileService(self.db).get_profile(user)
 
-        library_result = await self.db.execute(
-            select(LibraryEntry)
-            .join(Library, LibraryEntry.library_id == Library.id)
-            .where(Library.user_id == session.user_id)
-            .order_by(LibraryEntry.created_at.asc())
-        )
         library = [
             TailoringLibraryEntry(
                 id=entry.id,
                 kind=entry.kind,
+                content_hash=library_entry_content_hash(entry),
                 payload=copy.deepcopy(entry.payload or []),
             )
-            for entry in library_result.scalars().all()
+            for entry in library_entries
         ]
 
         return TailoringEvidencePacket(
@@ -279,6 +403,10 @@ class TailoringService:
             application_id=application.id,
             cv_id=cv.id,
             expires_at=session.expires_at,
+            base_revision=session.base_cv_revision or 1,
+            base_hash=session.base_cv_hash or "0" * 64,
+            requirements_hash=session.base_requirements_hash or "0" * 64,
+            supported_operations=list(TAILORING_SUPPORTED_OPERATIONS),
             job=TailoringJob(
                 company=application.company,
                 role=application.role,
@@ -305,61 +433,302 @@ class TailoringService:
 
     @classmethod
     def _apply_patch(
-        cls, raw_sections: Any, patch: TailoringPatch
+        cls,
+        raw_sections: Any,
+        patch: TailoringPatch,
+        library_rows: Mapping[tuple[str, str], Mapping[str, Any]] | None = None,
     ) -> tuple[Any, list[str], list[TailoringReportedGap]]:
-        updated_sections = copy.deepcopy(raw_sections)
+        normalized_source, _ = normalize_rich_text_ids(raw_sections)
+        updated_sections = copy.deepcopy(normalized_source)
+        before_sections = copy.deepcopy(_sections_from_payload(normalized_source))
         sections = _sections_from_payload(updated_sections)
         applied_operations: list[str] = []
         gaps: list[TailoringReportedGap] = []
         replaced_targets: set[tuple[str, str]] = set()
+        library_rows = library_rows or {}
 
-        for change in patch.changes:
-            if isinstance(change, ReplaceDescriptionChange):
-                target_key = (change.section_id, change.entry_id)
-                if target_key in replaced_targets:
-                    raise TailoringPatchError("A description target may only be replaced once")
-                replaced_targets.add(target_key)
-                cls._replace_description(sections, change)
-                applied_operations.append(change.operation)
-            elif isinstance(change, ReportGapChange):
-                gaps.append(TailoringReportedGap(requirement=change.requirement, reason=change.reason))
-                applied_operations.append(change.operation)
-            else:  # pragma: no cover - the discriminated schema closes this set
-                raise TailoringPatchError("Unsupported tailoring operation")
+        try:
+            for change in patch.changes:
+                if isinstance(change, ReplaceDescriptionChange):
+                    target_key = (change.section_id, change.entry_id)
+                    if target_key in replaced_targets:
+                        raise TailoringPatchError("A description target may only be replaced once")
+                    replaced_targets.add(target_key)
+                    cls._replace_description(sections, change)
+                    applied_operations.append(change.operation)
+                elif isinstance(change, RewriteRichTextChange):
+                    cls._rewrite_rich_text(sections, change)
+                    applied_operations.append(change.operation)
+                elif isinstance(change, RemoveBulletChange):
+                    cls._remove_bullet(sections, change)
+                    applied_operations.append(change.operation)
+                elif isinstance(change, ReorderBulletsChange):
+                    cls._reorder_bullets(sections, change)
+                    applied_operations.append(change.operation)
+                elif isinstance(change, RemoveEntryChange):
+                    cls._remove_entry(sections, change)
+                    applied_operations.append(change.operation)
+                elif isinstance(change, ReorderEntriesChange):
+                    cls._reorder_entries(sections, change)
+                    applied_operations.append(change.operation)
+                elif isinstance(change, AddLibraryEntryChange):
+                    cls._add_library_entry(sections, change, library_rows)
+                    applied_operations.append(change.operation)
+                elif isinstance(change, ReportGapChange):
+                    gaps.append(TailoringReportedGap(requirement=change.requirement, reason=change.reason))
+                    applied_operations.append(change.operation)
+                else:  # pragma: no cover - the discriminated schema closes this set
+                    raise TailoringPatchError("Unsupported tailoring operation")
+        except TailoringPolicyError as exc:
+            raise TailoringPatchError(str(exc)) from exc
 
         cls._validate_sections(sections)
+        try:
+            validate_document_delta(before_sections, sections, list(patch.changes))
+        except TailoringPolicyError as exc:
+            raise TailoringPatchError(str(exc)) from exc
         return updated_sections, applied_operations, gaps
 
     @staticmethod
     def _replace_description(
         sections: list[dict[str, Any]], change: ReplaceDescriptionChange
     ) -> None:
-        matching_sections = [section for section in sections if section.get("id") == change.section_id]
-        if not matching_sections:
-            raise TailoringPatchError("Description target section not found")
-        if len(matching_sections) > 1:
-            raise TailoringPatchError("Description target section is ambiguous")
-
-        data = matching_sections[0].get("data")
-        if not isinstance(data, list):
-            raise TailoringPatchError("Description target section is not entry-based")
-        matching_entries = [
-            entry for entry in data
-            if isinstance(entry, dict) and entry.get("id") == change.entry_id
-        ]
-        if not matching_entries:
-            raise TailoringPatchError("Description target entry not found")
-        if len(matching_entries) > 1:
-            raise TailoringPatchError("Description target entry is ambiguous")
-
-        entry = matching_entries[0]
+        section = section_by_id(sections, change.section_id)
+        entry = validate_rich_text_target(section, "description", change.entry_id)
         if "description" not in entry:
             raise TailoringPatchError("Description target has no description field")
         if not isinstance(entry["description"], str):
             raise TailoringPatchError(
-                "Phase 1 replace_description only supports plain-string descriptions"
+                "replace_description only supports plain-string descriptions; use rewrite_rich_text"
             )
         entry["description"] = change.value
+
+    @staticmethod
+    def _rewrite_rich_text(
+        sections: list[dict[str, Any]], change: RewriteRichTextChange
+    ) -> None:
+        section = section_by_id(sections, change.section_id)
+        entry = validate_rich_text_target(section, change.field, change.entry_id)
+        block_ids = [block.id for block in change.value]
+        if len(set(block_ids)) != len(block_ids):
+            raise TailoringPatchError("Rich-text block IDs must be unique")
+        for block in change.value:
+            item_ids = [item.id for item in block.items]
+            if len(set(item_ids)) != len(item_ids):
+                raise TailoringPatchError("Rich-text item IDs must be unique within a block")
+        entry[change.field] = [block.model_dump(mode="json", exclude_none=True) for block in change.value]
+
+    @staticmethod
+    def _rich_text_blocks(
+        sections: list[dict[str, Any]], section_id: str, entry_id: str | None, field: str
+    ) -> list[dict[str, Any]]:
+        section = section_by_id(sections, section_id)
+        entry = validate_rich_text_target(section, field, entry_id)
+        value = entry.get(field)
+        if not isinstance(value, list) or not all(isinstance(block, dict) for block in value):
+            raise TailoringPatchError("Bullet operation requires canonical rich-text blocks")
+        return value
+
+    @classmethod
+    def _remove_bullet(cls, sections: list[dict[str, Any]], change: RemoveBulletChange) -> None:
+        blocks = cls._rich_text_blocks(sections, change.section_id, change.entry_id, change.field)
+        matches = [block for block in blocks if block.get("id") == change.block_id]
+        if not matches:
+            raise TailoringPatchError("Bullet block not found")
+        if len(matches) > 1:
+            raise TailoringPatchError("Bullet block is ambiguous")
+        if matches[0].get("type") != "bullet_list":
+            raise TailoringPatchError("remove_bullet requires a bullet-list block")
+        items = matches[0].get("items")
+        if not isinstance(items, list):
+            raise TailoringPatchError("Bullet block items are invalid")
+        original_length = len(items)
+        if not all(isinstance(item, dict) for item in items):
+            raise TailoringPatchError("Bullet block items are invalid")
+        matches[0]["items"] = [item for item in items if item.get("id") != change.item_id]
+        if len(matches[0]["items"]) == original_length:
+            raise TailoringPatchError("Bullet item not found")
+        if not matches[0]["items"]:
+            blocks.remove(matches[0])
+
+    @classmethod
+    def _reorder_bullets(cls, sections: list[dict[str, Any]], change: ReorderBulletsChange) -> None:
+        blocks = cls._rich_text_blocks(sections, change.section_id, change.entry_id, change.field)
+        matches = [block for block in blocks if block.get("id") == change.block_id]
+        if not matches:
+            raise TailoringPatchError("Bullet block not found")
+        if len(matches) > 1:
+            raise TailoringPatchError("Bullet block is ambiguous")
+        if matches[0].get("type") != "bullet_list":
+            raise TailoringPatchError("reorder_bullets requires a bullet-list block")
+        items = matches[0].get("items")
+        if not isinstance(items, list) or not all(isinstance(item, dict) for item in items):
+            raise TailoringPatchError("Bullet block items are invalid")
+        existing_ids = [item.get("id") for item in items]
+        if len(set(existing_ids)) != len(existing_ids) or set(existing_ids) != set(change.item_ids):
+            raise TailoringPatchError("reorder_bullets must contain every existing item exactly once")
+        by_id = {item["id"]: item for item in items}
+        matches[0]["items"] = [by_id[item_id] for item_id in change.item_ids]
+
+    @staticmethod
+    def _remove_entry(sections: list[dict[str, Any]], change: RemoveEntryChange) -> None:
+        section = section_by_id(sections, change.section_id)
+        data = section.get("data")
+        if not isinstance(data, list):
+            raise TailoringPatchError("Entry removal requires an entry-based section")
+        original_length = len(data)
+        data[:] = [entry for entry in data if not (isinstance(entry, dict) and entry.get("id") == change.entry_id)]
+        if len(data) == original_length:
+            raise TailoringPatchError("Entry target not found")
+
+    @staticmethod
+    def _reorder_entries(sections: list[dict[str, Any]], change: ReorderEntriesChange) -> None:
+        section = section_by_id(sections, change.section_id)
+        data = section.get("data")
+        if not isinstance(data, list) or not all(isinstance(entry, dict) for entry in data):
+            raise TailoringPatchError("Entry reordering requires an entry-based section")
+        existing_ids = [entry.get("id") for entry in data]
+        if len(set(existing_ids)) != len(existing_ids) or set(existing_ids) != set(change.entry_ids):
+            raise TailoringPatchError("reorder_entries must contain every existing entry exactly once")
+        by_id = {entry["id"]: entry for entry in data}
+        data[:] = [by_id[entry_id] for entry_id in change.entry_ids]
+
+    @staticmethod
+    def _add_library_entry(
+        sections: list[dict[str, Any]],
+        change: AddLibraryEntryChange,
+        library_rows: Mapping[tuple[str, str], Mapping[str, Any]],
+    ) -> None:
+        source = library_rows.get((change.library_entry_id, change.source_row_id))
+        if source is None:
+            raise TailoringPatchError("Library source row is not available in the evidence snapshot")
+        section = section_by_id(sections, change.section_id)
+        expected_type = LIBRARY_KIND_TO_SECTION_TYPE.get(str(source.get("kind", "")))
+        if expected_type is None or section.get("type") != expected_type:
+            raise TailoringPatchError("Library source kind does not match the target section")
+        data = section.get("data")
+        if not isinstance(data, list):
+            raise TailoringPatchError("Library insertion requires an entry-based section")
+        source_row = source.get("row")
+        if not isinstance(source_row, dict):
+            raise TailoringPatchError("Library source row is invalid")
+        new_entry = copy.deepcopy(source_row)
+        new_entry["id"] = f"tailoring_{secrets.token_hex(16)}"
+        normalized, _ = normalize_rich_text_ids(
+            [{"id": "source", "type": expected_type, "title": "source", "data": [new_entry]}]
+        )
+        normalized_row = normalized[0]["data"][0]
+        data.append(normalized_row)
+
+    async def _library_rows_for_patch(
+        self, patch: TailoringPatch, library_entries: list[LibraryEntry]
+    ) -> dict[tuple[str, str], dict[str, Any]]:
+        requested = {
+            (change.library_entry_id, change.source_row_id)
+            for change in patch.changes
+            if isinstance(change, AddLibraryEntryChange)
+        }
+        if not requested:
+            return {}
+
+        entries_by_id = {entry.id: entry for entry in library_entries}
+        resolved: dict[tuple[str, str], dict[str, Any]] = {}
+        for library_entry_id, source_row_id in requested:
+            entry = entries_by_id.get(library_entry_id)
+            if entry is None:
+                raise TailoringPatchError("Library source entry is not available in the evidence snapshot")
+            row = next(
+                (
+                    candidate
+                    for candidate in (entry.payload or [])
+                    if isinstance(candidate, dict) and candidate.get("id") == source_row_id
+                ),
+                None,
+            )
+            if row is None:
+                raise TailoringPatchError("Library source row is not available in the evidence snapshot")
+            resolved[(library_entry_id, source_row_id)] = {
+                "kind": entry.kind,
+                "row": copy.deepcopy(row),
+            }
+        return resolved
+
+    @staticmethod
+    def _read_source_field(source: Mapping[str, Any], field_path: str) -> Any:
+        value: Any = source
+        for component in field_path.split("."):
+            if not isinstance(value, Mapping) or component not in value:
+                return None
+            value = value[component]
+        return value
+
+    @classmethod
+    def _validate_evidence_refs(
+        cls,
+        session: TailoringSession,
+        sections: list[dict[str, Any]],
+        changes: list[Any],
+        library_entries: list[LibraryEntry],
+    ) -> None:
+        """Validate every declared source against the exchanged snapshot."""
+
+        library_by_id = {entry.id: entry for entry in library_entries}
+        snapshot = session.library_snapshot or {}
+        for change in changes:
+            evidence = getattr(change, "evidence", None) or []
+            if not evidence:
+                continue
+            for reference in evidence:
+                if not isinstance(reference, TailoringEvidenceRef):
+                    raise TailoringPatchError("Evidence reference is invalid")
+                if reference.source == "cv":
+                    try:
+                        section = section_by_id(sections, reference.section_id or "")
+                        source = entry_by_id(section, reference.entry_id)
+                    except TailoringPolicyError as exc:
+                        raise TailoringPatchError(str(exc)) from exc
+                    if cls._read_source_field(source, reference.field_path) is None:
+                        raise TailoringPatchError("CV evidence field does not exist")
+                    continue
+
+                library_entry = library_by_id.get(reference.library_entry_id or "")
+                if library_entry is None:
+                    raise TailoringPatchError("Library evidence entry is unavailable")
+                current_hash = library_entry_content_hash(library_entry)
+                if snapshot.get(library_entry.id) != reference.source_hash or current_hash != reference.source_hash:
+                    raise TailoringStaleError("A Library evidence source changed; start a new tailoring session")
+                source_row = next(
+                    (
+                        candidate
+                        for candidate in (library_entry.payload or [])
+                        if isinstance(candidate, dict) and candidate.get("id") == reference.source_row_id
+                    ),
+                    None,
+                )
+                if source_row is None or cls._read_source_field(source_row, reference.field_path) is None:
+                    raise TailoringPatchError("Library evidence field does not exist")
+
+            if isinstance(change, AddLibraryEntryChange):
+                if not any(
+                    reference.source == "library"
+                    and reference.library_entry_id == change.library_entry_id
+                    and reference.source_row_id == change.source_row_id
+                    for reference in evidence
+                ):
+                    raise TailoringPatchError("Library insertion must cite its source row")
+
+    @staticmethod
+    def _provenance_for_patch(patch: TailoringPatch) -> list[TailoringProvenance]:
+        return [
+            TailoringProvenance(
+                operation=change.operation,
+                section_id=getattr(change, "section_id", None),
+                entry_id=getattr(change, "entry_id", None),
+                field=getattr(change, "field", None),
+                evidence=list(getattr(change, "evidence", None) or []),
+            )
+            for change in patch.changes
+        ]
 
     async def submit(
         self, capability: str | None, patch: TailoringPatch
@@ -367,13 +736,20 @@ class TailoringService:
         session = await self._session_for_capability(capability)
         application, cv = await self._target_for_session(session)
         requirements = _stored_requirements(application)
+        library_entries = await self._library_entries(session.user_id)
+        await self._assert_snapshot_is_current(session, application, cv, requirements, library_entries)
+        if patch.base_revision != session.base_cv_revision or patch.base_hash != session.base_cv_hash:
+            raise TailoringStaleError("The patch was created from a different CV snapshot; start a new session")
 
-        updated_sections, applied_operations, gaps = self._apply_patch(cv.sections, patch)
+        source_sections, _ = normalize_rich_text_ids(cv.sections or [])
+        source_section_list = _sections_from_payload(source_sections)
+        self._validate_evidence_refs(session, source_section_list, list(patch.changes), library_entries)
+        library_rows = await self._library_rows_for_patch(patch, library_entries)
+
+        before_relevance = copy.deepcopy(application.relevance or {})
+        updated_sections, applied_operations, gaps = self._apply_patch(source_sections, patch, library_rows)
         relevance = evaluate_requirement_relevance(requirements, updated_sections)
 
-        if updated_sections != cv.sections:
-            cv.sections = updated_sections
-            cv.updated_at = _utcnow()
         now = _utcnow()
         submit_result = await self.db.execute(
             update(TailoringSession)
@@ -393,11 +769,28 @@ class TailoringService:
             raise TailoringConflictError("Tailoring session has already been submitted")
         await self.db.refresh(session)
 
+        cv_update = await self.db.execute(
+            update(CV)
+            .where(CV.id == cv.id, CV.revision == session.base_cv_revision)
+            .values(
+                sections=updated_sections,
+                revision=CV.revision + 1,
+                updated_at=now,
+            )
+        )
+        if cv_update.rowcount != 1:
+            raise TailoringStaleError("The linked CV changed while the patch was being applied")
+        cv.sections = updated_sections
+        cv.revision = (session.base_cv_revision or 1) + 1
+        cv.updated_at = now
+
         application.relevance = relevance.model_dump(mode="json")
         application.extracted_keywords = []
         application.algorithm_version = REQUIREMENT_ALGORITHM_VERSION
         application.updated_at = now
         session.reported_gaps = [gap.model_dump(mode="json") for gap in gaps]
+        provenance = self._provenance_for_patch(patch)
+        session.provenance = [record.model_dump(mode="json") for record in provenance]
         await self.db.flush()
 
         return TailoringSubmitResponse(
@@ -405,8 +798,12 @@ class TailoringService:
             session_id=session.id,
             application_id=application.id,
             cv_id=cv.id,
+            base_revision=session.base_cv_revision or 1,
+            new_revision=(session.base_cv_revision or 1) + 1,
             applied_operations=applied_operations,
             gaps=gaps,
+            provenance=provenance,
+            before_relevance=before_relevance,
             relevance=relevance.model_dump(mode="json"),
         )
 
@@ -421,6 +818,7 @@ __all__ = [
     "TailoringExpiredError",
     "TailoringNotFoundError",
     "TailoringPatchError",
+    "TailoringStaleError",
     "TailoringService",
     "TailoringUnauthorizedError",
     "TailoringUnavailableError",

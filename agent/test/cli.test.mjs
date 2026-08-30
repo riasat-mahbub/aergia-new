@@ -18,6 +18,9 @@ test("parses a session code and server options", () => {
 
 test("builds the fixed replacement patch from a sanitized evidence packet", () => {
   const patch = buildFixedPatch({
+    base_revision: 7,
+    base_hash: "a".repeat(64),
+    supported_operations: ["replace_description"],
     cv: {
       sections: [
         { id: "profile", data: { name: "Ada" } },
@@ -28,6 +31,8 @@ test("builds the fixed replacement patch from a sanitized evidence packet", () =
 
   assert.deepEqual(patch, {
     protocol_version: 1,
+    base_revision: 7,
+    base_hash: "a".repeat(64),
     changes: [{
       operation: "replace_description",
       section_id: "experience",

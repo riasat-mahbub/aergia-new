@@ -35,8 +35,20 @@ class TailoringSession(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     exchanged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Snapshot identity captured when the one-time code is created. Legacy
+    # Phase 1 rows may be null; the widened protocol refuses to submit them so
+    # they cannot bypass stale-write protection.
+    base_cv_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    base_cv_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    base_requirements_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Maps Library entry IDs to the content digest seen by the agent. Keeping
+    # hashes rather than source content prevents the session row becoming a
+    # database synchronization mechanism while still making evidence scopes
+    # replay-safe.
+    library_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict, server_default="{}")
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     reported_gaps: Mapped[list] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
+    provenance: Mapped[list] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )

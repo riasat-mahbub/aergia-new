@@ -45,6 +45,14 @@ export function parseArgs(argv) {
 }
 
 export function buildFixedPatch(evidence, value = null) {
+  if (!Array.isArray(evidence?.supported_operations)
+    || !evidence.supported_operations.includes("replace_description")) {
+    throw new Error("Server does not advertise the replace_description operation");
+  }
+  if (!Number.isInteger(evidence?.base_revision) || evidence.base_revision < 1
+    || typeof evidence?.base_hash !== "string" || !/^[0-9a-f]{64}$/.test(evidence.base_hash)) {
+    throw new Error("Evidence packet is missing its CV snapshot identity");
+  }
   const sections = Array.isArray(evidence?.cv?.sections)
     ? evidence.cv.sections
     : Array.isArray(evidence?.cv?.sections?.sections)
@@ -57,6 +65,8 @@ export function buildFixedPatch(evidence, value = null) {
       const replacement = value || `${entry.description.trim()} [Aergia protocol prototype]`;
       return {
         protocol_version: 1,
+        base_revision: evidence.base_revision,
+        base_hash: evidence.base_hash,
         changes: [
           {
             operation: "replace_description",

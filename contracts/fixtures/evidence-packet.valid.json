@@ -4,6 +4,19 @@
   "application_id": "application-1",
   "cv_id": "cv-1",
   "expires_at": "2026-08-30T20:00:00Z",
+  "base_revision": 1,
+  "base_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "requirements_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "supported_operations": [
+    "replace_description",
+    "rewrite_rich_text",
+    "remove_bullet",
+    "reorder_bullets",
+    "remove_entry",
+    "reorder_entries",
+    "add_library_entry",
+    "report_gap"
+  ],
   "job": {
     "company": "Example Labs",
     "role": "Platform Engineer",
@@ -22,7 +35,16 @@
         "data": [
           {
             "id": "entry-1",
-            "description": "Built reliable API services."
+            "description": "Built reliable API services.",
+            "summary": [
+              {
+                "id": "block-1",
+                "type": "bullet_list",
+                "items": [
+                  {"id": "item-1", "text": "Built reliable API services."}
+                ]
+              }
+            ]
           }
         ]
       }
