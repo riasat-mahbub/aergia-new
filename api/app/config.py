@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -18,6 +19,15 @@ class Settings(BaseSettings):
 
     model_config = {"env_file": ".env", "extra": "allow"}
 
+    @field_validator("environment", mode="before")
+    @classmethod
+    def normalize_environment(cls, value: object) -> str:
+        normalized = str(value).strip().lower()
+        allowed: set[str] = {"development", "test", "production"}
+        if normalized not in allowed:
+            raise ValueError(f"environment must be one of {sorted(allowed)}")
+        return normalized
+
 
 _settings: Settings | None = None
 
@@ -31,5 +41,9 @@ def get_settings() -> Settings:
             raise RuntimeError(
                 "SECRET_KEY is set to the default value 'change-me-in-production'. "
                 "Generate a strong random key and set it in .env before running in production."
+            )
+        if env == "production" and (_settings.allow_bearer_tokens or _settings.expose_tokens_in_response):
+            raise RuntimeError(
+                "ALLOW_BEARER_TOKENS and EXPOSE_TOKENS_IN_RESPONSE must both be false in production."
             )
     return _settings

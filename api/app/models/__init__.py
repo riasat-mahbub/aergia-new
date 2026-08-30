@@ -3,4 +3,15 @@ from app.models.cv import CV
 from app.models.library import Library, LibraryEntry
 from app.models.application import Application, ApplicationStatusHistory
 from app.models.template import Template
-__all__ = ["User", "CV", "Library", "LibraryEntry", "Application", "ApplicationStatusHistory", "Template"]
+from app.models.auth_session import AuthSession
+
+__all__ = [
+    "User",
+    "CV",
+    "Library",
+    "LibraryEntry",
+    "Application",
+    "ApplicationStatusHistory",
+    "Template",
+    "AuthSession",
+]
