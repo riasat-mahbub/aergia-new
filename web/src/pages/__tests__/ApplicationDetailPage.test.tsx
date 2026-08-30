@@ -208,5 +208,8 @@ describe("ApplicationDetailPage", () => {
         }),
       ]),
     ));
+    expect(screen.queryByRole("button", { name: /copy prompt/i })).not.toBeInTheDocument();
+    expect(screen.getByText("Tailored CV ready")).toBeInTheDocument();
+    expect(screen.getByText("Relevance: 60% → 80%")).toBeInTheDocument();
   });
 });

@@ -134,7 +134,8 @@ async def test_tailoring_protocol_create_exchange_evidence_submit_apply_score(cl
                 },
                 {
                     "operation": "report_gap",
-                    "requirement": "Kubernetes",
+                    "requirement_id": evidence_body["requirements"][0]["id"],
+                    "requirement": evidence_body["requirements"][0]["text"],
                     "reason": "No supporting evidence exists.",
                 },
             ],
@@ -145,8 +146,9 @@ async def test_tailoring_protocol_create_exchange_evidence_submit_apply_score(cl
     assert submitted_body["application_id"] == application_id
     assert submitted_body["cv_id"] == cv_id
     assert submitted_body["applied_operations"] == ["replace_description", "report_gap"]
-    assert submitted_body["gaps"] == [{"requirement": "Kubernetes", "reason": "No supporting evidence exists."}]
+    assert submitted_body["gaps"] == [{"requirement": evidence_body["requirements"][0]["text"], "reason": "No supporting evidence exists."}]
     assert submitted_body["relevance"]["status"] == "evaluated"
+    assert submitted_body["relevance"]["requirements"][0]["tailoring_feedback"] == ["No supporting evidence exists."]
     async with async_session() as session_db:
         persisted_session = await session_db.get(TailoringSession, session["session_id"])
         assert persisted_session is not None

@@ -91,6 +91,9 @@ function validateChange(change, evidence, sections) {
   }
 
   if (change.operation === "report_gap") {
+    if (change.requirement_id !== undefined && change.requirement_id !== null && (typeof change.requirement_id !== "string" || !change.requirement_id.trim())) {
+      throw new Error("Gap requirement_id must be a non-empty string when provided");
+    }
     if (typeof change.requirement !== "string" || !change.requirement.trim()) throw new Error("Gap requirement is required");
     if (typeof change.reason !== "string" || !change.reason.trim()) throw new Error("Gap reason is required");
     return;
