@@ -140,6 +140,18 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _db_utcnow() -> datetime:
+    """Return UTC without tzinfo for SQLite DateTime bind parameters.
+
+    SQLite stores SQLAlchemy ``DateTime(timezone=True)`` values as naive text.
+    Loaded values are normalized with ``_as_utc`` below, but predicates sent to
+    SQLite must use the same naive representation or Python/driver versions
+    can raise when comparing aware and naive datetimes.
+    """
+
+    return _utcnow().replace(tzinfo=None)
+
+
 def _as_utc(value: datetime) -> datetime:
     """Normalize SQLite's timezone-naive datetime values for comparisons."""
 
@@ -444,6 +456,7 @@ class TailoringService:
     async def cancel_session(self, session_id: str, user_id: str) -> TailoringSessionStatusResponse:
         session = await self._owned_session(session_id, user_id)
         now = _utcnow()
+        db_now = _db_utcnow()
         if _as_utc(session.expires_at) <= now and not self._session_is_terminal(session):
             session.status = TAILORING_SESSION_EXPIRED
             session.updated_at = now
@@ -459,7 +472,7 @@ class TailoringService:
                 TailoringSession.id == session.id,
                 TailoringSession.user_id == user_id,
                 TailoringSession.status.in_((TAILORING_SESSION_CREATED, TAILORING_SESSION_EXCHANGED)),
-                TailoringSession.expires_at > now,
+                TailoringSession.expires_at > db_now,
             )
             .values(status=TAILORING_SESSION_CANCELLED, updated_at=now)
         )
@@ -487,12 +500,13 @@ class TailoringService:
         capability = secrets.token_urlsafe(32)
         capability_hash = hash_token(capability)
         now = _utcnow()
+        db_now = _db_utcnow()
         exchange_result = await self.db.execute(
             update(TailoringSession)
             .where(
                 TailoringSession.id == session.id,
                 TailoringSession.status == TAILORING_SESSION_CREATED,
-                TailoringSession.expires_at > now,
+                TailoringSession.expires_at > db_now,
             )
             .values(
                 capability_hash=capability_hash,
@@ -977,12 +991,13 @@ class TailoringService:
         relevance = evaluate_requirement_relevance(requirements, updated_sections)
 
         now = _utcnow()
+        db_now = _db_utcnow()
         submit_result = await self.db.execute(
             update(TailoringSession)
             .where(
                 TailoringSession.id == session.id,
                 TailoringSession.status == TAILORING_SESSION_EXCHANGED,
-                TailoringSession.expires_at > now,
+                TailoringSession.expires_at > db_now,
             )
             .values(
                 status=TAILORING_SESSION_SUBMITTED,

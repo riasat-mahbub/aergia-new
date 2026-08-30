@@ -14,7 +14,13 @@ from app.schemas.tailoring import (
     TailoringSessionStatusResponse,
 )
 from app.services.tailoring_facts import TailoringFactError, validate_tailoring_facts
-from app.services.tailoring import TailoringPatchError, TailoringService, _stored_requirements, build_tailoring_prompt
+from app.services.tailoring import (
+    TailoringPatchError,
+    TailoringService,
+    _db_utcnow,
+    _stored_requirements,
+    build_tailoring_prompt,
+)
 from app.services.tailoring_policy import TailoringPolicyError, validate_document_delta
 
 
@@ -87,6 +93,10 @@ def test_tailoring_prompt_keeps_the_code_out_of_the_session_url():
     assert "https://aergia.example/agent/tailor/session-1" in prompt
     assert "One-time session code: code-1234567890123456" in prompt
     assert "ask for approval" in prompt
+
+
+def test_tailoring_sqlite_timestamp_binding_uses_naive_utc():
+    assert _db_utcnow().tzinfo is None
 
 
 def test_tailoring_status_contract_does_not_accept_capabilities():
