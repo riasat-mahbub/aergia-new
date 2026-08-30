@@ -107,6 +107,7 @@ describe("authStore", () => {
       await useAuthStore.getState().logout();
 
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
+      expect(useAuthStore.getState().accountTier).toBeNull();
     });
   });
 
