@@ -13,6 +13,7 @@ import {
 } from "../lib/api/applications";
 import { useApplicationStore } from "../lib/store/applicationStore";
 import { useToastStore } from "../lib/store/uiStore";
+import { createTailoringSession, type TailoringSession } from "../lib/api/tailoring";
 import { safeExternalUrl } from "../lib/security/safeUrl";
 import {
   RELEVANCE_TOOLTIP,
@@ -61,6 +62,8 @@ export default function ApplicationDetailPage() {
   const [statusSaving, setStatusSaving] = useState(false);
   const [linkedCV, setLinkedCV] = useState<CVDetail | null>(null);
   const [jobExpanded, setJobExpanded] = useState(false);
+  const [tailoringSession, setTailoringSession] = useState<TailoringSession | null>(null);
+  const [tailoringStarting, setTailoringStarting] = useState(false);
 
   useEffect(() => {
     if (id) fetch(id);
@@ -125,6 +128,19 @@ export default function ApplicationDetailPage() {
       downloadPDF(blob, `${application.company}-${application.role}.pdf`);
     } catch {
       addToast("Unable to export this CV", "error");
+    }
+  };
+
+  const handleStartTailoring = async () => {
+    setTailoringStarting(true);
+    try {
+      const session = await createTailoringSession(application.id);
+      setTailoringSession(session);
+      addToast("Local tailoring session created", "info");
+    } catch {
+      addToast("Unable to create a local tailoring session", "error");
+    } finally {
+      setTailoringStarting(false);
     }
   };
 
@@ -224,7 +240,18 @@ export default function ApplicationDetailPage() {
             <div className="mt-4 flex flex-wrap gap-2">
               <Link to={`/dashboard/builder/${application.cv_id}?application=${application.id}`} className="inline-flex items-center gap-1 rounded-md bg-app-primary px-3 py-2 text-sm font-medium text-white hover:bg-app-primary-hover">Open/Edit CV <Pencil className="h-3.5 w-3.5" /></Link>
               <button type="button" onClick={handleExport} className="inline-flex items-center gap-1 rounded-md border border-app-rule-strong px-3 py-2 text-sm font-medium text-app-ink-2 hover:bg-app-surface-muted"><Download className="h-3.5 w-3.5" /> Export PDF</button>
+              <button type="button" onClick={handleStartTailoring} disabled={tailoringStarting} className="inline-flex items-center gap-1 rounded-md border border-app-primary-soft px-3 py-2 text-sm font-medium text-app-primary hover:bg-app-primary-soft disabled:opacity-50">
+                {tailoringStarting ? "Starting local tailoring…" : "Start local tailoring"}
+              </button>
             </div>
+            {tailoringSession && (
+              <div className="mt-4 rounded-md bg-app-canvas px-3 py-3" role="status">
+                <p className="text-sm font-medium text-app-ink">Run the local protocol client</p>
+                <p className="mt-1 text-xs text-app-ink-3">This one-time code expires at {new Date(tailoringSession.expires_at).toLocaleTimeString()}.</p>
+                <code className="mt-3 block overflow-x-auto rounded bg-app-surface px-2 py-2 text-xs text-app-ink-2">node agent/src/cli.mjs {tailoringSession.code} --server {window.location.origin}</code>
+                <p className="mt-2 text-xs text-app-ink-3">The prototype submits a fixed test patch. Refresh this application after it completes.</p>
+              </div>
+            )}
           </>
         ) : (
           <>

@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aergia.local/contracts/evidence-packet.schema.json",
+  "title": "Aergia tailoring evidence packet protocol v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version",
+    "session_id",
+    "application_id",
+    "cv_id",
+    "expires_at",
+    "job",
+    "cv",
+    "profile",
+    "library",
+    "requirements"
+  ],
+  "properties": {
+    "protocol_version": {"const": 1},
+    "session_id": {"type": "string", "minLength": 1, "maxLength": 36},
+    "application_id": {"type": "string", "minLength": 1, "maxLength": 36},
+    "cv_id": {"type": "string", "minLength": 1, "maxLength": 36},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "job": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["company", "role", "job_url", "description"],
+      "properties": {
+        "company": {"type": "string", "maxLength": 255},
+        "role": {"type": "string", "maxLength": 255},
+        "job_url": {"type": ["string", "null"], "maxLength": 2048},
+        "description": {"type": "string", "maxLength": 100000}
+      }
+    },
+    "cv": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "sections"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1, "maxLength": 36},
+        "title": {"type": "string", "maxLength": 255},
+        "sections": {"type": ["array", "object"]}
+      }
+    },
+    "profile": {"type": "object"},
+    "library": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "kind", "payload"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1, "maxLength": 36},
+          "kind": {"type": "string", "maxLength": 32},
+          "payload": {"type": "array", "maxItems": 100, "items": {"type": "object"}}
+        }
+      }
+    },
+    "requirements": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {"type": "object"}
+    }
+  }
+}

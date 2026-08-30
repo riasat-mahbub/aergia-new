@@ -43,6 +43,7 @@ class Application(Base):
 
     user = relationship("User", back_populates="applications")
     cv = relationship("CV")
+    tailoring_sessions = relationship("TailoringSession", back_populates="application", cascade="all, delete-orphan")
     status_history = relationship(
         "ApplicationStatusHistory",
         back_populates="application",

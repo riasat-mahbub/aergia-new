@@ -1,0 +1,34 @@
+{
+  "protocol_version": 1,
+  "session_id": "session-1",
+  "application_id": "application-1",
+  "cv_id": "cv-1",
+  "expires_at": "2026-08-30T20:00:00Z",
+  "job": {
+    "company": "Example Labs",
+    "role": "Platform Engineer",
+    "job_url": null,
+    "description": "Build reliable Python API services."
+  },
+  "cv": {
+    "id": "cv-1",
+    "title": "Example Labs — Platform Engineer",
+    "sections": [
+      {
+        "id": "section-experience",
+        "type": "experience",
+        "title": "Experience",
+        "enabled": true,
+        "data": [
+          {
+            "id": "entry-1",
+            "description": "Built reliable API services."
+          }
+        ]
+      }
+    ]
+  },
+  "profile": {"name": "Example User"},
+  "library": [],
+  "requirements": []
+}

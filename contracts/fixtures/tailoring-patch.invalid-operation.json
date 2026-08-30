@@ -1,0 +1,11 @@
+{
+  "protocol_version": 1,
+  "changes": [
+    {
+      "operation": "rewrite_rich_text",
+      "section_id": "section-experience",
+      "entry_id": "entry-1",
+      "value": []
+    }
+  ]
+}

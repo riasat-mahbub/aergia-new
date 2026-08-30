@@ -1,0 +1,17 @@
+{
+  "protocol_version": 1,
+  "changes": [
+    {
+      "operation": "replace_description",
+      "section_id": "section-experience",
+      "entry_id": "entry-1",
+      "value": "Built dependable backend services.",
+      "reason": "Fixed protocol fixture"
+    },
+    {
+      "operation": "report_gap",
+      "requirement": "Kubernetes",
+      "reason": "No supporting evidence exists in the packet."
+    }
+  ]
+}
