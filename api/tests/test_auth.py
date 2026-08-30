@@ -1,5 +1,6 @@
 """T3: Pytest: auth flow (register → login → refresh → logout) (integration)"""
 
+import asyncio
 from uuid import uuid4
 
 import pytest
@@ -29,6 +30,7 @@ async def test_auth_full_flow(client):
     assert refresh_resp.status_code == 200
     refresh_data = refresh_resp.json()
     assert "access_token" in refresh_data
+    current_refresh_token = refresh_data["refresh_token"]
     new_access_token = refresh_data["access_token"]
 
 
@@ -42,6 +44,55 @@ async def test_auth_full_flow(client):
     # Old refresh token should be invalid after logout
     stale_refresh_resp = await client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token})
     assert stale_refresh_resp.status_code == 401
+    revoked_refresh_resp = await client.post("/api/v1/auth/refresh", json={"refresh_token": current_refresh_token})
+    assert revoked_refresh_resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_logout_is_idempotent_without_access_token(client):
+    email = f"logout-refresh-only-{uuid4().hex}@example.com"
+    password = "testpass123"
+    await client.post("/api/v1/auth/register", json={"email": email, "password": password})
+    login_resp = await client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    assert login_resp.status_code == 200
+
+    client.cookies.delete("aergia_access_token")
+    refresh_only = await client.post("/api/v1/auth/logout")
+    assert refresh_only.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_multiple_logins_keep_refresh_sessions_independent(client):
+    email = f"multi-session-{uuid4().hex}@example.com"
+    password = "testpass123"
+    await client.post("/api/v1/auth/register", json={"email": email, "password": password})
+
+    first_login = await client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    second_login = await client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    first_refresh = first_login.json()["refresh_token"]
+    second_refresh = second_login.json()["refresh_token"]
+
+    first_rotation = await client.post("/api/v1/auth/refresh", json={"refresh_token": first_refresh})
+    second_rotation = await client.post("/api/v1/auth/refresh", json={"refresh_token": second_refresh})
+
+    assert first_rotation.status_code == 200
+    assert second_rotation.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_concurrent_refresh_allows_one_rotation_and_rejects_reuse(client):
+    email = f"concurrent-refresh-{uuid4().hex}@example.com"
+    password = "testpass123"
+    await client.post("/api/v1/auth/register", json={"email": email, "password": password})
+    login = await client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    refresh_token = login.json()["refresh_token"]
+
+    responses = await asyncio.gather(
+        client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token}),
+        client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token}),
+    )
+
+    assert sorted(response.status_code for response in responses) == [200, 401]
 
 
 @pytest.mark.asyncio
@@ -98,8 +149,11 @@ async def test_refresh_invalid_token(client):
 
 @pytest.mark.asyncio
 async def test_protected_route_no_token(client):
+    # Logout is intentionally idempotent so a browser can clear a stale
+    # session even after its access and refresh cookies have expired.
+    logout_resp = await client.post("/api/v1/auth/logout")
+    assert logout_resp.status_code == 200
 
-    # Try accessing a protected route without token - there's no dedicated protected
-    # route yet in the API, but /auth/logout requires authentication
-    resp2 = await client.post("/api/v1/auth/logout")
-    assert resp2.status_code == 401  # 401 from HTTPBearer when no credentials
+    # Other authenticated routes still reject requests without credentials.
+    protected_resp = await client.get("/api/v1/cvs")
+    assert protected_resp.status_code == 401

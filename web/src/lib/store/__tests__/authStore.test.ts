@@ -5,13 +5,15 @@ vi.mock("../../api/client", () => ({
     post: vi.fn(),
     get: vi.fn(),
   },
+  refreshSession: vi.fn(),
 }));
 
-import client from "../../api/client";
+import client, { refreshSession } from "../../api/client";
 import { useAuthStore } from "../authStore";
 
 const mockPost = vi.mocked(client.post);
 const mockGet = vi.mocked(client.get);
+const mockRefreshSession = vi.mocked(refreshSession);
 
 describe("authStore", () => {
   beforeEach(() => {
@@ -106,10 +108,51 @@ describe("authStore", () => {
 
     it("sets isAuthenticated false when the cookie session is absent", async () => {
       mockGet.mockResolvedValueOnce({ data: { authenticated: false } });
+      mockRefreshSession.mockRejectedValueOnce(new Error("No refresh cookie"));
 
       await useAuthStore.getState().hydrate();
 
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    });
+
+    it("refreshes an expired access session during hydration", async () => {
+      mockGet.mockResolvedValueOnce({ data: { authenticated: false } });
+      mockRefreshSession.mockResolvedValueOnce();
+
+      await useAuthStore.getState().hydrate();
+
+      expect(useAuthStore.getState().isAuthenticated).toBe(true);
+      expect(mockRefreshSession).toHaveBeenCalledTimes(1);
+    });
+
+    it("coalesces concurrent hydration calls", async () => {
+      let resolveSession: ((value: { data: { authenticated: boolean } }) => void) | undefined;
+      mockGet.mockReturnValueOnce(new Promise((resolve) => {
+        resolveSession = resolve;
+      }));
+
+      const first = useAuthStore.getState().hydrate();
+      const second = useAuthStore.getState().hydrate();
+
+      expect(first).toBe(second);
+      resolveSession?.({ data: { authenticated: true } });
+      await first;
+      expect(mockGet).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not let stale hydration overwrite a later login", async () => {
+      let resolveSession: ((value: { data: { authenticated: boolean } }) => void) | undefined;
+      mockGet.mockReturnValueOnce(new Promise((resolve) => {
+        resolveSession = resolve;
+      }));
+      const hydration = useAuthStore.getState().hydrate();
+      mockPost.mockResolvedValueOnce({ data: { message: "Logged in" } });
+
+      await useAuthStore.getState().login("test@example.com", "password");
+      resolveSession?.({ data: { authenticated: false } });
+      await hydration;
+
+      expect(useAuthStore.getState().isAuthenticated).toBe(true);
     });
   });
 });
