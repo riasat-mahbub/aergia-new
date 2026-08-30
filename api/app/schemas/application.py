@@ -6,7 +6,7 @@ from datetime import date, datetime
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.core.safe_url import normalize_http_url
 
@@ -48,6 +48,8 @@ RequirementType = Literal[
     "other",
 ]
 
+RequirementImportance = Literal["required", "preferred", "unknown"]
+
 
 class JobRequirement(BaseModel):
     """One atomic, explainable requirement extracted from a job description."""
@@ -60,6 +62,29 @@ class JobRequirement(BaseModel):
     required: bool
     weight: float
     constraint: dict | None = None
+    # Additive provenance and semantic fields. The legacy required/weight and
+    # singular constraint fields remain because the matcher and old persisted
+    # relevance JSON still consume them.
+    importance: RequirementImportance | None = None
+    concepts: list[str] = Field(default_factory=list)
+    constraints: list[dict[str, object]] = Field(default_factory=list)
+    source_start: int | None = None
+    source_end: int | None = None
+    confidence: float = 0.0
+    extractor: str = "unknown"
+    extractor_version: str = "unknown"
+
+    @model_validator(mode="after")
+    def synchronize_compatibility_fields(self) -> "JobRequirement":
+        """Keep the old matcher fields consistent with the new contract."""
+        if self.importance is None:
+            self.importance = "required" if self.required else "preferred"
+        self.required = self.importance == "required"
+        if self.constraint is None and self.constraints:
+            self.constraint = self.constraints[0]
+        elif self.constraint is not None and not self.constraints:
+            self.constraints = [self.constraint]
+        return self
 
 
 class RequirementEvidence(BaseModel):
@@ -268,6 +293,7 @@ __all__ = [
     "JobRequirement",
     "MatchEvidence",
     "RequirementEvidence",
+    "RequirementImportance",
     "RequirementMatch",
     "RequirementRelevanceResult",
     "RequirementType",

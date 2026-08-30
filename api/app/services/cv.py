@@ -10,7 +10,6 @@ from app.schema.models import Customizations
 from app.schemas.cv import CVCreate, CVUpdate
 from app.services.relevance import (
     REQUIREMENT_ALGORITHM_VERSION,
-    KeywordExtractionError,
     evaluate_requirement_relevance,
     extract_requirements,
 )
@@ -141,10 +140,7 @@ class CVService:
         )
         applications = result.scalars().all()
         for application in applications:
-            try:
-                requirements = extract_requirements(application.role, application.job_description)
-            except KeywordExtractionError:
-                continue
+            requirements = extract_requirements(application.role, application.job_description)
             relevance = evaluate_requirement_relevance(requirements, cv.sections or [])
             application.relevance = relevance.model_dump(mode="json")
             application.extracted_keywords = []

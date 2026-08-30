@@ -270,4 +270,3 @@ async def test_cv_data_isolation(client):
     # User B cannot copy it
     copy_b = await client.post(f"/api/v1/cvs/{cv_a_id}/copy", headers=headers_b)
     assert copy_b.status_code == 404
-

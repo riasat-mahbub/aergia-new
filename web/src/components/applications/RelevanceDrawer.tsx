@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { X } from "lucide-react";
-import type { RequirementRelevanceResult, RelevanceAnalysis, RelevanceResult } from "../../lib/api/applications";
+import type { JobRequirement, RequirementRelevanceResult, RelevanceAnalysis, RelevanceResult } from "../../lib/api/applications";
 
 interface RelevanceDrawerProps {
   open: boolean;
@@ -12,6 +12,11 @@ interface RelevanceDrawerProps {
 
 function isRequirementAnalysis(value: RelevanceAnalysis): value is RequirementRelevanceResult {
   return "requirements" in value && Array.isArray(value.requirements);
+}
+
+function importanceLabel(requirement: JobRequirement): string {
+  const importance = requirement.importance ?? (requirement.required ? "required" : "preferred");
+  return importance === "unknown" ? "Importance unknown" : importance === "required" ? "Required" : "Preferred";
 }
 
 function LegacyRelevance({ relevance }: { relevance: RelevanceResult }) {
@@ -73,7 +78,7 @@ function RequirementRelevance({ relevance }: { relevance: RequirementRelevanceRe
               {match.covered ? `${Math.round(match.score * 100)}% covered` : match.score > 0 ? `${Math.round(match.score * 100)}% partial` : "Missing"}
             </span>
           </div>
-          <p className="mt-1 text-xs text-app-ink-3">{match.requirement.required ? "Required" : "Preferred"} · {match.requirement.type.replace("_", " ")}</p>
+          <p className="mt-1 text-xs text-app-ink-3">{importanceLabel(match.requirement)} · {match.requirement.type.replace("_", " ")}</p>
           {match.best_evidence ? (
             <div className="mt-3 rounded bg-app-canvas px-2.5 py-2 text-xs text-app-ink-2">
               <p>{match.best_evidence.section_type} · {match.best_evidence.field_path} · {match.best_evidence.method}</p>
@@ -116,7 +121,7 @@ export default function RelevanceDrawer({ open, relevance, onClose, refreshing =
           <div>
             <p className="text-xs font-medium uppercase tracking-[0.14em] text-app-primary">Application analysis</p>
             <h2 id="relevance-drawer-title" className="mt-1 text-xl font-semibold text-app-ink">Relevance details</h2>
-            <p className="mt-1 text-sm text-app-ink-2">Deterministic requirement coverage and the strongest CV evidence for each requirement.</p>
+            <p className="mt-1 text-sm text-app-ink-2">Requirement coverage and the strongest CV evidence for each requirement.</p>
             {refreshing && <p className="mt-2 text-xs text-app-primary" role="status">Updating relevance…</p>}
             {refreshError && <p className="mt-2 text-xs text-app-danger" role="alert">Could not update relevance. Your saved CV is unchanged.</p>}
           </div>

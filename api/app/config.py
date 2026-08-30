@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     uploads_path: str = "./uploads"
     environment: str = "development"
     parser_backend: str = "pdfplumber"
+    # GLiNER2.5-small is intentionally fixed as the production model. The
+    # revision is configurable only so a pinned artifact can be promoted in a
+    # controlled deployment; the extractor rejects other model families.
+    gliner2_model_revision: str = "cab1bddfd30fda7b803a4691c41f90378a2d517a"
+    gliner2_chunk_size: int = 384
+    gliner2_chunk_overlap: int = 64
     allow_bearer_tokens: bool = False
     expose_tokens_in_response: bool = False
     csrf_protection_enabled: bool = True
@@ -86,7 +92,6 @@ class Settings(BaseSettings):
             and self.turnstile_expected_hostname
             and self.turnstile_expected_action
         )
-
 
 _settings: Settings | None = None
 

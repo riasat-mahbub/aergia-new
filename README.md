@@ -93,6 +93,10 @@ run your own production instance, see [`DEPLOY.md`](DEPLOY.md).
 The production container:
 
 - runs database migrations automatically before starting the app;
+- includes the pinned GLiNER2.5-small model and lazy-loads one process-local
+  copy for requirement extraction;
+- serializes model inference; 2+ vCPUs and 8GB RAM are the preferred target
+  (`DEPLOY.md` documents the constrained lower bound);
 - stores the SQLite database and uploaded images in Docker volumes; and
 - binds its local port to `127.0.0.1:8000` so a host-based Cloudflare Tunnel
   can be used without exposing the app directly to the Internet.

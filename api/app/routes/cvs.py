@@ -9,6 +9,7 @@ from app.schemas.library import AddEntryToLibraryRequest, AddEntryToLibraryRespo
 from app.services.cv import CVLinkedToApplicationError, CVService
 from app.services.cv import coerce_customizations
 from app.services.pdf import PDFService
+from app.services.relevance import REQUIREMENT_EXTRACTION_ERROR, RequirementExtractionError
 from app.services.quotas import QuotaExceededError
 from app.services.renderer import HTMLDocumentRenderer, build_document, resolve
 from app.routes.render import strip_anchor_hrefs
@@ -90,7 +91,13 @@ async def update_cv(
     db: AsyncSession = Depends(get_db),
 ):
     service = CVService(db)
-    cv = await service.update_cv(cv_id, current_user.id, data)
+    try:
+        cv = await service.update_cv(cv_id, current_user.id, data)
+    except RequirementExtractionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=REQUIREMENT_EXTRACTION_ERROR,
+        ) from exc
     if not cv:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
     return CVResponse.model_validate(cv)
