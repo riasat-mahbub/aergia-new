@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.core.deps import get_current_user
 from app.core.rate_limit import limiter
 from app.db.session import get_db
@@ -13,6 +14,7 @@ from app.schemas.tailoring import (
     TailoringExchangeResponse,
     TailoringPatch,
     TailoringSessionCreateResponse,
+    TailoringSessionStatusResponse,
     TailoringSubmitResponse,
 )
 from app.services.tailoring import (
@@ -21,6 +23,7 @@ from app.services.tailoring import (
     TailoringExpiredError,
     TailoringNotFoundError,
     TailoringPatchError,
+    TailoringSessionNotFoundError,
     TailoringStaleError,
     TailoringService,
     TailoringUnauthorizedError,
@@ -31,6 +34,8 @@ router = APIRouter()
 
 
 def _raise_service_error(exc: Exception) -> None:
+    if isinstance(exc, TailoringSessionNotFoundError):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tailoring session not found") from exc
     if isinstance(exc, TailoringNotFoundError):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found") from exc
     if isinstance(exc, TailoringUnavailableError):
@@ -68,8 +73,51 @@ async def create_tailoring_session(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        result, _session = await TailoringService(db).create_session(application_id, current_user.id)
+        result, _session = await TailoringService(db).create_session(
+            application_id,
+            current_user.id,
+            # Use the configured browser origin rather than an untrusted Host
+            # header when constructing a link that will be pasted into an
+            # external coding agent.
+            session_url_base=get_settings().frontend_url.rstrip("/"),
+        )
         return result
+    except Exception as exc:  # noqa: BLE001
+        _raise_service_error(exc)
+
+
+@router.get(
+    "/tailoring/sessions/{session_id}",
+    response_model=TailoringSessionStatusResponse,
+)
+@limiter.limit("30/minute")
+async def get_tailoring_session_status(
+    request: Request,
+    response: Response,
+    session_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await TailoringService(db).session_status(session_id, current_user.id)
+    except Exception as exc:  # noqa: BLE001
+        _raise_service_error(exc)
+
+
+@router.post(
+    "/tailoring/sessions/{session_id}/cancel",
+    response_model=TailoringSessionStatusResponse,
+)
+@limiter.limit("10/minute")
+async def cancel_tailoring_session(
+    request: Request,
+    response: Response,
+    session_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await TailoringService(db).cancel_session(session_id, current_user.id)
     except Exception as exc:  # noqa: BLE001
         _raise_service_error(exc)
 

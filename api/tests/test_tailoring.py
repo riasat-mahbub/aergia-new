@@ -91,6 +91,9 @@ async def test_tailoring_protocol_create_exchange_evidence_submit_apply_score(cl
     assert session["application_id"] == application_id
     assert session["cv_id"] == cv_id
     assert len(session["code"]) >= 32
+    assert session["session_url"].endswith(f"/agent/tailor/{session['session_id']}")
+    assert "Use the Aergia tailoring skill" in session["prompt"]
+    assert session["code"] in session["prompt"]
 
     exchanged = await client.post(
         "/api/v1/tailoring/exchange",
@@ -111,6 +114,7 @@ async def test_tailoring_protocol_create_exchange_evidence_submit_apply_score(cl
     assert evidence_body["job"]["description"] == "Build reliable Python API services"
     assert "user_id" not in evidence_body
     assert "extra_metadata" not in evidence_body["cv"]
+    assert evidence_body["protected_facts"]["profile"]
     assert evidence_body["requirements"]
 
     submitted = await client.post(
@@ -125,7 +129,7 @@ async def test_tailoring_protocol_create_exchange_evidence_submit_apply_score(cl
                     "operation": "replace_description",
                     "section_id": "section-experience",
                     "entry_id": "entry-1",
-                    "value": "Built dependable Python API services.",
+                    "value": "Built dependable API services.",
                     "reason": "Fixed protocol test patch",
                 },
                 {
@@ -150,11 +154,19 @@ async def test_tailoring_protocol_create_exchange_evidence_submit_apply_score(cl
 
     updated_cv = await client.get(f"/api/v1/cvs/{cv_id}", headers=headers)
     assert updated_cv.status_code == 200
-    assert updated_cv.json()["sections"][0]["data"][0]["description"] == "Built dependable Python API services."
+    assert updated_cv.json()["sections"][0]["data"][0]["description"] == "Built dependable API services."
 
     updated_application = await client.get(f"/api/v1/applications/{application_id}", headers=headers)
     assert updated_application.status_code == 200
     assert updated_application.json()["relevance"] == submitted_body["relevance"]
+
+    session_status = await client.get(
+        f"/api/v1/tailoring/sessions/{session['session_id']}",
+        headers=headers,
+    )
+    assert session_status.status_code == 200
+    assert session_status.json()["status"] == "applied"
+    assert session_status.json()["result"]["relevance"] == submitted_body["relevance"]
 
 
 async def test_tailoring_rejects_invalid_target_atomically_and_allows_no_token(client):

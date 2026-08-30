@@ -1,16 +1,26 @@
-# Aergia tailoring protocol prototype
+# Aergia tailoring skill assets
 
-This package is the Phase 1 fixed-patch client. It does not invoke an LLM or
-start a coding agent. It exchanges a one-time session code, downloads the
-sanitized evidence packet, creates a deterministic test patch, and submits it
-to the scoped tailoring endpoint.
+This directory is not an Aergia CLI and is not an agent runtime. It contains
+the skill instructions and local validation tools used by an already-installed
+coding agent such as Codex, Claude Code, or OpenCode.
 
-From the repository root, run:
+The user starts from Aergia Web. Aergia creates a short-lived session and
+shows a copyable prompt. The user pastes that prompt into their coding agent;
+the installed `aergia-tailor` skill exchanges the one-time code, downloads
+only the session evidence, creates a local patch, validates it, and submits it
+to the server.
 
-```bash
-node agent/src/cli.mjs <session-code> --server http://localhost:8000
-```
+The skill must never ask the user to install or use a normal Aergia access
+token. If the skill is missing or incompatible, it must ask for approval before
+installing or updating from the official Aergia source.
 
-Use `--no-submit` to exercise only the exchange and evidence steps. The
-published `npx @aergia/tailor` workflow and local-agent workspace are later
-phases.
+## Layout
+
+- `skills/aergia-tailor/SKILL.md` — provider-neutral workflow instructions.
+- `tools/jd-check.mjs` — local JD requirement guardrail.
+- `tools/verify-cv-facts.mjs` — local prose fact guardrail.
+- `tools/validate-patch.mjs` — dependency-free local protocol guardrail.
+- `THIRD_PARTY_NOTICES.md` — attribution for adapted safety tooling.
+
+The evidence packet is authoritative input. The local agent may write only the
+patch output; it must not edit the source evidence files.

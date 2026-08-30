@@ -144,6 +144,7 @@ def _allowed_changes(changes: Iterable[object]) -> tuple[dict[tuple[str, str], s
         key = (section_id, entry_id or "__profile__")
         if operation in {
             "replace_description",
+            "replace_rich_text",
             "rewrite_rich_text",
             "remove_bullet",
             "reorder_bullets",
@@ -153,6 +154,95 @@ def _allowed_changes(changes: Iterable[object]) -> tuple[dict[tuple[str, str], s
         elif operation == "remove_entry" and isinstance(entry_id, str):
             removable.add(key)
     return allowed_fields, removable
+
+
+def _rich_text_changes(changes: Iterable[object]) -> dict[tuple[str, str, str], list[object]]:
+    result: dict[tuple[str, str, str], list[object]] = {}
+    for change in changes:
+        operation = getattr(change, "operation", None)
+        if operation not in {"rewrite_rich_text", "remove_bullet", "reorder_bullets"}:
+            continue
+        section_id = getattr(change, "section_id", None)
+        field = getattr(change, "field", None)
+        if not isinstance(section_id, str) or not isinstance(field, str):
+            continue
+        key = (section_id, getattr(change, "entry_id", None) or "__profile__", field)
+        result.setdefault(key, []).append(change)
+    return result
+
+
+def _rich_text_blocks(value: Any) -> dict[str, Mapping[str, Any]] | None:
+    if not isinstance(value, list):
+        return None
+    blocks: dict[str, Mapping[str, Any]] = {}
+    for block in value:
+        if not isinstance(block, Mapping) or not isinstance(block.get("id"), str):
+            raise TailoringPolicyError("Rich-text blocks must have stable IDs")
+        if block["id"] in blocks:
+            raise TailoringPolicyError("Rich-text block IDs must be unique")
+        blocks[block["id"]] = block
+    return blocks
+
+
+def _rich_text_items(block: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
+    items = block.get("items")
+    if not isinstance(items, list):
+        raise TailoringPolicyError("Rich-text block items are invalid")
+    result: dict[str, Mapping[str, Any]] = {}
+    for item in items:
+        if not isinstance(item, Mapping) or not isinstance(item.get("id"), str):
+            raise TailoringPolicyError("Rich-text items must have stable IDs")
+        if item["id"] in result:
+            raise TailoringPolicyError("Rich-text item IDs must be unique")
+        result[item["id"]] = item
+    return result
+
+
+def _validate_rich_text_delta(
+    before: Any,
+    after: Any,
+    changes: Iterable[object],
+) -> None:
+    """Allow text changes while keeping rich-text structure and styles fixed."""
+
+    before_blocks = _rich_text_blocks(before)
+    after_blocks = _rich_text_blocks(after)
+    if before_blocks is None and after_blocks is None:
+        return
+    if before_blocks is None or after_blocks is None:
+        raise TailoringPolicyError("Tailoring patches cannot change a rich-text field's representation")
+
+    changes = list(changes)
+    rewrite_allowed = any(getattr(change, "operation", None) == "rewrite_rich_text" for change in changes)
+    removed_items = {
+        getattr(change, "item_id", None)
+        for change in changes
+        if getattr(change, "operation", None) == "remove_bullet"
+    }
+    for block_id, before_block in before_blocks.items():
+        after_block = after_blocks.get(block_id)
+        if after_block is None:
+            before_item_ids = set(_rich_text_items(before_block))
+            if not rewrite_allowed and (not before_item_ids or not before_item_ids.issubset(removed_items)):
+                raise TailoringPolicyError("Rich-text blocks may only disappear when all bullets are explicitly removed")
+            continue
+        if before_block.get("type", "paragraph") != after_block.get("type", "paragraph"):
+            raise TailoringPolicyError("Tailoring patches cannot change rich-text block types")
+        before_items = _rich_text_items(before_block)
+        after_items = _rich_text_items(after_block)
+        removed = set(before_items) - set(after_items)
+        if not rewrite_allowed and not removed.issubset(removed_items):
+            raise TailoringPolicyError("Rich-text items may only be removed with remove_bullet")
+        if set(after_items) - set(before_items):
+            raise TailoringPolicyError("Tailoring patches cannot add rich-text items")
+        for item_id in set(before_items) & set(after_items):
+            before_item = before_items[item_id]
+            after_item = after_items[item_id]
+            if before_item.get("style") != after_item.get("style"):
+                raise TailoringPolicyError("Tailoring patches cannot change rich-text styles or links")
+
+    if set(after_blocks) - set(before_blocks):
+        raise TailoringPolicyError("Tailoring patches cannot add rich-text blocks")
 
 
 def validate_document_delta(
@@ -178,6 +268,7 @@ def validate_document_delta(
         raise TailoringPolicyError("Tailoring patches cannot change section IDs")
 
     allowed_fields, removable = _allowed_changes(changes)
+    rich_text_changes = _rich_text_changes(changes)
     for section_id, before_section in before_by_id.items():
         after_section = after_by_id[section_id]
         if _section_shell(before_section) != _section_shell(after_section):
@@ -191,6 +282,12 @@ def validate_document_delta(
             permitted = allowed_fields.get((section_id, entry_id), set())
             for key in set(before_entry) | set(after_entry):
                 if key in permitted:
+                    if key in {"description", "summary"}:
+                        _validate_rich_text_delta(
+                            before_entry.get(key),
+                            after_entry.get(key),
+                            rich_text_changes.get((section_id, entry_id, key), []),
+                        )
                     continue
                 if before_entry.get(key) != after_entry.get(key):
                     raise TailoringPolicyError(f"Protected CV field {key!r} was changed")

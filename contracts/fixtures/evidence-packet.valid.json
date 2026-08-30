@@ -7,6 +7,7 @@
   "base_revision": 1,
   "base_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "requirements_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "profile_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
   "supported_operations": [
     "replace_description",
     "rewrite_rich_text",
@@ -51,6 +52,10 @@
     ]
   },
   "profile": {"name": "Example User"},
+  "protected_facts": {
+    "profile": {"name": "Example User"},
+    "entries": []
+  },
   "library": [],
   "requirements": []
 }

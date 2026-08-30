@@ -16,6 +16,7 @@
       "items": {
         "oneOf": [
           {"$ref": "#/$defs/replaceDescription"},
+          {"$ref": "#/$defs/replaceRichText"},
           {"$ref": "#/$defs/rewriteRichText"},
           {"$ref": "#/$defs/removeBullet"},
           {"$ref": "#/$defs/reorderBullets"},
@@ -120,6 +121,20 @@
         "field": {"$ref": "#/$defs/field"},
         "value": {"type": "array", "minItems": 1, "maxItems": 100, "items": {"$ref": "#/$defs/richTextBlock"}},
         "evidence": {"type": "array", "minItems": 1, "maxItems": 20, "items": {"$ref": "#/$defs/evidenceRef"}},
+        "reason": {"$ref": "#/$defs/reason"}
+      }
+    },
+    "replaceRichText": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "section_id", "field", "value"],
+      "properties": {
+        "operation": {"const": "replace_rich_text"},
+        "section_id": {"$ref": "#/$defs/id"},
+        "entry_id": {"anyOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]},
+        "field": {"$ref": "#/$defs/field"},
+        "value": {"type": "string", "minLength": 1, "maxLength": 20000},
+        "evidence": {"type": "array", "maxItems": 20, "items": {"$ref": "#/$defs/evidenceRef"}},
         "reason": {"$ref": "#/$defs/reason"}
       }
     },

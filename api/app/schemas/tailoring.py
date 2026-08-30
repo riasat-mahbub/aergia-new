@@ -37,6 +37,9 @@ class TailoringSessionCreateResponse(_StrictModel):
     application_id: str
     cv_id: str
     code: str
+    session_url: str = Field(min_length=1, max_length=2048)
+    prompt: str = Field(min_length=1, max_length=5000)
+    status: Literal["created"] = "created"
     expires_at: datetime
 
 
@@ -45,6 +48,39 @@ class TailoringExchangeResponse(_StrictModel):
     session_id: str
     expires_at: datetime
     capability: str
+
+
+class TailoringReportedGap(_StrictModel):
+    requirement: str
+    reason: str
+
+
+TailoringSessionState = Literal[
+    "created",
+    "exchanged",
+    "submitted",
+    "applied",
+    "failed",
+    "expired",
+    "cancelled",
+    "stale",
+]
+
+
+class TailoringSessionStatusResponse(_StrictModel):
+    protocol_version: Literal[PROTOCOL_VERSION] = PROTOCOL_VERSION
+    session_id: str
+    application_id: str
+    cv_id: str
+    status: TailoringSessionState
+    expires_at: datetime
+    created_at: datetime
+    exchanged_at: datetime | None = None
+    submitted_at: datetime | None = None
+    updated_at: datetime
+    attempts: int = Field(ge=0)
+    reported_gaps: list[TailoringReportedGap] = Field(default_factory=list, max_length=50)
+    result: dict | None = None
 
 
 class TailoringJob(_StrictModel):
@@ -76,10 +112,12 @@ class TailoringEvidencePacket(_StrictModel):
     base_revision: int = Field(ge=1)
     base_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
     requirements_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+    profile_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
     supported_operations: list[str] = Field(min_length=1, max_length=32)
     job: TailoringJob
     cv: TailoringCV
     profile: dict
+    protected_facts: dict
     library: list[TailoringLibraryEntry] = Field(max_length=100)
     requirements: list[dict] = Field(max_length=100)
 
@@ -165,6 +203,26 @@ class ReplaceDescriptionChange(_StrictModel):
     reason: str | None = Field(default=None, max_length=2_000)
 
     @field_validator("section_id", "entry_id", "value")
+    @classmethod
+    def trim_required_values(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("value must not be blank")
+        return value
+
+
+class ReplaceRichTextChange(_StrictModel):
+    """Phase 1 prose replacement used by the installed tailoring skill."""
+
+    operation: Literal["replace_rich_text"]
+    section_id: str = Field(min_length=1, max_length=128)
+    entry_id: str | None = Field(default=None, min_length=1, max_length=128)
+    field: Literal["description", "summary"]
+    value: str = Field(min_length=1, max_length=20_000)
+    evidence: list[TailoringEvidenceRef] = Field(default_factory=list, max_length=20)
+    reason: str | None = Field(default=None, max_length=2_000)
+
+    @field_validator("section_id", "field", "value")
     @classmethod
     def trim_required_values(cls, value: str) -> str:
         value = value.strip()
@@ -262,6 +320,7 @@ class ReportGapChange(_StrictModel):
 
 TailoringChange = Annotated[
     ReplaceDescriptionChange
+    | ReplaceRichTextChange
     | RewriteRichTextChange
     | RemoveBulletChange
     | ReorderBulletsChange
@@ -278,11 +337,6 @@ class TailoringPatch(_StrictModel):
     base_revision: int = Field(ge=1)
     base_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
     changes: list[TailoringChange] = Field(min_length=1, max_length=50)
-
-
-class TailoringReportedGap(_StrictModel):
-    requirement: str
-    reason: str
 
 
 class TailoringProvenance(_StrictModel):
@@ -316,6 +370,7 @@ __all__ = [
     "ReorderEntriesChange",
     "ReportGapChange",
     "ReplaceDescriptionChange",
+    "ReplaceRichTextChange",
     "RewriteRichTextChange",
     "TailoringChange",
     "TailoringCodeExchange",
@@ -331,6 +386,8 @@ __all__ = [
     "TailoringRichTextBlock",
     "TailoringRichTextItem",
     "TailoringSessionCreateResponse",
+    "TailoringSessionState",
+    "TailoringSessionStatusResponse",
     "TailoringSubmitResponse",
     "TailoringTextStyle",
 ]
