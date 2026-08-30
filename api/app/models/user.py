@@ -39,3 +39,4 @@ class User(Base):
     cvs = relationship("CV", back_populates="user", cascade=CASCADE_ALL)
     libraries = relationship("Library", back_populates="user", cascade=CASCADE_ALL)
     auth_sessions = relationship("AuthSession", back_populates="user", cascade=CASCADE_ALL)
+    tailoring_sessions = relationship("TailoringSession", back_populates="user", cascade=CASCADE_ALL)

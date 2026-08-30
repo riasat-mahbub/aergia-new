@@ -23,8 +23,13 @@ vi.mock("../../lib/api/cvs", () => ({
   downloadPDF: vi.fn(),
 }));
 
+vi.mock("../../lib/api/tailoring", () => ({
+  createTailoringSession: vi.fn(),
+}));
+
 import * as applicationApi from "../../lib/api/applications";
 import * as cvsApi from "../../lib/api/cvs";
+import * as tailoringApi from "../../lib/api/tailoring";
 
 const application: Application = {
   id: "app-1",
@@ -120,5 +125,25 @@ describe("ApplicationDetailPage", () => {
     await waitFor(() => expect(applicationApi.updateApplication).toHaveBeenCalledWith("app-1", { status: "interview" }));
     await user.click(screen.getByRole("button", { name: /export pdf/i }));
     await waitFor(() => expect(cvsApi.exportPDF).toHaveBeenCalledWith("cv-1"));
+  });
+
+  it("creates a scoped local tailoring session for the linked CV", async () => {
+    const user = userEvent.setup();
+    vi.mocked(tailoringApi.createTailoringSession).mockResolvedValue({
+      protocol_version: 1,
+      session_id: "session-1",
+      application_id: "app-1",
+      cv_id: "cv-1",
+      code: "test-session-code",
+      expires_at: "2026-08-30T20:00:00Z",
+    });
+    renderPage();
+
+    await screen.findByText("Example Labs");
+    await user.click(screen.getByRole("button", { name: /start local tailoring/i }));
+
+    await waitFor(() => expect(tailoringApi.createTailoringSession).toHaveBeenCalledWith("app-1"));
+    expect(screen.getByRole("status")).toHaveTextContent("test-session-code");
+    expect(screen.getByRole("status")).toHaveTextContent("node agent/src/cli.mjs");
   });
 });

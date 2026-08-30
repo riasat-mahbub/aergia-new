@@ -27,6 +27,7 @@ from app.routes.assets import router as assets_router
 from app.routes.templates import router as templates_router
 from app.routes.render import router as render_router
 from app.routes.imports import router as imports_router
+from app.routes.tailoring import router as tailoring_router
 from app.services.renderer._pdf_runtime import close_browser as _close_browser
 
 settings = get_settings()
@@ -39,10 +40,18 @@ REQUEST_BODY_LIMITS = {
     "/api/v1/render/pdf": 2 * 1024 * 1024,
     "/api/v1/cvs/import/pdf": 16 * 1024 * 1024,
     "/api/v1/assets": 6 * 1024 * 1024,
+    "/api/v1/tailoring/submit": 512 * 1024,
 }
 
 _SENSITIVE_VALIDATION_FIELDS = frozenset({
-    "password", "old_password", "new_password", "refresh_token", "access_token", "api_key",
+    "password",
+    "old_password",
+    "new_password",
+    "refresh_token",
+    "access_token",
+    "api_key",
+    "code",
+    "capability",
 })
 
 
@@ -178,6 +187,7 @@ app.include_router(assets_router, prefix="/api/v1/assets")
 app.include_router(templates_router, prefix="/api/v1/templates")
 app.include_router(render_router, prefix="/api/v1")
 app.include_router(imports_router, prefix="/api/v1")
+app.include_router(tailoring_router, prefix="/api/v1")
 
 
 @app.exception_handler(RequestValidationError)
