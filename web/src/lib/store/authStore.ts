@@ -1,9 +1,11 @@
 import { create } from "zustand";
 import client, { refreshSession } from "../api/client";
+import type { AccountTier, SessionResponse } from "../api/auth";
 import { forgetAllKeys } from "../llm/keys";
 
 interface AuthState {
   isAuthenticated: boolean;
+  accountTier: AccountTier | null;
   isLoading: boolean;
 
   login: (email: string, password: string) => Promise<void>;
@@ -20,8 +22,22 @@ function clearLegacyTokenStorage() {
   localStorage.removeItem("refresh_token");
 }
 
+function normalizeAccountTier(value: unknown): AccountTier | null {
+  return value === "free" || value === "premium" ? value : null;
+}
+
+async function readAccountTier(): Promise<AccountTier | null> {
+  try {
+    const session = await client.get<SessionResponse>("/auth/session");
+    return normalizeAccountTier(session?.data?.account_tier);
+  } catch {
+    return null;
+  }
+}
+
 export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
+  accountTier: null,
   isLoading: false,
 
   hydrate: () => {
@@ -34,14 +50,21 @@ export const useAuthStore = create<AuthState>((set) => ({
       try {
         const { data } = await client.get("/auth/session");
         if (data?.authenticated === true) {
-          if (operation === authOperation) set({ isAuthenticated: true, isLoading: false });
+          if (operation === authOperation) {
+            set({
+              isAuthenticated: true,
+              accountTier: normalizeAccountTier(data.account_tier),
+              isLoading: false,
+            });
+          }
           return;
         }
 
         await refreshSession();
-        if (operation === authOperation) set({ isAuthenticated: true, isLoading: false });
+        const accountTier = await readAccountTier();
+        if (operation === authOperation) set({ isAuthenticated: true, accountTier, isLoading: false });
       } catch {
-        if (operation === authOperation) set({ isAuthenticated: false, isLoading: false });
+        if (operation === authOperation) set({ isAuthenticated: false, accountTier: null, isLoading: false });
       }
     })().finally(() => {
       hydrationPromise = null;
@@ -54,9 +77,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true });
     try {
       await client.post("/auth/login", { email, password });
-      set({ isAuthenticated: true, isLoading: false });
+      const accountTier = await readAccountTier();
+      set({ isAuthenticated: true, accountTier, isLoading: false });
     } catch (error) {
-      set({ isAuthenticated: false, isLoading: false });
+      set({ isAuthenticated: false, accountTier: null, isLoading: false });
       throw error;
     }
   },
@@ -83,6 +107,6 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
     clearLegacyTokenStorage();
     forgetAllKeys();
-    set({ isAuthenticated: false, isLoading: false });
+    set({ isAuthenticated: false, accountTier: null, isLoading: false });
   },
 }));

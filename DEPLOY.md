@@ -51,6 +51,11 @@ curl http://localhost:8000/healthz
 | `FORWARDED_ALLOW_IPS` | No | empty | Exact Uvicorn proxy peers for forwarded scheme/host handling |
 
 Database configuration is automatic — SQLite stores data in `/app/data/aergia.db` (Docker volume).
+Accounts default to the `free` tier, which permits three active applications and
+three active CVs. The `premium` tier currently removes those two creation caps
+while continuing to maintain the counters. Tier changes are operator-controlled
+for now; billing, upgrade UI, and membership workflows are not part of this
+deployment.
 The limiter uses process-local memory storage and the supplied deployment runs one
 Uvicorn process. Adding workers or API replicas requires choosing shared limiter
 storage before relying on the configured limits across the fleet.

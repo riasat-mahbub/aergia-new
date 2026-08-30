@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from sqlalchemy import text, update
+from sqlalchemy import or_, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.abuse import log_abuse_event
-from app.models.user import User
+from app.models.user import AccountTier, User
 
 MAX_APPLICATIONS_PER_ACCOUNT = 3
 MAX_CVS_PER_ACCOUNT = 3
@@ -51,14 +51,23 @@ class QuotaService:
                 update(User)
                 .where(
                     User.id == user_id,
-                    User.application_count < MAX_APPLICATIONS_PER_ACCOUNT,
+                    or_(
+                        User.account_tier == AccountTier.PREMIUM.value,
+                        User.application_count < MAX_APPLICATIONS_PER_ACCOUNT,
+                    ),
                 )
                 .values(application_count=User.application_count + 1)
             )
         else:
             statement = (
                 update(User)
-                .where(User.id == user_id, User.cv_count < MAX_CVS_PER_ACCOUNT)
+                .where(
+                    User.id == user_id,
+                    or_(
+                        User.account_tier == AccountTier.PREMIUM.value,
+                        User.cv_count < MAX_CVS_PER_ACCOUNT,
+                    ),
+                )
                 .values(cv_count=User.cv_count + 1)
             )
 

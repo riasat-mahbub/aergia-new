@@ -13,11 +13,14 @@ from fastapi import Request as FastAPIRequest
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+from sqlalchemy import select, update
 from starlette.requests import Request
 
 from app.app import rate_limit_exceeded_handler
 from app.config import Settings
 from app.core import rate_limit
+from app.db.session import async_session
+from app.models.user import AccountTier, User
 from app.routes.auth import register
 from app.services import turnstile
 
@@ -215,6 +218,59 @@ async def _auth_headers(client) -> dict[str, str]:
     )
     assert logged_in.status_code == 200
     return {"Authorization": f"Bearer {logged_in.json()['access_token']}"}
+
+
+async def _premium_auth_headers(client) -> tuple[dict[str, str], str]:
+    email = f"premium-quota-{uuid4().hex}@example.com"
+    password = "testpass123"
+    registered = await client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "password": password},
+    )
+    assert registered.status_code == 201
+
+    async with async_session() as session:
+        result = await session.execute(
+            update(User).where(User.email == email).values(account_tier=AccountTier.PREMIUM.value)
+        )
+        await session.commit()
+    assert result.rowcount == 1
+
+    logged_in = await client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": password},
+    )
+    assert logged_in.status_code == 200
+    return {"Authorization": f"Bearer {logged_in.json()['access_token']}"}, email
+
+
+async def test_premium_account_can_exceed_free_quotas_and_keeps_counters(client):
+    headers, email = await _premium_auth_headers(client)
+
+    for index in range(4):
+        application = await client.post(
+            "/api/v1/applications",
+            headers=headers,
+            json={"company": f"Premium Company {index}", "role": "Engineer", "job_description": "Python"},
+        )
+        assert application.status_code == 201
+
+    for index in range(4):
+        cv = await client.post(
+            "/api/v1/cvs",
+            headers=headers,
+            json={"title": f"Premium CV {index}"},
+        )
+        assert cv.status_code == 201
+
+    session = await client.get("/api/v1/auth/session", headers=headers)
+    assert session.status_code == 200
+    assert session.json() == {"authenticated": True, "account_tier": "premium"}
+
+    async with async_session() as db_session:
+        user = (await db_session.execute(select(User).where(User.email == email))).scalar_one()
+        assert user.application_count == 4
+        assert user.cv_count == 4
 
 
 async def test_application_quota_is_separate_and_released_on_delete(client):
