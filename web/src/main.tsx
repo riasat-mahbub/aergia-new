@@ -15,6 +15,7 @@ import ApplicationDetailPage from "./pages/ApplicationDetailPage";
 import BuilderPage from "./pages/BuilderPage";
 import SettingsPage from "./pages/SettingsPage";
 import NotFoundPage from "./pages/NotFoundPage";
+import AgentTailoringPage from "./pages/AgentTailoringPage";
 import "./index.css";
 import "react-day-picker/style.css";
 const router = createBrowserRouter(
@@ -23,6 +24,7 @@ const router = createBrowserRouter(
       <Route index element={<HomePage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/agent/tailor/:sessionId" element={<AgentTailoringPage />} />
       <Route
         path="/dashboard"
         element={<ProtectedRoute><AppLayout><Outlet /></AppLayout></ProtectedRoute>}

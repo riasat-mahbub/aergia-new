@@ -7,8 +7,14 @@ from types import SimpleNamespace
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.tailoring import TailoringCodeExchange, TailoringEvidencePacket, TailoringPatch
-from app.services.tailoring import TailoringPatchError, TailoringService, _stored_requirements
+from app.schemas.tailoring import (
+    TailoringCodeExchange,
+    TailoringEvidencePacket,
+    TailoringPatch,
+    TailoringSessionStatusResponse,
+)
+from app.services.tailoring_facts import TailoringFactError, validate_tailoring_facts
+from app.services.tailoring import TailoringPatchError, TailoringService, _stored_requirements, build_tailoring_prompt
 from app.services.tailoring_policy import TailoringPolicyError, validate_document_delta
 
 
@@ -27,6 +33,7 @@ def test_valid_evidence_fixture_matches_protocol():
     evidence = TailoringEvidencePacket.model_validate(payload)
     assert evidence.protocol_version == 1
     assert evidence.cv.id == "cv-1"
+    assert evidence.protected_facts["profile"]["name"] == "Example User"
 
 
 def test_invalid_tailoring_operation_fixture_is_rejected():
@@ -73,6 +80,36 @@ def test_tailoring_exchange_requires_protocol_version():
     assert TailoringCodeExchange.model_validate({"protocol_version": 1, "code": "x" * 16}).protocol_version == 1
     with pytest.raises(ValidationError):
         TailoringCodeExchange.model_validate({"code": "x" * 16})
+
+
+def test_tailoring_prompt_keeps_the_code_out_of_the_session_url():
+    prompt = build_tailoring_prompt("https://aergia.example/agent/tailor/session-1", "code-1234567890123456")
+    assert "https://aergia.example/agent/tailor/session-1" in prompt
+    assert "One-time session code: code-1234567890123456" in prompt
+    assert "ask for approval" in prompt
+
+
+def test_tailoring_status_contract_does_not_accept_capabilities():
+    status = TailoringSessionStatusResponse.model_validate(
+        {
+            "protocol_version": 1,
+            "session_id": "session-1",
+            "application_id": "application-1",
+            "cv_id": "cv-1",
+            "status": "applied",
+            "expires_at": "2026-08-30T20:00:00Z",
+            "created_at": "2026-08-30T19:00:00Z",
+            "exchanged_at": "2026-08-30T19:01:00Z",
+            "submitted_at": "2026-08-30T19:02:00Z",
+            "updated_at": "2026-08-30T19:02:00Z",
+            "attempts": 1,
+            "reported_gaps": [],
+            "result": None,
+        }
+    )
+    assert status.status == "applied"
+    with pytest.raises(ValidationError):
+        TailoringSessionStatusResponse.model_validate({**status.model_dump(mode="json"), "capability": "secret"})
 
 
 def test_stored_requirements_are_read_without_extraction():
@@ -136,6 +173,21 @@ def test_phase_one_patch_is_copy_on_write_and_rejects_rich_text():
     with pytest.raises(TailoringPatchError):
         TailoringService._apply_patch(rich_text_source, patch)
 
+    rich_text_patch = _patch(
+        [
+            {
+                "operation": "replace_rich_text",
+                "section_id": "experience",
+                "entry_id": "entry-1",
+                "field": "description",
+                "value": "Updated through the skill protocol.",
+            }
+        ]
+    )
+    rich_text_updated, operations, _gaps = TailoringService._apply_patch(source, rich_text_patch)
+    assert operations == ["replace_rich_text"]
+    assert rich_text_updated[0]["data"][0]["description"] == "Updated through the skill protocol."
+
 
 def _patch(changes):
     return TailoringPatch.model_validate(
@@ -174,9 +226,9 @@ def _rich_text_source():
                             "items": [{"id": "item-3", "text": "Platform work."}],
                         },
                     ],
-                }
+                },
             ],
-        }
+        },
     ]
 
 
@@ -210,6 +262,33 @@ def test_phase_two_rich_text_and_bullet_operations_use_stable_ids():
     assert operations == ["rewrite_rich_text"]
     assert updated[0]["data"][0]["description"][0]["items"][0]["text"] == "Built dependable APIs."
     assert source[0]["data"][0]["description"][0]["items"][0]["text"] == "Built APIs."
+
+    with pytest.raises(TailoringPatchError):
+        TailoringService._apply_patch(
+            source,
+            _patch(
+                [
+                    {
+                        "operation": "rewrite_rich_text",
+                        "section_id": "experience",
+                        "entry_id": "entry-1",
+                        "field": "description",
+                        "value": [
+                            {
+                                "id": "block-1",
+                                "type": "bullet_list",
+                                "items": [
+                                    {"id": "item-1", "text": "Built APIs.", "style": {"bold": True}},
+                                    {"id": "item-2", "text": "Added monitoring."},
+                                ],
+                            },
+                            {"id": "block-2", "type": "paragraph", "items": [{"id": "item-3", "text": "Platform work."}]},
+                        ],
+                        "evidence": [evidence],
+                    }
+                ]
+            ),
+        )
 
     removed, _operations, _gaps = TailoringService._apply_patch(
         source,
@@ -412,3 +491,66 @@ def test_phase_two_policy_rejects_protected_field_mutation():
                 )
             ],
         )
+
+
+def test_server_fact_guard_rejects_new_numeric_claims_in_rewritten_prose():
+    source = _rich_text_source()
+    patch = _patch(
+        [
+            {
+                "operation": "rewrite_rich_text",
+                "section_id": "experience",
+                "entry_id": "entry-1",
+                "field": "description",
+                "value": [
+                    {
+                        "id": "block-1",
+                        "type": "bullet_list",
+                        "items": [
+                            {"id": "item-1", "text": "Improved API performance by 47%."},
+                            {"id": "item-2", "text": "Added monitoring."},
+                        ],
+                    },
+                    {"id": "block-2", "type": "paragraph", "items": [{"id": "item-3", "text": "Platform work."}]},
+                ],
+                "evidence": [
+                    {
+                        "source": "cv",
+                        "section_id": "experience",
+                        "entry_id": "entry-1",
+                        "field_path": "description",
+                    }
+                ],
+            }
+        ]
+    )
+    updated, _operations, _gaps = TailoringService._apply_patch(source, patch)
+    with pytest.raises(TailoringFactError, match="47%"):
+        validate_tailoring_facts(source, updated, patch.changes, [])
+
+
+def test_server_fact_guard_does_not_borrow_a_number_from_another_cv_entry():
+    source = [
+        {
+            "id": "experience",
+            "type": "experience",
+            "title": "Experience",
+            "data": [
+                {"id": "job-a", "description": "Improved API performance."},
+                {"id": "job-b", "description": "Reduced latency by 32%."},
+            ],
+        }
+    ]
+    patch = _patch(
+        [
+            {
+                "operation": "replace_description",
+                "section_id": "experience",
+                "entry_id": "job-a",
+                "value": "Improved API performance by 32%.",
+            }
+        ]
+    )
+    updated, _operations, _gaps = TailoringService._apply_patch(source, patch)
+    with pytest.raises(TailoringFactError, match="32%"):
+        validate_tailoring_facts(source, updated, patch.changes, [])

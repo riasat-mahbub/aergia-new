@@ -31,6 +31,7 @@ from app.schemas.tailoring import (
     ReorderEntriesChange,
     ReportGapChange,
     ReplaceDescriptionChange,
+    ReplaceRichTextChange,
     RewriteRichTextChange,
     TailoringCodeExchange,
     TailoringEvidencePacket,
@@ -42,16 +43,19 @@ from app.schemas.tailoring import (
     TailoringProvenance,
     TailoringReportedGap,
     TailoringSessionCreateResponse,
+    TailoringSessionStatusResponse,
     TailoringSubmitResponse,
 )
 from app.services.profile import ProfileService
 from app.services.relevance import REQUIREMENT_ALGORITHM_VERSION, evaluate_requirement_relevance
 from app.services.rich_text import normalize_rich_text_ids
+from app.services.tailoring_facts import TailoringFactError, validate_tailoring_facts
 from app.services.tailoring_policy import (
     LIBRARY_KIND_TO_SECTION_TYPE,
     TailoringPolicyError,
     entry_by_id,
     section_by_id,
+    protected_fields,
     validate_document_delta,
     validate_rich_text_target,
 )
@@ -60,10 +64,14 @@ TAILORING_SESSION_TTL = timedelta(minutes=15)
 TAILORING_SESSION_CREATED = "created"
 TAILORING_SESSION_EXCHANGED = "exchanged"
 TAILORING_SESSION_SUBMITTED = "submitted"
+TAILORING_SESSION_APPLIED = "applied"
+TAILORING_SESSION_CANCELLED = "cancelled"
+TAILORING_SESSION_STALE = "stale"
 TAILORING_SESSION_EXPIRED = "expired"
 
 TAILORING_SUPPORTED_OPERATIONS = (
     "replace_description",
+    "replace_rich_text",
     "rewrite_rich_text",
     "remove_bullet",
     "reorder_bullets",
@@ -74,8 +82,30 @@ TAILORING_SUPPORTED_OPERATIONS = (
 )
 
 
+def build_tailoring_prompt(session_url: str, code: str) -> str:
+    """Build the only user-facing handoff from Aergia to a coding agent.
+
+    The URL identifies the public session context. The one-time code is kept
+    as a separate line so the skill can submit it in a request body rather
+    than putting the secret in a URL query string.
+    """
+
+    return (
+        "Use the Aergia tailoring skill for this session:\n\n"
+        f"{session_url}\n\n"
+        f"One-time session code: {code}\n\n"
+        "If the aergia-tailor skill is missing or incompatible, tell me and "
+        "ask for approval before installing or updating it from the official "
+        "Aergia source. Do not install code automatically."
+    )
+
+
 class TailoringNotFoundError(LookupError):
     """The authenticated owner cannot access the requested tailoring target."""
+
+
+class TailoringSessionNotFoundError(LookupError):
+    """The authenticated owner cannot access the requested session."""
 
 
 class TailoringUnauthorizedError(PermissionError):
@@ -142,6 +172,60 @@ def cv_snapshot_hash(cv: CV) -> str:
 
 def requirements_snapshot_hash(requirements: list[JobRequirement]) -> str:
     return _content_hash([requirement.model_dump(mode="json") for requirement in requirements])
+
+
+def profile_snapshot_hash(profile: Mapping[str, Any]) -> str:
+    """Hash only the profile snapshot that is exposed to the local agent."""
+
+    return _content_hash(dict(profile))
+
+
+def protected_facts_for_cv(
+    sections: Any,
+    profile: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return a narrow, explicit fact manifest for local validation.
+
+    This is an evidence manifest, not a second editable CV representation. It
+    intentionally omits prose fields so the agent can distinguish immutable
+    identity facts from fields it may rewrite.
+    """
+
+    section_list = _sections_from_payload(sections)
+    facts: dict[str, Any] = {
+        "profile": {
+            key: copy.deepcopy(profile[key])
+            for key in protected_fields("profile")
+            if key in profile
+        },
+        "entries": [],
+    }
+    for section in section_list:
+        section_type = str(section.get("type", ""))
+        allowed = protected_fields(section_type)
+        if not allowed or "*" in allowed:
+            continue
+        data = section.get("data")
+        rows = [data] if isinstance(data, dict) else data if isinstance(data, list) else []
+        for row in rows:
+            if not isinstance(row, Mapping):
+                continue
+            row_id = row.get("id")
+            if not isinstance(row_id, str):
+                continue
+            facts["entries"].append(
+                {
+                    "section_id": section.get("id"),
+                    "entry_id": row_id,
+                    "section_type": section_type,
+                    "fields": {
+                        key: copy.deepcopy(row[key])
+                        for key in allowed
+                        if key in row
+                    },
+                }
+            )
+    return facts
 
 
 def library_entry_content_hash(entry: LibraryEntry | Mapping[str, Any]) -> str:
@@ -232,7 +316,10 @@ class TailoringService:
         return list(result.scalars().all())
 
     async def create_session(
-        self, application_id: str, user_id: str
+        self,
+        application_id: str,
+        user_id: str,
+        session_url_base: str | None = None,
     ) -> tuple[TailoringSessionCreateResponse, TailoringSession]:
         application = await self._owned_application(application_id, user_id)
         if application is None:
@@ -243,6 +330,11 @@ class TailoringService:
         cv = await self._owned_cv(application.cv_id, user_id)
         if cv is None:
             raise TailoringUnavailableError("The linked CV is not available for local tailoring")
+        user = await self.db.get(User, user_id)
+        if user is None:
+            raise TailoringNotFoundError("User not found")
+        profile = await ProfileService(self.db).get_profile(user)
+        profile_payload = profile.model_dump(mode="json", exclude_none=True, exclude={"photo_url"})
         requirements = _stored_requirements(application)
 
         # Legacy CVs may contain rich-text blocks without stable IDs. Make the
@@ -272,19 +364,109 @@ class TailoringService:
             base_cv_revision=cv.revision or 1,
             base_cv_hash=cv_snapshot_hash(cv),
             base_requirements_hash=requirements_snapshot_hash(requirements),
+            base_profile_hash=profile_snapshot_hash(profile_payload),
             library_snapshot=library_snapshot,
         )
         self.db.add(session)
         await self.db.flush()
+        session_url = f"{session_url_base.rstrip('/') if session_url_base else ''}/agent/tailor/{session.id}"
         response = TailoringSessionCreateResponse(
             protocol_version=PROTOCOL_VERSION,
             session_id=session.id,
             application_id=application.id,
             cv_id=cv.id,
             code=code,
+            session_url=session_url,
+            prompt=build_tailoring_prompt(session_url, code),
             expires_at=session.expires_at,
         )
         return response, session
+
+    async def _owned_session(self, session_id: str, user_id: str) -> TailoringSession:
+        result = await self.db.execute(
+            select(TailoringSession).where(
+                TailoringSession.id == session_id,
+                TailoringSession.user_id == user_id,
+            )
+        )
+        session = result.scalar_one_or_none()
+        if session is None:
+            raise TailoringSessionNotFoundError("Tailoring session not found")
+        return session
+
+    @staticmethod
+    def _session_is_terminal(session: TailoringSession) -> bool:
+        return session.status in {
+            TAILORING_SESSION_APPLIED,
+            TAILORING_SESSION_CANCELLED,
+            TAILORING_SESSION_STALE,
+            TAILORING_SESSION_EXPIRED,
+        }
+
+    async def session_status(
+        self, session_id: str, user_id: str
+    ) -> TailoringSessionStatusResponse:
+        session = await self._owned_session(session_id, user_id)
+        now = _utcnow()
+        if _as_utc(session.expires_at) <= now and not self._session_is_terminal(session):
+            session.status = TAILORING_SESSION_EXPIRED
+            session.updated_at = now
+            await self.db.flush()
+        elif session.status in {TAILORING_SESSION_CREATED, TAILORING_SESSION_EXCHANGED}:
+            # Status polling is also a safe place to surface a changed source
+            # snapshot. The capability endpoints still enforce the same check
+            # immediately before returning evidence or applying a patch.
+            try:
+                application, cv = await self._target_for_session(session)
+                requirements = _stored_requirements(application)
+                library_entries = await self._library_entries(session.user_id)
+                await self._assert_snapshot_is_current(session, application, cv, requirements, library_entries)
+            except (TailoringStaleError, TailoringConflictError, StoredRequirementsUnavailableError):
+                session.status = TAILORING_SESSION_STALE
+                session.updated_at = now
+                await self.db.flush()
+        return TailoringSessionStatusResponse(
+            protocol_version=PROTOCOL_VERSION,
+            session_id=session.id,
+            application_id=session.application_id,
+            cv_id=session.cv_id,
+            status=session.status,
+            expires_at=session.expires_at,
+            created_at=session.created_at,
+            exchanged_at=session.exchanged_at,
+            submitted_at=session.submitted_at,
+            updated_at=session.updated_at,
+            attempts=session.attempts,
+            reported_gaps=[TailoringReportedGap.model_validate(gap) for gap in (session.reported_gaps or [])],
+            result=copy.deepcopy(session.result),
+        )
+
+    async def cancel_session(self, session_id: str, user_id: str) -> TailoringSessionStatusResponse:
+        session = await self._owned_session(session_id, user_id)
+        now = _utcnow()
+        if _as_utc(session.expires_at) <= now and not self._session_is_terminal(session):
+            session.status = TAILORING_SESSION_EXPIRED
+            session.updated_at = now
+            await self.db.flush()
+        if session.status == TAILORING_SESSION_EXPIRED:
+            raise TailoringExpiredError("Tailoring session expired")
+        if session.status not in {TAILORING_SESSION_CREATED, TAILORING_SESSION_EXCHANGED}:
+            raise TailoringConflictError("Tailoring session cannot be cancelled")
+
+        cancel_result = await self.db.execute(
+            update(TailoringSession)
+            .where(
+                TailoringSession.id == session.id,
+                TailoringSession.user_id == user_id,
+                TailoringSession.status.in_((TAILORING_SESSION_CREATED, TAILORING_SESSION_EXCHANGED)),
+                TailoringSession.expires_at > now,
+            )
+            .values(status=TAILORING_SESSION_CANCELLED, updated_at=now)
+        )
+        if cancel_result.rowcount != 1:
+            raise TailoringConflictError("Tailoring session cannot be cancelled")
+        await self.db.refresh(session)
+        return await self.session_status(session_id, user_id)
 
     async def exchange_code(self, data: TailoringCodeExchange) -> TailoringExchangeResponse:
         code_hash = hash_token(data.code)
@@ -359,12 +541,25 @@ class TailoringService:
         requirements: list[JobRequirement],
         library_entries: list[LibraryEntry],
     ) -> None:
-        if not session.base_cv_revision or not session.base_cv_hash or not session.base_requirements_hash:
+        if (
+            not session.base_cv_revision
+            or not session.base_cv_hash
+            or not session.base_requirements_hash
+            or not session.base_profile_hash
+        ):
             raise TailoringStaleError("Tailoring session predates the current patch protocol; start a new session")
         if cv.revision != session.base_cv_revision or cv_snapshot_hash(cv) != session.base_cv_hash:
             raise TailoringStaleError("The linked CV changed; start a new tailoring session")
         if requirements_snapshot_hash(requirements) != session.base_requirements_hash:
             raise TailoringStaleError("The application requirements changed; start a new tailoring session")
+
+        user = await self.db.get(User, session.user_id)
+        if user is None:
+            raise TailoringConflictError("Tailoring session owner is no longer available")
+        profile = await ProfileService(self.db).get_profile(user)
+        profile_payload = profile.model_dump(mode="json", exclude_none=True, exclude={"photo_url"})
+        if profile_snapshot_hash(profile_payload) != session.base_profile_hash:
+            raise TailoringStaleError("The profile changed; start a new tailoring session")
 
         current_library_snapshot = {
             entry.id: library_entry_content_hash(entry)
@@ -406,6 +601,7 @@ class TailoringService:
             base_revision=session.base_cv_revision or 1,
             base_hash=session.base_cv_hash or "0" * 64,
             requirements_hash=session.base_requirements_hash or "0" * 64,
+            profile_hash=session.base_profile_hash or "0" * 64,
             supported_operations=list(TAILORING_SUPPORTED_OPERATIONS),
             job=TailoringJob(
                 company=application.company,
@@ -419,6 +615,10 @@ class TailoringService:
                 "sections": copy.deepcopy(cv.sections or []),
             },
             profile=profile.model_dump(mode="json", exclude_none=True, exclude={"photo_url"}),
+            protected_facts=protected_facts_for_cv(
+                cv.sections or [],
+                profile.model_dump(mode="json", exclude_none=True, exclude={"photo_url"}),
+            ),
             library=library,
             requirements=[requirement.model_dump(mode="json") for requirement in requirements],
         )
@@ -455,6 +655,9 @@ class TailoringService:
                         raise TailoringPatchError("A description target may only be replaced once")
                     replaced_targets.add(target_key)
                     cls._replace_description(sections, change)
+                    applied_operations.append(change.operation)
+                elif isinstance(change, ReplaceRichTextChange):
+                    cls._replace_rich_text_string(sections, change)
                     applied_operations.append(change.operation)
                 elif isinstance(change, RewriteRichTextChange):
                     cls._rewrite_rich_text(sections, change)
@@ -502,6 +705,20 @@ class TailoringService:
                 "replace_description only supports plain-string descriptions; use rewrite_rich_text"
             )
         entry["description"] = change.value
+
+    @staticmethod
+    def _replace_rich_text_string(
+        sections: list[dict[str, Any]], change: ReplaceRichTextChange
+    ) -> None:
+        section = section_by_id(sections, change.section_id)
+        entry = validate_rich_text_target(section, change.field, change.entry_id)
+        if change.field not in entry:
+            raise TailoringPatchError(f"{change.field.title()} target has no {change.field} field")
+        if not isinstance(entry[change.field], str):
+            raise TailoringPatchError(
+                "replace_rich_text only supports plain-string fields; use rewrite_rich_text for rich blocks"
+            )
+        entry[change.field] = change.value
 
     @staticmethod
     def _rewrite_rich_text(
@@ -748,6 +965,15 @@ class TailoringService:
 
         before_relevance = copy.deepcopy(application.relevance or {})
         updated_sections, applied_operations, gaps = self._apply_patch(source_sections, patch, library_rows)
+        try:
+            validate_tailoring_facts(
+                source_section_list,
+                _sections_from_payload(updated_sections),
+                list(patch.changes),
+                library_entries,
+            )
+        except TailoringFactError as exc:
+            raise TailoringPatchError(str(exc)) from exc
         relevance = evaluate_requirement_relevance(requirements, updated_sections)
 
         now = _utcnow()
@@ -791,9 +1017,7 @@ class TailoringService:
         session.reported_gaps = [gap.model_dump(mode="json") for gap in gaps]
         provenance = self._provenance_for_patch(patch)
         session.provenance = [record.model_dump(mode="json") for record in provenance]
-        await self.db.flush()
-
-        return TailoringSubmitResponse(
+        response = TailoringSubmitResponse(
             protocol_version=PROTOCOL_VERSION,
             session_id=session.id,
             application_id=application.id,
@@ -806,13 +1030,22 @@ class TailoringService:
             before_relevance=before_relevance,
             relevance=relevance.model_dump(mode="json"),
         )
+        session.status = TAILORING_SESSION_APPLIED
+        session.result = response.model_dump(mode="json")
+        session.updated_at = now
+        await self.db.flush()
+        return response
 
 
 __all__ = [
     "TAILORING_SESSION_CREATED",
     "TAILORING_SESSION_EXCHANGED",
     "TAILORING_SESSION_EXPIRED",
+    "TAILORING_SESSION_APPLIED",
+    "TAILORING_SESSION_CANCELLED",
+    "TAILORING_SESSION_STALE",
     "TAILORING_SESSION_SUBMITTED",
+    "TailoringSessionNotFoundError",
     "StoredRequirementsUnavailableError",
     "TailoringConflictError",
     "TailoringExpiredError",
@@ -822,4 +1055,5 @@ __all__ = [
     "TailoringService",
     "TailoringUnauthorizedError",
     "TailoringUnavailableError",
+    "build_tailoring_prompt",
 ]

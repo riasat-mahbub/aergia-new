@@ -25,6 +25,8 @@ vi.mock("../../lib/api/cvs", () => ({
 
 vi.mock("../../lib/api/tailoring", () => ({
   createTailoringSession: vi.fn(),
+  getTailoringSessionStatus: vi.fn(),
+  cancelTailoringSession: vi.fn(),
 }));
 
 import * as applicationApi from "../../lib/api/applications";
@@ -135,15 +137,19 @@ describe("ApplicationDetailPage", () => {
       application_id: "app-1",
       cv_id: "cv-1",
       code: "test-session-code",
+      session_url: "http://localhost:8000/agent/tailor/session-1",
+      prompt: "Use the Aergia tailoring skill for this session:\n\nhttp://localhost:8000/agent/tailor/session-1\n\nOne-time session code: test-session-code",
+      status: "created",
       expires_at: "2026-08-30T20:00:00Z",
     });
     renderPage();
 
     await screen.findByText("Example Labs");
-    await user.click(screen.getByRole("button", { name: /start local tailoring/i }));
+    await user.click(screen.getByRole("button", { name: /llm tailoring/i }));
 
     await waitFor(() => expect(tailoringApi.createTailoringSession).toHaveBeenCalledWith("app-1"));
     expect(screen.getByRole("status")).toHaveTextContent("test-session-code");
-    expect(screen.getByRole("status")).toHaveTextContent("node agent/src/cli.mjs");
+    expect(screen.getByRole("status")).toHaveTextContent("Copy this prompt and paste it into Codex, Claude Code, or OpenCode");
+    expect(screen.getByRole("button", { name: /copy prompt/i })).toBeInTheDocument();
   });
 });

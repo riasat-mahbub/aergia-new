@@ -41,6 +41,7 @@ class TailoringSession(Base):
     base_cv_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
     base_cv_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     base_requirements_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    base_profile_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Maps Library entry IDs to the content digest seen by the agent. Keeping
     # hashes rather than source content prevents the session row becoming a
     # database synchronization mechanism while still making evidence scopes
@@ -49,6 +50,9 @@ class TailoringSession(Base):
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     reported_gaps: Mapped[list] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
     provenance: Mapped[list] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
+    # A sanitized copy of the successful submission result for the browser's
+    # status poll. It never contains the exchange code or capability.
+    result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )

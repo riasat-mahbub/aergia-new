@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ChevronDown, ChevronUp, Download, ExternalLink, Pencil, RefreshCw, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Copy, Download, ExternalLink, Pencil, RefreshCw, Trash2, XCircle } from "lucide-react";
 import ApplicationFormModal from "../components/applications/ApplicationFormModal";
 import LoadingSkeleton from "../components/common/LoadingSkeleton";
 import { exportPDF, downloadPDF, fetchCV, type CVDetail } from "../lib/api/cvs";
@@ -13,7 +13,13 @@ import {
 } from "../lib/api/applications";
 import { useApplicationStore } from "../lib/store/applicationStore";
 import { useToastStore } from "../lib/store/uiStore";
-import { createTailoringSession, type TailoringSession } from "../lib/api/tailoring";
+import {
+  cancelTailoringSession,
+  createTailoringSession,
+  getTailoringSessionStatus,
+  type TailoringSession,
+  type TailoringSessionStatusResponse,
+} from "../lib/api/tailoring";
 import { safeExternalUrl } from "../lib/security/safeUrl";
 import {
   RELEVANCE_TOOLTIP,
@@ -47,6 +53,29 @@ function selectedSourceCount(cv: CVDetail | null): number | null {
   return Array.isArray(sources) ? sources.length : null;
 }
 
+function relevanceScoreFromSnapshot(value: Record<string, unknown> | null | undefined): number | null {
+  const score = value?.score;
+  return typeof score === "number" ? score : null;
+}
+
+function sessionStatusLabel(status: TailoringSessionStatusResponse["status"]): string {
+  switch (status) {
+    case "created": return "Ready to start";
+    case "exchanged": return "Agent connected";
+    case "submitted": return "Validating patch";
+    case "applied": return "Tailoring applied";
+    case "failed": return "Tailoring failed";
+    case "expired": return "Expired";
+    case "cancelled": return "Cancelled";
+    case "stale": return "CV changed — restart required";
+    default: return status;
+  }
+}
+
+function isTerminalTailoringStatus(status: TailoringSessionStatusResponse["status"] | undefined): boolean {
+  return status === "applied" || status === "failed" || status === "expired" || status === "cancelled" || status === "stale";
+}
+
 export default function ApplicationDetailPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
@@ -64,6 +93,8 @@ export default function ApplicationDetailPage() {
   const [jobExpanded, setJobExpanded] = useState(false);
   const [tailoringSession, setTailoringSession] = useState<TailoringSession | null>(null);
   const [tailoringStarting, setTailoringStarting] = useState(false);
+  const [tailoringStatus, setTailoringStatus] = useState<TailoringSessionStatusResponse | null>(null);
+  const [promptCopied, setPromptCopied] = useState(false);
 
   useEffect(() => {
     if (id) fetch(id);
@@ -84,6 +115,32 @@ export default function ApplicationDetailPage() {
     return () => { cancelled = true; };
   }, [application?.cv_id]);
 
+  useEffect(() => {
+    if (!tailoringSession || isTerminalTailoringStatus(tailoringStatus?.status)) return;
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const status = await getTailoringSessionStatus(tailoringSession.session_id);
+        if (cancelled) return;
+        setTailoringStatus(status);
+        if (status.status === "applied") {
+          await fetch(tailoringSession.application_id);
+        }
+      } catch {
+        // The shared API client reports actionable errors. Keep the last known
+        // session state visible while the user can retry from this page.
+      }
+    };
+
+    void poll();
+    const timer = window.setInterval(() => { void poll(); }, 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [fetch, tailoringSession, tailoringStatus?.status]);
+
   const relevance = application && isRelevanceResult(application.relevance) ? application.relevance : null;
   const sections = useMemo(() => sectionTypes(linkedCV), [linkedCV]);
   const sourceCount = selectedSourceCount(linkedCV);
@@ -93,6 +150,7 @@ export default function ApplicationDetailPage() {
   }
 
   const safeJobUrl = safeExternalUrl(application.job_url);
+  const safeTailoringSessionUrl = tailoringSession ? safeExternalUrl(tailoringSession.session_url) : null;
 
   const handleStatusChange = async (status: ApplicationStatus) => {
     setStatusSaving(true);
@@ -136,11 +194,47 @@ export default function ApplicationDetailPage() {
     try {
       const session = await createTailoringSession(application.id);
       setTailoringSession(session);
+      setTailoringStatus(null);
+      setPromptCopied(false);
       addToast("Local tailoring session created", "info");
     } catch {
       addToast("Unable to create a local tailoring session", "error");
     } finally {
       setTailoringStarting(false);
+    }
+  };
+
+  const handleCopyPrompt = async () => {
+    if (!tailoringSession) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(tailoringSession.prompt);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = tailoringSession.prompt;
+        textarea.setAttribute("readonly", "true");
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      setPromptCopied(true);
+      addToast("Prompt copied — paste it into your coding agent", "info");
+    } catch {
+      addToast("Unable to copy the tailoring prompt", "error");
+    }
+  };
+
+  const handleCancelTailoring = async () => {
+    if (!tailoringSession) return;
+    try {
+      const status = await cancelTailoringSession(tailoringSession.session_id);
+      setTailoringStatus(status);
+      addToast("Tailoring session cancelled", "info");
+    } catch {
+      addToast("Unable to cancel the tailoring session", "error");
     }
   };
 
@@ -241,15 +335,51 @@ export default function ApplicationDetailPage() {
               <Link to={`/dashboard/builder/${application.cv_id}?application=${application.id}`} className="inline-flex items-center gap-1 rounded-md bg-app-primary px-3 py-2 text-sm font-medium text-white hover:bg-app-primary-hover">Open/Edit CV <Pencil className="h-3.5 w-3.5" /></Link>
               <button type="button" onClick={handleExport} className="inline-flex items-center gap-1 rounded-md border border-app-rule-strong px-3 py-2 text-sm font-medium text-app-ink-2 hover:bg-app-surface-muted"><Download className="h-3.5 w-3.5" /> Export PDF</button>
               <button type="button" onClick={handleStartTailoring} disabled={tailoringStarting} className="inline-flex items-center gap-1 rounded-md border border-app-primary-soft px-3 py-2 text-sm font-medium text-app-primary hover:bg-app-primary-soft disabled:opacity-50">
-                {tailoringStarting ? "Starting local tailoring…" : "Start local tailoring"}
+                {tailoringStarting ? "Preparing LLM tailoring…" : "LLM Tailoring"}
               </button>
             </div>
+            <p className="mt-3 text-xs text-app-ink-3">Your installed coding agent does the generative work locally. Aergia sends it only this application’s tailoring evidence and validates the returned patch.</p>
             {tailoringSession && (
               <div className="mt-4 rounded-md bg-app-canvas px-3 py-3" role="status">
-                <p className="text-sm font-medium text-app-ink">Run the local protocol client</p>
-                <p className="mt-1 text-xs text-app-ink-3">This one-time code expires at {new Date(tailoringSession.expires_at).toLocaleTimeString()}.</p>
-                <code className="mt-3 block overflow-x-auto rounded bg-app-surface px-2 py-2 text-xs text-app-ink-2">node agent/src/cli.mjs {tailoringSession.code} --server {window.location.origin}</code>
-                <p className="mt-2 text-xs text-app-ink-3">The prototype submits a fixed test patch. Refresh this application after it completes.</p>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-app-ink">Use your coding agent</p>
+                    <p className="mt-1 text-xs text-app-ink-3">
+                      {sessionStatusLabel(tailoringStatus?.status ?? tailoringSession.status)} · expires {new Date(tailoringSession.expires_at).toLocaleTimeString()}
+                    </p>
+                  </div>
+                  {!isTerminalTailoringStatus(tailoringStatus?.status) && (
+                    <button type="button" onClick={handleCancelTailoring} className="inline-flex items-center gap-1 text-xs font-medium text-app-danger hover:underline">
+                      <XCircle className="h-3.5 w-3.5" /> Cancel
+                    </button>
+                  )}
+                </div>
+                <p className="mt-3 text-xs text-app-ink-2">Copy this prompt and paste it into Codex, Claude Code, or OpenCode with the Aergia tailoring skill installed.</p>
+                <textarea
+                  aria-label="Aergia tailoring prompt"
+                  readOnly
+                  value={tailoringSession.prompt}
+                  rows={6}
+                  className="mt-2 block w-full resize-y rounded border border-app-rule-strong bg-app-surface px-2 py-2 text-xs leading-5 text-app-ink-2"
+                />
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  <button type="button" onClick={handleCopyPrompt} className="inline-flex items-center gap-1 rounded-md bg-app-primary px-3 py-2 text-xs font-medium text-white hover:bg-app-primary-hover">
+                    {promptCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                    {promptCopied ? "Copied" : "Copy prompt"}
+                  </button>
+                  {safeTailoringSessionUrl && <a href={safeTailoringSessionUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-app-primary hover:underline">
+                    Open session link <ExternalLink className="h-3.5 w-3.5" />
+                  </a>}
+                </div>
+                {tailoringStatus?.result && (
+                  <div className="mt-3 border-t border-app-rule-soft pt-3 text-xs text-app-ink-2">
+                    <p className="font-medium text-app-ink">Result</p>
+                    <p className="mt-1">
+                      Relevance: {relevanceScoreFromSnapshot(tailoringStatus.result.before_relevance) ?? "—"}% → {relevanceScoreFromSnapshot(tailoringStatus.result.relevance) ?? "—"}%
+                    </p>
+                    {tailoringStatus.result.gaps.length > 0 && <p className="mt-1">Remaining gaps: {tailoringStatus.result.gaps.map((gap) => gap.requirement).join(", ")}</p>}
+                  </div>
+                )}
               </div>
             )}
           </>

@@ -6,9 +6,10 @@ Add a local-agent tailoring flow without running generative AI on Aergia or
 storing provider credentials on the Aergia server.
 
 The first implementation is a protocol, not an LLM feature. Aergia creates a
-short-lived, narrowly scoped tailoring session; a local CLI exchanges the
-session code, downloads a sanitized evidence packet, and submits a structured
-patch. The server remains the final validator and applies changes atomically.
+short-lived, narrowly scoped tailoring session; the web application shows a
+copyable prompt and an installed coding-agent skill exchanges the session
+code, downloads a sanitized evidence packet, and submits a structured patch.
+The server remains the final validator and applies changes atomically.
 
 ## Architectural decisions
 
@@ -33,10 +34,10 @@ No Career-Ops, LLM, or agent reasoning is required.
 ### Flow
 
 ```text
-web creates tailoring session
-  → CLI exchanges one-time code
-  → CLI fetches sanitized evidence packet
-  → CLI submits fixed test patch
+web creates tailoring session and shows a skill prompt
+  → installed coding-agent skill exchanges one-time code
+  → skill fetches sanitized evidence packet
+  → skill submits fixed test patch
   → server validates session, target, and operation
   → server applies patch atomically
   → server evaluates stored requirements against the updated CV
@@ -62,8 +63,10 @@ the code itself a reusable normal bearer token.
 
 The first patch supports only:
 
-- `replace_description`: replace a plain-string description on an existing CV
-  entry identified by explicit section and entry IDs.
+- `replace_rich_text`: replace a plain-string description or summary on an
+  existing CV target identified by explicit section and entry IDs. The server
+  may retain `replace_description` as a compatibility alias for the fixed
+  protocol fixture.
 - `report_gap`: record an unsupported job requirement for the submission; it
   does not modify the CV or score directly.
 
@@ -130,7 +133,7 @@ boundary. Styles, customizations, IDs, and unrelated metadata are not patchable.
 
 Define strict JSON Schema contracts in `contracts/` with protocol version 1,
 closed operation discriminators, maximum sizes, and valid/invalid fixtures.
-Server and CLI validators must test the same fixtures.
+Server and local skill validators must test the same fixtures.
 
 ## Phase 3 — Career-Ops safety tools
 
@@ -152,9 +155,9 @@ local validation is advisory.
 Retain the Career-Ops MIT copyright and license notice in a third-party
 attribution file and preserve source headers for substantially adapted code.
 
-## Phase 4 — Agent workspace
+## Phase 4 — Agent workspace and installed skill
 
-Have the CLI create a temporary, permission-restricted workspace containing:
+Have the installed skill create a temporary, permission-restricted workspace containing:
 
 ```text
 workspace/
@@ -177,6 +180,7 @@ spawn or automatically select an agent. Document how Claude Code and OpenCode
 can be used with the same workspace. Source files should be read-only to the
 agent process where practical, and cleanup must run on success, failure, and
 interruption. Validation and any repair attempts must have a bounded limit.
+There is no Aergia CLI to install, invoke, or maintain.
 
 ## Phase 5 — UI lifecycle and hardening
 
@@ -188,7 +192,7 @@ Add the user-facing lifecycle around the protocol:
 - success result and applied changes;
 - reported gaps;
 - before/after relevance and score explanation;
-- safe copy/display of the CLI command and one-time code.
+- safe copy/display of the skill prompt, session link, and one-time code.
 
 Add end-to-end coverage for session ownership, replay, expiry, rate limits,
 malformed patches, protected-field attempts, stale CVs, atomic rollback,
@@ -257,8 +261,9 @@ score flow passes on a fresh database, and schema/codegen checks are usable.
 
 Keep protocol version 1 for additive operations and expose the server's
 supported operation set in the evidence packet. Bump the protocol only for a
-breaking wire-shape change. The CLI must choose only operations advertised by
-the server, so a published agent can work against an older deployment.
+breaking wire-shape change. The installed skill must choose only operations
+advertised by the server, so a published skill can work against an older
+deployment.
 
 Replace implicit array paths with explicit targets:
 
@@ -372,17 +377,12 @@ Exit gate: local and server fixtures agree on supported/unsupported facts; a
 false numeric or employer claim is rejected before any database write; an
 inconclusive JD/fact result is visible and cannot be mistaken for a pass.
 
-### Phase 4 — Build the manual agent workspace
+### Phase 4 — Build the installed-skill workspace
 
-Split the current fixed CLI into explicit commands:
-
-```text
-prepare <code>  → exchange, fetch evidence, create workspace, print `codex .`
-validate        → run bounded local JD/patch/fact checks
-submit          → validate again, then submit exactly one valid patch
-```
-
-The workspace contains `SKILL.md`, read-only `source/` JSON files, writable
+The copied web prompt is the handoff. The installed `aergia-tailor` skill
+exchanges the code, fetches evidence, creates the workspace, and guides the
+coding agent through validation and submission. The workspace contains
+`SKILL.md`, read-only `source/` JSON files, writable
 `output/tailoring-patch.json`, and local `tools/` wrappers. `SKILL.md` must
 require full-JD/CV/Library review, evidence selection, gap reporting, patch
 validation, fact validation, repair, and submission only after all checks pass.
@@ -394,9 +394,8 @@ manual invocation for Claude Code and OpenCode against the same workspace.
 Use a 0700 temporary workspace, restrictive source/output permissions, bounded
 file sizes and repair attempts, no secrets in filenames/logs, and cleanup on
 submit, expiry, cancellation, failure, and interruption. The session capability
-must not be written into `SKILL.md` or source files. A manual workspace needs a
-long enough but still short TTL; the UI and CLI must clearly show expiry and
-provide a fresh-session retry path.
+must not be written into `SKILL.md` or source files. The UI and skill must
+clearly show expiry and provide a fresh-session retry path.
 
 Exit gate: a human can run the workspace with Codex, write a patch manually,
 run the tools, repair a deliberately invalid patch within the limit, and submit
@@ -407,7 +406,7 @@ the server.
 
 Add a browser-authenticated session status/cancel path and make the UI model
 the state machine (`created`, `exchanged`, `submitted`, `cancelled`,
-`expired`). Show the one-time code and command once, an expiry countdown, and
+`expired`). Show the one-time code and copied skill prompt once, an expiry countdown, and
 clear retry instructions without displaying the capability.
 
 Persist a bounded tailoring result containing:
@@ -423,7 +422,7 @@ replay, cancellation, rate limits, malformed JSON, protected-field attempts,
 and server fact failures as distinct user-visible outcomes. Never show a
 success state until the transaction and relevance update have committed.
 
-Add backend, CLI, frontend, and live acceptance coverage for the complete flow.
+Add backend, skill-tool, frontend, and live acceptance coverage for the complete flow.
 The most valuable live test uses a fixed patch and a fresh database; the LLM
 workspace is tested separately with a fixture patch, so CI never needs model
 credentials.
@@ -440,8 +439,8 @@ Deliver four reviewable implementation changes after the baseline gate:
    policy, revision/hash, provenance, server transaction, and backend fixtures.
 2. **Safety tooling** — Career-Ops adaptations, Aergia AST adapters, server
    fact checks, attribution, and shared fixtures.
-3. **Workspace/CLI** — prepare/validate/submit commands, `SKILL.md`, tools,
-   cleanup, bounded repair, and Codex-first documentation.
+3. **Workspace/skill** — `SKILL.md`, tools, cleanup, bounded repair, and
+   Codex-first documentation. Do not add an Aergia CLI.
 4. **Lifecycle/UI hardening** — session state/cancel/retry, result persistence,
    stale handling, before/after relevance, end-to-end tests, and release docs.
 
@@ -456,7 +455,7 @@ security migration; validate the deterministic path first.
 | Verification baseline and integration harness | 0.5–1 day |
 | Patch semantics, policy, concurrency, provenance | 3–4 days |
 | Career-Ops adaptation, server checks, fixtures | 3–4 days |
-| Workspace, CLI, skill, manual agent workflow | 2–3 days |
+| Workspace, skill, manual agent workflow | 2–3 days |
 | UI lifecycle, audit/result state, tests, hardening | 2–3 days |
 | **Total robust implementation** | **10.5–15 focused engineer-days** |
 
