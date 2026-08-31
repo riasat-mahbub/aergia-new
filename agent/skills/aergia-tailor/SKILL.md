@@ -76,7 +76,8 @@ The only writable protocol output is `output/tailoring-patch.json`.
 6. Create a protocol-version-1 `TailoringPatch`. Use stable section, entry,
    block, and item IDs. Never use array indexes.
 7. Use only operations listed in `supported_operations` from the evidence
-   packet. Report unsupported requirements with `report_gap`.
+   packet. Report unsupported requirements with `report_gap`, including the
+   matching stored requirement `id` as `requirement_id` whenever one exists.
 8. Run `validate-patch.mjs` against the evidence and patch.
 9. Apply the patch to a temporary CV copy. Do not modify the source CV file.
 10. Run `verify-cv-facts.mjs` against the temporary CV and the declared

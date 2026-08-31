@@ -36,6 +36,7 @@ const relevance: RequirementRelevanceResult = {
         method: "taxonomy",
         score: 1,
       },
+      tailoring_feedback: ["Consider highlighting this requirement more clearly."],
     },
     {
       requirement: {
@@ -64,6 +65,8 @@ describe("RelevanceDrawer", () => {
     expect(screen.getByText((_, element) => element?.textContent?.replace(/\s+/g, " ").trim() === "80% weighted relevance · 50% requirement coverage")).toBeInTheDocument();
     expect(screen.getAllByText("Python")).not.toHaveLength(0);
     expect(screen.getByText(/skills.*sections\[1\]\.data\[0\]\.items.*taxonomy/)).toBeInTheDocument();
+    expect(screen.getByText("Tailoring feedback")).toBeInTheDocument();
+    expect(screen.getByText("Consider highlighting this requirement more clearly.")).toBeInTheDocument();
     expect(screen.getByText("Rust")).toBeInTheDocument();
     expect(screen.getByText("No supporting CV evidence.")).toBeInTheDocument();
   });

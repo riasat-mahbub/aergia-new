@@ -306,6 +306,7 @@ class AddLibraryEntryChange(_StrictModel):
 
 class ReportGapChange(_StrictModel):
     operation: Literal["report_gap"]
+    requirement_id: str | None = Field(default=None, min_length=1, max_length=128)
     requirement: str = Field(min_length=1, max_length=500)
     reason: str = Field(min_length=1, max_length=2_000)
 

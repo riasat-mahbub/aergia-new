@@ -85,6 +85,14 @@ function RequirementRelevance({ relevance }: { relevance: RequirementRelevanceRe
               <p className="mt-1 leading-5">{match.best_evidence.snippet}</p>
             </div>
           ) : <p className="mt-3 text-xs text-app-ink-3">No supporting CV evidence.</p>}
+          {match.tailoring_feedback && match.tailoring_feedback.length > 0 && (
+            <div className="mt-3 rounded bg-app-primary-soft px-2.5 py-2 text-xs text-app-ink-2">
+              <p className="font-medium text-app-primary">Tailoring feedback</p>
+              <ul className="mt-1 space-y-1 leading-5">
+                {match.tailoring_feedback.map((feedback, index) => <li key={`${feedback}-${index}`}>{feedback}</li>)}
+              </ul>
+            </div>
+          )}
         </article>
       ))}
     </div>

@@ -105,6 +105,9 @@ class RequirementMatch(BaseModel):
     score: float
     matched_by: list[str] = Field(default_factory=list)
     best_evidence: RequirementEvidence | None = None
+    # Feedback from a local tailoring agent is attached to the requirement
+    # match so the UI can show it alongside the deterministic analysis.
+    tailoring_feedback: list[str] = Field(default_factory=list)
 
 
 class RequirementRelevanceResult(BaseModel):

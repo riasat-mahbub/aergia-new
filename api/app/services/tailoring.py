@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
 import secrets
 from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
@@ -21,7 +22,7 @@ from app.models.library import Library, LibraryEntry
 from app.models.tailoring_session import TailoringSession
 from app.models.user import User
 from app.schema.models import SectionInstance
-from app.schemas.application import JobRequirement
+from app.schemas.application import JobRequirement, RequirementRelevanceResult
 from app.schemas.tailoring import (
     AddLibraryEntryChange,
     PROTOCOL_VERSION,
@@ -291,6 +292,12 @@ def _stored_requirements(application: Application) -> list[JobRequirement]:
         except ValidationError as exc:
             raise StoredRequirementsUnavailableError("Stored application requirements are invalid") from exc
     return requirements
+
+
+def _normalize_requirement_label(value: str) -> str:
+    """Normalize agent labels for the backwards-compatible text fallback."""
+
+    return re.sub(r"[^a-z0-9+#]+", " ", value.casefold()).strip()
 
 
 class TailoringService:
@@ -645,6 +652,63 @@ class TailoringService:
         except ValidationError as exc:
             raise TailoringPatchError("Updated CV sections are invalid") from exc
 
+    @staticmethod
+    def _attach_tailoring_feedback(
+        relevance: RequirementRelevanceResult,
+        changes: list[Any],
+    ) -> None:
+        """Attach local-agent gap explanations to their stored requirements.
+
+        New agents should send ``requirement_id``. Older agents only sent a
+        requirement label, so an exact or bounded normalized-text fallback is
+        retained for compatibility. An ID never falls back to text matching;
+        this keeps a malformed or stale ID from attaching feedback to the
+        wrong requirement.
+        """
+
+        for change in changes:
+            if not isinstance(change, ReportGapChange):
+                continue
+            normalized_label = _normalize_requirement_label(change.requirement)
+            for match in relevance.requirements:
+                requirement = match.requirement
+                if change.requirement_id:
+                    matches = requirement.id == change.requirement_id
+                else:
+                    candidates = {
+                        _normalize_requirement_label(candidate)
+                        for candidate in (
+                            requirement.text,
+                            requirement.normalized,
+                            requirement.canonical or "",
+                        )
+                        if candidate
+                    }
+                    matches = any(
+                        normalized_label == candidate
+                        or (len(normalized_label) >= 3 and normalized_label in candidate)
+                        or (len(candidate) >= 3 and candidate in normalized_label)
+                        for candidate in candidates
+                    )
+                if matches and change.reason not in match.tailoring_feedback:
+                    match.tailoring_feedback.append(change.reason)
+
+    @staticmethod
+    def _validate_requirement_feedback_targets(
+        requirements: list[JobRequirement],
+        changes: list[Any],
+    ) -> None:
+        """Reject IDs that are not part of this session's stored snapshot."""
+
+        requirement_ids = {requirement.id for requirement in requirements}
+        for change in changes:
+            if (
+                isinstance(change, ReportGapChange)
+                and change.requirement_id
+                and change.requirement_id not in requirement_ids
+            ):
+                raise TailoringPatchError(f"Unknown requirement ID: {change.requirement_id}")
+
     @classmethod
     def _apply_patch(
         cls,
@@ -975,6 +1039,7 @@ class TailoringService:
         source_sections, _ = normalize_rich_text_ids(cv.sections or [])
         source_section_list = _sections_from_payload(source_sections)
         self._validate_evidence_refs(session, source_section_list, list(patch.changes), library_entries)
+        self._validate_requirement_feedback_targets(requirements, list(patch.changes))
         library_rows = await self._library_rows_for_patch(patch, library_entries)
 
         before_relevance = copy.deepcopy(application.relevance or {})
@@ -989,6 +1054,7 @@ class TailoringService:
         except TailoringFactError as exc:
             raise TailoringPatchError(str(exc)) from exc
         relevance = evaluate_requirement_relevance(requirements, updated_sections)
+        self._attach_tailoring_feedback(relevance, list(patch.changes))
 
         now = _utcnow()
         db_now = _db_utcnow()

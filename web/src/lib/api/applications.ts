@@ -79,6 +79,7 @@ export interface RequirementMatch {
   score: number;
   matched_by: string[];
   best_evidence: RequirementEvidence | null;
+  tailoring_feedback?: string[];
 }
 
 export interface RequirementRelevanceResult {

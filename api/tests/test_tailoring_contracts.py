@@ -7,7 +7,9 @@ from types import SimpleNamespace
 import pytest
 from pydantic import ValidationError
 
+from app.schemas.application import RequirementRelevanceResult
 from app.schemas.tailoring import (
+    ReportGapChange,
     TailoringCodeExchange,
     TailoringEvidencePacket,
     TailoringPatch,
@@ -93,6 +95,47 @@ def test_tailoring_prompt_keeps_the_code_out_of_the_session_url():
     assert "https://aergia.example/agent/tailor/session-1" in prompt
     assert "One-time session code: code-1234567890123456" in prompt
     assert "ask for approval" in prompt
+
+
+def test_reported_gap_feedback_is_attached_to_the_stable_requirement():
+    relevance = RequirementRelevanceResult.model_validate(
+        {
+            "status": "evaluated",
+            "score": 0,
+            "requirements": [
+                {
+                    "requirement": {
+                        "id": "req-python",
+                        "text": "Python",
+                        "normalized": "python",
+                        "canonical": "python",
+                        "type": "hard_skill",
+                        "required": True,
+                        "weight": 1,
+                    },
+                    "covered": False,
+                    "score": 0,
+                    "matched_by": [],
+                    "best_evidence": None,
+                }
+            ],
+            "algorithm_version": "requirement-v1",
+        }
+    )
+
+    TailoringService._attach_tailoring_feedback(
+        relevance,
+        [
+            ReportGapChange(
+                operation="report_gap",
+                requirement_id="req-python",
+                requirement="Python",
+                reason="No supporting evidence was found.",
+            )
+        ],
+    )
+
+    assert relevance.requirements[0].tailoring_feedback == ["No supporting evidence was found."]
 
 
 def test_tailoring_sqlite_timestamp_binding_uses_naive_utc():

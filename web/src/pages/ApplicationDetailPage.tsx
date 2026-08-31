@@ -18,6 +18,7 @@ import {
   createTailoringSession,
   getTailoringSessionStatus,
   type TailoringSession,
+  type TailoringSessionResult,
   type TailoringSessionStatusResponse,
 } from "../lib/api/tailoring";
 import { safeExternalUrl } from "../lib/security/safeUrl";
@@ -105,6 +106,7 @@ export default function ApplicationDetailPage() {
   const [tailoringSession, setTailoringSession] = useState<TailoringSession | null>(null);
   const [tailoringStarting, setTailoringStarting] = useState(false);
   const [tailoringStatus, setTailoringStatus] = useState<TailoringSessionStatusResponse | null>(null);
+  const [tailoringResult, setTailoringResult] = useState<TailoringSessionResult | null>(null);
   const [promptCopied, setPromptCopied] = useState(false);
   const lastTailoringToast = useRef<string | null>(null);
 
@@ -136,14 +138,18 @@ export default function ApplicationDetailPage() {
         const status = await getTailoringSessionStatus(tailoringSession.session_id);
         if (cancelled) return;
         setTailoringStatus(status);
-        if (status.status === "applied") {
-          await fetch(tailoringSession.application_id);
-        }
         const toast = terminalTailoringToast(status.status);
         const toastKey = `${tailoringSession.session_id}:${status.status}`;
         if (toast && lastTailoringToast.current !== toastKey) {
           lastTailoringToast.current = toastKey;
           addToast(toast.message, toast.type);
+        }
+        if (status.status === "applied") {
+          setTailoringResult(status.result);
+          // The prompt is no longer actionable once the server has applied
+          // the patch. Keep the result summary visible below the actions.
+          setTailoringSession(null);
+          await fetch(tailoringSession.application_id);
         }
       } catch {
         // The shared API client reports actionable errors. Keep the last known
@@ -213,6 +219,7 @@ export default function ApplicationDetailPage() {
       const session = await createTailoringSession(application.id);
       setTailoringSession(session);
       setTailoringStatus(null);
+      setTailoringResult(null);
       setPromptCopied(false);
       addToast("Local tailoring session created", "info");
     } catch {
@@ -399,6 +406,16 @@ export default function ApplicationDetailPage() {
                     {tailoringStatus.result.gaps.length > 0 && <p className="mt-1">Remaining gaps: {tailoringStatus.result.gaps.map((gap) => gap.requirement).join(", ")}</p>}
                   </div>
                 )}
+              </div>
+            )}
+            {tailoringResult && (
+              <div className="mt-4 rounded-md bg-app-primary-soft px-3 py-3 text-xs text-app-ink-2" role="status">
+                <p className="font-medium text-app-ink">Tailored CV ready</p>
+                <p className="mt-1">
+                  Relevance: {relevanceScoreFromSnapshot(tailoringResult.before_relevance) ?? "—"}% → {relevanceScoreFromSnapshot(tailoringResult.relevance) ?? "—"}%
+                </p>
+                {tailoringResult.gaps.length > 0 && <p className="mt-1">Remaining gaps: {tailoringResult.gaps.map((gap) => gap.requirement).join(", ")}</p>}
+                <p className="mt-1 text-app-ink-3">Requirement feedback is available in the linked CV&apos;s relevance details.</p>
               </div>
             )}
           </>
