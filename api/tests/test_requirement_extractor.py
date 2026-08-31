@@ -140,6 +140,17 @@ def test_unknown_importance_does_not_become_required() -> None:
     assert requirement.weight == 0.75
 
 
+def test_empty_gliner_output_does_not_create_regex_only_requirements() -> None:
+    result = requirements_from_model_output(
+        "Python and AWS experience required.",
+        {"entities": {}},
+    )
+
+    assert result.requirements == ()
+    with pytest.raises(RequirementExtractionError):
+        to_job_requirements(result)
+
+
 def test_duplicate_overlapping_candidates_merge_without_losing_required_status() -> None:
     source = "Python experience required."
     result = requirements_from_model_output(
@@ -170,6 +181,111 @@ def test_deterministic_constraints_keep_years_and_degree_on_source_requirement()
     assert {item.kind for item in requirement.constraints} == {"years_experience", "degree_level"}
     assert {item.value for item in requirement.constraints} == {3, "bachelor"}
     assert requirement.importance is Importance.REQUIRED
+
+
+def test_decimal_and_range_years_preserve_numeric_constraints_and_provenance() -> None:
+    decimal_source = "At least 1.5+ years of backend experience are required."
+    decimal_result = requirements_from_model_output(
+        decimal_source,
+        {"entities": {"candidate_requirement": [_span(decimal_source, decimal_source)]}},
+    )
+
+    decimal_requirement = decimal_result.requirements[0]
+    decimal_constraint = next(item for item in decimal_requirement.constraints if item.kind == "years_experience")
+    assert decimal_constraint.value == 1.5
+    assert decimal_requirement.importance is Importance.REQUIRED
+    adapted = to_job_requirements(decimal_result)[0]
+    assert adapted.constraint == {"kind": "years_experience", "minimum": 1.5}
+    assert adapted.extractor == "gliner2"
+    assert decimal_source[adapted.source_start : adapted.source_end] == adapted.text
+
+    range_source = "Experience of 2-4 years is preferred."
+    range_result = requirements_from_model_output(
+        range_source,
+        {"entities": {"candidate_requirement": [_span(range_source, range_source)]}},
+    )
+    range_constraint = next(
+        item for item in range_result.requirements[0].constraints if item.kind == "years_experience"
+    )
+    assert range_constraint.value == 2
+    assert range_constraint.maximum == 4
+    assert range_constraint.operator == "range"
+
+
+def test_sentence_expansion_only_enriches_from_the_selected_local_context() -> None:
+    source = "We require 3+ years of experience with Python. AWS is optional."
+    result = requirements_from_model_output(
+        source,
+        {
+            "entities": {
+                "candidate_requirement": [_span(source, "3+ years of experience")],
+                "hard_skill": [_span(source, "Python"), _span(source, "AWS")],
+            }
+        },
+    )
+
+    first = result.requirements[0]
+    assert first.source_text == "We require 3+ years of experience with Python."
+    assert first.concepts == ("python",)
+    assert all(item.source_start is not None and item.source_end is not None for item in result.requirements)
+
+
+def test_explicit_concept_alternatives_are_deterministic_constraints() -> None:
+    source = "You need either Python or Kotlin."
+    result = requirements_from_model_output(
+        source,
+        {
+            "entities": {
+                "candidate_requirement": [_span(source, source)],
+                "hard_skill": [_span(source, "Python"), _span(source, "Kotlin")],
+            }
+        },
+    )
+
+    constraint = next(item for item in result.requirements[0].constraints if item.kind == "concept_group")
+    assert constraint.operator == "any"
+    assert constraint.values == ("python", "kotlin")
+    assert result.requirements[0].importance is Importance.UNKNOWN
+
+
+def test_affirm_style_jd_keeps_selected_requirements_and_enriches_their_constraints() -> None:
+    source = """What We Look For
+You have a total of 1.5+ years of experience as a software engineer.
+You have experience designing backend systems and are proficient in one of Python or Kotlin.
+You are familiar with distributed systems and technologies like AWS, MySQL and Kubernetes.
+Location - Remote Canada
+CAN base pay range per year: 133,000 - 183,000 CAD
+"""
+    selected = [
+        "You have a total of 1.5+ years of experience as a software engineer.",
+        "You have experience designing backend systems and are proficient in one of Python or Kotlin.",
+        "You are familiar with distributed systems and technologies like AWS, MySQL and Kubernetes.",
+        "Location - Remote Canada",
+        "CAN base pay range per year: 133,000 - 183,000 CAD",
+    ]
+    result = requirements_from_model_output(
+        source,
+        {
+            "entities": {
+                "candidate_requirement": [_span(source, phrase) for phrase in selected],
+                "hard_skill": [
+                    _span(source, "Python"),
+                    _span(source, "Kotlin"),
+                    _span(source, "AWS"),
+                    _span(source, "MySQL"),
+                    _span(source, "Kubernetes"),
+                ],
+            }
+        },
+    )
+
+    assert [item.source_text for item in result.requirements] == selected[:3]
+    assert all(item.importance is Importance.REQUIRED for item in result.requirements)
+    first_constraint = next(item for item in result.requirements[0].constraints if item.kind == "years_experience")
+    assert first_constraint.value == 1.5
+    assert result.requirements[1].concepts == ("python", "kotlin")
+    assert next(item for item in result.requirements[1].constraints if item.kind == "concept_group").operator == "any"
+    assert result.requirements[2].concepts == ("distributed systems", "aws", "mysql", "kubernetes")
 
 
 def test_long_documents_use_sentence_aware_chunks_and_remap_global_spans() -> None:

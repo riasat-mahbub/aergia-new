@@ -51,8 +51,11 @@ class Constraint:
     """A deterministic constraint attached to one source requirement."""
 
     kind: str
-    value: int | str | None
+    value: int | float | str | None
     source_text: str
+    operator: str | None = None
+    maximum: int | float | None = None
+    values: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,31 +143,37 @@ _CONCEPT_VALUE_LABELS = frozenset(
 )
 
 _REQUIRED_RE = re.compile(
-    r"\b(?:must(?:\s+have|\s+be able to)?|require(?:s|d)?|required qualifications?|mandatory|essential|shall)\b",
+    r"(?:\b(?:must(?:\s+have|\s+be able to)?|require(?:s|d)?|required qualifications?|mandatory|essential|shall)\b|"
+    r"\bnon[- ]negotiable\b|\bminimum\s+qualifications?\b|\bwhat\s+(?:we\s+look\s+for|you\s+bring)\b)",
     re.IGNORECASE,
 )
 _PREFERRED_RE = re.compile(
-    r"\b(?:preferred|preferably|nice\s+to\s+have|a\s+plus|bonus|desirable|advantageous|optional)\b",
+    r"\b(?:preferred|preferably|nice\s+to\s+have|good\s+to\s+have|a\s+plus|bonus|desirable|"
+    r"advantageous|beneficial|extra\s+credit|optional)\b",
     re.IGNORECASE,
 )
 _NEGATED_RE = re.compile(
-    r"\b(?:not\s+required|not\s+necessary|not\s+mandatory|optional|no\s+.+?\s+required)\b",
+    r"\b(?:not\s+required|not\s+necessary|not\s+mandatory|not\s+(?:a\s+)?requirement|"
+    r"not\s+needed|no\s+.+?\s+required)\b",
     re.IGNORECASE,
 )
+_NUMBER_PATTERN = r"(?:\d+(?:\.\d+)?|zero|one|two|three|four|five|six|seven|eight|nine|ten)"
 _YEARS_RE = re.compile(
-    r"\b(?:(?:at\s+least|minimum\s+of|min(?:imum)?|more\s+than)\s+)?"
-    r"(?P<number>\d+|zero|one|two|three|four|five|six|seven|eight|nine|ten)\+?\s+"
-    r"(?P<unit>years?|yrs?)\b",
+    rf"\b(?:(?P<qualifier>at\s+least|minimum(?:\s+of)?|min(?:imum)?|more\s+than|over)\s+)?"
+    rf"(?P<number>{_NUMBER_PATTERN})"
+    rf"(?:\s*(?:[-–—]|to)\s*(?P<maximum>{_NUMBER_PATTERN}))?"
+    rf"\s*(?:\+|or\s+more)?\s+(?P<unit>years?|yrs?)\b",
     re.IGNORECASE,
 )
 _DEGREE_RE = re.compile(
-    r"\b(?:ph\.?d\.?|doctorate|doctoral|master(?:'|’)s?|m\.?s\.?|mba|"
-    r"bachelor(?:'|’)s?|b\.?s\.?|b\.?a\.?|associate(?:'|’)s?|a\.?a\.?)\b",
+    r"(?<!\w)(?:ph\.?d\.?|doctorate|doctoral|master(?:'|’)s?|msc|m\.?s\.?|mba|"
+    r"bachelor(?:'|’)s?|bsc|b\.?s\.?|b\.?a\.?|undergraduate|associate(?:'|’)s?|a\.?a\.?)"
+    r"(?!\w)",
     re.IGNORECASE,
 )
 _CERTIFICATION_RE = re.compile(
     r"\b(?:certification|certificate|certified|license|licensed|credential|"
-    r"cissp|ccna|ccnp|pmp|comptia|itil)\b",
+    r"cissp|ccna|ccnp|ccie|cka|ckad|cks|pmp|comptia|itil)\b",
     re.IGNORECASE,
 )
 _RESPONSIBILITY_RE = re.compile(
@@ -228,6 +237,7 @@ _REQUIRED_HEADINGS = {
     "what you bring",
     "what youll bring",
     "what you need",
+    "what we look for",
     "your qualifications",
     "skills",
     "experience",
@@ -247,6 +257,7 @@ _PREFERRED_HEADINGS = {
     "nice to have",
     "nice to haves",
     "nice to have qualifications",
+    "good to have",
     "bonus qualifications",
     "bonus",
 }
@@ -428,7 +439,7 @@ def _sentence_units(unit: _SourceUnit, source: str) -> list[_SourceUnit]:
 
     if unit.is_heading:
         return [unit]
-    matches = list(re.finditer(r"[^.!?]+(?:[.!?]+|$)", unit.text))
+    matches = list(_SENTENCE_RE.finditer(unit.text))
     if len(matches) <= 1:
         return [unit]
     sentences: list[_SourceUnit] = []
@@ -463,6 +474,71 @@ def _overlap(left: _RawSpan, right: _RawSpan) -> int:
     if left.start is None or left.end is None or right.start is None or right.end is None:
         return 0
     return max(0, min(left.end, right.end) - max(left.start, right.start))
+
+
+_CONCEPT_CONTEXT_WINDOW = 160
+_CLAUSE_BREAK_RE = re.compile(r"[.!?;\n]")
+_SENTENCE_RE = re.compile(r"(?:[^.!?]|\.(?=\d))+(?:[.!?]+(?=\s|$)|$)")
+
+
+def _span_is_near(
+    source: str,
+    anchor: _RawSpan,
+    concept: _RawSpan,
+    unit: _SourceUnit | None,
+) -> bool:
+    """Limit concept attachment to the candidate's local clause."""
+
+    if _overlap(anchor, concept) > 0:
+        return True
+    if (
+        anchor.start is None
+        or anchor.end is None
+        or concept.start is None
+        or concept.end is None
+        or unit is None
+        or not (unit.start <= concept.start < unit.end)
+    ):
+        return False
+    if concept.start >= anchor.end:
+        gap_start, gap_end = anchor.end, concept.start
+    elif anchor.start >= concept.end:
+        gap_start, gap_end = concept.end, anchor.start
+    else:
+        return False
+    if gap_end - gap_start > _CONCEPT_CONTEXT_WINDOW:
+        return False
+    return _CLAUSE_BREAK_RE.search(source[gap_start:gap_end]) is None
+
+
+def _candidate_anchors(candidate: _RawSpan, raw_spans: Sequence[_RawSpan]) -> tuple[_RawSpan, ...]:
+    """Recover the short model span that may have been sentence-expanded."""
+
+    anchors = tuple(
+        span
+        for span in raw_spans
+        if span.label in _REQUIREMENT_LABELS and _overlap(candidate, span) > 0
+    )
+    return anchors or (candidate,)
+
+
+def _concept_context(
+    source: str,
+    candidate: _RawSpan,
+    anchors: Sequence[_RawSpan],
+    unit: _SourceUnit | None,
+) -> str:
+    """Return candidate text plus bounded context for deterministic enrichment."""
+
+    pieces = [candidate.text]
+    for anchor in anchors:
+        if anchor.start is None or anchor.end is None:
+            continue
+        lower = max(unit.start if unit else 0, anchor.start - _CONCEPT_CONTEXT_WINDOW)
+        upper = min(unit.end if unit else len(source), anchor.end + _CONCEPT_CONTEXT_WINDOW)
+        if lower < upper:
+            pieces.append(source[lower:upper])
+    return " ".join(dict.fromkeys(piece.strip() for piece in pieces if piece.strip()))
 
 
 def _coerce_raw_spans(source: str, result: Mapping[str, Any], offset: int = 0) -> list[_RawSpan]:
@@ -639,8 +715,13 @@ _WORD_NUMBERS = {
 }
 
 
-def _integer(value: str) -> int:
-    return int(value) if value.isdigit() else _WORD_NUMBERS[value.casefold()]
+def _number_value(value: str) -> int | float:
+    normalized = value.casefold()
+    if normalized in _WORD_NUMBERS:
+        return _WORD_NUMBERS[normalized]
+    if re.fullmatch(r"\d+", normalized):
+        return int(normalized)
+    return float(normalized)
 
 
 def _constraints(candidate_text: str, context_text: str, label: str) -> tuple[Constraint, ...]:
@@ -651,23 +732,32 @@ def _constraints(candidate_text: str, context_text: str, label: str) -> tuple[Co
     years = _YEARS_RE.search(context)
     if years:
         try:
+            qualifier = _normalise(years.group("qualifier") or "")
+            operator = "gt" if qualifier in {"more than", "over"} else "min"
+            maximum_text = years.group("maximum")
+            maximum = _number_value(maximum_text) if maximum_text else None
+            if maximum is not None:
+                operator = "range"
             constraints.append(
                 Constraint(
                     kind="years_experience",
-                    value=_integer(years.group("number")),
+                    value=_number_value(years.group("number")),
                     source_text=context[years.start() : years.end()],
+                    operator=operator,
+                    maximum=maximum,
                 )
             )
-        except (KeyError, ValueError):
+        except (KeyError, TypeError, ValueError):
             pass
     degree = _DEGREE_RE.search(context)
     if degree:
         value = degree.group(0).casefold().replace("’", "'")
-        if "ph" in value or "doctor" in value:
+        compact = value.replace(".", "").replace(" ", "")
+        if "ph" in compact or "doctor" in compact:
             level = "doctorate"
-        elif "master" in value or value in {"m.s.", "ms", "mba"}:
+        elif "master" in value or compact in {"ms", "msc", "mba"}:
             level = "master"
-        elif "bachelor" in value or value in {"b.s.", "bs", "b.a.", "ba"}:
+        elif "bachelor" in value or "undergraduate" in value or compact in {"bs", "bsc", "ba"}:
             level = "bachelor"
         else:
             level = "associate"
@@ -676,20 +766,22 @@ def _constraints(candidate_text: str, context_text: str, label: str) -> tuple[Co
     if label == "certification_requirement" or certification:
         if certification:
             constraints.append(Constraint("certification", "mentioned", context[certification.start() : certification.end()]))
-    unique: dict[tuple[str, str], Constraint] = {}
+    unique: dict[tuple[object, ...], Constraint] = {}
     for constraint in constraints:
-        unique[(constraint.kind, str(constraint.value))] = constraint
+        unique[(constraint.kind, str(constraint.value), constraint.operator, constraint.maximum, constraint.values)] = constraint
     return tuple(unique.values())
 
 
 def _taxonomy_concepts(text: str) -> list[tuple[str, str]]:
-    found: list[tuple[str, str]] = []
+    found: list[tuple[int, int, str, str]] = []
     folded = _normalise(text)
     for alias, canonical in sorted(ALIAS_TO_CANONICAL.items(), key=lambda item: (-len(item[0]), item[0])):
-        if re.search(rf"(?<![\w]){re.escape(_normalise(alias))}(?![\w])", folded):
-            found.append((canonical, TAXONOMY[canonical][0]))
+        match = re.search(rf"(?<![\w]){re.escape(_normalise(alias))}(?![\w])", folded)
+        if match:
+            found.append((match.start(), -len(alias), canonical, TAXONOMY[canonical][0]))
+    found.sort(key=lambda item: (item[0], item[1], item[2]))
     deduped: dict[str, str] = {}
-    for canonical, kind in found:
+    for _start, _length, canonical, kind in found:
         deduped[canonical] = kind
     return list(deduped.items())
 
@@ -716,21 +808,47 @@ def _requirement_type(
 
 
 def _concept_values(candidate: _RawSpan, attached: Iterable[_RawSpan], context_text: str) -> tuple[str, ...]:
-    values: list[str] = []
-    for span in attached:
+    values = [canonical for canonical, _kind in _taxonomy_concepts(context_text)]
+    for span in sorted(attached, key=lambda item: item.start if item.start is not None else 10**12):
         if span.label not in _CONCEPT_VALUE_LABELS:
             continue
-        value = _normalise(span.text)
+        normalized = _normalise(span.text)
+        value = ALIAS_TO_CANONICAL.get(normalized, normalized)
         if value and value not in values:
             values.append(value)
-    for canonical, _kind in _taxonomy_concepts(context_text):
-        if canonical not in values:
-            values.append(canonical)
     if not values and candidate.label in _CONCEPT_VALUE_LABELS:
-        value = _normalise(candidate.text)
+        normalized = _normalise(candidate.text)
+        value = ALIAS_TO_CANONICAL.get(normalized, normalized)
         if value:
             values.append(value)
     return tuple(values)
+
+
+def _concept_group_constraint(context_text: str, concepts: Sequence[str]) -> Constraint | None:
+    """Represent explicit AND/OR skill alternatives without creating spans."""
+
+    values = tuple(
+        dict.fromkeys(
+            concept
+            for concept in concepts
+            if concept in TAXONOMY and TAXONOMY[concept][0] in {"hard_skill", "certification"}
+        )
+    )
+    if len(values) < 2:
+        return None
+    if re.search(r"\b(?:one\s+of|either|or)\b", context_text, re.IGNORECASE):
+        operator = "any"
+    elif re.search(r"\band\b", context_text, re.IGNORECASE):
+        operator = "all"
+    else:
+        return None
+    return Constraint(
+        kind="concept_group",
+        value=operator,
+        source_text=context_text,
+        operator=operator,
+        values=values,
+    )
 
 
 def _usable_requirement_span(source: str, span: _RawSpan) -> _RawSpan | None:
@@ -796,25 +914,25 @@ def _requirements_from_spans(
             continue
         units = _span_units(source, candidate)
         unit = _unit_for_offset(source, candidate.start)
-        context_text = unit.text if unit else candidate.text
+        context_text = unit.text if unit is not None and len(units) == 1 else candidate.text
         section_kind = unit.section_kind if unit else None
         if any(_excluded_reason(item.text, item.section_kind) for item in units if not item.is_heading):
             continue
         if _is_heading_text(candidate.text):
             continue
         constraints = _constraints(candidate.text, context_text, candidate.label)
-        taxonomy = _taxonomy_concepts(context_text)
+        anchors = _candidate_anchors(candidate, spans)
+        concept_context = _concept_context(source, candidate, anchors, unit)
         attached = [
             item
             for item in concept_spans
-            if _overlap(candidate, item) > 0
-            or (
-                unit is not None
-                and item.start is not None
-                and unit.start <= item.start < unit.end
-            )
+            if any(_span_is_near(source, anchor, item, unit) for anchor in anchors)
         ]
-        concepts = _concept_values(candidate, attached, context_text)
+        concepts = _concept_values(candidate, attached, concept_context)
+        concept_group = _concept_group_constraint(candidate.text, concepts)
+        if concept_group is not None:
+            constraints = (*constraints, concept_group)
+        taxonomy = _taxonomy_concepts(concept_context)
         requirements.append(
             Requirement(
                 id=f"req-{len(requirements) + 1:03d}",
@@ -868,7 +986,12 @@ def _merge_requirements(left: Requirement, right: Requirement) -> Requirement:
         source = right
     constraints: list[Constraint] = list(left.constraints)
     for constraint in right.constraints:
-        if (constraint.kind, str(constraint.value)) not in {(item.kind, str(item.value)) for item in constraints}:
+        identity = (constraint.kind, str(constraint.value), constraint.operator, constraint.maximum, constraint.values)
+        existing_identities = {
+            (item.kind, str(item.value), item.operator, item.maximum, item.values)
+            for item in constraints
+        }
+        if identity not in existing_identities:
             constraints.append(constraint)
     concepts = tuple(dict.fromkeys((*left.concepts, *right.concepts)))
     return Requirement(
@@ -928,7 +1051,7 @@ def _dedupe_requirements(requirements: Iterable[Requirement]) -> tuple[Requireme
 def _sentence_parts(unit: _SourceUnit, source: str, chunk_size: int) -> list[_ChunkUnit]:
     if unit.is_heading or _word_count(unit.text) <= max(80, chunk_size // 2):
         return [_ChunkUnit(unit.start, unit.end, unit.text, unit.heading_start)]
-    matches = list(re.finditer(r"[^.!?]+(?:[.!?]+|$)", unit.text))
+    matches = list(_SENTENCE_RE.finditer(unit.text))
     parts: list[_ChunkUnit] = []
     for match in matches:
         start, end = _trim_range(source, unit.start + match.start(), unit.start + match.end(), bullet=False)
@@ -1003,7 +1126,18 @@ def requirements_from_model_output(
 
 def _constraint_dict(constraint: Constraint) -> dict[str, Any]:
     if constraint.kind in {"years_experience", "degree_level"}:
-        return {"kind": constraint.kind, "minimum": constraint.value}
+        result: dict[str, Any] = {"kind": constraint.kind, "minimum": constraint.value}
+        if constraint.operator and constraint.operator != "min":
+            result["operator"] = constraint.operator
+        if constraint.maximum is not None:
+            result["maximum"] = constraint.maximum
+        return result
+    if constraint.kind == "concept_group":
+        return {
+            "kind": constraint.kind,
+            "operator": constraint.operator or constraint.value,
+            "values": list(constraint.values),
+        }
     return {"kind": constraint.kind, "value": constraint.value}
 
 

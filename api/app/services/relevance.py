@@ -239,10 +239,10 @@ LIBRARY_KIND_TO_SECTION_TYPE: dict[str, str] = {
 # section can still win when it is the only or best available evidence.
 _REQUIREMENT_SECTION_AFFINITY: dict[str, dict[str, float]] = {
     "hard_skill": {
-        "skills": 0.95,
-        "experience": 0.9,
-        "projects": 0.85,
-        "research": 0.45,
+        "projects": 1.0,
+        "experience": 0.95,
+        "skills": 0.8,
+        "research": 0.55,
     },
     "responsibility": {
         "experience": 1.0,
@@ -260,6 +260,40 @@ _REQUIREMENT_SECTION_AFFINITY: dict[str, dict[str, float]] = {
     "project": {"projects": 1.0, "experience": 0.85, "skills": 0.7},
     "research": {"research": 1.0, "experience": 0.85, "projects": 0.6, "education": 0.5},
     "other": {"experience": 0.8, "projects": 0.7, "skills": 0.65},
+}
+
+# A named skill in a project or work history is stronger evidence than the
+# same name in a skills chip.  This affects requirement fit, while section
+# affinities above continue to govern Library-row selection.
+_REQUIREMENT_EVIDENCE_QUALITY: dict[str, dict[str, float]] = {
+    "hard_skill": {
+        "projects": 1.0,
+        "experience": 0.95,
+        "skills": 0.85,
+        "research": 0.65,
+        "profile": 0.55,
+    },
+    "responsibility": {
+        "experience": 1.0,
+        "projects": 0.9,
+        "research": 0.65,
+        "skills": 0.4,
+        "profile": 0.55,
+    },
+    "quantitative": {
+        "experience": 1.0,
+        "projects": 0.9,
+        "skills": 0.55,
+        "profile": 0.45,
+    },
+    "education": {"education": 1.0, "experience": 0.5, "profile": 0.4},
+    "certification": {"certifications": 1.0, "experience": 0.8, "profile": 0.5},
+    "language": {"languages": 1.0, "experience": 0.65, "profile": 0.45},
+    "project": {"projects": 1.0, "experience": 0.85, "skills": 0.6},
+    "research": {"research": 1.0, "experience": 0.85, "projects": 0.65, "education": 0.5},
+    # Unknown/free-text requirements do not carry enough semantic type
+    # information to justify discounting one CV section over another.
+    "other": {"experience": 1.0, "projects": 1.0, "skills": 1.0, "profile": 1.0, "education": 1.0},
 }
 
 # These are deliberately closed.  Contact fields, dates, IDs, URLs, styles,
@@ -837,16 +871,61 @@ class _FieldMatch:
     method: str
 
 
-_YEARS_RE = re.compile(r"\b(\d+)\+?\s*(?:years?|yrs?)\b", re.IGNORECASE)
+def _evidence_quality(requirement: JobRequirement, section_type: str) -> float:
+    qualities = _REQUIREMENT_EVIDENCE_QUALITY.get(requirement.type)
+    if qualities is None:
+        return 1.0
+    return qualities.get(section_type, 0.4)
+
+
+def _match_priority(requirement: JobRequirement, match: _FieldMatch, index: int = 0) -> tuple[float, float, int, int]:
+    """Rank evidence by fit quality, raw match strength, method, then order."""
+
+    method_rank = {"taxonomy": 3, "constraint": 3, "fts5": 2, "fuzzy": 1}.get(match.method, 0)
+    effective = match.score * _evidence_quality(requirement, match.field.section_type)
+    return effective, match.score, method_rank, -index
+
+
+_YEAR_NUMBER_PATTERN = r"(?:\d+(?:\.\d+)?|zero|one|two|three|four|five|six|seven|eight|nine|ten)"
+_YEARS_RE = re.compile(
+    rf"\b(?:(?:at\s+least|minimum(?:\s+of)?|min(?:imum)?|more\s+than|over)\s+)?"
+    rf"(?P<number>{_YEAR_NUMBER_PATTERN})"
+    rf"(?:\s*(?:[-–—]|to)\s*(?P<maximum>{_YEAR_NUMBER_PATTERN}))?"
+    rf"\s*(?:\+|or\s+more)?\s*(?:years?|yrs?)\b",
+    re.IGNORECASE,
+)
+_YEAR_WORD_VALUES = {
+    "zero": 0,
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+}
+
+
+def _parse_year_number(value: str) -> int | float:
+    normalized = value.casefold()
+    if normalized in _YEAR_WORD_VALUES:
+        return _YEAR_WORD_VALUES[normalized]
+    if re.fullmatch(r"\d+", normalized):
+        return int(normalized)
+    return float(normalized)
 _DEGREE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("phd", re.compile(r"\b(?:ph\.?d\.?|doctorate|doctoral)\b", re.IGNORECASE)),
+    ("phd", re.compile(r"(?<!\w)(?:ph\.?d\.?|doctorate|doctoral)(?!\w)", re.IGNORECASE)),
     ("master", re.compile(r"(?<!\w)(?:master(?:'s)?|msc|m\.?s\.?|mba)(?!\w)", re.IGNORECASE)),
     ("bachelor", re.compile(r"(?<!\w)(?:bachelor(?:'s)?|bsc|b\.?s\.?|undergraduate)(?!\w)", re.IGNORECASE)),
     ("associate", re.compile(r"(?<!\w)(?:associate(?:'s)?|a\.?a\.?|a\.?s\.?)(?!\w)", re.IGNORECASE)),
 )
 _DEGREE_RANK = {"associate": 1, "bachelor": 2, "master": 3, "phd": 4, "doctorate": 4}
 _CERTIFICATION_CUE_RE = re.compile(
-    r"\b(?:certificat(?:e|ion)|certified|licen[cs]e[sd]?|ccna|ccnp|cissp|pmp|comptia|itil)\b",
+    r"\b(?:certificat(?:e|ion)|certified|licen[cs]e[sd]?|ccna|ccnp|ccie|cka|ckad|cks|"
+    r"cissp|pmp|comptia|itil)\b",
     re.IGNORECASE,
 )
 _LANGUAGE_CUE_RE = re.compile(
@@ -1109,7 +1188,7 @@ def extract_requirements_v2(role: str, job_description: str) -> list[JobRequirem
                 existing.weight = max(existing.weight, weight)
 
         if years_match:
-            minimum = int(years_match.group(1))
+            minimum = _parse_year_number(years_match.group("number"))
             key = ("years", minimum)
             existing = drafts.get(key)
             constraint = {"kind": "years_experience", "minimum": minimum}
@@ -1266,7 +1345,7 @@ def _best_fts_match(requirement: JobRequirement, fields: Sequence[LibraryField])
             continue
         score = min(0.95, 0.55 + 0.4 * overlap)
         candidate = _FieldMatch(field=fields[index], score=score, method="fts5")
-        if best is None or (candidate.score, -index) > (best.score, -best_index):
+        if best is None or _match_priority(requirement, candidate, index) > _match_priority(requirement, best, best_index):
             best = candidate
             best_index = index
     return best
@@ -1294,7 +1373,7 @@ def _best_fuzzy_match(requirement: JobRequirement, fields: Sequence[LibraryField
                 if ratio < 0.9:
                     continue
                 candidate = _FieldMatch(field=field, score=0.8 + 0.15 * (ratio - 0.9) / 0.1, method="fuzzy")
-                if best is None or candidate.score > best.score:
+                if best is None or _match_priority(requirement, candidate) > _match_priority(requirement, best):
                     best = candidate
     return best
 
@@ -1344,7 +1423,7 @@ def _years_from_rows(rows: Iterable[Mapping[str, object]]) -> float:
 
 
 def _years_from_fields(fields: Sequence[LibraryField]) -> float:
-    values = [int(match.group(1)) for field in fields for match in _YEARS_RE.finditer(field.text)]
+    values = [_parse_year_number(match.group("number")) for field in fields for match in _YEARS_RE.finditer(field.text)]
     return float(max(values, default=0))
 
 
@@ -1367,35 +1446,126 @@ def _years_from_sections(sections: Sequence[object] | Mapping[str, object] | Non
     return _years_from_rows(rows)
 
 
+def _requirement_constraints(requirement: JobRequirement) -> tuple[dict[str, object], ...]:
+    constraints = requirement.constraints or ([requirement.constraint] if requirement.constraint else [])
+    return tuple(constraint for constraint in constraints if isinstance(constraint, Mapping))
+
+
+def _concept_aliases(value: object) -> tuple[str, ...]:
+    normalized = normalize_text(str(value))
+    canonical = str(value) if str(value) in TAXONOMY else ALIAS_TO_CANONICAL.get(normalized)
+    return _taxonomy_aliases(canonical) or ((str(value),) if normalized else ())
+
+
+def _best_exact_alias_match(
+    requirement: JobRequirement,
+    fields: Sequence[LibraryField],
+    aliases: Iterable[str],
+) -> _FieldMatch | None:
+    candidates: list[tuple[int, _FieldMatch]] = []
+    for index, field in enumerate(fields):
+        field_tokens = _field_tokens(field)
+        for alias in aliases:
+            alias_tokens = tokenize(alias)
+            if alias_tokens and _contains_sequence(field_tokens, alias_tokens):
+                candidates.append((index, _FieldMatch(field=field, score=1.0, method="taxonomy")))
+                break
+    if not candidates:
+        return None
+    return max(candidates, key=lambda item: _match_priority(requirement, item[1], item[0]))[1]
+
+
+def _concept_group_match(
+    requirement: JobRequirement,
+    fields: Sequence[LibraryField],
+    group: Mapping[str, object],
+) -> _FieldMatch | None:
+    raw_values = group.get("values", ())
+    if not isinstance(raw_values, Sequence) or isinstance(raw_values, (str, bytes)):
+        return None
+    values = tuple(str(value) for value in raw_values if str(value).strip())
+    if not values:
+        return None
+    operator = str(group.get("operator", group.get("value", "all"))).casefold()
+    matches: list[_FieldMatch] = []
+    for value in values:
+        match = _best_exact_alias_match(requirement, fields, _concept_aliases(value))
+        if match is None:
+            if operator == "any":
+                continue
+            continue
+        matches.append(match)
+    if not matches:
+        return None
+    if operator == "any":
+        return max(matches, key=lambda item: _match_priority(requirement, item))
+    # For an AND group the weakest piece of evidence determines the score.
+    weakest = min(matches, key=lambda item: _match_priority(requirement, item))
+    return _FieldMatch(
+        field=weakest.field,
+        score=weakest.score * len(matches) / len(values),
+        method=weakest.method,
+    )
+
+
+def _combine_matches(
+    requirement: JobRequirement,
+    first: _FieldMatch,
+    second: _FieldMatch,
+) -> _FieldMatch:
+    """Keep the weakest score when one requirement has multiple constraints."""
+
+    weakest = min((first, second), key=lambda item: _match_priority(requirement, item))
+    return _FieldMatch(field=weakest.field, score=min(first.score, second.score), method=weakest.method)
+
+
+def _certification_match(
+    requirement: JobRequirement,
+    fields: Sequence[LibraryField],
+) -> _FieldMatch | None:
+    aliases = _requirement_aliases(requirement)
+    named_aliases = [
+        alias
+        for alias in aliases
+        if (canonical := ALIAS_TO_CANONICAL.get(normalize_text(alias)))
+        and TAXONOMY.get(canonical, ("", ()))[0] == "certification"
+    ]
+    if named_aliases:
+        return _best_exact_alias_match(requirement, fields, named_aliases)
+    # A generic certification requirement is satisfied only by an actual
+    # certification field, never by a random occurrence of "certified" in a
+    # project description.
+    field = next((field for field in fields if field.section_type == "certifications"), None)
+    return _FieldMatch(field=field, score=1.0, method="constraint") if field is not None else None
+
+
 def _constraint_match(
     requirement: JobRequirement,
     fields: Sequence[LibraryField],
     experience_years: float | None,
 ) -> _FieldMatch | None:
-    constraints = requirement.constraints or ([requirement.constraint] if requirement.constraint else [])
+    constraints = _requirement_constraints(requirement)
     structured = [
         constraint
         for constraint in constraints
         if constraint.get("kind") in {"years_experience", "degree_level"}
     ]
     if not structured:
-        # Certification constraints are retained as provenance, but matching
-        # still uses the existing lexical/taxonomy path because the matcher has
-        # no separate certification-credential index.
         return None
 
-    matched: _FieldMatch | None = None
+    matched: list[_FieldMatch] = []
     for constraint in structured:
         kind = constraint.get("kind")
         if kind == "years_experience":
             years = experience_years if experience_years is not None else _years_from_fields(fields)
             minimum = float(constraint.get("minimum", 0))
-            if years < minimum:
+            operator = str(constraint.get("operator", "min")).casefold()
+            if years <= 0:
                 return None
-            field = next(
-                (field for field in fields if field.section_type == "experience"),
-                fields[0] if fields else None,
-            )
+            satisfied = years > minimum if operator == "gt" else years >= minimum
+            ratio = years / minimum if minimum > 0 else 1.0
+            score = 1.0 if satisfied else min(REQUIREMENT_COVERAGE_THRESHOLD - 0.01, 0.64 * ratio)
+            field = next((field for field in fields if field.section_type == "experience"), None)
             if field is None:
                 field = LibraryField(
                     section_type="experience",
@@ -1404,21 +1574,24 @@ def _constraint_match(
                     field_path="experience.duration",
                     text=f"{years:.1f} years of experience",
                 )
-            matched = _FieldMatch(field=field, score=1.0, method="constraint")
+            matched.append(_FieldMatch(field=field, score=score, method="constraint"))
         elif kind == "degree_level":
             minimum = _DEGREE_RANK.get(str(constraint.get("minimum", "")).casefold(), 0)
-            field = next(
-                (
-                    field
-                    for field in fields
-                    if field.field_path.endswith(".degree") and _degree_rank(field.text) >= minimum
-                ),
-                None,
-            )
+            degree_fields = [
+                field
+                for field in fields
+                if field.field_path.endswith(".degree") and _degree_rank(field.text) > 0
+            ]
+            field = max(degree_fields, key=lambda item: _degree_rank(item.text), default=None)
             if field is None:
                 return None
-            matched = _FieldMatch(field=field, score=1.0, method="constraint")
-    return matched
+            rank = _degree_rank(field.text)
+            score = 1.0 if rank >= minimum else min(REQUIREMENT_COVERAGE_THRESHOLD - 0.01, 0.5)
+            matched.append(_FieldMatch(field=field, score=score, method="constraint"))
+    return min(
+        enumerate(matched),
+        key=lambda item: _match_priority(requirement, item[1], item[0]),
+    )[1]
 
 
 def _best_match(
@@ -1427,19 +1600,32 @@ def _best_match(
     *,
     experience_years: float | None = None,
 ) -> _FieldMatch | None:
-    constraints = requirement.constraints or ([requirement.constraint] if requirement.constraint else [])
-    if any(constraint.get("kind") in {"years_experience", "degree_level"} for constraint in constraints):
+    constraints = _requirement_constraints(requirement)
+    has_structured = any(constraint.get("kind") in {"years_experience", "degree_level"} for constraint in constraints)
+    group = next((constraint for constraint in constraints if constraint.get("kind") == "concept_group"), None)
+    if has_structured:
         constrained = _constraint_match(requirement, fields, experience_years)
+        if constrained is None:
+            return None
+        if group is not None:
+            grouped = _concept_group_match(requirement, fields, group)
+            if grouped is None:
+                return None
+            return _combine_matches(requirement, constrained, grouped)
         return constrained
+    if group is not None:
+        return _concept_group_match(requirement, fields, group)
+
+    if requirement.type == "certification" or any(
+        constraint.get("kind") == "certification" for constraint in constraints
+    ):
+        return _certification_match(requirement, fields)
 
     aliases = _requirement_aliases(requirement)
     if aliases:
-        for field in fields:
-            field_tokens = _field_tokens(field)
-            for alias in aliases:
-                alias_tokens = tokenize(alias)
-                if _contains_sequence(field_tokens, alias_tokens):
-                    return _FieldMatch(field=field, score=1.0, method="taxonomy")
+        exact = _best_exact_alias_match(requirement, fields, aliases)
+        if exact is not None:
+            return exact
     else:
         requirement_tokens = tokenize(_requirement_search_text(requirement))
         for field in fields:
@@ -1472,7 +1658,7 @@ def _match_requirement(
     experience_years: float | None = None,
 ) -> _RequirementMatchData:
     match = _best_match(requirement, fields, experience_years=experience_years)
-    score = match.score if match else 0.0
+    score = min(1.0, match.score * _evidence_quality(requirement, match.field.section_type)) if match else 0.0
     return _RequirementMatchData(
         requirement=requirement,
         covered=score >= REQUIREMENT_COVERAGE_THRESHOLD,
@@ -1624,10 +1810,15 @@ def _selection_value(
         # both match the same requirement perfectly. Limit this to one extra
         # section so duplicate Library rows do not inflate selection.
         prior_sections = evidence_sections.get(requirement.id, set())
+        prior_affinity = max(
+            (_section_affinity(requirement, section) for section in prior_sections),
+            default=0.0,
+        )
         if (
             match.score >= REQUIREMENT_COVERAGE_THRESHOLD
             and prior_sections
             and row.section_type not in prior_sections
+            and affinity > prior_affinity
             and len(prior_sections) < MAX_COMPLEMENTARY_SECTIONS.get(requirement.type, 2)
         ):
             value += requirement.weight * match.score * affinity * COMPLEMENTARY_EVIDENCE_BONUS
