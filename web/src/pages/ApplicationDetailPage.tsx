@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Check, ChevronDown, ChevronUp, Copy, Download, ExternalLink, Pencil, RefreshCw, Trash2, XCircle } from "lucide-react";
 import ApplicationFormModal from "../components/applications/ApplicationFormModal";
@@ -76,6 +76,17 @@ function isTerminalTailoringStatus(status: TailoringSessionStatusResponse["statu
   return status === "applied" || status === "failed" || status === "expired" || status === "cancelled" || status === "stale";
 }
 
+function terminalTailoringToast(status: TailoringSessionStatusResponse["status"]): { message: string; type: "success" | "error" | "info" } | null {
+  switch (status) {
+    case "applied": return { message: "Your tailored CV is ready. Relevance has been updated.", type: "success" };
+    case "failed": return { message: "Tailoring failed. No CV changes were saved.", type: "error" };
+    case "expired": return { message: "The tailoring session expired. Start a new session to try again.", type: "info" };
+    case "cancelled": return { message: "Tailoring session cancelled.", type: "info" };
+    case "stale": return { message: "The CV changed during tailoring. Start a new session to try again.", type: "error" };
+    default: return null;
+  }
+}
+
 export default function ApplicationDetailPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
@@ -95,6 +106,7 @@ export default function ApplicationDetailPage() {
   const [tailoringStarting, setTailoringStarting] = useState(false);
   const [tailoringStatus, setTailoringStatus] = useState<TailoringSessionStatusResponse | null>(null);
   const [promptCopied, setPromptCopied] = useState(false);
+  const lastTailoringToast = useRef<string | null>(null);
 
   useEffect(() => {
     if (id) fetch(id);
@@ -127,6 +139,12 @@ export default function ApplicationDetailPage() {
         if (status.status === "applied") {
           await fetch(tailoringSession.application_id);
         }
+        const toast = terminalTailoringToast(status.status);
+        const toastKey = `${tailoringSession.session_id}:${status.status}`;
+        if (toast && lastTailoringToast.current !== toastKey) {
+          lastTailoringToast.current = toastKey;
+          addToast(toast.message, toast.type);
+        }
       } catch {
         // The shared API client reports actionable errors. Keep the last known
         // session state visible while the user can retry from this page.
@@ -139,7 +157,7 @@ export default function ApplicationDetailPage() {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [fetch, tailoringSession, tailoringStatus?.status]);
+  }, [addToast, fetch, tailoringSession, tailoringStatus?.status]);
 
   const relevance = application && isRelevanceResult(application.relevance) ? application.relevance : null;
   const sections = useMemo(() => sectionTypes(linkedCV), [linkedCV]);
@@ -232,6 +250,7 @@ export default function ApplicationDetailPage() {
     try {
       const status = await cancelTailoringSession(tailoringSession.session_id);
       setTailoringStatus(status);
+      lastTailoringToast.current = `${tailoringSession.session_id}:cancelled`;
       addToast("Tailoring session cancelled", "info");
     } catch {
       addToast("Unable to cancel the tailoring session", "error");
