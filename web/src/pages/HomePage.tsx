@@ -62,7 +62,7 @@ export default function HomePage() {
           </button>
         ) : (
           <button
-            onClick={() => navigate("/register")}
+            onClick={() => navigate("/login")}
             className="mt-8 rounded-md bg-app-primary px-6 py-3 text-base text-white hover:bg-app-primary-hover"
           >
             Start building &rarr;
