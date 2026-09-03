@@ -26,6 +26,7 @@ export interface TailoringSessionResult {
   protocol_version: 1;
   session_id: string;
   application_id: string;
+  source_cv_id?: string;
   cv_id: string;
   base_revision: number;
   new_revision: number;

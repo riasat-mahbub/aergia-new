@@ -13,8 +13,20 @@ const OPERATIONS = new Set([
   "remove_entry",
   "reorder_entries",
   "add_library_entry",
+  "create_section",
+  "replace_section",
+  "remove_section",
+  "reorder_sections",
   "report_gap",
 ]);
+
+const RENDERABLE_SECTION_TYPES = new Set([
+  "profile", "experience", "education", "skills", "projects", "languages", "certifications", "research", "extras",
+]);
+
+const PROFILE_IMMUTABLE_FIELDS = [
+  "name", "email", "email_link", "phone", "location", "site_text", "site_url", "photo_url", "social_links",
+];
 
 function parseArgs(argv) {
   const args = {};
@@ -42,13 +54,14 @@ async function readJson(path) {
   }
 }
 
-function sectionsFromEvidence(evidence) {
-  const sections = Array.isArray(evidence?.cv?.sections)
-    ? evidence.cv.sections
-    : Array.isArray(evidence?.cv?.sections?.sections)
-      ? evidence.cv.sections.sections
+function sectionsFromEvidence(evidence, target = false) {
+  const document = target && evidence?.target_cv ? evidence.target_cv : evidence?.cv;
+  const sections = Array.isArray(document?.sections)
+    ? document.sections
+    : Array.isArray(document?.sections?.sections)
+      ? document.sections.sections
       : null;
-  if (!sections) throw new Error("Evidence CV does not contain a sections array");
+  if (!sections) throw new Error(target ? "Evidence target CV does not contain a sections array" : "Evidence CV does not contain a sections array");
   return sections;
 }
 
@@ -83,12 +96,147 @@ function checkUniqueIds(values, label) {
   if (new Set(values).size !== values.length) throw new Error(`${label} must contain unique IDs`);
 }
 
-function validateChange(change, evidence, sections) {
+function readField(source, fieldPath) {
+  if (fieldPath === "*") return source;
+  if (typeof fieldPath !== "string" || !fieldPath) return undefined;
+  return fieldPath.split(".").reduce((current, part) => (
+    current && typeof current === "object" ? current[part] : undefined
+  ), source);
+}
+
+function isSafeHttpUrl(value) {
+  if (typeof value !== "string" || !value.trim() || /[\s\u0000-\u001f\u007f]/.test(value)) return false;
+  try {
+    const parsed = new URL(value);
+    return (parsed.protocol === "http:" || parsed.protocol === "https:")
+      && Boolean(parsed.hostname)
+      && !parsed.username
+      && !parsed.password;
+  } catch {
+    return false;
+  }
+}
+
+function isFieldPath(value) {
+  return typeof value === "string"
+    && /^(?:\*|[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*)$/.test(value)
+    && value.length <= 128;
+}
+
+function hasValue(value) {
+  return value !== undefined && value !== null;
+}
+
+function rejectEvidenceFields(reference, fields, label) {
+  if (fields.some((field) => hasValue(reference[field]))) throw new Error(`${label} contains fields for another source`);
+}
+
+function validateEvidenceRefs(change, evidence, sections) {
+  for (const reference of change.evidence ?? []) {
+    if (!reference || typeof reference !== "object") throw new Error("Evidence references must be objects");
+    if (reference.source === "cv") {
+      if (!reference.section_id || !isFieldPath(reference.field_path)) throw new Error("CV evidence requires section_id and field_path");
+      rejectEvidenceFields(reference, ["library_entry_id", "source_row_id", "source_hash", "url", "title", "excerpt"], "CV evidence");
+      const section = findSection(sections, reference.section_id);
+      const source = findTarget(section, reference.entry_id);
+      if (readField(source, reference.field_path) === undefined) throw new Error("CV evidence field does not exist");
+      continue;
+    }
+    if (reference.source === "library") {
+      if (!isFieldPath(reference.field_path)) throw new Error("Library evidence requires field_path");
+      if (!reference.library_entry_id || !reference.source_row_id || !/^[0-9a-f]{64}$/.test(reference.source_hash ?? "")) {
+        throw new Error("Library evidence requires entry, row, and source hash");
+      }
+      rejectEvidenceFields(reference, ["section_id", "entry_id", "url", "title", "excerpt"], "Library evidence");
+      const source = (evidence.library ?? []).find((entry) => entry?.id === reference.library_entry_id);
+      if (!source) throw new Error(`Unknown Library evidence entry ID: ${reference.library_entry_id}`);
+      if (source.content_hash !== reference.source_hash) throw new Error("Library evidence hash does not match the packet");
+      const row = source.payload?.find((candidate) => candidate?.id === reference.source_row_id);
+      if (!row || readField(row, reference.field_path) === undefined) throw new Error("Library evidence field does not exist");
+      continue;
+    }
+    if (reference.source === "web") {
+      if (!isSafeHttpUrl(reference.url)) throw new Error("Web evidence requires a safe HTTP(S) URL");
+      if (reference.url.length > 2048) throw new Error("Web evidence URL is too long");
+      if (typeof reference.title !== "string" || !reference.title.trim() || reference.title.length > 255) {
+        throw new Error("Web evidence requires a bounded title");
+      }
+      if (typeof reference.excerpt !== "string" || !reference.excerpt.trim() || reference.excerpt.length > 4000) {
+        throw new Error("Web evidence requires a bounded excerpt");
+      }
+      rejectEvidenceFields(
+        reference,
+        ["field_path", "section_id", "entry_id", "library_entry_id", "source_row_id", "source_hash"],
+        "Web evidence",
+      );
+      continue;
+    }
+    throw new Error(`Unsupported evidence source: ${reference.source}`);
+  }
+}
+
+function requireStructuralProof(change) {
+  if (typeof change.reason !== "string" || !change.reason.trim()) {
+    throw new Error(`${change.operation} requires a non-empty reason`);
+  }
+  if (!Array.isArray(change.evidence) || change.evidence.length === 0) {
+    throw new Error(`${change.operation} requires at least one evidence reference`);
+  }
+}
+
+function stableJson(value) {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function validateSectionPayload(section) {
+  if (!section || typeof section !== "object") throw new Error("Structural changes require a section object");
+  if (typeof section.id !== "string" || !section.id.trim()) throw new Error("Section ID is required");
+  if (typeof section.type !== "string" || !RENDERABLE_SECTION_TYPES.has(section.type)) {
+    throw new Error(`Section type cannot be rendered: ${section.type}`);
+  }
+  if (typeof section.title !== "string" || !section.title.trim()) throw new Error("Section title is required");
+  if (section.enabled !== undefined && typeof section.enabled !== "boolean") throw new Error("Section enabled must be boolean");
+  if (section.style !== undefined && section.style !== null && typeof section.style !== "object") {
+    throw new Error("Section style must be an object or null");
+  }
+  if (section.type === "profile") {
+    if (!section.data || typeof section.data !== "object" || Array.isArray(section.data)) {
+      throw new Error("Profile sections require object data");
+    }
+    return;
+  }
+  if (!Array.isArray(section.data)) throw new Error("Entry-based sections require list data");
+  if (section.data.length > 0) checkUniqueIds(section.data.map((entry) => entry?.id), "Section entry IDs");
+  if (section.type !== "extras") return;
+  for (const entry of section.data) {
+    if (!Array.isArray(entry.fields)) throw new Error("Extras entries require a fields list");
+    for (const field of entry.fields) {
+      if (!field || typeof field.label !== "string" || !field.label.trim() || !("value" in field)) {
+        throw new Error("Extras fields require a label and value");
+      }
+    }
+  }
+}
+
+function assertProfileIdentityUnchanged(before, after) {
+  for (const field of PROFILE_IMMUTABLE_FIELDS) {
+    if (stableJson(before.data?.[field]) !== stableJson(after.data?.[field])) {
+      throw new Error(`Profile identity field cannot be changed: ${field}`);
+    }
+  }
+}
+
+function validateChange(change, evidence, sections, evidenceSections = sections) {
   if (!change || typeof change !== "object") throw new Error("Each change must be an object");
   if (!OPERATIONS.has(change.operation)) throw new Error(`Unsupported operation: ${change.operation}`);
   if (Array.isArray(evidence.supported_operations) && !evidence.supported_operations.includes(change.operation)) {
     throw new Error(`Operation is not advertised by the server: ${change.operation}`);
   }
+  validateEvidenceRefs(change, evidence, evidenceSections);
 
   if (change.operation === "report_gap") {
     if (change.requirement_id !== undefined && change.requirement_id !== null && (typeof change.requirement_id !== "string" || !change.requirement_id.trim())) {
@@ -96,6 +244,49 @@ function validateChange(change, evidence, sections) {
     }
     if (typeof change.requirement !== "string" || !change.requirement.trim()) throw new Error("Gap requirement is required");
     if (typeof change.reason !== "string" || !change.reason.trim()) throw new Error("Gap reason is required");
+    return;
+  }
+
+  if (change.operation === "create_section") {
+    requireStructuralProof(change);
+    validateSectionPayload(change.section);
+    if (change.section.type === "profile") throw new Error("A tailoring patch cannot create another profile section");
+    if (sections.some((section) => section?.id === change.section.id)) {
+      throw new Error(`Section ID is already in use: ${change.section.id}`);
+    }
+    return;
+  }
+
+  if (change.operation === "replace_section") {
+    requireStructuralProof(change);
+    const current = findSection(sections, change.section_id);
+    validateSectionPayload(change.section);
+    if (change.section.id !== change.section_id) throw new Error("Replacement section ID must match section_id");
+    if (current.type === "profile" || change.section.type === "profile") {
+      if (current.type !== "profile" || change.section.type !== "profile") {
+        throw new Error("The profile section cannot be replaced by another section type");
+      }
+      if (change.section.enabled !== true) throw new Error("The profile section must remain enabled");
+      assertProfileIdentityUnchanged(current, change.section);
+    }
+    return;
+  }
+
+  if (change.operation === "remove_section") {
+    requireStructuralProof(change);
+    const current = findSection(sections, change.section_id);
+    if (current.type === "profile") throw new Error("The profile section cannot be removed");
+    return;
+  }
+
+  if (change.operation === "reorder_sections") {
+    requireStructuralProof(change);
+    const ids = sections.map((section) => section?.id);
+    checkUniqueIds(ids, "Evidence section IDs");
+    checkUniqueIds(change.section_ids, "section_ids");
+    if (change.section_ids.length !== ids.length || !change.section_ids.every((id) => ids.includes(id))) {
+      throw new Error("reorder_sections must contain every current section exactly once");
+    }
     return;
   }
 
@@ -128,6 +319,14 @@ function validateChange(change, evidence, sections) {
     const source = library.find((entry) => entry?.id === change.library_entry_id);
     if (!source) throw new Error(`Unknown Library entry ID: ${change.library_entry_id}`);
     if (!change.source_row_id) throw new Error("Library additions require source_row_id");
+    const sourceRow = source.payload?.find((row) => row?.id === change.source_row_id);
+    if (!sourceRow) throw new Error(`Unknown Library source row ID: ${change.source_row_id}`);
+    if (change.entry_id !== undefined && change.entry_id !== null && !String(change.entry_id).trim()) {
+      throw new Error("Library addition entry_id must be non-empty when provided");
+    }
+    if (change.entry_id && section.data?.some((entry) => entry?.id === change.entry_id)) {
+      throw new Error(`CV entry ID is already in use: ${change.entry_id}`);
+    }
     return;
   }
 
@@ -156,6 +355,35 @@ function validateChange(change, evidence, sections) {
   }
 }
 
+function appendLibraryAddition(sections, evidence, change) {
+  // Server-generated IDs cannot be known locally. They are fine for a final
+  // copy-only operation, but an explicit ID is required to target the new row
+  // with a later prose operation in the same patch.
+  if (!change.entry_id) return;
+  const section = findSection(sections, change.section_id);
+  if (!Array.isArray(section.data)) throw new Error("Library additions require an entry-based section");
+  const source = (evidence.library ?? []).find((entry) => entry?.id === change.library_entry_id);
+  const sourceRow = source?.payload?.find((row) => row?.id === change.source_row_id);
+  if (!sourceRow) throw new Error(`Unknown Library source row ID: ${change.source_row_id}`);
+  section.data.push({ ...structuredClone(sourceRow), id: change.entry_id });
+  if (section.enabled === false) section.enabled = true;
+}
+
+function applyStructuralChange(sections, change) {
+  if (change.operation === "create_section") {
+    sections.push(structuredClone(change.section));
+  } else if (change.operation === "replace_section") {
+    const index = sections.findIndex((section) => section?.id === change.section_id);
+    sections[index] = structuredClone(change.section);
+  } else if (change.operation === "remove_section") {
+    const index = sections.findIndex((section) => section?.id === change.section_id);
+    sections.splice(index, 1);
+  } else if (change.operation === "reorder_sections") {
+    const byId = new Map(sections.map((section) => [section.id, section]));
+    sections.splice(0, sections.length, ...change.section_ids.map((id) => byId.get(id)));
+  }
+}
+
 export function validatePatch(patch, evidence) {
   if (patch?.protocol_version !== 1) throw new Error("Patch protocol_version must be 1");
   if (patch.base_revision !== evidence.base_revision || patch.base_hash !== evidence.base_hash) {
@@ -164,8 +392,14 @@ export function validatePatch(patch, evidence) {
   if (!Array.isArray(patch.changes) || patch.changes.length === 0 || patch.changes.length > 50) {
     throw new Error("Patch changes must contain between 1 and 50 operations");
   }
-  const sections = sectionsFromEvidence(evidence);
-  patch.changes.forEach((change) => validateChange(change, evidence, sections));
+  const sections = sectionsFromEvidence(evidence, true);
+  const evidenceSections = sectionsFromEvidence(evidence);
+  const workingSections = structuredClone(sections);
+  patch.changes.forEach((change) => {
+    validateChange(change, evidence, workingSections, evidenceSections);
+    applyStructuralChange(workingSections, change);
+    if (change.operation === "add_library_entry") appendLibraryAddition(workingSections, evidence, change);
+  });
   return { valid: true, operation_count: patch.changes.length };
 }
 

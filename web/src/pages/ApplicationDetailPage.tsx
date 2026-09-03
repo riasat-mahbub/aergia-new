@@ -68,7 +68,7 @@ function sessionStatusLabel(status: TailoringSessionStatusResponse["status"]): s
     case "failed": return "Tailoring failed";
     case "expired": return "Expired";
     case "cancelled": return "Cancelled";
-    case "stale": return "CV changed — restart required";
+    case "stale": return "Source CV changed — restart required";
     default: return status;
   }
 }
@@ -83,7 +83,7 @@ function terminalTailoringToast(status: TailoringSessionStatusResponse["status"]
     case "failed": return { message: "Tailoring failed. No CV changes were saved.", type: "error" };
     case "expired": return { message: "The tailoring session expired. Start a new session to try again.", type: "info" };
     case "cancelled": return { message: "Tailoring session cancelled.", type: "info" };
-    case "stale": return { message: "The CV changed during tailoring. Start a new session to try again.", type: "error" };
+    case "stale": return { message: "The source CV changed during tailoring. Start a new session to try again.", type: "error" };
     default: return null;
   }
 }
@@ -364,7 +364,7 @@ export default function ApplicationDetailPage() {
                 {tailoringStarting ? "Preparing LLM tailoring…" : "LLM Tailoring"}
               </button>
             </div>
-            <p className="mt-3 text-xs text-app-ink-3">Your installed coding agent does the generative work locally. Aergia sends it only this application’s tailoring evidence and validates the returned patch.</p>
+            <p className="mt-3 text-xs text-app-ink-3">Your installed coding agent composes a fresh CV locally from the full Library and profile. It may reorganize sections when it explains and cites the decision; you remain the final reviewer. The current CV remains unchanged as optional source evidence.</p>
             {tailoringSession && (
               <div className="mt-4 rounded-md bg-app-canvas px-3 py-3" role="status">
                 <div className="flex flex-wrap items-start justify-between gap-3">

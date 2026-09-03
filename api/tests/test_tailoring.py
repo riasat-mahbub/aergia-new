@@ -111,6 +111,17 @@ async def test_tailoring_protocol_create_exchange_evidence_submit_apply_score(cl
     evidence_body = evidence.json()
     assert evidence_body["protocol_version"] == 1
     assert evidence_body["cv"]["id"] == cv_id
+    assert evidence_body["target_cv"]["id"] != cv_id
+    assert all(
+        not section["data"]
+        for section in evidence_body["target_cv"]["sections"]
+        if section["type"] != "profile"
+    )
+    assert all(
+        section["enabled"] is False
+        for section in evidence_body["target_cv"]["sections"]
+        if section["type"] != "profile"
+    )
     assert evidence_body["job"]["description"] == "Build reliable Python API services"
     assert "user_id" not in evidence_body
     assert "extra_metadata" not in evidence_body["cv"]
@@ -126,9 +137,36 @@ async def test_tailoring_protocol_create_exchange_evidence_submit_apply_score(cl
             "base_hash": evidence_body["base_hash"],
             "changes": [
                 {
-                    "operation": "replace_description",
-                    "section_id": "section-experience",
-                    "entry_id": "entry-1",
+                    "operation": "create_section",
+                    "section": {
+                        "id": "tailoring-highlights",
+                        "type": "extras",
+                        "title": "Selected Highlights",
+                        "enabled": True,
+                        "data": [
+                            {
+                                "id": "highlight-1",
+                                "title": "Relevant delivery",
+                                "fields": [
+                                    {"label": "Evidence", "value": "Built reliable API services."}
+                                ],
+                            }
+                        ],
+                    },
+                    "reason": "Add a concise section for evidence relevant to this application.",
+                    "evidence": [
+                        {
+                            "source": "cv",
+                            "section_id": "section-experience",
+                            "entry_id": "entry-1",
+                            "field_path": "*",
+                        }
+                    ],
+                },
+                {
+                    "operation": "replace_rich_text",
+                    "section_id": evidence_body["target_cv"]["sections"][0]["id"],
+                    "field": "summary",
                     "value": "Built dependable API services.",
                     "reason": "Fixed protocol test patch",
                 },
@@ -144,8 +182,10 @@ async def test_tailoring_protocol_create_exchange_evidence_submit_apply_score(cl
     assert submitted.status_code == 200
     submitted_body = submitted.json()
     assert submitted_body["application_id"] == application_id
-    assert submitted_body["cv_id"] == cv_id
-    assert submitted_body["applied_operations"] == ["replace_description", "report_gap"]
+    assert submitted_body["source_cv_id"] == cv_id
+    assert submitted_body["cv_id"] != cv_id
+    assert submitted_body["new_revision"] == 1
+    assert submitted_body["applied_operations"] == ["create_section", "replace_rich_text", "report_gap"]
     assert submitted_body["gaps"] == [{"requirement": evidence_body["requirements"][0]["text"], "reason": "No supporting evidence exists."}]
     assert submitted_body["relevance"]["status"] == "evaluated"
     assert submitted_body["relevance"]["requirements"][0]["tailoring_feedback"] == ["No supporting evidence exists."]
@@ -156,10 +196,16 @@ async def test_tailoring_protocol_create_exchange_evidence_submit_apply_score(cl
 
     updated_cv = await client.get(f"/api/v1/cvs/{cv_id}", headers=headers)
     assert updated_cv.status_code == 200
-    assert updated_cv.json()["sections"][0]["data"][0]["description"] == "Built dependable API services."
+    assert updated_cv.json()["sections"][0]["data"][0]["description"] == "Built reliable API services."
+
+    fresh_cv = await client.get(f"/api/v1/cvs/{submitted_body['cv_id']}", headers=headers)
+    assert fresh_cv.status_code == 200
+    assert fresh_cv.json()["sections"][0]["data"]["summary"] == "Built dependable API services."
+    assert fresh_cv.json()["sections"][-1]["id"] == "tailoring-highlights"
 
     updated_application = await client.get(f"/api/v1/applications/{application_id}", headers=headers)
     assert updated_application.status_code == 200
+    assert updated_application.json()["cv_id"] == submitted_body["cv_id"]
     assert updated_application.json()["relevance"] == submitted_body["relevance"]
 
     session_status = await client.get(

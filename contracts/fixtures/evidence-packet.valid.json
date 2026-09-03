@@ -51,6 +51,26 @@
       }
     ]
   },
+  "target_cv": {
+    "id": "target-cv-1",
+    "title": "Fresh tailored draft",
+    "sections": [
+      {
+        "id": "target-profile",
+        "type": "profile",
+        "title": "Profile",
+        "enabled": true,
+        "data": {"name": "Example User", "summary": ""}
+      },
+      {
+        "id": "target-experience",
+        "type": "experience",
+        "title": "Experience",
+        "enabled": true,
+        "data": []
+      }
+    ]
+  },
   "profile": {"name": "Example User"},
   "protected_facts": {
     "profile": {"name": "Example User"},
