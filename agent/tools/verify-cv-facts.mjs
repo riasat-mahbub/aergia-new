@@ -81,13 +81,42 @@ function findTarget(cv, change) {
 }
 
 function readField(value, fieldPath) {
+  if (fieldPath === "*") return value;
   return fieldPath.split(".").reduce((current, part) => (
     current && typeof current === "object" ? current[part] : undefined
   ), value);
 }
 
-function evidenceTextForChange(evidence, change, beforeCv) {
-  const target = findTarget(beforeCv, change);
+function sectionById(cv, sectionId) {
+  return sectionsFromCv(cv).find((section) => section?.id === sectionId);
+}
+
+function claimFindings(findings, beforeText, afterText, allowedText) {
+  for (const value of numbers(afterText)) {
+    if (numbers(beforeText).has(value) || numbers(allowedText).has(value)) continue;
+    findings.push({ type: "number", value, status: "fail", message: `New numeric claim is not supported: ${value}` });
+  }
+  for (const technology of technologies(afterText)) {
+    if (technologies(beforeText).has(technology) || technologies(allowedText).has(technology)) continue;
+    findings.push({ type: "technology", value: technology, status: "fail", message: `New technology claim is not supported: ${technology}` });
+  }
+}
+
+function findBeforeTarget(beforeCv, change, evidence, patch) {
+  const existing = findTarget(beforeCv, change);
+  if (existing) return existing;
+  const addition = (patch.changes ?? []).find((candidate) => (
+    candidate?.operation === "add_library_entry"
+      && candidate.section_id === change.section_id
+      && candidate.entry_id === change.entry_id
+  ));
+  if (!addition) return undefined;
+  const libraryEntry = (evidence.library ?? []).find((entry) => entry?.id === addition.library_entry_id);
+  return libraryEntry?.payload?.find((row) => row?.id === addition.source_row_id);
+}
+
+function evidenceTextForChange(evidence, change, beforeCv, patch) {
+  const target = findBeforeTarget(beforeCv, change, evidence, patch);
   const values = [target?.[change.field ?? "description"]];
   for (const reference of change.evidence ?? []) {
     if (reference.source === "cv") {
@@ -96,11 +125,15 @@ function evidenceTextForChange(evidence, change, beforeCv) {
         ? section.data
         : section?.data?.find((entry) => entry?.id === reference.entry_id);
       values.push(readField(source, reference.field_path));
-      continue;
+    } else if (reference.source === "library") {
+      const libraryEntry = (evidence.library ?? []).find((entry) => entry?.id === reference.library_entry_id);
+      const sourceRow = libraryEntry?.payload?.find((row) => row?.id === reference.source_row_id);
+      values.push(readField(sourceRow, reference.field_path));
+    } else if (reference.source === "web") {
+      // The server validates the URL/citation shape. The excerpt is advisory
+      // source material, not proof of the candidate's personal history.
+      values.push(reference.title, reference.excerpt, reference.url);
     }
-    const libraryEntry = (evidence.library ?? []).find((entry) => entry?.id === reference.library_entry_id);
-    const sourceRow = libraryEntry?.payload?.find((row) => row?.id === reference.source_row_id);
-    values.push(readField(sourceRow, reference.field_path));
   }
   return values.map(flattenText).join(" ");
 }
@@ -108,20 +141,41 @@ function evidenceTextForChange(evidence, change, beforeCv) {
 export function verifyFacts(before, after, evidence, patch) {
   const findings = [];
   for (const change of patch.changes ?? []) {
+    if (["create_section", "replace_section"].includes(change.operation)) {
+      const sectionId = change.operation === "create_section" ? change.section?.id : change.section_id;
+      const beforeSection = change.operation === "replace_section" ? sectionById(before, sectionId) : undefined;
+      const afterSection = sectionById(after, sectionId);
+      if (!afterSection) continue;
+      const allowedText = (change.evidence ?? []).map((reference) => {
+        if (reference.source === "cv") {
+          const section = sectionById(evidence.cv, reference.section_id);
+          const source = section?.type === "profile"
+            ? section.data
+            : section?.data?.find((entry) => entry?.id === reference.entry_id);
+          return readField(source, reference.field_path);
+        }
+        if (reference.source === "library") {
+          const entry = (evidence.library ?? []).find((candidate) => candidate?.id === reference.library_entry_id);
+          const row = entry?.payload?.find((candidate) => candidate?.id === reference.source_row_id);
+          return readField(row, reference.field_path);
+        }
+        return [reference.title, reference.excerpt, reference.url];
+      }).map(flattenText).join(" ");
+      claimFindings(
+        findings,
+        flattenText(beforeSection?.data),
+        flattenText(afterSection.data),
+        allowedText,
+      );
+      continue;
+    }
     if (!["replace_description", "replace_rich_text", "rewrite_rich_text"].includes(change.operation)) continue;
-    const beforeTarget = findTarget(before, change)?.[change.field ?? "description"];
+    const beforeTarget = findBeforeTarget(before, change, evidence, patch)?.[change.field ?? "description"];
     const afterTarget = findTarget(after, change)?.[change.field ?? "description"];
     const beforeText = flattenText(beforeTarget);
     const afterText = flattenText(afterTarget);
-    const allowedText = evidenceTextForChange(evidence, change, before);
-    for (const value of numbers(afterText)) {
-      if (numbers(beforeText).has(value) || numbers(allowedText).has(value)) continue;
-      findings.push({ type: "number", value, status: "fail", message: `New numeric claim is not supported: ${value}` });
-    }
-    for (const technology of technologies(afterText)) {
-      if (technologies(beforeText).has(technology) || technologies(allowedText).has(technology)) continue;
-      findings.push({ type: "technology", value: technology, status: "fail", message: `New technology claim is not supported: ${technology}` });
-    }
+    const allowedText = evidenceTextForChange(evidence, change, before, patch);
+    claimFindings(findings, beforeText, afterText, allowedText);
   }
   return {
     status: findings.length === 0 ? "pass" : "fail",

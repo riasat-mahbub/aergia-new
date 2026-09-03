@@ -29,6 +29,7 @@ from app.services.tailoring import (
     TailoringUnauthorizedError,
     TailoringUnavailableError,
 )
+from app.services.quotas import QuotaExceededError, QuotaResource
 
 router = APIRouter()
 
@@ -40,6 +41,10 @@ def _raise_service_error(exc: Exception) -> None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found") from exc
     if isinstance(exc, TailoringUnavailableError):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    if isinstance(exc, QuotaExceededError):
+        if exc.resource is QuotaResource.CV:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="CV limit reached") from exc
+        raise
     if isinstance(exc, StoredRequirementsUnavailableError):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     if isinstance(exc, TailoringExpiredError):

@@ -20,10 +20,18 @@ The server remains the final validator and applies changes atomically.
   extracting the job description again.
 - The agent never receives a normal Aergia access or refresh token and never
   receives database access.
-- The first target is an application's existing linked/generated CV. Arbitrary
-  CV selection is deferred.
+- The tailoring session is scoped to an application's existing linked/generated
+  CV for evidence and concurrency, but that CV is not the write target. The
+  agent composes a fresh CV from a server-owned profile scaffold and the full
+  bounded Library; a successful submission creates a new CV and relinks the
+  application while preserving the source CV.
 - The agent receives task-scoped JSON evidence, not a production database
   dump. Source files are evidence and are not agent-editable.
+- The agent may make broad document decisions, but structural changes are
+  auditable: section create/replace/remove/reorder operations require a
+  human-readable reason and at least one explicit evidence citation. The
+  server records that decision and still validates the canonical AST, known
+  renderer types, profile identity, and new factual claims.
 - No database synchronization, chat UI, generic agent framework, or automatic
   agent adapter is part of the first version.
 
@@ -39,7 +47,7 @@ web creates tailoring session and shows a skill prompt
   → skill fetches sanitized evidence packet
   → skill submits fixed test patch
   → server validates session, target, and operation
-  → server applies patch atomically
+  → server composes and persists a fresh CV atomically
   → server evaluates stored requirements against the updated CV
 ```
 
@@ -75,9 +83,10 @@ than expanding the spike into a rich-text migration. All fields, IDs, lengths,
 operation counts, and gap text are bounded by the server.
 
 The evidence packet contains only the tailoring task data needed by the fixed
-patch test: job data, current CV data, relevant profile/Library data, and
-protocol metadata. It must omit authentication data, unrelated user records,
-secrets, and internal database metadata.
+patch test: job data, the current CV as optional evidence, a fresh target
+scaffold, profile/Library data, and protocol metadata. It must omit
+authentication data, unrelated user records, secrets, and internal database
+metadata. Patch section IDs address the fresh target, not the current CV.
 
 ### Stored-requirement scoring
 
@@ -104,7 +113,7 @@ Failure at any validation step must leave both CV and application unchanged.
 
 ## Phase 2 — Patch semantics, concurrency, and policy
 
-Extend the closed operation set with:
+Extend the operation set with:
 
 - `rewrite_rich_text`
 - `remove_bullet`
@@ -112,6 +121,10 @@ Extend the closed operation set with:
 - `remove_entry`
 - `reorder_entries`
 - `add_library_entry`
+- `create_section`
+- `replace_section`
+- `remove_section`
+- `reorder_sections`
 
 Use explicit IDs rather than array positions. Library additions carry a
 server-owned Library entry ID; the server copies the authoritative row and
@@ -126,10 +139,14 @@ Add:
 - entry-level provenance and an allowed evidence scope for each rewrite;
 - atomic validation, application, and relevance persistence.
 
-Protected facts include identities, employers, titles, institutions, dates,
-degrees, certifications, publication metadata, URLs, and verified numeric
-claims. Descriptive prose may be edited only within the later fact-validation
-boundary. Styles, customizations, IDs, and unrelated metadata are not patchable.
+The structural operations intentionally allow the agent to replace an entire
+section's rows, fields, title, enabled state, and validated section style, or
+to create a custom named `extras` section. They require a reason and evidence
+references. The canonical profile identity fields remain server-owned;
+structured historical fields require matching CV/Library evidence, while
+descriptive prose is checked by the fact-validation boundary. Raw HTML/CSS,
+unknown renderer types, arbitrary customizations, and unrelated metadata are
+not patchable.
 
 Define strict JSON Schema contracts in `contracts/` with protocol version 1,
 closed operation discriminators, maximum sizes, and valid/invalid fixtures.
@@ -276,14 +293,25 @@ Replace implicit array paths with explicit targets:
 - `remove_entry`: section ID and entry ID.
 - `reorder_entries`: section ID and the complete ordered list of entry IDs.
 - `add_library_entry`: authoritative Library entry ID plus source row ID, with
-  the target section inferred and checked from the Library kind.
+  the target section inferred and checked from the Library kind. An optional
+  new CV entry ID allows a later prose operation in the same patch to tailor
+  the copied row; omitting it keeps the server-generated-ID copy-only path.
+- `create_section`: a new renderer-backed section (`extras` is the generic
+  custom-section type), complete with its explicit ID, data, and required
+  reason/evidence.
+- `replace_section`: a complete replacement for an existing section with the
+  same ID, required reason/evidence, and server validation of profile identity
+  and structured facts.
+- `remove_section`: remove a non-profile section with required reason/evidence.
+- `reorder_sections`: an exact permutation of the final section IDs with
+  required reason/evidence.
 
 The current AST has rich-text blocks/items but no stable IDs for bullet items.
 Add canonical IDs with a compatibility normalizer/backfill before enabling
 bullet operations. Require exact permutations for reorder operations; reject
 duplicates, missing IDs, unknown IDs, and array-index-only targets.
 
-#### Protected policy
+#### Protected and auditable policy
 
 Create one server-owned policy table/module that maps section type and field to
 `protected`, `editable prose`, `reorder/remove`, or `not patchable`. Reject
@@ -292,12 +320,15 @@ disallowed paths rather than silently dropping them. At minimum:
 - protect names, employers, titles, institutions, dates, locations, degrees,
   certifications, publication metadata, URLs, verified metrics, counts,
   percentages, currencies, and structured technology claims;
-- permit only descriptive prose rewrites in explicitly allowlisted fields;
+- permit descriptive prose rewrites in explicitly allowlisted fields;
+- permit broad section replacements and custom `extras` sections only when a
+  required reason and explicit evidence references accompany the decision;
 - permit removing/reordering existing entries or bullets without changing their
   facts;
 - permit Library insertion only by copying a server-fetched authoritative row;
-- reject styles, customizations, IDs, arbitrary metadata, profile identity
-  fields, and unknown section types.
+- reject raw HTML/CSS, arbitrary customizations/metadata, profile identity
+  changes, and unknown section types. Validated section-level styles may be
+  supplied only through a structural operation and remain renderer-bounded.
 
 The policy must be exercised against every current section type, including
 `profile`, `experience`, `education`, `skills`, `projects`, `languages`,
@@ -316,7 +347,9 @@ as user-editable. Add a server-owned provenance representation (a small table
 or protected JSON owned by the tailoring service) recording source kind,
 Library entry/row IDs, target field paths, and the submitted evidence scope.
 Every rewrite must declare evidence references. The server resolves each
-reference to the current user's CV/Library snapshot and rejects references
+CV/Library reference to the current user's snapshot and accepts bounded
+HTTP(S) web citations for contextual support without fetching the page during
+a write. It rejects references
 outside the packet or references whose Library source changed after evidence
 creation.
 
@@ -324,16 +357,19 @@ Submission order:
 
 ```text
 validate protocol/session/base snapshot
-  → copy CV sections
+  → build a fresh target scaffold from the profile
   → apply all operations to the copy
   → validate canonical AST and protected policy
   → run server fact checks
-  → compare-and-swap CV revision
+  → reserve a new CV slot and create the new CV
+  → compare-and-swap the session/application source relationship
   → persist provenance, gaps, before/after relevance, and session result
 ```
 
 All writes must be one transaction. A failed operation, fact check, stale
-revision, or relevance calculation leaves the previous CV and score intact.
+revision, quota reservation, or relevance calculation leaves the previous CV,
+application link, and score intact. The source CV is never mutated by a
+tailoring submission.
 
 Exit gate: every operation has contract fixtures, server unit tests, stale and
 concurrent-submit tests, protected-field rejection tests, copy-on-write tests,

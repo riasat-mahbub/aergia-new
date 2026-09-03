@@ -7,8 +7,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.core.safe_url import normalize_url
-from app.schema.models import is_color_ref
+from app.core.safe_url import normalize_http_url, normalize_url
+from app.schema.models import SectionInstanceStyle, is_color_ref
 
 
 PROTOCOL_VERSION = 1
@@ -96,6 +96,25 @@ class TailoringCV(_StrictModel):
     sections: list | dict
 
 
+class TailoringSection(_StrictModel):
+    """A complete section proposed by an auditable structural operation."""
+
+    id: str = Field(min_length=1, max_length=128)
+    type: str = Field(min_length=1, max_length=64)
+    title: str = Field(min_length=1, max_length=255)
+    enabled: bool = True
+    data: list | dict = Field(default_factory=dict, max_length=100)
+    style: SectionInstanceStyle | None = None
+
+    @field_validator("id", "type", "title")
+    @classmethod
+    def trim_required_values(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("section values must not be blank")
+        return value
+
+
 class TailoringLibraryEntry(_StrictModel):
     id: str
     kind: str
@@ -104,6 +123,16 @@ class TailoringLibraryEntry(_StrictModel):
 
 
 class TailoringEvidencePacket(_StrictModel):
+    """The source evidence and the empty document the agent must compose.
+
+    ``cv`` remains the linked CV so existing content can be cited when useful,
+    but it is not the write target. New sessions also include ``target_cv``:
+    a fresh, server-owned section scaffold populated only with profile data.
+    The successful submission creates a new persistent CV from that scaffold.
+    ``target_cv`` is optional at the schema boundary so older fixture packets
+    and older agents remain readable; the server always emits it.
+    """
+
     protocol_version: Literal[PROTOCOL_VERSION] = PROTOCOL_VERSION
     session_id: str
     application_id: str
@@ -116,6 +145,7 @@ class TailoringEvidencePacket(_StrictModel):
     supported_operations: list[str] = Field(min_length=1, max_length=32)
     job: TailoringJob
     cv: TailoringCV
+    target_cv: TailoringCV | None = None
     profile: dict
     protected_facts: dict
     library: list[TailoringLibraryEntry] = Field(max_length=100)
@@ -123,13 +153,22 @@ class TailoringEvidencePacket(_StrictModel):
 
 
 class TailoringEvidenceRef(_StrictModel):
-    """A source location the local agent used for a prose change."""
+    """A source location the local agent used for a prose change.
 
-    source: Literal["cv", "library"]
-    field_path: str = Field(
+    CV and Library references are resolved against the exchanged snapshot.
+    ``field_path="*"`` cites the complete source row, which is useful when a
+    structural section replacement reuses several factual fields at once.
+    Web references are citations supplied by the local agent: the server
+    validates their URL and bounded citation fields, but does not fetch an
+    untrusted page during a CV write.
+    """
+
+    source: Literal["cv", "library", "web"]
+    field_path: str | None = Field(
+        default=None,
         min_length=1,
         max_length=128,
-        pattern=r"^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*$",
+        pattern=r"^(?:\*|[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*)$",
     )
     section_id: str | None = Field(default=None, min_length=1, max_length=128)
     entry_id: str | None = Field(default=None, min_length=1, max_length=128)
@@ -138,19 +177,56 @@ class TailoringEvidenceRef(_StrictModel):
     source_hash: str | None = Field(
         default=None, min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$"
     )
+    url: str | None = Field(default=None, max_length=2_048)
+    title: str | None = Field(default=None, max_length=255)
+    excerpt: str | None = Field(default=None, max_length=4_000)
+
+    @field_validator("url", mode="before")
+    @classmethod
+    def validate_citation_url(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        normalized = normalize_http_url(value)
+        if not normalized:
+            raise ValueError("web citation url must be a safe HTTP(S) URL")
+        return normalized
+
+    @field_validator("title", "excerpt", mode="before")
+    @classmethod
+    def trim_citation_text(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        text = str(value).strip()
+        return text or None
 
     @model_validator(mode="after")
     def validate_source_shape(self) -> "TailoringEvidenceRef":
         if self.source == "cv":
-            if self.section_id is None:
-                raise ValueError("CV evidence requires section_id")
-            if any((self.library_entry_id, self.source_row_id, self.source_hash)):
-                raise ValueError("CV evidence cannot include Library identifiers")
-        else:
+            if self.section_id is None or self.field_path is None:
+                raise ValueError("CV evidence requires section_id and field_path")
+            if any((self.library_entry_id, self.source_row_id, self.source_hash, self.url, self.title, self.excerpt)):
+                raise ValueError("CV evidence cannot include Library or web citation fields")
+        elif self.source == "library":
+            if self.field_path is None:
+                raise ValueError("Library evidence requires field_path")
             if not all((self.library_entry_id, self.source_row_id, self.source_hash)):
                 raise ValueError("Library evidence requires entry, row, and source hash")
-            if any((self.section_id, self.entry_id)):
-                raise ValueError("Library evidence cannot include CV identifiers")
+            if any((self.section_id, self.entry_id, self.url, self.title, self.excerpt)):
+                raise ValueError("Library evidence cannot include CV or web citation fields")
+        else:
+            if not all((self.url, self.title, self.excerpt)):
+                raise ValueError("Web evidence requires url, title, and excerpt")
+            if any(
+                (
+                    self.field_path,
+                    self.section_id,
+                    self.entry_id,
+                    self.library_entry_id,
+                    self.source_row_id,
+                    self.source_hash,
+                )
+            ):
+                raise ValueError("Web evidence cannot include CV or Library identifiers")
         return self
 
 
@@ -201,6 +277,7 @@ class ReplaceDescriptionChange(_StrictModel):
     entry_id: str = Field(min_length=1, max_length=128)
     value: str = Field(min_length=1, max_length=20_000)
     reason: str | None = Field(default=None, max_length=2_000)
+    evidence: list[TailoringEvidenceRef] = Field(default_factory=list, max_length=20)
 
     @field_validator("section_id", "entry_id", "value")
     @classmethod
@@ -298,10 +375,90 @@ class ReorderEntriesChange(_StrictModel):
 class AddLibraryEntryChange(_StrictModel):
     operation: Literal["add_library_entry"]
     section_id: str = Field(min_length=1, max_length=128)
+    # Optional so older agents can keep using server-generated IDs. Supplying
+    # one lets a later prose operation in the same patch target the copied row.
+    entry_id: str | None = Field(default=None, min_length=1, max_length=128)
     library_entry_id: str = Field(min_length=1, max_length=128)
     source_row_id: str = Field(min_length=1, max_length=128)
     evidence: list[TailoringEvidenceRef] = Field(min_length=1, max_length=20)
     reason: str | None = Field(default=None, max_length=2_000)
+
+
+class CreateSectionChange(_StrictModel):
+    operation: Literal["create_section"]
+    section: TailoringSection
+    reason: str = Field(min_length=1, max_length=2_000)
+    evidence: list[TailoringEvidenceRef] = Field(min_length=1, max_length=20)
+
+    @field_validator("reason")
+    @classmethod
+    def trim_reason(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("reason must not be blank")
+        return value
+
+
+class ReplaceSectionChange(_StrictModel):
+    operation: Literal["replace_section"]
+    section_id: str = Field(min_length=1, max_length=128)
+    section: TailoringSection
+    reason: str = Field(min_length=1, max_length=2_000)
+    evidence: list[TailoringEvidenceRef] = Field(min_length=1, max_length=20)
+
+    @field_validator("reason")
+    @classmethod
+    def trim_reason(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("reason must not be blank")
+        return value
+
+    @model_validator(mode="after")
+    def section_id_matches_replacement(self) -> "ReplaceSectionChange":
+        if self.section.id != self.section_id:
+            raise ValueError("replacement section id must match section_id")
+        return self
+
+
+class RemoveSectionChange(_StrictModel):
+    operation: Literal["remove_section"]
+    section_id: str = Field(min_length=1, max_length=128)
+    reason: str = Field(min_length=1, max_length=2_000)
+    evidence: list[TailoringEvidenceRef] = Field(min_length=1, max_length=20)
+
+    @field_validator("reason")
+    @classmethod
+    def trim_reason(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("reason must not be blank")
+        return value
+
+
+class ReorderSectionsChange(_StrictModel):
+    operation: Literal["reorder_sections"]
+    section_ids: list[str] = Field(min_length=1, max_length=32)
+    reason: str = Field(min_length=1, max_length=2_000)
+    evidence: list[TailoringEvidenceRef] = Field(min_length=1, max_length=20)
+
+    @field_validator("reason")
+    @classmethod
+    def trim_reason(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("reason must not be blank")
+        return value
+
+    @field_validator("section_ids")
+    @classmethod
+    def validate_section_ids(cls, values: list[str]) -> list[str]:
+        normalized = [value.strip() for value in values]
+        if any(not value for value in normalized):
+            raise ValueError("section_ids must not contain blank values")
+        if len(set(normalized)) != len(normalized):
+            raise ValueError("section_ids must be unique")
+        return normalized
 
 
 class ReportGapChange(_StrictModel):
@@ -328,6 +485,10 @@ TailoringChange = Annotated[
     | RemoveEntryChange
     | ReorderEntriesChange
     | AddLibraryEntryChange
+    | CreateSectionChange
+    | ReplaceSectionChange
+    | RemoveSectionChange
+    | ReorderSectionsChange
     | ReportGapChange,
     Field(discriminator="operation"),
 ]
@@ -345,6 +506,7 @@ class TailoringProvenance(_StrictModel):
     section_id: str | None = None
     entry_id: str | None = None
     field: str | None = None
+    reason: str | None = None
     evidence: list[TailoringEvidenceRef] = Field(default_factory=list, max_length=20)
 
 
@@ -352,6 +514,7 @@ class TailoringSubmitResponse(_StrictModel):
     protocol_version: Literal[PROTOCOL_VERSION] = PROTOCOL_VERSION
     session_id: str
     application_id: str
+    source_cv_id: str
     cv_id: str
     base_revision: int
     new_revision: int
@@ -365,10 +528,13 @@ class TailoringSubmitResponse(_StrictModel):
 __all__ = [
     "PROTOCOL_VERSION",
     "AddLibraryEntryChange",
+    "CreateSectionChange",
     "RemoveBulletChange",
     "RemoveEntryChange",
+    "RemoveSectionChange",
     "ReorderBulletsChange",
     "ReorderEntriesChange",
+    "ReorderSectionsChange",
     "ReportGapChange",
     "ReplaceDescriptionChange",
     "ReplaceRichTextChange",
@@ -389,6 +555,7 @@ __all__ = [
     "TailoringSessionCreateResponse",
     "TailoringSessionState",
     "TailoringSessionStatusResponse",
+    "TailoringSection",
     "TailoringSubmitResponse",
     "TailoringTextStyle",
 ]

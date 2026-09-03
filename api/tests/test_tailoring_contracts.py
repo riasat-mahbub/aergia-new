@@ -7,21 +7,29 @@ from types import SimpleNamespace
 import pytest
 from pydantic import ValidationError
 
+from app.models.library import LibraryEntry
 from app.schemas.application import RequirementRelevanceResult
 from app.schemas.tailoring import (
     ReportGapChange,
     TailoringCodeExchange,
     TailoringEvidencePacket,
+    TailoringEvidenceRef,
     TailoringPatch,
     TailoringSessionStatusResponse,
 )
-from app.services.tailoring_facts import TailoringFactError, validate_tailoring_facts
+from app.services.tailoring_facts import (
+    TailoringFactError,
+    validate_tailoring_facts,
+    validate_tailoring_section_facts,
+)
 from app.services.tailoring import (
     TailoringPatchError,
     TailoringService,
     _db_utcnow,
     _stored_requirements,
     build_tailoring_prompt,
+    fresh_tailoring_sections,
+    library_entry_content_hash,
 )
 from app.services.tailoring_policy import TailoringPolicyError, validate_document_delta
 
@@ -41,6 +49,8 @@ def test_valid_evidence_fixture_matches_protocol():
     evidence = TailoringEvidencePacket.model_validate(payload)
     assert evidence.protocol_version == 1
     assert evidence.cv.id == "cv-1"
+    assert evidence.target_cv is not None
+    assert evidence.target_cv.sections[0]["id"] == "target-profile"
     assert evidence.protected_facts["profile"]["name"] == "Example User"
 
 
@@ -97,6 +107,35 @@ def test_tailoring_prompt_keeps_the_code_out_of_the_session_url():
     assert "ask for approval" in prompt
 
 
+def test_web_evidence_requires_a_safe_bounded_citation():
+    citation = TailoringEvidenceRef.model_validate(
+        {
+            "source": "web",
+            "url": "example.com/technical-guide",
+            "title": "Technical guide",
+            "excerpt": "The guide describes the relevant contextual behavior.",
+        }
+    )
+    assert citation.url == "https://example.com/technical-guide"
+    with pytest.raises(ValidationError):
+        TailoringEvidenceRef.model_validate(
+            {
+                "source": "web",
+                "url": "javascript:alert(1)",
+                "title": "Unsafe",
+                "excerpt": "Not a valid web citation.",
+            }
+        )
+    with pytest.raises(ValidationError):
+        TailoringEvidenceRef.model_validate(
+            {
+                "source": "web",
+                "url": "https://example.com/guide",
+                "title": "Missing excerpt",
+            }
+        )
+
+
 def test_reported_gap_feedback_is_attached_to_the_stable_requirement():
     relevance = RequirementRelevanceResult.model_validate(
         {
@@ -140,6 +179,195 @@ def test_reported_gap_feedback_is_attached_to_the_stable_requirement():
 
 def test_tailoring_sqlite_timestamp_binding_uses_naive_utc():
     assert _db_utcnow().tzinfo is None
+
+
+def test_fresh_tailoring_target_has_profile_identity_and_empty_library_sections():
+    sections = fresh_tailoring_sections(
+        "session-1",
+        {"name": "Example User", "email": "user@example.com"},
+    )
+
+    assert [section["type"] for section in sections] == [
+        "profile",
+        "education",
+        "skills",
+        "experience",
+        "languages",
+        "certifications",
+        "projects",
+        "research",
+    ]
+    assert sections[0]["data"]["name"] == "Example User"
+    assert sections[0]["data"]["summary"] == ""
+    assert all(section["data"] == [] for section in sections[1:])
+    assert all(section["id"].startswith("tailoring_session-1_") for section in sections)
+
+
+def test_structural_section_changes_require_reason_and_evidence():
+    with pytest.raises(ValidationError):
+        _patch(
+            [
+                {
+                    "operation": "create_section",
+                    "section": {
+                        "id": "highlights",
+                        "type": "extras",
+                        "title": "Highlights",
+                        "data": [],
+                    },
+                }
+            ]
+        )
+
+    patch = _patch(
+        [
+            {
+                "operation": "create_section",
+                "section": {
+                    "id": "highlights",
+                    "type": "extras",
+                    "title": "Highlights",
+                    "enabled": True,
+                    "data": [],
+                },
+                "reason": "Surface a focused evidence-backed highlights section.",
+                "evidence": [
+                    {
+                        "source": "cv",
+                        "section_id": "experience",
+                        "entry_id": "entry-1",
+                        "field_path": "*",
+                    }
+                ],
+            }
+        ]
+    )
+    assert patch.changes[0].operation == "create_section"
+
+
+def test_structural_section_operations_can_create_replace_remove_and_reorder():
+    source = [
+        {
+            "id": "profile",
+            "type": "profile",
+            "title": "Profile",
+            "enabled": True,
+            "data": {"name": "Example User", "email": "user@example.com", "summary": ""},
+        },
+        {
+            "id": "experience",
+            "type": "experience",
+            "title": "Experience",
+            "enabled": False,
+            "data": [],
+        },
+        {
+            "id": "education",
+            "type": "education",
+            "title": "Education",
+            "enabled": False,
+            "data": [],
+        },
+    ]
+    proof = {
+        "source": "cv",
+        "section_id": "profile",
+        "field_path": "*",
+    }
+    patch = _patch(
+        [
+            {
+                "operation": "create_section",
+                "section": {
+                    "id": "highlights",
+                    "type": "extras",
+                    "title": "Highlights",
+                    "data": [
+                        {
+                            "id": "highlight-1",
+                            "title": "Selected work",
+                            "fields": [{"label": "Evidence", "value": "Built dependable services."}],
+                        }
+                    ],
+                },
+                "reason": "Add a concise section for the strongest supported evidence.",
+                "evidence": [proof],
+            },
+            {
+                "operation": "replace_section",
+                "section_id": "experience",
+                "section": {
+                    "id": "experience",
+                    "type": "experience",
+                    "title": "Selected Experience",
+                    "enabled": True,
+                    "data": [
+                        {
+                            "id": "experience-1",
+                            "company": "Example Labs",
+                            "position": "Engineer",
+                            "description": "Built dependable services.",
+                        }
+                    ],
+                },
+                "reason": "Replace the empty scaffold with the relevant experience composition.",
+                "evidence": [proof],
+            },
+            {
+                "operation": "reorder_sections",
+                "section_ids": ["profile", "highlights", "experience", "education"],
+                "reason": "Put the most relevant evidence before education.",
+                "evidence": [proof],
+            },
+            {
+                "operation": "remove_section",
+                "section_id": "education",
+                "reason": "Omit an empty section to keep the document focused.",
+                "evidence": [proof],
+            },
+        ]
+    )
+
+    updated, operations, _gaps = TailoringService._apply_patch(source, patch)
+
+    assert operations == ["create_section", "replace_section", "reorder_sections", "remove_section"]
+    assert [section["id"] for section in updated] == ["profile", "highlights", "experience"]
+    assert updated[1]["type"] == "extras"
+    assert updated[2]["title"] == "Selected Experience"
+
+
+def test_structural_replacement_preserves_profile_identity():
+    source = [
+        {
+            "id": "profile",
+            "type": "profile",
+            "title": "Profile",
+            "enabled": True,
+            "data": {"name": "Example User", "email": "user@example.com", "summary": ""},
+        }
+    ]
+    with pytest.raises(TailoringPatchError, match="identity"):
+        TailoringService._apply_patch(
+            source,
+            _patch(
+                [
+                    {
+                        "operation": "replace_section",
+                        "section_id": "profile",
+                        "section": {
+                            "id": "profile",
+                            "type": "profile",
+                            "title": "Profile",
+                            "data": {"name": "Invented User", "email": "user@example.com", "summary": ""},
+                        },
+                        "reason": "Attempted identity rewrite.",
+                        "evidence": [
+                            {"source": "cv", "section_id": "profile", "field_path": "*"}
+                        ],
+                    }
+                ]
+            ),
+        )
 
 
 def test_tailoring_status_contract_does_not_accept_capabilities():
@@ -378,6 +606,49 @@ def test_phase_two_rich_text_and_bullet_operations_use_stable_ids():
     assert [item["id"] for item in reordered[0]["data"][0]["description"][0]["items"]] == ["item-2", "item-1"]
 
 
+def test_rich_text_rewrite_can_add_evidence_backed_plain_blocks_and_items():
+    source = _rich_text_source()
+    rewritten = _patch(
+        [
+            {
+                "operation": "rewrite_rich_text",
+                "section_id": "experience",
+                "entry_id": "entry-1",
+                "field": "description",
+                "value": [
+                    {
+                        "id": "block-1",
+                        "type": "bullet_list",
+                        "items": [
+                            {"id": "item-1", "text": "Built dependable APIs."},
+                            {"id": "item-new", "text": "Improved service reliability."},
+                        ],
+                    },
+                    {
+                        "id": "block-new",
+                        "type": "paragraph",
+                        "items": [{"id": "item-new-block", "text": "Platform work."}],
+                    },
+                ],
+                "evidence": [
+                    {
+                        "source": "cv",
+                        "section_id": "experience",
+                        "entry_id": "entry-1",
+                        "field_path": "description",
+                    }
+                ],
+            }
+        ]
+    )
+    updated, _operations, _gaps = TailoringService._apply_patch(source, rewritten)
+    assert [block["id"] for block in updated[0]["data"][0]["description"]] == ["block-1", "block-new"]
+    assert [item["id"] for item in updated[0]["data"][0]["description"][0]["items"]] == [
+        "item-1",
+        "item-new",
+    ]
+
+
 def test_phase_two_profile_bullet_operations_do_not_require_an_entry_id():
     source = [
         {
@@ -473,6 +744,7 @@ def test_phase_two_library_addition_copies_server_authoritative_row():
             "id": "experience",
             "type": "experience",
             "title": "Experience",
+            "enabled": False,
             "data": [],
         }
     ]
@@ -513,7 +785,66 @@ def test_phase_two_library_addition_copies_server_authoritative_row():
     added = updated[0]["data"][0]
     assert added["company"] == "Authoritative Labs"
     assert added["id"] != "library-row-1"
+    assert updated[0]["enabled"] is True
     assert source[0]["data"] == []
+
+
+def test_library_addition_can_be_followed_by_a_prose_rewrite_of_the_copy():
+    source = [
+        {
+            "id": "experience",
+            "type": "experience",
+            "title": "Experience",
+            "data": [],
+        }
+    ]
+    patch = _patch(
+        [
+            {
+                "operation": "add_library_entry",
+                "section_id": "experience",
+                "entry_id": "tailored-entry-1",
+                "library_entry_id": "library-1",
+                "source_row_id": "library-row-1",
+                "evidence": [
+                    {
+                        "source": "library",
+                        "library_entry_id": "library-1",
+                        "source_row_id": "library-row-1",
+                        "source_hash": "b" * 64,
+                        "field_path": "description",
+                    }
+                ],
+            },
+            {
+                "operation": "replace_rich_text",
+                "section_id": "experience",
+                "entry_id": "tailored-entry-1",
+                "field": "description",
+                "value": "Built dependable platform systems.",
+            },
+        ]
+    )
+    updated, operations, _gaps = TailoringService._apply_patch(
+        source,
+        patch,
+        {
+            ("library-1", "library-row-1"): {
+                "kind": "experience",
+                "row": {
+                    "id": "library-row-1",
+                    "company": "Authoritative Labs",
+                    "description": "Built supported systems.",
+                },
+            }
+        },
+    )
+    assert operations == ["add_library_entry", "replace_rich_text"]
+    assert updated[0]["data"][0] == {
+        "id": "tailored-entry-1",
+        "company": "Authoritative Labs",
+        "description": "Built dependable platform systems.",
+    }
 
 
 def test_phase_two_policy_rejects_protected_field_mutation():
@@ -607,3 +938,191 @@ def test_server_fact_guard_does_not_borrow_a_number_from_another_cv_entry():
     updated, _operations, _gaps = TailoringService._apply_patch(source, patch)
     with pytest.raises(TailoringFactError, match="32%"):
         validate_tailoring_facts(source, updated, patch.changes, [])
+
+
+def test_server_fact_guard_accepts_new_claims_from_a_web_citation():
+    source = [
+        {
+            "id": "experience",
+            "type": "experience",
+            "title": "Experience",
+            "data": [{"id": "entry-1", "description": "Built API services."}],
+        }
+    ]
+    patch = _patch(
+        [
+            {
+                "operation": "replace_rich_text",
+                "section_id": "experience",
+                "entry_id": "entry-1",
+                "field": "description",
+                "value": "Built Python API services with a 47% improvement.",
+                "evidence": [
+                    {
+                        "source": "web",
+                        "url": "https://example.com/technical-guide",
+                        "title": "Technical guide",
+                        "excerpt": "Python services can report a 47% improvement in this contextual example.",
+                    }
+                ],
+            }
+        ]
+    )
+    updated, _operations, _gaps = TailoringService._apply_patch(source, patch)
+    validate_tailoring_facts(source, updated, patch.changes, [])
+
+
+def test_server_fact_guard_can_check_a_rewrite_of_a_new_library_copy():
+    library_entry = LibraryEntry(
+        id="library-1",
+        library_id="library",
+        kind="experience",
+        payload=[{"id": "library-row-1", "description": "Built API services."}],
+    )
+    source_hash = library_entry_content_hash(library_entry)
+    source = [{"id": "experience", "type": "experience", "title": "Experience", "data": []}]
+    patch = _patch(
+        [
+            {
+                "operation": "add_library_entry",
+                "section_id": "experience",
+                "entry_id": "tailored-entry-1",
+                "library_entry_id": "library-1",
+                "source_row_id": "library-row-1",
+                "evidence": [
+                    {
+                        "source": "library",
+                        "library_entry_id": "library-1",
+                        "source_row_id": "library-row-1",
+                        "source_hash": source_hash,
+                        "field_path": "description",
+                    }
+                ],
+            },
+            {
+                "operation": "replace_rich_text",
+                "section_id": "experience",
+                "entry_id": "tailored-entry-1",
+                "field": "description",
+                "value": "Built Python API services with a 47% improvement.",
+                "evidence": [
+                    {
+                        "source": "library",
+                        "library_entry_id": "library-1",
+                        "source_row_id": "library-row-1",
+                        "source_hash": source_hash,
+                        "field_path": "description",
+                    },
+                    {
+                        "source": "web",
+                        "url": "https://example.com/technical-guide",
+                        "title": "Technical guide",
+                        "excerpt": "Python services can report a 47% improvement in this contextual example.",
+                    },
+                ],
+            },
+        ]
+    )
+    updated, _operations, _gaps = TailoringService._apply_patch(
+        source,
+        patch,
+        {
+            ("library-1", "library-row-1"): {
+                "kind": "experience",
+                "row": {"id": "library-row-1", "description": "Built API services."},
+            }
+        },
+    )
+    validate_tailoring_facts(source, updated, patch.changes, [library_entry])
+
+
+def test_structural_fact_guard_requires_personal_evidence_for_new_identity_fields():
+    source = [{"id": "experience", "type": "experience", "title": "Experience", "data": []}]
+    patch = _patch(
+        [
+            {
+                "operation": "create_section",
+                "section": {
+                    "id": "selected-experience",
+                    "type": "experience",
+                    "title": "Selected Experience",
+                    "data": [
+                        {
+                            "id": "entry-1",
+                            "company": "Invented Labs",
+                            "position": "Engineer",
+                            "description": "Built useful services.",
+                        }
+                    ],
+                },
+                "reason": "Add a role selected for the application.",
+                "evidence": [
+                    {
+                        "source": "web",
+                        "url": "https://example.com/context",
+                        "title": "Context",
+                        "excerpt": "A contextual description of engineering work.",
+                    }
+                ],
+            }
+        ]
+    )
+    updated, _operations, _gaps = TailoringService._apply_patch(source, patch)
+    with pytest.raises(TailoringFactError, match="Structured field"):
+        validate_tailoring_section_facts(source, updated, patch.changes, [])
+
+
+def test_structural_fact_guard_accepts_a_new_role_backed_by_a_cv_row():
+    target_before = [{"id": "experience", "type": "experience", "title": "Experience", "data": []}]
+    source_evidence = [
+        {
+            "id": "source-experience",
+            "type": "experience",
+            "title": "Experience",
+            "data": [
+                {
+                    "id": "source-entry",
+                    "company": "Example Labs",
+                    "position": "Engineer",
+                    "description": "Built Python services.",
+                }
+            ],
+        }
+    ]
+    patch = _patch(
+        [
+            {
+                "operation": "create_section",
+                "section": {
+                    "id": "selected-experience",
+                    "type": "experience",
+                    "title": "Selected Experience",
+                    "data": [
+                        {
+                            "id": "entry-1",
+                            "company": "Example Labs",
+                            "position": "Engineer",
+                            "description": "Built Python services.",
+                        }
+                    ],
+                },
+                "reason": "Bring the directly supported role into the tailored document.",
+                "evidence": [
+                    {
+                        "source": "cv",
+                        "section_id": "source-experience",
+                        "entry_id": "source-entry",
+                        "field_path": "*",
+                    }
+                ],
+            }
+        ]
+    )
+    updated, _operations, _gaps = TailoringService._apply_patch(target_before, patch)
+    validate_tailoring_section_facts(
+        target_before,
+        updated,
+        patch.changes,
+        [],
+        evidence_sections=source_evidence,
+    )

@@ -60,3 +60,28 @@ test("fact check does not borrow a number from another CV entry", () => {
   assert.equal(result.status, "fail");
   assert.equal(result.findings[0].value, "32%");
 });
+
+test("fact check accepts a new cited claim from a web excerpt", () => {
+  const result = verifyFacts(
+    { sections: [{ data: [{ description: "Built API services." }] }] },
+    { sections: [{ data: [{ description: "Built Python API services with a 47% improvement." }] }] },
+    {
+      cv: { sections: [{ data: [{ description: "Built API services." }] }] },
+      library: [],
+    },
+    {
+      changes: [{
+        operation: "replace_rich_text",
+        field: "description",
+        evidence: [{
+          source: "web",
+          url: "https://example.com/technical-guide",
+          title: "Technical guide",
+          excerpt: "Python API services can report a 47% improvement in this contextual example.",
+        }],
+      }],
+    },
+  );
+
+  assert.equal(result.status, "pass");
+});
