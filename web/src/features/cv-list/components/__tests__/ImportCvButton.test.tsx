@@ -11,18 +11,18 @@ import {
 } from "react-router-dom";
 
 import ImportCvButton from "../ImportCvButton";
-import { forgetAllKeys, loadKeys, saveKeys } from "../../../lib/llm/keys";
+import { forgetAllKeys, loadKeys, saveKeys } from "../../../../lib/llm/keys";
 
 const mockImportPDF = vi.fn();
 const mockCreateCV = vi.fn();
 const mockAddToast = vi.fn();
 const mockNavigate = vi.fn();
 
-vi.mock("../../../lib/api/imports", () => ({
+vi.mock("../../../../lib/api/imports", () => ({
   importPDF: (...args: unknown[]) => mockImportPDF(...args),
 }));
 
-vi.mock("../../../lib/store/cvStore", () => ({
+vi.mock("../../../../lib/store/cvStore", () => ({
   useCVStore: Object.assign(
     (selector: (state: { createCV: typeof mockCreateCV }) => unknown) =>
       selector({ createCV: mockCreateCV }),
@@ -30,7 +30,7 @@ vi.mock("../../../lib/store/cvStore", () => ({
   ),
 }));
 
-vi.mock("../../../lib/store/uiStore", () => ({
+vi.mock("../../../../lib/store/uiStore", () => ({
   useToastStore: Object.assign(
     (selector: (state: { addToast: typeof mockAddToast }) => unknown) =>
       selector({ addToast: mockAddToast }),
@@ -38,7 +38,7 @@ vi.mock("../../../lib/store/uiStore", () => ({
   ),
 }));
 
-vi.mock("../../../lib/api/templates", () => ({
+vi.mock("../../../../lib/api/templates", () => ({
   fetchSystemTemplates: vi.fn().mockResolvedValue([
     {
       id: "generic-modern",

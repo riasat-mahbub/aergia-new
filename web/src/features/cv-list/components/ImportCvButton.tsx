@@ -3,15 +3,15 @@ import { useNavigate } from "react-router-dom";
 import { FileUp, Loader2 } from "lucide-react";
 
 import ImportCvModal from "./ImportCvModal";
-import { importPDF } from "../../lib/api/imports";
-import { useToastStore } from "../../lib/store/uiStore";
-import { useCVStore } from "../../lib/store/cvStore";
+import { importPDF } from "../../../lib/api/imports";
+import { useToastStore } from "../../../lib/store/uiStore";
+import { useCVStore } from "../../../lib/store/cvStore";
 import {
   forgetAllKeys,
   useLLMKeys,
   pickActiveProvider,
   type LLMProviderKey,
-} from "../../lib/llm/keys";
+} from "../../../lib/llm/keys";
 
 const PROVIDER_DISPLAY_NAME: Record<LLMProviderKey, string> = {
   openai: "OpenAI",

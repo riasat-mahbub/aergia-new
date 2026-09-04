@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
-import CvListPage from "../../pages/CvListPage";
-import AppLayout from "../common/AppLayout";
-import type { CVState } from "../../lib/store/cvStore";
-import type { CVListItem } from "../../lib/api/cvs";
+import CvListPage from "../CvListPage";
+import AppLayout from "../../../components/common/AppLayout";
+import type { CVState } from "../../../lib/store/cvStore";
+import type { CVListItem } from "../../../lib/api/cvs";
 
 const mockFetchCVs = vi.fn();
 const mockCreateCV = vi.fn();
@@ -20,14 +20,14 @@ const mockCvStoreState = () => ({
   deleteCV: mockDeleteCV,
   copyCV: mockCopyCV,
 });
-vi.mock("../../lib/store/cvStore", () => ({
+vi.mock("../../../lib/store/cvStore", () => ({
   useCVStore: vi.fn((selector) => {
     const state = mockCvStoreState();
     return selector ? selector(state) : state;
   }),
 }));
 
-vi.mock("../../lib/store/authStore", () => ({
+vi.mock("../../../lib/store/authStore", () => ({
   useAuthStore: vi.fn((selector) =>
     selector({
       logout: vi.fn(),
@@ -35,7 +35,7 @@ vi.mock("../../lib/store/authStore", () => ({
   ),
 }));
 
-vi.mock("../../lib/api/client", () => ({
+vi.mock("../../../lib/api/client", () => ({
   default: { get: vi.fn().mockResolvedValue({ data: [] }) },
   __esModule: true,
 }));
@@ -84,7 +84,7 @@ describe("CvListPage", () => {
       },
     ];
 
-    vi.mocked(await import("../../lib/store/cvStore")).useCVStore.mockImplementation(
+    vi.mocked(await import("../../../lib/store/cvStore")).useCVStore.mockImplementation(
       (selector: (state: CVState) => unknown) => {
         const state = {
           cvList,

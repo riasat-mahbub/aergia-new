@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 
 import ImportCvModal, { titleFromFilename } from "../ImportCvModal";
 
-vi.mock("../../../lib/api/templates", () => ({
+vi.mock("../../../../lib/api/templates", () => ({
   fetchSystemTemplates: vi.fn().mockResolvedValue([
     {
       id: "generic-modern",

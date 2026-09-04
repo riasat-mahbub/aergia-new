@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
-import { useCVStore } from "../lib/store/cvStore";
-import CvCard from "../components/cv-list/CvCard";
-import CreateCvModal from "../components/cv-list/CreateCvModal";
-import DeleteCvModal from "../components/cv-list/DeleteCvModal";
-import ImportCvButton from "../components/cv-list/ImportCvButton";
-import LoadingSkeleton from "../components/common/LoadingSkeleton";
-import EmptyState from "../components/common/EmptyState";
+import { useCVStore } from "../../lib/store/cvStore";
+import CvCard from "./components/CvCard";
+import CreateCvModal from "./components/CreateCvModal";
+import DeleteCvModal from "./components/DeleteCvModal";
+import ImportCvButton from "./components/ImportCvButton";
+import LoadingSkeleton from "../../components/common/LoadingSkeleton";
+import EmptyState from "../../components/common/EmptyState";
 
 export default function CvListPage() {
   const navigate = useNavigate();

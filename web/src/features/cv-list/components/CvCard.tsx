@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 import { Link } from "react-router-dom";
-import type { CVListItem } from "../../lib/api/cvs";
+import type { CVListItem } from "../../../lib/api/cvs";
 
 const TEMPLATE_STYLES: Record<string, { strip: string; chip: string }> = {
   "generic-modern": { strip: "bg-app-primary", chip: "bg-app-primary-soft text-app-primary" },
