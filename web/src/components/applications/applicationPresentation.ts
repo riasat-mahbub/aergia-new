@@ -1,4 +1,4 @@
-import type { Application, ApplicationStatus } from "../../lib/api/applications";
+import type { Application, ApplicationStatus } from "@/contracts/applications";
 
 export const RELEVANCE_TOOLTIP = "Weighted job-requirement coverage of this CV—not an ATS or hiring probability.";
 

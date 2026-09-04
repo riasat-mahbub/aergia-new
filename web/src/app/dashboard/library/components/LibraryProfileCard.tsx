@@ -1,5 +1,5 @@
 import ProfileCard from "@/components/profile/ProfileCard";
-import type { UserProfile } from "@/lib/api/profile";
+import type { UserProfile } from "@/contracts/profile";
 
 interface LibraryProfileCardProps {
   profile: UserProfile | null;

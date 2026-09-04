@@ -1,7 +1,7 @@
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { BriefcaseBusiness, FileText, LayoutDashboard, Library, LogOut, Settings } from "lucide-react";
 import AuthBoundary from "@/app/providers/AuthBoundary";
-import { useAuthStore } from "@/lib/store/authStore";
+import { useAuthStore } from "@/store/authStore";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", Icon: LayoutDashboard, end: true },

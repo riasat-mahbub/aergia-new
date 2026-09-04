@@ -1,32 +1,11 @@
 import client from "./client";
-import type { SectionInstance } from "../sections/types";
+import type { ParseResult } from "@/contracts/imports";
 import {
   forgetAllKeys,
   loadKeys,
   pickActiveProvider,
   type LLMProviderKey,
-} from "../llm/keys";
-
-export interface ParseConfidence {
-  path: (string | number)[];
-  level: "high" | "medium" | "low";
-}
-
-export interface ParseReport {
-  fields: ParseConfidence[];
-  overall_level: "high" | "medium" | "low";
-}
-
-export interface ParseMeta {
-  source: "regex" | "llm";
-  warnings: string[];
-}
-
-export interface ParseResult {
-  sections: SectionInstance[];
-  confidence: ParseReport;
-  meta: ParseMeta;
-}
+} from "@/lib/llm/keys";
 
 /**
  * Upload a PDF for parsing. Returns a `ParseResult` whose `sections`

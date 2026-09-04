@@ -6,15 +6,17 @@ import ExportPDFButton from "./components/ExportPDFButton";
 import PromoteToLibraryButton from "./components/PromoteToLibraryButton";
 import RelevanceDrawer from "./components/RelevanceDrawer";
 import ContentSectionList from "./components/ContentSectionList";
-import { useCVStore } from "@/lib/store/cvStore";
-import { useSupportStore } from "@/lib/store/supportStore";
+import { useCVStore } from "@/store/cvStore";
+import { useSupportStore } from "@/store/supportStore";
 import UserTemplateRenderer from "./components/preview/UserTemplateRenderer";
 import Inspector from "./components/customization/Inspector";
 import type { SectionInstance, SectionInstanceStyle, LayoutConfig } from "@/lib/sections/types";
 import { createDefaultInstance, getFirstZoneId, migratePlacement } from "@/lib/sections/types";
-import { updateCV } from "@/lib/api/cvs";
-import * as templatesApi from "@/lib/api/templates";
-import { getApplication, recomputeApplicationRelevance, type Application, type RelevanceAnalysis } from "@/lib/api/applications";
+import { updateCV } from "@/services/cvs";
+import * as templatesApi from "@/services/templates";
+import { getApplication, recomputeApplicationRelevance } from "@/services/applications";
+import type { Application, RelevanceAnalysis } from "@/contracts/applications";
+import type { UserTemplate } from "@/contracts/templates";
 
 export const APPLICATION_RELEVANCE_TOOLTIP =
   "Weighted job-requirement coverage of this CV—not an ATS or hiring probability.";
@@ -41,7 +43,7 @@ export default function BuilderPage() {
   const [showLoading, setShowLoading] = useState(true);
   const [localInstances, setLocalInstances] = useState<SectionInstance[]>([]);
   const [localCustomizations, setLocalCustomizations] = useState<Record<string, unknown>>({});
-  const [templateManifest, setTemplateManifest] = useState<templatesApi.UserTemplate | null>(null);
+  const [templateManifest, setTemplateManifest] = useState<UserTemplate | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [activeTab, setActiveTab] = useState<"content" | "customize">("content");
   const [relevanceDrawerOpen, setRelevanceDrawerOpen] = useState(false);

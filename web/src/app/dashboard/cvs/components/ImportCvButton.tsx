@@ -3,9 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { FileUp, Loader2 } from "lucide-react";
 
 import ImportCvModal from "./ImportCvModal";
-import { importPDF } from "@/lib/api/imports";
-import { useToastStore } from "@/lib/store/uiStore";
-import { useCVStore } from "@/lib/store/cvStore";
+import { importPDF } from "@/services/imports";
+import { useToastStore } from "@/store/uiStore";
+import { useCVStore } from "@/store/cvStore";
 import {
   forgetAllKeys,
   useLLMKeys,

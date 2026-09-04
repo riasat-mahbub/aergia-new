@@ -1,5 +1,3 @@
-import client from "./client";
-
 export interface TailoringSession {
   protocol_version: 1;
   session_id: string;
@@ -51,19 +49,4 @@ export interface TailoringSessionStatusResponse {
   attempts: number;
   reported_gaps: Array<{ requirement: string; reason: string }>;
   result: TailoringSessionResult | null;
-}
-
-export async function createTailoringSession(applicationId: string): Promise<TailoringSession> {
-  const { data } = await client.post(`/applications/${applicationId}/tailoring-sessions`);
-  return data;
-}
-
-export async function getTailoringSessionStatus(sessionId: string): Promise<TailoringSessionStatusResponse> {
-  const { data } = await client.get(`/tailoring/sessions/${sessionId}`);
-  return data;
-}
-
-export async function cancelTailoringSession(sessionId: string): Promise<TailoringSessionStatusResponse> {
-  const { data } = await client.post(`/tailoring/sessions/${sessionId}/cancel`);
-  return data;
 }

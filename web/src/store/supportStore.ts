@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { fetchRendererSupport, type SupportMap } from "../api/render";
+import { fetchRendererSupport } from "@/services/render";
+import type { SupportMap } from "@/contracts/render";
 
 interface SupportState {
   support: SupportMap | null;

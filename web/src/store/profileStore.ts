@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import * as profileApi from "../api/profile";
-import type { UserProfile, UserProfileUpdate } from "../api/profile";
+import * as profileApi from "@/services/profile";
+import type { UserProfile, UserProfileUpdate } from "@/contracts/profile";
 
 interface ProfileState {
   profile: UserProfile | null;

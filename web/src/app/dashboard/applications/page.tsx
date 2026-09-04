@@ -10,10 +10,10 @@ import {
   type Application,
   type ApplicationGenerateResponse,
   type ApplicationStatus,
-} from "@/lib/api/applications";
+} from "@/contracts/applications";
 import { applicationMatchesSearch, RELEVANCE_TOOLTIP, relevanceScore, STATUS_LABELS } from "@/components/applications/applicationPresentation";
-import { useApplicationStore } from "@/lib/store/applicationStore";
-import { useToastStore } from "@/lib/store/uiStore";
+import { useApplicationStore } from "@/store/applicationStore";
+import { useToastStore } from "@/store/uiStore";
 
 export default function ApplicationsPage() {
   const navigate = useNavigate();

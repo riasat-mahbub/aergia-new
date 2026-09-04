@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-04
 **Audience:** The next planning/implementation agent
-**Status:** Stage 1 implemented; actual Next.js runtime and deployment cutover remain separately gated.
+**Status:** Stage 1 and the initial frontend service-layer relocation implemented; service/store/contract separation and the actual Next.js runtime/deployment cutover are planned and separately gated.
 
 ## Decision summary
 
@@ -14,6 +14,19 @@ The Builder is a top-level authenticated route at `/builder/:id`, separate
 from the dashboard URL namespace. During the Vite stage it still uses the
 dashboard shell for auth, navigation, and the Back to CVs action; the Next
 cutover must give this route an equivalent layout or route-group layout.
+
+The frontend will use explicit boundaries for reusable code:
+
+- `services/` owns API access and application operations.
+- `store/` owns global client state and calls services when state changes.
+- `contracts/` owns API request/response types and other shared service types.
+- `lib/` owns pure reusable logic and utilities that are not service or state
+  boundaries.
+
+Services are ordinary importable TypeScript modules, not Angular-style
+dependency-injected classes. Services must not update Zustand stores or import
+React UI. A workflow that coordinates multiple services may return a result to
+the store or page, but it must not hide store mutations inside the service.
 
 The migration has two runtime stages:
 
@@ -61,9 +74,10 @@ The following remain fixed during stage 1:
 
 The current routed screen files are under `web/src/features/<page>/`. These
 directories are mostly page slices rather than reusable cross-route features.
-The new structure will move page-owned code into `app/`; only code confirmed
-to be shared remains under `components/`, `lib/api/`, `lib/store/`,
-`lib/sections/`, and shared domain component folders.
+The new structure will move page-owned code into `app/`; common API/domain
+operations become importable modules under `services/`, global client state
+moves to `store/`, and pure editor utilities remain under `lib/`. Shared visual
+components remain under `components/` and shared domain component folders.
 
 The original route tree was declared in
 [`web/src/main.tsx`](../../web/src/main.tsx):
@@ -97,8 +111,9 @@ Important coupling found during verification:
   in addition to browser `beforeunload` handling. It should be migrated last.
 - Auth hydration and several stores are browser-bound. A future server/client
   split cannot assume that the current local-storage lifecycle is SSR-safe.
-- Existing API wrappers and Zustand stores already provide a useful boundary;
-  do not replace them with a new data layer.
+- Existing API modules and Zustand stores already provide a useful boundary;
+  move common API/domain modules to `services/` without replacing them with a
+  second data layer.
 
 Historical verification inventory from this checkout, not an acceptance gate:
 
@@ -175,8 +190,44 @@ web/src/
     builder/
       [id]/page.tsx
 
+  contracts/                       # API request/response and service types
+    auth.ts
+    applications.ts
+    cvs.ts
+    imports.ts
+    library.ts
+    profile.ts
+    render.ts
+    tailoring.ts
+    templates.ts
+
+  services/                        # common frontend API/domain operations
+    client.ts
+    auth.ts
+    cvs.ts
+    applications.ts
+    library.ts
+    profile.ts
+    render.ts
+    tailoring.ts
+    templates.ts
+    imports.ts
+
+  store/                            # global client state
+    authStore.ts
+    applicationStore.ts
+    cvStore.ts
+    libraryStore.ts
+    profileStore.ts
+    supportStore.ts
+    uiStore.ts
+
   components/                       # genuinely shared UI/domain components
-  lib/                               # API, stores, generated types, utilities
+  lib/                               # pure reusable logic and utilities
+    llm/
+    sections/
+    security/
+    validators/
 ```
 
 Page-owned components move with their page. For example, login form code
@@ -233,7 +284,8 @@ Refactor each moved page in place:
 - Query values receive documented defaults.
 - Internal navigation stays in the page or a genuinely shared navigation
   component, not in the old feature directory.
-- API/store calls remain in their existing `lib` boundaries.
+- API/domain calls use `services/`; Zustand stores use `store/`, and pure editor
+  utilities remain in `lib/`.
 - External links remain ordinary anchors.
 
 While Vite/React Router is active, moved pages may use its hooks directly.
@@ -241,6 +293,41 @@ When the actual Next runtime is introduced, replace those hooks with Next page
 `params`, `searchParams`, `Link`, and `useRouter` behavior in the same page
 files or their directly-owned client components. This is a direct rewrite,
 not a wrapper around the old implementation.
+
+## Service, store, and contract boundaries
+
+The service layer is the frontend application boundary around FastAPI. Each
+service exposes named operations such as `fetchCV`, `updateProfile`, or
+`listApplications`; it owns request paths, request payloads, response parsing,
+and transport-specific behavior. It returns data or errors and does not know
+about React components, Zustand stores, or toasts.
+
+The store layer owns client state. Store actions call services, set loading and
+error state, and commit returned data. A store may coordinate a workflow, but
+the service must not call `useStore.getState()` or mutate another store.
+
+The contracts layer contains API wire types and shared service types. Consumers
+that need only a type use `import type` from `contracts/` without importing the
+runtime API client. Generated schema types remain generated and are not copied
+into the contracts layer.
+
+Pure functions remain in `lib/`: section transforms, style/default logic,
+validators, URL safety checks, and other environment-independent helpers. They
+can be called by services, stores, or components without becoming services
+themselves.
+
+The dependency direction is:
+
+```text
+app/components → store → services → API client → FastAPI
+       └──────────────→ contracts / pure lib helpers
+```
+
+The current `services/client.ts` is browser-bound because it uses cookies,
+redirects, and the client toast integration. During the Next cutover, any
+server-only service must be placed behind a server boundary and must not import
+Zustand or browser-only services. Client services and server services must not
+be mixed in one module.
 
 ## Bounded implementation sequence
 
@@ -273,6 +360,10 @@ tests are deleted during the source move and are not adapted between steps.
 - Delete all current frontend test files instead of moving or adapting them.
 - Remove empty/obsolete page-specific `features/<page>` directories. Retain a
   feature folder only when the import graph proves it is cross-route code.
+- Move common frontend API/domain modules from `lib/api/` into `services/` and
+  update consumers to import those canonical modules directly. Keep stores,
+  validators, security helpers, and pure section utilities in their canonical
+  `store/` and `lib/` boundaries.
 - Add the `@/*` TypeScript/Vite alias needed by the new imports.
 
 Acceptance: every current route has one real implementation under `app/`, no
@@ -322,7 +413,30 @@ The Builder gets a separate review before its move. Preserve `useBlocker`,
 `beforeunload`, template-switch confirmation, preview iframe behavior, and
 PDF export behavior during the Vite stage.
 
-### 4. Establish Next-compatible boundaries in the actual files
+### 4. Separate services, stores, and contracts
+
+- Move the global Zustand stores from `lib/store/` into the top-level `store/`
+  directory and update consumers.
+- Extract raw authentication requests, session loading, refresh, and logout
+  operations from `authStore` into `services/auth.ts`. Leave state transitions,
+  hydration status, and client state in `authStore`.
+- Ensure the other stores call service operations rather than the HTTP client
+  directly. Store actions remain responsible for loading, error, and cache
+  updates.
+- Move API request/response interfaces into the matching files under
+  `contracts/` and import them with `import type`. Cover all current service
+  domains, starting with `applications`, `cvs`, and `library`; do not duplicate
+  types that already come from generated schema output.
+- Remove service dependencies on Zustand stores, React components, and UI
+  toasts. Handle user-facing notifications in stores or page-level client
+  code.
+- Keep browser-only services separate from any future server-only services.
+
+Acceptance: service modules expose reusable operations and return data/errors;
+stores own client state; contracts contain shared wire types; and the
+dependency direction is one-way from stores to services.
+
+### 5. Establish Next-compatible boundaries in the actual files
 
 - Make `app/layout.tsx` a direct root layout implementation that can accept
   Next `children` at cutover.
@@ -340,7 +454,7 @@ Acceptance: the app tree has the correct Next file conventions, and the
 client/server boundary is documented per page without pretending stage 1 is
 already SSR.
 
-### 5. Perform the actual Next runtime conversion
+### 6. Perform the actual Next runtime conversion
 
 After the direct source migration is accepted, install and configure Next in a
 separate reviewed stage. This is a real runtime change, not a proof-of-concept
@@ -361,7 +475,7 @@ wrapper around Vite pages.
 Do not remove Vite/FastAPI deployment code until the Next application is
 usable and the deployment decision is accepted.
 
-### 6. Complete deployment and cutover work
+### 7. Complete deployment and cutover work
 
 Decide whether the final system uses integrated single-origin hosting or a
 separate Next frontend origin. Then update, as one separately reviewed
@@ -439,6 +553,7 @@ Approximate allocation:
 - direct app tree move and import cleanup: 2–3 days;
 - root/dashboard/auth composition: 1–2 days;
 - direct page refactors, with Builder last: 2–4 days;
+- service/store/contract separation: 0.5–1 day;
 - Next-compatible boundaries and manual verification: 1–2 days.
 
 Actual Next runtime and deployment conversion: approximately **5–10 additional

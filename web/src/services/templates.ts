@@ -1,12 +1,5 @@
 import client from "./client";
-
-export interface UserTemplate {
-  id: string;
-  name: string;
-  description: string | null;
-  preview_image_url: string | null;
-  manifest: Record<string, any> | null;
-}
+import type { UserTemplate } from "@/contracts/templates";
 
 export async function fetchSystemTemplates(): Promise<UserTemplate[]> {
   const { data } = await client.get("/templates");

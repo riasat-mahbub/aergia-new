@@ -1,28 +1,16 @@
 import client from "./client";
+import type { SectionType } from "@/lib/sections/types";
+import type {
+  AddEntryToLibraryData,
+  AddEntryToLibraryResponse,
+  LibraryCloneResponse,
+  LibraryEntry,
+  LibraryEntryKind,
+  PromoteToLibraryResponse,
+} from "@/contracts/library";
 
-// ─── Library types ──────────────────────────────────────────────────
-//
-// LibraryEntryKind + LibraryEntryResponse are declared here as plain TS
-// types rather than imported from `../generated/schema` because the
-// codegen script only scans `app.schema.models`. The HTTP wire shapes
-// live in `app.schemas.library` and are not picked up by design
-// (per Phase A2 / plan assumption A8).
-//
-// If/when the codegen script is extended to scan `app.schemas.*`,
-// these declarations can be replaced with imports from the generated
-// file.
-
-import type { SectionType } from "../sections/types";
-
-export type LibraryEntryKind =
-  | "experience"
-  | "education"
-  | "skill"
-  | "project"
-  | "certification"
-  | "language"
-  | "research";
-
+// Runtime mappings belong to the library domain service because they are
+// used to translate API kinds into editor section types.
 export const LIBRARY_KIND_TO_SECTION_TYPE: Record<LibraryEntryKind, SectionType> = {
   experience: "experience",
   education: "education",
@@ -75,33 +63,6 @@ export const LIBRARY_KINDS: LibraryEntryKind[] = [
   "research",
 ];
 
-export interface LibraryEntry {
-  id: string;
-  kind: LibraryEntryKind;
-  payload: Array<Record<string, unknown>>;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface LibraryCloneResponse {
-  section_instance: {
-    id: string;
-    type: SectionType;
-    title: string;
-    enabled: boolean;
-    data: unknown;
-    style: unknown;
-  };
-}
-
-export interface PromoteToLibraryResponse {
-  library_id: string;
-  promoted: Record<string, number>;
-  skipped: string[];
-}
-
-// ─── API surface ────────────────────────────────────────────────────
-
 export async function listLibrary(kind?: LibraryEntryKind): Promise<LibraryEntry[]> {
   const { data } = await client.get("/library", { params: kind ? { kind } : {} });
   return data;
@@ -135,17 +96,6 @@ export async function cloneLibrary(id: string): Promise<LibraryCloneResponse> {
 export async function promoteCvToLibrary(cvId: string): Promise<PromoteToLibraryResponse> {
   const { data } = await client.post(`/cvs/${cvId}/promote-to-library`);
   return data;
-}
-
-export interface AddEntryToLibraryResponse {
-  library_id: string;
-  entry_id: string | null;
-  created: boolean;
-}
-
-export interface AddEntryToLibraryData {
-  kind: LibraryEntryKind;
-  entry: Record<string, unknown>;
 }
 
 export async function addEntryToLibrary(

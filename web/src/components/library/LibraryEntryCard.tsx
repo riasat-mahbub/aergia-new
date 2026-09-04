@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 import { Pencil, Trash2 } from "lucide-react";
-import type { LibraryEntry } from "../../lib/api/library";
+import type { LibraryEntry } from "@/contracts/library";
 
 interface LibraryEntryCardProps {
   entry: LibraryEntry;

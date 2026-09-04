@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import * as libraryApi from "../api/library";
-import type { LibraryEntry, LibraryEntryKind } from "../api/library";
+import * as libraryApi from "@/services/library";
+import type { LibraryEntry, LibraryEntryKind } from "@/contracts/library";
 
 // ─── Selectors ──────────────────────────────────────────────────────
 //
