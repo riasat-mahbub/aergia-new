@@ -10,7 +10,7 @@ import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
 import CvListPage from "./features/cv-list/CvListPage";
 import LibraryPage from "./pages/LibraryPage";
-import ApplicationsPage from "./pages/ApplicationsPage";
+import ApplicationsPage from "./features/applications/ApplicationsPage";
 import ApplicationDetailPage from "./pages/ApplicationDetailPage";
 import BuilderPage from "./pages/BuilderPage";
 import SettingsPage from "./pages/SettingsPage";

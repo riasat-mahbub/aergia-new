@@ -1,7 +1,7 @@
 import { motion } from "motion/react";
 import { ArrowRight, CalendarDays, FileText, RefreshCw, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
-import type { Application } from "../../lib/api/applications";
+import type { Application } from "../../../lib/api/applications";
 import {
   formatApplicationDate,
   formatFollowUpDate,
@@ -11,7 +11,7 @@ import {
   STATUS_CLASSES,
   STATUS_LABELS,
   STATUS_STRIP_CLASSES,
-} from "./applicationPresentation";
+} from "../../../components/applications/applicationPresentation";
 
 interface ApplicationCardProps {
   application: Application;
