@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { Save, Trash2, X } from "lucide-react";
 
-import Modal from "../common/Modal";
-import { useToastStore } from "../../lib/store/uiStore";
+import Modal from "../../../components/common/Modal";
+import { useToastStore } from "../../../lib/store/uiStore";
 import {
   PROVIDER_AUTOCOMPLETE,
   PROVIDER_PREFIXES,
@@ -13,7 +13,7 @@ import {
   saveKeys,
   type LLMKeyMap,
   type LLMProviderKey,
-} from "../../lib/llm/keys";
+} from "../../../lib/llm/keys";
 
 interface Props {
   open: boolean;

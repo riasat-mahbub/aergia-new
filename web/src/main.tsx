@@ -13,7 +13,7 @@ import LibraryPage from "./features/library/LibraryPage";
 import ApplicationsPage from "./features/applications/ApplicationsPage";
 import ApplicationDetailPage from "./features/application-detail/ApplicationDetailPage";
 import BuilderPage from "./pages/BuilderPage";
-import SettingsPage from "./pages/SettingsPage";
+import SettingsPage from "./features/settings/SettingsPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import AgentTailoringPage from "./pages/AgentTailoringPage";
 import "./index.css";
