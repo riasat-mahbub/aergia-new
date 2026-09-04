@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import LibraryCreateModal from "../LibraryCreateModal";
 
-vi.mock("../../sections/SectionEditorPanel", () => ({
+vi.mock("../../../../components/sections/SectionEditorPanel", () => ({
   default: ({ instance, mode }: { instance: { type: string }; mode?: string }) => (
     <div data-testid="section-editor" data-section-type={instance.type} data-editor-mode={mode} />
   ),

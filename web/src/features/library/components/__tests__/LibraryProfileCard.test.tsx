@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import LibraryProfileCard from "../LibraryProfileCard";
-import type { UserProfile } from "../../../lib/api/profile";
+import type { UserProfile } from "../../../../lib/api/profile";
 
 const profile: UserProfile = {
   name: "Ada Lovelace",
