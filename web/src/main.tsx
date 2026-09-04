@@ -15,7 +15,7 @@ import ApplicationDetailPage from "./features/application-detail/ApplicationDeta
 import BuilderPage from "./features/builder/BuilderPage";
 import SettingsPage from "./features/settings/SettingsPage";
 import NotFoundPage from "./pages/NotFoundPage";
-import AgentTailoringPage from "./pages/AgentTailoringPage";
+import AgentTailoringPage from "./features/agent-tailoring/AgentTailoringPage";
 import "./index.css";
 import "react-day-picker/style.css";
 const router = createBrowserRouter(
