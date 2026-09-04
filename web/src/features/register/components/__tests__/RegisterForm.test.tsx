@@ -2,14 +2,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
-import RegisterForm from "../auth/RegisterForm";
+import RegisterForm from "../RegisterForm";
 
 const { mockRegister, mockGetRegistrationConfig } = vi.hoisted(() => ({
   mockRegister: vi.fn(),
   mockGetRegistrationConfig: vi.fn(),
 }));
 
-vi.mock("../../lib/store/authStore", () => ({
+vi.mock("../../../../lib/store/authStore", () => ({
   useAuthStore: vi.fn((selector) =>
     selector({
       register: mockRegister,
@@ -18,7 +18,7 @@ vi.mock("../../lib/store/authStore", () => ({
   ),
 }));
 
-vi.mock("../../lib/api/auth", () => ({
+vi.mock("../../../../lib/api/auth", () => ({
   getRegistrationConfig: mockGetRegistrationConfig,
 }));
 
