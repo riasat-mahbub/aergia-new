@@ -570,7 +570,7 @@ export default function BuilderPage() {
  * `undefined`, matching the child.
  *
  * Exported so the regression test in
- * `web/src/pages/__tests__/BuilderPage.handleUpdateStyle.test.tsx` can drive
+ * `web/src/features/builder/__tests__/BuilderPage.handleUpdateStyle.test.ts` can drive
  * the exact predicate that `handleUpdateStyle` uses without rendering the
  * full BuilderPage.
  */
