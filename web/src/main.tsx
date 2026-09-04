@@ -14,7 +14,7 @@ import ApplicationsPage from "./features/applications/ApplicationsPage";
 import ApplicationDetailPage from "./features/application-detail/ApplicationDetailPage";
 import BuilderPage from "./features/builder/BuilderPage";
 import SettingsPage from "./features/settings/SettingsPage";
-import NotFoundPage from "./pages/NotFoundPage";
+import NotFoundPage from "./features/not-found/NotFoundPage";
 import AgentTailoringPage from "./features/agent-tailoring/AgentTailoringPage";
 import "./index.css";
 import "react-day-picker/style.css";
