@@ -3,10 +3,10 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import ApplicationsPage from "../ApplicationsPage";
-import { useApplicationStore } from "../../lib/store/applicationStore";
-import type { Application } from "../../lib/api/applications";
+import { useApplicationStore } from "../../../lib/store/applicationStore";
+import type { Application } from "../../../lib/api/applications";
 
-vi.mock("../../lib/api/applications", () => ({
+vi.mock("../../../lib/api/applications", () => ({
   APPLICATION_STATUSES: ["draft", "applied", "responded", "interview", "offer", "hired", "rejected", "withdrawn"],
   listApplications: vi.fn(),
   getApplication: vi.fn(),
@@ -17,7 +17,7 @@ vi.mock("../../lib/api/applications", () => ({
   recomputeApplicationRelevance: vi.fn(),
 }));
 
-import * as applicationApi from "../../lib/api/applications";
+import * as applicationApi from "../../../lib/api/applications";
 
 const ready: Application = {
   id: "ready-1",
