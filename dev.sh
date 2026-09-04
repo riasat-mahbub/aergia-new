@@ -23,7 +23,7 @@ while [[ $# -gt 0 ]]; do
       echo ""
       echo "  --prod    Run uvicorn without --reload (production-like)"
       echo "  --build   Build frontend and serve via FastAPI (no Vite dev server)"
-      echo "  --smoke   Run pytest, Ruff, source-only Vitest, ESLint, build, and an isolated live-render smoke test"
+      echo "  --smoke   Run backend checks, frontend ESLint/build, and an isolated live-render smoke test"
       exit 0
       ;;
     *) echo "Unknown flag: $1"; exit 1 ;;

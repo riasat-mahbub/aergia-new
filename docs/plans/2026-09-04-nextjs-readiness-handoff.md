@@ -1,328 +1,463 @@
-# Handoff: plan the Next.js-readiness foundation
+# Handoff: directly migrate the frontend to `src/app`
 
 **Date:** 2026-09-04
 **Audience:** The next planning/implementation agent
-**Status:** Planning handoff only; do not begin code changes until the implementation plan is reviewed.
+**Status:** Stage 1 implemented; actual Next.js runtime and deployment cutover remain separately gated.
 
-## Mission
+## Decision summary
 
-Design a safe, incremental set of changes that makes the frontend structurally
-closer to a Next.js App Router application without switching from Vite,
-React Router, or FastAPI yet.
+Move the existing routed page implementations into `web/src/app/` and make
+that tree the canonical owner of the application routes. Do not create thin
+page adapters and do not keep a duplicate `features/<page>` screen layer.
 
-The plan should separate route ownership from screen implementation, isolate
-browser/router concerns, and create seams that can later become Next
-`page.tsx`/`layout.tsx` files. It must preserve the current product while
-preparing for a later framework decision.
+The Builder is a top-level authenticated route at `/builder/:id`, separate
+from the dashboard URL namespace. During the Vite stage it still uses the
+dashboard shell for auth, navigation, and the Back to CVs action; the Next
+cutover must give this route an equivalent layout or route-group layout.
 
-## Current repository state
+The migration has two runtime stages:
 
-Aergia is a single-user CV builder with:
+1. Move and refactor the real page code under `src/app` while the current Vite
+   + React Router runtime continues to work.
+2. After the source tree is stable, perform the actual Next.js App Router
+   cutover as a separate reviewed stage.
 
-- FastAPI serving `/api/v1/*` and the built React SPA from one origin.
-- React 19, Vite 6, TypeScript, Tailwind, Zustand, React Hook Form, Lexical,
-  Motion, and React Router 7.
-- An HTML-first Python renderer that produces both preview HTML and PDF; the
-  React tree is the editing surface and is not the canonical renderer.
-- A page-ownership refactor already merged into `master` at merge commit
-  `16fcf2f`.
+During stage 1, `web/src/app/router.tsx` is only the temporary React Router
+route registry. It imports the actual page implementations from their new
+locations; it is not an adapter around an old screen tree. `main.tsx` becomes
+the Vite mount only and is removed/replaced at the Next cutover.
 
-The refactor moved the twelve routed screens into
-`web/src/features/<page>/`:
+Do not create `web/src/app/pages/`. In Next App Router, `pages` would be a
+literal URL segment. The route for `/login` is `app/login/page.tsx`, not
+`app/pages/login.tsx`.
 
-```text
-agent-tailoring
-application-detail
-applications
-builder
-cv-list
-dashboard
-home
-library
-login
-not-found
-register
-settings
-```
+Testing is intentionally reset at the route-structure boundary. Delete the
+current frontend tests rather than moving or adapting them. Do not add
+replacement coverage in this effort; a separate follow-up session will
+recreate the test strategy after the structure and runtime decision settle.
 
-Important terminology correction: these directories are mostly page/screen
-slices, not true cross-route features. Do not expand the naming conflation.
-True shared/domain code remains in:
+## Mission and constraints
 
-```text
-web/src/components/common/       # generic UI and app infrastructure
-web/src/components/sections/     # shared section editors and rich text
-web/src/components/profile/      # shared profile UI
-web/src/components/library/      # shared library UI
-web/src/components/applications/ # shared application form/presentation
-web/src/lib/api/                 # typed HTTP wrappers
-web/src/lib/store/               # Zustand state
-web/src/lib/sections/            # shared section/domain helpers
-```
+Convert the current page-oriented frontend into a real route-owned `src/app`
+tree without leaving the old page implementations behind. Preserve current
+product behavior during the source migration, then make the same codebase
+ready for a real Next App Router runtime.
 
-The existing page refactor was intentionally mechanical. It did not change
-route URLs, API contracts, auth behavior, or deployment.
+The following remain fixed during stage 1:
 
-## Current route tree
+- FastAPI continues to serve `/api/v1/*` and the built SPA from one origin.
+- Vite and React Router remain the active browser runtime until the explicit
+  Next cutover stage.
+- The Python HTML renderer remains canonical for preview and PDF; React stays
+  the schematic editing surface.
+- API contracts, auth behavior, preview/PDF behavior, and template rendering
+  are not intentionally changed during the source migration. The Builder URL
+  is intentionally changed from `/dashboard/builder/:id` to `/builder/:id`.
+- No broad API-service, shared-component, or domain-model rewrite is included.
+- Backend tests remain outside this frontend restructuring scope. Frontend
+  tests are deleted and rebuilt later as a separate effort.
 
-The single routing source is [`web/src/main.tsx`](../../web/src/main.tsx):
+## Verified repository baseline
 
-```text
-/                              home
-/login                         login
-/register                      registration
-/agent/tailor/:sessionId       agent tailoring landing page
-/dashboard                    protected dashboard home
-/dashboard/cvs                CV list
-/dashboard/library            library
-/dashboard/applications       applications list
-/dashboard/applications/:id   application detail
-/dashboard/builder/:id        CV builder
-/dashboard/settings           settings
-/*                             not found
-```
+The current routed screen files are under `web/src/features/<page>/`. These
+directories are mostly page slices rather than reusable cross-route features.
+The new structure will move page-owned code into `app/`; only code confirmed
+to be shared remains under `components/`, `lib/api/`, `lib/store/`,
+`lib/sections/`, and shared domain component folders.
 
-`/dashboard` currently nests `ProtectedRoute`, `AppLayout`, and an `Outlet`.
-`App.tsx` wraps the router outlet with the toast container and error boundary.
+The original route tree was declared in
+[`web/src/main.tsx`](../../web/src/main.tsx):
 
-## Evidence that matters for the plan
+| URL | Current implementation | New implementation location |
+|---|---|---|
+| `/` | `features/home/HomePage.tsx` | `app/page.tsx` |
+| `/login` | `features/login/LoginPage.tsx` | `app/login/page.tsx` |
+| `/register` | `features/register/RegisterPage.tsx` | `app/register/page.tsx` |
+| `/agent/tailor/:sessionId` | `features/agent-tailoring/AgentTailoringPage.tsx` | `app/agent/tailor/[sessionId]/page.tsx` |
+| `/dashboard` | `features/dashboard/DashboardPage.tsx` | `app/dashboard/page.tsx` |
+| `/dashboard/cvs` | `features/cv-list/CvListPage.tsx` | `app/dashboard/cvs/page.tsx` |
+| `/dashboard/library` | `features/library/LibraryPage.tsx` | `app/dashboard/library/page.tsx` |
+| `/dashboard/applications` | `features/applications/ApplicationsPage.tsx` | `app/dashboard/applications/page.tsx` |
+| `/dashboard/applications/:id` | `features/application-detail/ApplicationDetailPage.tsx` | `app/dashboard/applications/[id]/page.tsx` |
+| `/builder/:id` | `features/builder/BuilderPage.tsx` | `app/builder/[id]/page.tsx` |
+| `/dashboard/settings` | `features/settings/SettingsPage.tsx` | `app/dashboard/settings/page.tsx` |
+| `/*` | `features/not-found/NotFoundPage.tsx` | `app/not-found.tsx` |
 
-- Twenty-seven frontend files import `react-router-dom` when tests are
-  included. The functional coupling is concentrated in page screens,
-  `AppLayout`, `ProtectedRoute`, `ErrorBoundary`, and navigation-heavy
-  components.
-- `AppLayout` combines visual layout with `Link`, `NavLink`, `useNavigate`,
-  `useLocation`, and logout behavior.
-- `ProtectedRoute` combines auth hydration, `Navigate`, and router location
-  state.
-- Screens use Zustand, effects, browser APIs, form libraries, and the iframe
-  preview. The Builder and preview should remain client-first in the initial
-  readiness work.
-- Existing API wrappers and stores already provide a useful non-UI boundary;
-  a broad API-to-service rename is not part of this work.
-- The full frontend baseline currently passes 57 test files / 355 tests,
-  production build passes, and schema codegen check passes.
-- Full frontend lint has existing debt: 77 `any` errors and 3 hook warnings,
-  concentrated in shared section/editor code, Builder, and support code. Do
-  not widen this effort into unrelated lint cleanup.
+Important coupling found during verification:
 
-## Recommended target shape
+- Twenty-seven frontend files import `react-router-dom` across source and test
+  files; twenty of those are production files. The concentration is in
+  `main.tsx`, `App.tsx`, `AppLayout`, `ProtectedRoute`, `ErrorBoundary`,
+  navigation-heavy screens, and the Builder.
+- `AppLayout` mixes visual shell, links, location inspection, navigation, and
+  logout behavior.
+- `ProtectedRoute` mixes auth hydration with React Router redirects and
+  location state.
+- The Builder parses route state and uses `useBlocker` for unsaved changes,
+  in addition to browser `beforeunload` handling. It should be migrated last.
+- Auth hydration and several stores are browser-bound. A future server/client
+  split cannot assume that the current local-storage lifecycle is SSR-safe.
+- Existing API wrappers and Zustand stores already provide a useful boundary;
+  do not replace them with a new data layer.
 
-During the remaining Vite phase, use a neutral route-adapter layer. Do not
-create a decorative `src/app/` directory whose Next conventions are not
-actually interpreted by the current runtime.
+Historical verification inventory from this checkout, not an acceptance gate:
+
+- `npm run test -- --run`: 57 files passed, 355 tests passed before the test
+  reset.
+- `npm run build`: passed.
+- `npm run codegen:check`: passed.
+- `npm run lint`: 80 existing problems, consisting of 77 errors and 3
+  warnings, primarily in shared section/editor code and Builder-related files.
+
+The existing smoke command is deferred with the later testing reset. It
+references missing `api/scripts/smoke_live.py`, while
+`api/tests/test_smoke_live.py` still imports it. Backend pytest also did not
+complete in the current local Python 3.14.7 environment. Do not repair these
+items during the frontend source migration.
+
+## Framework constraints
+
+Next’s App Router supports `src/app`, nested route folders, `page.tsx`,
+`layout.tsx`, `loading.tsx`, `error.tsx`, `not-found.tsx`, and dynamic segments
+such as `[id]`. Implementation code can remain outside `app/`, but in this
+plan the actual page implementations themselves move into the route folders.
+See the [Next.js project structure
+documentation](https://nextjs.org/docs/app/getting-started/project-structure).
+
+Next pages and layouts are Server Components by default. Current pages use
+state, effects, browser storage, forms, drag-and-drop, Lexical, iframe
+preview, and client auth. During the eventual Next stage, mark those page
+modules or their directly-owned components as client code where required; do
+not claim that moving a file under `app/` makes it SSR-safe. See [Next Server
+and Client Components](https://nextjs.org/docs/app/getting-started/server-and-client-components).
+
+React Router’s `useBlocker` exposes `proceed` and `reset` for in-app SPA
+navigation but does not cover hard reloads or cross-origin navigation. Next’s
+documented `Link` `onNavigate` callback can prevent a client-side link
+navigation, but is not a complete equivalent for programmatic, back, and
+forward navigation. Preserve the Builder’s current behavior during stage 1
+and define the client-side Next behavior during stage 2. See [React Router
+`useBlocker`](https://reactrouter.com/api/hooks/useBlocker) and [Next Link
+navigation](https://nextjs.org/docs/app/api-reference/components/link).
+
+## Target source tree
+
+The intended source tree after the direct migration is:
 
 ```text
 web/src/
-  routes/                       # React Router bindings for now
-    root.tsx
-    login.tsx
-    register.tsx
-    agent-tailor.tsx
-    dashboard/
-      layout.tsx
-      index.tsx
-      cvs.tsx
-      library.tsx
-      applications.tsx
-      application-detail.tsx
-      builder.tsx
-      settings.tsx
+  app/                              # actual route-owned implementations
+    layout.tsx                      # root layout
+    page.tsx                        # home implementation
+    loading.tsx
+    error.tsx
     not-found.tsx
+    router.tsx                      # temporary React Router registry only
+    providers/
+      ClientProviders.tsx
+      AuthBoundary.tsx
+    login/
+      page.tsx                      # moved LoginPage implementation
+      components/                   # login-only components
+    register/
+      page.tsx
+      components/
+    agent/tailor/[sessionId]/
+      page.tsx
+    dashboard/
+      layout.tsx                    # moved dashboard shell/auth composition
+      page.tsx
+      cvs/page.tsx
+      library/page.tsx
+      applications/page.tsx
+      applications/[id]/page.tsx
+      settings/page.tsx
+    builder/
+      [id]/page.tsx
 
-  features/                     # retain only where code is truly cross-page
-    applications/
-    authentication/
-    cv-editor/
-    library/
-
-  components/                   # shared UI
-  lib/                          # API, stores, pure domain utilities
+  components/                       # genuinely shared UI/domain components
+  lib/                               # API, stores, generated types, utilities
 ```
 
-At the actual Next cutover, the route adapters can become the corresponding
-App Router files:
+Page-owned components move with their page. For example, login form code
+belongs under `app/login/components/`, while an application card used by both
+the list and detail screens remains in a shared application component folder.
+Use the import graph to decide; do not move code merely because it is nearby.
 
-```text
-web/src/app/
-  layout.tsx
-  page.tsx
-  login/page.tsx
-  register/page.tsx
-  agent/tailor/[sessionId]/page.tsx
-  dashboard/layout.tsx
-  dashboard/page.tsx
-  dashboard/cvs/page.tsx
-  dashboard/library/page.tsx
-  dashboard/applications/page.tsx
-  dashboard/applications/[id]/page.tsx
-  dashboard/builder/[id]/page.tsx
-  dashboard/settings/page.tsx
-  not-found.tsx
-```
+When a page migration is complete, its old
+`web/src/features/<page>/` implementation and tests are removed. No old page
+component is retained as an intermediate source of truth.
 
-The route files should stay thin. Next's App Router uses filesystem
-conventions for `page`, `layout`, loading, error, and not-found files; the
-implementation does not need to live entirely under `app/`.
+## Direct migration rules
 
-## Proposed bounded work sequence
+### Route ownership
 
-The next agent should refine this into implementation tickets. Keep one route
-or one foundation concern per step; never combine a route migration with a
-framework/deployment cutover.
+Every URL maps to one actual implementation file under `app/`. The file is
+not a wrapper that re-exports an old screen. It owns the page composition,
+route hooks needed by the current runtime, page-level data loading, and page
+navigation.
 
-### 1. Foundation and naming
+The temporary `app/router.tsx` contains only the Vite/React Router registry.
+It points at the actual `app` page modules and is deleted or replaced when
+Next takes over. There must not be a second route tree under `features/` or a
+parallel `routes/` directory.
 
-- Decide whether the interim adapter directory is `routes/` or another neutral
-  name.
-- Add a `@/*` TypeScript/Vite alias matching the likely Next import style.
-- Decide whether current page slices remain under `features/` temporarily or
-  are renamed to `screens/`/`pages/` as a separate mechanical cleanup.
-- Do not add Next dependencies yet.
+### Root layout
 
-### 2. Root composition
+Absorb `App.tsx` into `app/layout.tsx` rather than wrapping it from a new
+adapter. The layout owns the root visual shell, providers, toasts, and the
+current error boundary behavior. During Vite operation it renders the router
+outlet; during the Next stage it accepts Next `children`.
 
-- Split the router-independent root shell from `App.tsx`.
-- Isolate toast/provider setup and error presentation so a future Next root
-  `layout.tsx` can wrap a client provider component.
-- Preserve the current React Router outlet during this step.
+Browser-only setup moves into `app/providers/ClientProviders.tsx`. The root
+layout remains responsible for composition, not for inventing a new state or
+API layer.
 
-### 3. Dashboard layout and auth boundary
+### Dashboard layout and auth
 
-- Split the visual dashboard shell from router bindings in `AppLayout`.
-- Split auth hydration/policy from React Router redirects in `ProtectedRoute`.
-- Define how the current protected dashboard maps to a future
-  `dashboard/layout.tsx`.
-- Coordinate with the planned authentication lifecycle hardening work; do not
-  assume that browser-local token state can support server rendering.
+Rewrite `AppLayout` directly as `app/dashboard/layout.tsx`. Move its shell,
+navigation, active-route behavior, builder layout behavior, and logout logic
+into that route-owned implementation or directly shared components where
+reuse is proven.
 
-### 4. Navigation and route-data boundary
+Rewrite `ProtectedRoute` directly as `app/providers/AuthBoundary.tsx` or a
+dashboard-owned auth boundary. Preserve hydration and redirect behavior in
+stage 1. During the Next stage, replace browser-only redirect mechanics with
+the selected cookie/session and client-boundary design.
 
-- Move `useParams`, `useLocation`, `useNavigate`, `useSearchParams`, and
-  `useBlocker` toward route adapters or a deliberately small navigation
-  boundary.
-- Pass route IDs, session IDs, query values, and navigation callbacks into
-  screen implementations where practical.
-- Treat Builder's unsaved-change blocker as its own design decision; Next has
-  no direct equivalent to the current React Router blocker behavior.
-- Replace direct router imports in screen-owned components only one route at a
-  time, preserving tests.
+### Route data and navigation
 
-### 5. Client-boundary inventory
+Refactor each moved page in place:
 
-- Classify each route as an interactive client route or a possible server shell
-  plus client surface.
-- Keep Builder, preview, rich text, forms, auth hydration, and browser-storage
-  behavior client-side initially.
-- Identify low-risk public/auth content that could later demonstrate a server
-  page without forcing the dashboard or Builder into SSR.
+- Route parameters become the page’s own route data (`id` or `sessionId`).
+- Query values receive documented defaults.
+- Internal navigation stays in the page or a genuinely shared navigation
+  component, not in the old feature directory.
+- API/store calls remain in their existing `lib` boundaries.
+- External links remain ordinary anchors.
 
-### 6. Loading, error, and not-found conventions
+While Vite/React Router is active, moved pages may use its hooks directly.
+When the actual Next runtime is introduced, replace those hooks with Next page
+`params`, `searchParams`, `Link`, and `useRouter` behavior in the same page
+files or their directly-owned client components. This is a direct rewrite,
+not a wrapper around the old implementation.
 
-- Establish reusable loading and error presentation independent of the
-  current router.
-- Make the wildcard not-found screen map cleanly to a future Next
-  `not-found.tsx`.
-- Preserve the current fallback behavior and navigation links.
+## Bounded implementation sequence
 
-### 7. Route adapters, one at a time
+Each step should be independently reviewable and committed separately. Do
+not combine a source migration step with unrelated backend work. Frontend
+tests are deleted during the source move and are not adapted between steps.
 
-Suggested order:
+### 0. Freeze the route and ownership contract
 
-1. Home or login (choose the lower-risk proof route after inspection).
-2. Register.
-3. Agent tailoring.
-4. Dashboard layout/auth boundary as a separate non-page step.
-5. Dashboard home.
-6. CV list.
-7. Library.
-8. Applications list.
-9. Application detail.
-10. Settings.
-11. Builder last among dashboard routes.
-12. Not found.
+- Record the route mapping above as the acceptance contract.
+- Confirm current URL behavior, wildcard not-found behavior, dashboard nesting,
+  auth redirects, and builder navigation behavior.
+- Inventory each file under the twelve current page slices and mark it as
+  page-owned, shared, or obsolete.
+- Record the historical test/lint/build state without treating tests as a
+  gate.
+- Mark the stale smoke runner for the later testing session; do not repair it
+  in this migration.
 
-Each route step should change only its adapter/import boundary and the minimum
-required screen props. Do not change URLs or API endpoints.
+### 1. Create the real `src/app` tree and move page code
 
-### 8. Next proof of concept
+- Create the exact route folders and filenames in the target tree.
+- Move each existing page implementation into its matching `app/**/page.tsx`
+  location with `git mv` or an equivalent history-preserving change.
+- Move page-owned components, styles, and helpers beside the page that owns
+  them.
+- Move root and dashboard composition into `app/layout.tsx` and
+  `app/dashboard/layout.tsx` as part of the direct ownership change.
+- Move the not-found implementation into `app/not-found.tsx`.
+- Delete all current frontend test files instead of moving or adapting them.
+- Remove empty/obsolete page-specific `features/<page>` directories. Retain a
+  feature folder only when the import graph proves it is cross-route code.
+- Add the `@/*` TypeScript/Vite alias needed by the new imports.
 
-Only after the adapter and client-boundary work, create a disposable or
-isolated Next proof of concept for a public/auth route. The agent must answer:
+Acceptance: every current route has one real implementation under `app/`, no
+page implementation remains under `features/`, and the source tree contains
+no duplicate page authority.
 
-- How FastAPI remains the API and HTML/PDF renderer.
-- Whether Next is deployed as a separate frontend origin or integrated behind
-  the existing single origin.
-- How auth/session state works in server and client contexts.
-- Whether the expected SSR, metadata, or deployment benefit justifies the
-  runtime change.
+### 2. Rebuild the current Vite runtime around the new files
 
-Do not use the Builder as the first proof route.
+- Create `app/router.tsx` with the existing React Router route map, importing
+  the new page and layout modules directly.
+- Reduce `main.tsx` to the Vite root mount and `RouterProvider` setup.
+- Remove the old `App.tsx` route composition once `app/layout.tsx` owns it.
+- Keep route URLs, nested dashboard layout behavior, auth redirects, and
+  wildcard fallback unchanged, apart from the explicit Builder move to
+  `/builder/:id`.
+- Update imports throughout the moved code without introducing compatibility
+  re-export files in the old locations.
+
+Acceptance: Vite builds and the existing application can be navigated through
+the new app-owned source tree. The router registry is the only temporary
+React Router runtime file.
+
+### 3. Complete the direct page refactors
+
+Refactor the moved implementations in this order:
+
+1. Home.
+2. Login and register.
+3. Agent tailoring (`sessionId`).
+4. Dashboard home and dashboard shell.
+5. CV list.
+6. Library (`kind` query value).
+7. Applications list.
+8. Application detail (`id`).
+9. Settings.
+10. Builder (`id`, query values, unsaved state), last.
+
+For each page:
+
+- Remove imports that only existed because the file lived under `features/`.
+- Keep page composition in the new `app` file.
+- Move only genuinely shared code to shared folders.
+- Preserve API/store behavior and visible UX.
+- Do not create a re-export adapter in the old path.
+
+The Builder gets a separate review before its move. Preserve `useBlocker`,
+`beforeunload`, template-switch confirmation, preview iframe behavior, and
+PDF export behavior during the Vite stage.
+
+### 4. Establish Next-compatible boundaries in the actual files
+
+- Make `app/layout.tsx` a direct root layout implementation that can accept
+  Next `children` at cutover.
+- Make `app/dashboard/layout.tsx` the direct dashboard composition boundary.
+- Add `app/providers/ClientProviders.tsx` and the direct auth boundary for
+  browser-only behavior.
+- Add `app/loading.tsx`, `app/error.tsx`, and `app/not-found.tsx` using the
+  existing loading, error, and fallback presentation.
+- Classify each moved page as client-only or potentially server-shell plus
+  client content.
+- Keep Builder, preview, rich text, forms, auth hydration, and browser storage
+  client-only initially.
+
+Acceptance: the app tree has the correct Next file conventions, and the
+client/server boundary is documented per page without pretending stage 1 is
+already SSR.
+
+### 5. Perform the actual Next runtime conversion
+
+After the direct source migration is accepted, install and configure Next in a
+separate reviewed stage. This is a real runtime change, not a proof-of-concept
+wrapper around Vite pages.
+
+- Replace the Vite entrypoint and React Router runtime with Next App Router.
+- Remove `app/router.tsx` and React Router dependencies from production code.
+- Convert dynamic page files to Next `params` and `searchParams` contracts.
+- Convert internal links to Next `Link` where appropriate.
+- Use `useRouter` only inside client components that need imperative
+  navigation.
+- Apply `use client` directly to interactive page files/components where
+  required by Next.
+- Implement the selected auth/session model for server and client contexts.
+- Define the Builder unsaved-navigation behavior for link, programmatic,
+  back/forward, and hard-reload cases.
+
+Do not remove Vite/FastAPI deployment code until the Next application is
+usable and the deployment decision is accepted.
+
+### 6. Complete deployment and cutover work
+
+Decide whether the final system uses integrated single-origin hosting or a
+separate Next frontend origin. Then update, as one separately reviewed
+cutover:
+
+- FastAPI static serving and SPA fallback behavior;
+- Docker build and runtime configuration;
+- `dev.sh` and local development commands;
+- `README.md` and `DEPLOY.md`;
+- API origin, cookies, CSRF, refresh, and unauthorized redirects;
+- preview HTML and PDF endpoint access.
+
+Remove obsolete Vite/React Router files only after manual route, auth,
+preview, PDF, and deployment checks pass.
 
 ## Non-goals
 
-- No immediate Next.js install or package-script replacement.
-- No SSR conversion of all routes.
-- No rewrite of the Python renderer or PDF pipeline.
-- No API contract or backend route changes.
-- No broad service-layer rename.
-- No generic common-component cleanup unless the import graph proves a direct
-  need.
-- No replacement of React Router until the Next proof of concept is accepted.
-- No changes to FastAPI static SPA serving during readiness work.
+- No thin route adapters or duplicate old page implementations.
+- No `src/routes` tree.
+- No `src/app/pages` tree.
+- No test migration or replacement coverage during this effort.
+- No rebuilding of the frontend/backend test suites until the separate testing
+  session.
+- No API contract, renderer, template, or PDF pipeline rewrite.
+- No broad shared-component cleanup without import-graph evidence.
+- No attempt to make Builder or every dashboard page server-rendered.
+- No silent auth/session change; it requires an explicit design decision.
 
-## Verification and rollback requirements
+## Deferred testing reset
 
-For every implementation step:
+The current frontend test files are intentionally removed during the direct
+source migration. A later session owns:
 
-- Run the affected Vitest tests.
-- Run `npm run build`.
-- Run the codegen drift check.
-- Run focused lint for changed files; record unrelated baseline failures.
-- At milestones, run the full frontend suite and `./dev.sh --smoke`.
-- Confirm route URLs, API requests, auth behavior, and preview/PDF behavior are
-  unchanged.
-- Keep each step in its own commit and use a separate branch/worktree.
-- Update the project tracker before and after each step; rebuild and validate
-  the graph.
+- recreating tests around the final `app` page/layout ownership;
+- deciding unit, integration, and browser coverage for the new runtime;
+- rebuilding Builder unsaved-navigation coverage;
+- restoring or replacing `api/scripts/smoke_live.py` and its stale import;
+- re-establishing backend/frontend smoke gates under supported environments.
 
-Rollback for a route step should be a single commit revert. Do not use
+Until that session is complete, the absence of frontend tests is expected and
+must not be described as a passing test baseline.
+
+## Verification and rollback
+
+Use non-test checks during this effort:
+
+- Run `npm run build` after each structural step.
+- Run `npm run codegen:check` when generated schema imports are touched.
+- Run focused ESLint on changed non-test files and record historical debt.
+- Manually inspect every affected URL, including dynamic IDs, query values,
+  auth redirects, dashboard nesting, and wildcard not-found.
+- Manually confirm API requests, logout, preview iframe behavior, unsaved
+  changes, and PDF export.
+- For the Next stage, manually verify server/client rendering boundaries,
+  cookies/CSRF, refresh, unauthorized redirects, and deployment topology.
+
+Do not run or repair `./dev.sh --smoke` as part of this plan; the smoke gate
+belongs to the deferred testing reset.
+
+Keep each source-migration step in its own commit and use a separate
+branch/worktree. A step must be revertible with one commit revert. Do not use
 destructive resets or overwrite unrelated work.
+
+Update the project tracker after each implementation step, then rebuild and
+validate the graph.
 
 ## Estimate
 
-Planning/implementation estimate for the readiness foundation: **8–14
+Direct source migration under the current runtime: approximately **6–10
 engineering days**.
 
 Approximate allocation:
 
-- Foundation/aliases: 0.5–1 day.
-- Root and dashboard shell/auth separation: 2–4 days.
-- Navigation and route-data isolation: 3–5 days.
-- Client-boundary and loading/error conventions: 1.5–3 days.
-- Next proof of concept and deployment decision: 1–2 days.
+- route/ownership inventory: 0.5–1 day;
+- direct app tree move and import cleanup: 2–3 days;
+- root/dashboard/auth composition: 1–2 days;
+- direct page refactors, with Builder last: 2–4 days;
+- Next-compatible boundaries and manual verification: 1–2 days.
 
-An actual Next.js runtime/deployment cutover is separate: approximately **5–10
-additional engineering days**, with the largest risks in auth/session design,
-React Router replacement, browser-only Builder behavior, and deployment
-topology.
+Actual Next runtime and deployment conversion: approximately **5–10 additional
+engineering days**, with the largest risks in session auth, client/server
+boundaries, Builder navigation blocking, and deployment topology.
 
-## Questions the next agent must resolve
+The later testing reset is estimated separately and is intentionally not part
+of these figures.
 
-1. Is `routes/` the best interim name, or should the project move directly to
-   a real Next `app/` runtime when route adapters begin?
-2. Should the current page slices be renamed to `screens/` before adding true
-   feature modules?
-3. What authentication/session model is acceptable for a future server/client
-   split?
-4. Which public/auth route offers the lowest-risk Next proof of concept?
-5. Does the product have a concrete need for SSR, metadata, or Next-managed
-   deployment, or is the readiness work primarily organizational?
+## Decisions to resolve before implementation
 
-## Related project records
+1. **Auth model:** choose the cookie/session contract that works in FastAPI
+   and future Next Server/Client contexts.
+2. **Next deployment:** choose integrated single-origin hosting or a separate
+   Next frontend origin.
+3. **Builder blocking:** define exact expected behavior for Next link,
+   programmatic, back/forward, and hard-reload navigation.
+4. **Testing reset timing:** start test recreation after the direct app tree is
+   stable and the runtime decision is made.
 
-- [Completed page ownership refactor](../../tracker/features/FEAT-01M1PT8A0VE6WB4TC3Q7PZWF1H-feat-01m1pqtq1tmrzxzs0zpyfrnnz5.md)
-- [Next.js readiness foundation tracker item](../../tracker/features/FEAT-01M1PVF6YHVYYJMRQ52HQ4A13P-next-js-readiness-foundation.md)
-- [Authentication lifecycle hardening](../../tracker/features/FEAT-01M17YJ3500AF0MCDSB6NKE9GT-authentication-lifecycle-hardening.md)
-- [Next.js App Router project structure](https://nextjs.org/docs/app/getting-started/project-structure)
-- [Next.js Server and Client Components](https://nextjs.org/docs/app/getting-started/server-and-client-components)
+The direct `src/app` ownership decision is settled by this plan. The remaining
+questions concern auth, runtime cutover, deployment, and later testing.

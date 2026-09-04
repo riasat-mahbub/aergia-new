@@ -2,7 +2,8 @@
 # Phase 8 hardening smoke runner.
 # Exercises the HTML-first three-axis architecture end to end without
 # touching user data. Runs against a fresh temporary SQLite database and
-# the just-built frontend assets, then removes its working directory.
+# the just-built frontend assets, then removes its working directory. Frontend
+# unit tests are intentionally omitted until the separate test reset.
 # Lives at <repo>/scripts/smoke.sh; the dispatcher is `dev.sh --smoke`.
 
 set -Eeuo pipefail
@@ -29,8 +30,7 @@ for tool in "$VENV/bin/python" "$VENV/bin/pytest" "$VENV/bin/ruff" \
   fi
 done
 
-for tool in "$WEB_DIR/node_modules/.bin/vitest" \
-            "$WEB_DIR/node_modules/.bin/eslint" \
+for tool in "$WEB_DIR/node_modules/.bin/eslint" \
             "$WEB_DIR/node_modules/.bin/vite"; do
   if [[ ! -x "$tool" ]]; then
     echo "ERROR: smoke prerequisite missing: $tool" >&2
@@ -76,19 +76,15 @@ echo "=== Smoke: backend pytest ==="
 echo "=== Smoke: backend ruff ==="
 (cd "$API_DIR" && "$VENV/bin/ruff" check .)
 
-# ── Stage 3: frontend vitest ─────────────────────────────────────────
-echo "=== Smoke: frontend vitest ==="
-(cd "$WEB_DIR" && npm run test -- --run)
-
-# ── Stage 4: frontend eslint (React Hooks contract) ─────────────────
+# ── Stage 3: frontend eslint (React Hooks contract) ─────────────────
 echo "=== Smoke: frontend eslint (react-hooks) ==="
 (cd "$WEB_DIR" && "$WEB_DIR/node_modules/.bin/eslint" --config "$WEB_DIR/eslint.config.smoke.js" .)
 
-# ── Stage 5: frontend production build ──────────────────────────────
+# ── Stage 4: frontend production build ──────────────────────────────
 echo "=== Smoke: frontend build ==="
 (cd "$WEB_DIR" && npm run build)
 
-# ── Stage 6: live render smoke ───────────────────────────────────────
+# ── Stage 5: live render smoke ───────────────────────────────────────
 echo "=== Smoke: live render ==="
 SERVER_DIR="$TMP_DIR/api"
 mkdir -p "$SERVER_DIR/static"

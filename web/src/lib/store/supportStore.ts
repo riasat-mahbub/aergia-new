@@ -7,7 +7,7 @@ interface SupportState {
   error: string | null;
   ensureLoaded: () => Promise<void>;
   retry: () => Promise<void>;
-  /** @internal — tests only */
+  /** Reset the in-memory support state. */
   reset: () => void;
 }
 

@@ -5,8 +5,8 @@ import type { LibraryEntry, LibraryEntryKind } from "../api/library";
 // ─── Selectors ──────────────────────────────────────────────────────
 //
 // `selectByKind` is a pure helper that buckets entries by their kind.
-// Exported as a free function so tests and components can call it
-// directly without subscribing to the store.
+// Exported as a free function so components can use it without subscribing
+// to the store.
 
 export function selectByKind(entries: LibraryEntry[]): Record<LibraryEntryKind, LibraryEntry[]> {
   const buckets: Record<LibraryEntryKind, LibraryEntry[]> = {
