@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "react-router-dom";
-import { registerSchema, type RegisterFormData } from "../../lib/validators/auth";
-import { useAuthStore } from "../../lib/store/authStore";
-import { getRegistrationConfig, type RegistrationConfig } from "../../lib/api/auth";
+import { registerSchema, type RegisterFormData } from "../../../lib/validators/auth";
+import { useAuthStore } from "../../../lib/store/authStore";
+import { getRegistrationConfig, type RegistrationConfig } from "../../../lib/api/auth";
 import TurnstileWidget from "./TurnstileWidget";
 
 export default function RegisterForm() {
