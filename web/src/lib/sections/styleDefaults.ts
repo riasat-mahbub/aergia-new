@@ -9,8 +9,8 @@
  * lie about state.
  *
  * Drift risk: every change to the Python defaults must be mirrored
- * here. The companion test (styleDefaults.test.ts) walks both shapes
- * and asserts equality for every key, so drift fails the suite.
+ * here. Keep this file aligned with the Python defaults when either side
+ * changes.
  *
  * Why every field is populated explicitly: the generated TypeScript
  * shape marks all Pydantic fields as optional (`?:`). Defaults are

@@ -33,8 +33,8 @@ import type {
 
 /** The wire SectionInstance style is open to legacy keys too — the backend
  * builder normalises the legacy shape (font, color, weight, …) into the
- * three axes. The index signature lets tests and the customize panel keep
- * emitting the legacy keys without TS errors.
+ * three axes. The index signature lets the customize panel accept legacy
+ * keys without TS errors while old data is normalised.
  */
 export type SectionInstanceStyle = GeneratedSectionInstanceStyle & {
   [key: string]: unknown;
