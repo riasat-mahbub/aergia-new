@@ -9,10 +9,10 @@ import {
   Plus,
   type LucideIcon,
 } from "lucide-react";
-import type { Application, ApplicationStatus } from "../lib/api/applications";
-import { useApplicationStore } from "../lib/store/applicationStore";
-import { useCVStore } from "../lib/store/cvStore";
-import { useLibraryStore } from "../lib/store/libraryStore";
+import type { Application, ApplicationStatus } from "../../lib/api/applications";
+import { useApplicationStore } from "../../lib/store/applicationStore";
+import { useCVStore } from "../../lib/store/cvStore";
+import { useLibraryStore } from "../../lib/store/libraryStore";
 
 const STATUS_LABELS: Record<ApplicationStatus, string> = {
   draft: "Draft",

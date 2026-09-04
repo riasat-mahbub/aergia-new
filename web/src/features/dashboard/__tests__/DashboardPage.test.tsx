@@ -2,13 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import DashboardPage from "../DashboardPage";
-import type { Application } from "../../lib/api/applications";
+import type { Application } from "../../../lib/api/applications";
 
 const mockFetchCVs = vi.fn();
 const mockFetchLibrary = vi.fn();
 const mockFetchApplications = vi.fn();
 
-vi.mock("../../lib/store/cvStore", () => ({
+vi.mock("../../../lib/store/cvStore", () => ({
   useCVStore: vi.fn((selector) => selector({
     cvList: [
       {
@@ -39,7 +39,7 @@ vi.mock("../../lib/store/cvStore", () => ({
   })),
 }));
 
-vi.mock("../../lib/store/libraryStore", () => ({
+vi.mock("../../../lib/store/libraryStore", () => ({
   useLibraryStore: vi.fn((selector) => selector({
     entries: [{ id: "entry-1" }],
     loaded: true,
@@ -67,7 +67,7 @@ const application: Application = {
   updated_at: "2026-01-02",
 };
 
-vi.mock("../../lib/store/applicationStore", () => ({
+vi.mock("../../../lib/store/applicationStore", () => ({
   useApplicationStore: vi.fn((selector) => selector({
     applications: [application],
     isLoading: false,
