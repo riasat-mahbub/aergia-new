@@ -5,7 +5,7 @@ import App from "./App";
 import HomePage from "./features/home/HomePage";
 import ProtectedRoute from "./components/common/ProtectedRoute";
 import AppLayout from "./components/common/AppLayout";
-import LoginPage from "./pages/LoginPage";
+import LoginPage from "./features/login/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./features/dashboard/DashboardPage";
 import CvListPage from "./features/cv-list/CvListPage";
