@@ -3,11 +3,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import ApplicationDetailPage from "../ApplicationDetailPage";
-import { useApplicationStore } from "../../lib/store/applicationStore";
-import { useToastStore } from "../../lib/store/uiStore";
-import type { Application } from "../../lib/api/applications";
+import { useApplicationStore } from "../../../lib/store/applicationStore";
+import { useToastStore } from "../../../lib/store/uiStore";
+import type { Application } from "../../../lib/api/applications";
 
-vi.mock("../../lib/api/applications", () => ({
+vi.mock("../../../lib/api/applications", () => ({
   APPLICATION_STATUSES: ["draft", "applied", "responded", "interview", "offer", "hired", "rejected", "withdrawn"],
   listApplications: vi.fn(),
   getApplication: vi.fn(),
@@ -18,21 +18,21 @@ vi.mock("../../lib/api/applications", () => ({
   recomputeApplicationRelevance: vi.fn(),
 }));
 
-vi.mock("../../lib/api/cvs", () => ({
+vi.mock("../../../lib/api/cvs", () => ({
   fetchCV: vi.fn(),
   exportPDF: vi.fn(),
   downloadPDF: vi.fn(),
 }));
 
-vi.mock("../../lib/api/tailoring", () => ({
+vi.mock("../../../lib/api/tailoring", () => ({
   createTailoringSession: vi.fn(),
   getTailoringSessionStatus: vi.fn(),
   cancelTailoringSession: vi.fn(),
 }));
 
-import * as applicationApi from "../../lib/api/applications";
-import * as cvsApi from "../../lib/api/cvs";
-import * as tailoringApi from "../../lib/api/tailoring";
+import * as applicationApi from "../../../lib/api/applications";
+import * as cvsApi from "../../../lib/api/cvs";
+import * as tailoringApi from "../../../lib/api/tailoring";
 
 const application: Application = {
   id: "app-1",

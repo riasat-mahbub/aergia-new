@@ -1,18 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Check, ChevronDown, ChevronUp, Copy, Download, ExternalLink, Pencil, RefreshCw, Trash2, XCircle } from "lucide-react";
-import ApplicationFormModal from "../components/applications/ApplicationFormModal";
-import LoadingSkeleton from "../components/common/LoadingSkeleton";
-import { exportPDF, downloadPDF, fetchCV, type CVDetail } from "../lib/api/cvs";
+import ApplicationFormModal from "../../components/applications/ApplicationFormModal";
+import LoadingSkeleton from "../../components/common/LoadingSkeleton";
+import { exportPDF, downloadPDF, fetchCV, type CVDetail } from "../../lib/api/cvs";
 import {
   APPLICATION_STATUSES,
   type Application,
   type ApplicationStatus,
   type CVQualityResult,
   type RelevanceAnalysis,
-} from "../lib/api/applications";
-import { useApplicationStore } from "../lib/store/applicationStore";
-import { useToastStore } from "../lib/store/uiStore";
+} from "../../lib/api/applications";
+import { useApplicationStore } from "../../lib/store/applicationStore";
+import { useToastStore } from "../../lib/store/uiStore";
 import {
   cancelTailoringSession,
   createTailoringSession,
@@ -20,15 +20,15 @@ import {
   type TailoringSession,
   type TailoringSessionResult,
   type TailoringSessionStatusResponse,
-} from "../lib/api/tailoring";
-import { safeExternalUrl } from "../lib/security/safeUrl";
+} from "../../lib/api/tailoring";
+import { safeExternalUrl } from "../../lib/security/safeUrl";
 import {
   RELEVANCE_TOOLTIP,
   STATUS_CLASSES,
   STATUS_LABELS,
   formatFollowUpDate,
   isFollowUpOverdue,
-} from "../components/applications/applicationPresentation";
+} from "../../components/applications/applicationPresentation";
 
 
 function isRelevanceResult(value: Application["relevance"]): value is RelevanceAnalysis {

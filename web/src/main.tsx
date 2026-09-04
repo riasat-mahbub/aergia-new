@@ -11,7 +11,7 @@ import DashboardPage from "./pages/DashboardPage";
 import CvListPage from "./features/cv-list/CvListPage";
 import LibraryPage from "./pages/LibraryPage";
 import ApplicationsPage from "./features/applications/ApplicationsPage";
-import ApplicationDetailPage from "./pages/ApplicationDetailPage";
+import ApplicationDetailPage from "./features/application-detail/ApplicationDetailPage";
 import BuilderPage from "./pages/BuilderPage";
 import SettingsPage from "./pages/SettingsPage";
 import NotFoundPage from "./pages/NotFoundPage";
