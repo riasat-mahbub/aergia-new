@@ -7,8 +7,8 @@ import {
 } from "react";
 import { FileUp, Loader2, X } from "lucide-react";
 
-import Modal from "../common/Modal";
-import { fetchSystemTemplates, type UserTemplate } from "../../lib/api/templates";
+import Modal from "../../../components/common/Modal";
+import { fetchSystemTemplates, type UserTemplate } from "../../../lib/api/templates";
 
 interface Props {
   open: boolean;
