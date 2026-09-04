@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { useAuthStore } from "../lib/store/authStore";
+import { useAuthStore } from "../../lib/store/authStore";
 import { FileText, Palette, Download, GripVertical, Eye, Shield } from "lucide-react";
 
 const features = [

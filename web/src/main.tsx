@@ -2,7 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider, createRoutesFromElements, Route, Outlet } from "react-router-dom";
 import App from "./App";
-import HomePage from "./pages/HomePage";
+import HomePage from "./features/home/HomePage";
 import ProtectedRoute from "./components/common/ProtectedRoute";
 import AppLayout from "./components/common/AppLayout";
 import LoginPage from "./pages/LoginPage";
