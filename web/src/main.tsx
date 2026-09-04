@@ -9,7 +9,7 @@ import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
 import CvListPage from "./features/cv-list/CvListPage";
-import LibraryPage from "./pages/LibraryPage";
+import LibraryPage from "./features/library/LibraryPage";
 import ApplicationsPage from "./features/applications/ApplicationsPage";
 import ApplicationDetailPage from "./features/application-detail/ApplicationDetailPage";
 import BuilderPage from "./pages/BuilderPage";

@@ -6,13 +6,13 @@ import {
   LIBRARY_KINDS,
   type LibraryEntry,
   type LibraryEntryKind,
-} from "../lib/api/library";
-import { useLibraryStore, selectByKind, countByKind } from "../lib/store/libraryStore";
-import { useProfileStore } from "../lib/store/profileStore";
-import { useToastStore } from "../lib/store/uiStore";
-import LibraryKindGroup from "../components/library/LibraryKindGroup";
-import LibraryCreateModal from "../components/library/LibraryCreateModal";
-import LibraryProfileCard from "../components/library/LibraryProfileCard";
+} from "../../lib/api/library";
+import { useLibraryStore, selectByKind, countByKind } from "../../lib/store/libraryStore";
+import { useProfileStore } from "../../lib/store/profileStore";
+import { useToastStore } from "../../lib/store/uiStore";
+import LibraryKindGroup from "./components/LibraryKindGroup";
+import LibraryCreateModal from "./components/LibraryCreateModal";
+import LibraryProfileCard from "./components/LibraryProfileCard";
 
 export default function LibraryPage() {
   const [searchParams] = useSearchParams();
