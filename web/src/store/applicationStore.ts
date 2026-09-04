@@ -1,11 +1,11 @@
 import { create } from "zustand";
-import * as applicationApi from "../api/applications";
+import * as applicationApi from "@/services/applications";
 import type {
   Application,
   ApplicationCreateData,
   ApplicationGenerateResponse,
   ApplicationUpdateData,
-} from "../api/applications";
+} from "@/contracts/applications";
 
 interface ApplicationState {
   applications: Application[];

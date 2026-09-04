@@ -1,7 +1,7 @@
 import { create } from "zustand";
-import client, { refreshSession } from "../api/client";
-import type { AccountTier, SessionResponse } from "../api/auth";
-import { forgetAllKeys } from "../llm/keys";
+import * as authApi from "@/services/auth";
+import type { AccountTier, RegisterRequest } from "@/contracts/auth";
+import { forgetAllKeys } from "@/lib/llm/keys";
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -22,19 +22,6 @@ function clearLegacyTokenStorage() {
   localStorage.removeItem("refresh_token");
 }
 
-function normalizeAccountTier(value: unknown): AccountTier | null {
-  return value === "free" || value === "premium" ? value : null;
-}
-
-async function readAccountTier(): Promise<AccountTier | null> {
-  try {
-    const session = await client.get<SessionResponse>("/auth/session");
-    return normalizeAccountTier(session?.data?.account_tier);
-  } catch {
-    return null;
-  }
-}
-
 export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
   accountTier: null,
@@ -48,20 +35,20 @@ export const useAuthStore = create<AuthState>((set) => ({
       clearLegacyTokenStorage();
       set({ isLoading: true });
       try {
-        const { data } = await client.get("/auth/session");
-        if (data?.authenticated === true) {
+        const session = await authApi.getSession();
+        if (session.authenticated === true) {
           if (operation === authOperation) {
             set({
               isAuthenticated: true,
-              accountTier: normalizeAccountTier(data.account_tier),
+              accountTier: session.account_tier,
               isLoading: false,
             });
           }
           return;
         }
 
-        await refreshSession();
-        const accountTier = await readAccountTier();
+        await authApi.refreshAuthenticatedSession();
+        const accountTier = await authApi.getAccountTier();
         if (operation === authOperation) set({ isAuthenticated: true, accountTier, isLoading: false });
       } catch {
         if (operation === authOperation) set({ isAuthenticated: false, accountTier: null, isLoading: false });
@@ -76,8 +63,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     authOperation += 1;
     set({ isLoading: true });
     try {
-      await client.post("/auth/login", { email, password });
-      const accountTier = await readAccountTier();
+      await authApi.login({ email, password });
+      const accountTier = await authApi.getAccountTier();
       set({ isAuthenticated: true, accountTier, isLoading: false });
     } catch (error) {
       set({ isAuthenticated: false, accountTier: null, isLoading: false });
@@ -88,9 +75,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   register: async (email: string, password: string, turnstileToken?: string) => {
     set({ isLoading: true });
     try {
-      const payload: { email: string; password: string; turnstile_token?: string } = { email, password };
+      const payload: RegisterRequest = { email, password };
       if (turnstileToken) payload.turnstile_token = turnstileToken;
-      await client.post("/auth/register", payload);
+      await authApi.register(payload);
       set({ isLoading: false });
     } catch (error) {
       set({ isLoading: false });
@@ -101,7 +88,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: async () => {
     authOperation += 1;
     try {
-      await client.post("/auth/logout");
+      await authApi.logout();
     } catch {
       // Clear local state even when the server is unavailable.
     }

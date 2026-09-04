@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import Modal from "../common/Modal";
-import { useApplicationStore } from "../../lib/store/applicationStore";
+import { useApplicationStore } from "@/store/applicationStore";
 import type {
   Application,
   ApplicationGenerateResponse,
   ApplicationUpdateData,
-} from "../../lib/api/applications";
+} from "@/contracts/applications";
 
 interface ApplicationFormModalProps {
   open: boolean;

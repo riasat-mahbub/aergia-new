@@ -3,7 +3,7 @@ import { Pencil } from "lucide-react";
 import Modal from "../common/Modal";
 import SectionEditorPanel from "../sections/SectionEditorPanel";
 import type { SectionInstance } from "../../lib/sections/types";
-import type { UserProfile } from "../../lib/api/profile";
+import type { UserProfile } from "@/contracts/profile";
 
 interface ProfileCardProps {
   profile: UserProfile | null;

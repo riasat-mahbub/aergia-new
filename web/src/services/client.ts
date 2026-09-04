@@ -1,6 +1,4 @@
 import axios, { type AxiosRequestConfig } from "axios";
-import { useToastStore } from "../store/uiStore";
-import { forgetAllKeys } from "../llm/keys";
 
 const client = axios.create({
   baseURL: "/api/v1",
@@ -20,6 +18,19 @@ function hasMutatingMethod(method: string | undefined): boolean {
 }
 
 let refreshPromise: Promise<void> | null = null;
+let apiErrorHandler: ((message: string) => void) | null = null;
+
+/**
+ * Register an application-level error reporter without coupling the HTTP
+ * client to a particular UI or state library. The returned disposer is safe
+ * to call when the provider unmounts.
+ */
+export function setApiErrorHandler(handler: ((message: string) => void) | null): () => void {
+  apiErrorHandler = handler;
+  return () => {
+    if (apiErrorHandler === handler) apiErrorHandler = null;
+  };
+}
 
 export function refreshSession(): Promise<void> {
   if (refreshPromise) return refreshPromise;
@@ -63,10 +74,11 @@ client.interceptors.response.use(
         await refreshSession();
         return client(originalRequest);
       } catch {
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
-        forgetAllKeys();
-        window.location.href = "/login";
+        if (typeof localStorage !== "undefined") {
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("refresh_token");
+        }
+        if (typeof window !== "undefined") window.location.href = "/login";
       }
     }
 
@@ -75,7 +87,7 @@ client.interceptors.response.use(
       const message = typeof detail === "string" && detail.length < 300
         ? detail
         : "An error occurred";
-      useToastStore.getState().addToast(message, "error");
+      apiErrorHandler?.(message);
     }
 
     return Promise.reject(error);

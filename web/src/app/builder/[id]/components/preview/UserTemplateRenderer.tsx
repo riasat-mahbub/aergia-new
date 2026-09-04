@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import type { SectionInstance } from "@/lib/sections/types";
-import client from "@/lib/api/client";
+import type { SectionInstance, TemplateManifest } from "@/lib/sections/types";
+import client from "@/services/client";
 import { applyPreviewPagination } from "./pagePagination";
 import { A4_PAGE_GEOMETRY, PAGE_HEIGHT_PX, PAGE_WIDTH_PX, scaleForAvailableWidth } from "./pageGeometry";
 
@@ -10,7 +10,7 @@ interface Props {
     layout?: { zones?: unknown[]; placement?: Record<string, string> };
     [key: string]: unknown;
   };
-  manifest?: Record<string, unknown>;
+  manifest?: TemplateManifest;
 }
 
 export default function UserTemplateRenderer({ instances, customizations, manifest }: Props) {

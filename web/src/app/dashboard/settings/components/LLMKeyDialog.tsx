@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Save, Trash2, X } from "lucide-react";
 
 import Modal from "@/components/common/Modal";
-import { useToastStore } from "@/lib/store/uiStore";
+import { useToastStore } from "@/store/uiStore";
 import {
   PROVIDER_AUTOCOMPLETE,
   PROVIDER_PREFIXES,

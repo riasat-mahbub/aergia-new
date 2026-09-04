@@ -6,11 +6,10 @@ import {
   LIBRARY_KINDS,
   LIBRARY_KIND_LABELS,
   sectionTypeForLibraryKind,
-  type LibraryEntry,
-  type LibraryEntryKind,
-} from "@/lib/api/library";
+} from "@/services/library";
+import type { LibraryEntry, LibraryEntryKind } from "@/contracts/library";
 import { createDefaultSectionData } from "@/lib/sections/types";
-import { useLibraryStore } from "@/lib/store/libraryStore";
+import { useLibraryStore } from "@/store/libraryStore";
 
 interface LibraryCreateModalProps {
   open: boolean;

@@ -3,24 +3,27 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { Check, ChevronDown, ChevronUp, Copy, Download, ExternalLink, Pencil, RefreshCw, Trash2, XCircle } from "lucide-react";
 import ApplicationFormModal from "@/components/applications/ApplicationFormModal";
 import LoadingSkeleton from "@/components/common/LoadingSkeleton";
-import { exportPDF, downloadPDF, fetchCV, type CVDetail } from "@/lib/api/cvs";
-import {
-  APPLICATION_STATUSES,
-  type Application,
-  type ApplicationStatus,
-  type CVQualityResult,
-  type RelevanceAnalysis,
-} from "@/lib/api/applications";
-import { useApplicationStore } from "@/lib/store/applicationStore";
-import { useToastStore } from "@/lib/store/uiStore";
+import { exportPDF, downloadPDF, fetchCV } from "@/services/cvs";
+import type { CVDetail } from "@/contracts/cvs";
+import { APPLICATION_STATUSES } from "@/contracts/applications";
+import type {
+  Application,
+  ApplicationStatus,
+  CVQualityResult,
+  RelevanceAnalysis,
+} from "@/contracts/applications";
+import { useApplicationStore } from "@/store/applicationStore";
+import { useToastStore } from "@/store/uiStore";
 import {
   cancelTailoringSession,
   createTailoringSession,
   getTailoringSessionStatus,
-  type TailoringSession,
-  type TailoringSessionResult,
-  type TailoringSessionStatusResponse,
-} from "@/lib/api/tailoring";
+} from "@/services/tailoring";
+import type {
+  TailoringSession,
+  TailoringSessionResult,
+  TailoringSessionStatusResponse,
+} from "@/contracts/tailoring";
 import { safeExternalUrl } from "@/lib/security/safeUrl";
 import {
   RELEVANCE_TOOLTIP,

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
-import { useCVStore } from "@/lib/store/cvStore";
+import { useCVStore } from "@/store/cvStore";
 import CvCard from "./components/CvCard";
 import CreateCvModal from "./components/CreateCvModal";
 import DeleteCvModal from "./components/DeleteCvModal";

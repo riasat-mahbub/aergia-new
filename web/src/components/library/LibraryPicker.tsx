@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import Modal from "../common/Modal";
-import { useToastStore } from "../../lib/store/uiStore";
-import { useLibraryStore } from "../../lib/store/libraryStore";
-import type { LibraryEntry, LibraryEntryKind } from "../../lib/api/library";
+import { useToastStore } from "@/store/uiStore";
+import { useLibraryStore } from "@/store/libraryStore";
+import type { LibraryEntry, LibraryEntryKind } from "@/contracts/library";
 import {
   LIBRARY_KIND_LABELS,
   cloneLibrary,
   sectionTypeForLibraryKind,
-} from "../../lib/api/library";
+} from "@/services/library";
 import LibraryEntryCard from "./LibraryEntryCard";
 
 interface LibraryPickerProps {

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { FileDown, Loader2 } from "lucide-react";
-import { exportPDF, downloadPDF } from "@/lib/api/cvs";
-import { useToastStore } from "@/lib/store/uiStore";
+import { exportPDF, downloadPDF } from "@/services/cvs";
+import { useToastStore } from "@/store/uiStore";
 
 interface ExportPDFButtonProps {
   cvId: string;

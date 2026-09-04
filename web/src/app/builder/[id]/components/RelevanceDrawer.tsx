@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { X } from "lucide-react";
-import type { JobRequirement, RequirementRelevanceResult, RelevanceAnalysis, RelevanceResult } from "@/lib/api/applications";
+import type { JobRequirement, RequirementRelevanceResult, RelevanceAnalysis, RelevanceResult } from "@/contracts/applications";
 
 interface RelevanceDrawerProps {
   open: boolean;

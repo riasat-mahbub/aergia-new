@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Plus, Library as LibraryIcon } from "lucide-react";
-import { isLibraryKind, type LibraryEntryKind } from "../../../lib/api/library";
+import { isLibraryKind } from "@/services/library";
+import type { LibraryEntryKind } from "@/contracts/library";
 import LibraryPicker from "../../library/LibraryPicker";
 
 interface EntryAddRowProps {

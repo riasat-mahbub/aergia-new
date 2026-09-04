@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from "motion/react";
 import { X, CheckCircle, AlertCircle, Info } from "lucide-react";
-import { useToastStore } from "../../lib/store/uiStore";
+import { useToastStore } from "@/store/uiStore";
 
 const iconMap = {
   success: CheckCircle,

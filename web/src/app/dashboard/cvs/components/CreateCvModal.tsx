@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Modal from "@/components/common/Modal";
-import { useCVStore } from "@/lib/store/cvStore";
-import { fetchSystemTemplates } from "@/lib/api/templates";
+import { useCVStore } from "@/store/cvStore";
+import { fetchSystemTemplates } from "@/services/templates";
 
 interface TemplateOption {
   id: string;

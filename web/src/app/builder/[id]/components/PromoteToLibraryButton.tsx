@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { motion } from "motion/react";
 import { Archive } from "lucide-react";
-import { promoteCvToLibrary } from "@/lib/api/library";
-import { useToastStore } from "@/lib/store/uiStore";
-import { useLibraryStore } from "@/lib/store/libraryStore";
+import { promoteCvToLibrary } from "@/services/library";
+import { useToastStore } from "@/store/uiStore";
+import { useLibraryStore } from "@/store/libraryStore";
 
 interface PromoteToLibraryButtonProps {
   cvId: string;

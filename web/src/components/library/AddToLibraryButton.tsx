@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Archive } from "lucide-react";
-import { addEntryToLibrary, type LibraryEntryKind } from "../../lib/api/library";
-import { useToastStore } from "../../lib/store/uiStore";
-import { useLibraryStore } from "../../lib/store/libraryStore";
+import { addEntryToLibrary } from "@/services/library";
+import type { LibraryEntryKind } from "@/contracts/library";
+import { useToastStore } from "@/store/uiStore";
+import { useLibraryStore } from "@/store/libraryStore";
 import AddToLibraryConfirmModal from "./AddToLibraryConfirmModal";
 
 interface AddToLibraryButtonProps {
