@@ -7,11 +7,11 @@ import {
   saveKeys,
   loadKeys,
   forgetAllKeys,
-} from "../../../lib/llm/keys";
+} from "../../../../lib/llm/keys";
 
 const mockAddToast = vi.fn();
 
-vi.mock("../../../lib/store/uiStore", () => ({
+vi.mock("../../../../lib/store/uiStore", () => ({
   useToastStore: Object.assign(
     (selector: (state: { addToast: typeof mockAddToast }) => unknown) =>
       selector({ addToast: mockAddToast }),

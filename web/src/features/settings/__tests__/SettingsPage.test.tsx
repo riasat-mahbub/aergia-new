@@ -2,20 +2,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import SettingsPage from "../SettingsPage";
-import { useProfileStore } from "../../lib/store/profileStore";
-import type { UserProfile } from "../../lib/api/profile";
+import { useProfileStore } from "../../../lib/store/profileStore";
+import type { UserProfile } from "../../../lib/api/profile";
 
-vi.mock("../../lib/api/profile", () => ({
+vi.mock("../../../lib/api/profile", () => ({
   getProfile: vi.fn(),
   updateProfile: vi.fn(),
 }));
 
-vi.mock("../../lib/store/uiStore", () => ({
+vi.mock("../../../lib/store/uiStore", () => ({
   useToastStore: (selector: (state: { addToast: ReturnType<typeof vi.fn> }) => unknown) =>
     selector({ addToast: vi.fn() }),
 }));
 
-import * as profileApi from "../../lib/api/profile";
+import * as profileApi from "../../../lib/api/profile";
 
 const profile: UserProfile = {
   name: "Ada Lovelace",
