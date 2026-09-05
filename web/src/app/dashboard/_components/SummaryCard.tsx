@@ -1,8 +1,8 @@
 import { ArrowRight, type LucideIcon } from "lucide-react";
-import { Link } from "@/lib/routerCompat";
+import { Link } from "@tanstack/react-router";
 
 interface SummaryCardProps {
-  to: string;
+  to: "/dashboard/cvs" | "/dashboard/library" | "/dashboard/applications";
   label: string;
   count: number;
   description: string;

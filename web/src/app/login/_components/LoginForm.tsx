@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useNavigate } from "@/lib/routerCompat";
+import { useNavigate } from "@tanstack/react-router";
 import { useRouter } from "@tanstack/react-router";
 import { loginSchema, type LoginFormData } from "@/lib/validators/auth";
 import { useAuthStore } from "@/store/authStore";
@@ -29,7 +29,7 @@ export default function LoginForm() {
       // protected route guard. Revalidate it before navigating so a login
       // cannot be rejected by the stale anonymous snapshot.
       await router.invalidate({ sync: true });
-      navigate("/dashboard", { replace: true });
+      navigate({ to: "/dashboard", replace: true });
     } catch {
       setError("Invalid email or password");
     }

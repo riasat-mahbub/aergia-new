@@ -1,4 +1,4 @@
-import { Link } from "@/lib/routerCompat";
+import { Link } from "@tanstack/react-router";
 import type { Application, RelevanceAnalysis } from "@/contracts/applications";
 import { RELEVANCE_TOOLTIP } from "../../_lib/applicationPresentation";
 
@@ -19,7 +19,7 @@ export default function ApplicationRelevancePanel({ application, relevance }: Ap
           {application.fits_one_page !== null && <span className={application.fits_one_page ? "text-sm text-app-primary" : "text-sm text-app-warning"}>{application.fits_one_page ? "One-page fit" : "Could not fit one page without rewriting content"}</span>}
         </div>
         <p className="mt-3 text-xs text-app-ink-3">{RELEVANCE_TOOLTIP}</p>
-        {application.cv_id && <Link to={`/builder/${application.cv_id}?application=${application.id}`} className="mt-4 inline-flex text-sm font-medium text-app-primary hover:text-app-primary-hover">Open the linked CV to inspect matched, missing, and source evidence</Link>}
+        {application.cv_id && <Link to="/builder/$id" params={{ id: application.cv_id }} search={{ application: application.id }} className="mt-4 inline-flex text-sm font-medium text-app-primary hover:text-app-primary-hover">Open the linked CV to inspect matched, missing, and source evidence</Link>}
       </div>
     </section>
   );

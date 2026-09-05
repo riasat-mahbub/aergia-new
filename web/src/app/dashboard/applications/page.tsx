@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "@/lib/routerCompat";
+import { useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import ApplicationCard from "./_components/ApplicationCard";
 import ApplicationFormModal from "./_components/ApplicationFormModal";
@@ -42,7 +42,7 @@ export default function ApplicationsPage() {
   );
 
   const handleGenerated = async (result: ApplicationGenerateResponse) => {
-    navigate(`/dashboard/applications/${result.application.id}`);
+    navigate({ to: "/dashboard/applications/$id", params: { id: result.application.id } });
     if (result.application.generation_status === "failed") {
       addToast("CV generation failed. Please retry.", "error");
     }

@@ -142,6 +142,7 @@ elif [ "$BUILD" = true ] || [ "$PROD" = true ]; then
     cd "$WEB_DIR"
     AERGIA_API_ORIGIN="${AERGIA_API_ORIGIN:-http://127.0.0.1:8000}" \
     AERGIA_FRONTEND_ORIGIN="${AERGIA_FRONTEND_ORIGIN:-http://127.0.0.1:$FRONTEND_PORT}" \
+    NODE_ENV=production \
     HOST=0.0.0.0 PORT="$FRONTEND_PORT" \
       node .output/server/index.mjs &
     WEB_PID=$!

@@ -1,4 +1,4 @@
-import { Outlet } from "@/lib/routerCompat";
+import { Outlet } from "@tanstack/react-router";
 import ErrorBoundary from "./error";
 import ClientProviders from "./_providers/ClientProviders";
 

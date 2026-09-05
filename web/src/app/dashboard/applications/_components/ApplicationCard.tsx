@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 import { ArrowRight, CalendarDays, FileText, RefreshCw, Trash2 } from "lucide-react";
-import { Link } from "@/lib/routerCompat";
+import { Link } from "@tanstack/react-router";
 import type { Application } from "@/contracts/applications";
 import {
   formatApplicationDate,
@@ -41,7 +41,8 @@ export default function ApplicationCard({ application, retrying, onRetry, onDele
           <div className="min-w-0">
             <p className="text-xs font-medium uppercase tracking-[0.14em] text-app-ink-3">Application</p>
             <Link
-              to={`/dashboard/applications/${application.id}`}
+              to="/dashboard/applications/$id"
+              params={{ id: application.id }}
               className="mt-1 block truncate text-lg font-semibold text-app-ink hover:text-app-primary"
             >
               {application.company}
@@ -85,7 +86,8 @@ export default function ApplicationCard({ application, retrying, onRetry, onDele
 
         <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-app-rule-soft pt-4">
           <Link
-            to={`/dashboard/applications/${application.id}`}
+            to="/dashboard/applications/$id"
+            params={{ id: application.id }}
             className="inline-flex items-center gap-1 rounded bg-app-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-app-primary-hover"
           >
             View application

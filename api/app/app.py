@@ -1,14 +1,12 @@
 from contextlib import asynccontextmanager
 import logging
-from pathlib import Path
 import hmac
 import secrets
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
@@ -239,28 +237,3 @@ async def readyz(request: Request):
         )
 
     return {"status": "ok", "database": db_status, "version": settings.app_version}
-
-
-STATIC_DIR = Path("./static")
-STATIC_ROOT = STATIC_DIR.resolve()
-
-
-def _safe_static_file(full_path: str) -> Path | None:
-    """Resolve a SPA asset only when it remains under the static root."""
-
-    candidate = (STATIC_ROOT / full_path).resolve()
-    try:
-        candidate.relative_to(STATIC_ROOT)
-    except ValueError:
-        return None
-    return candidate if candidate.is_file() else None
-
-if STATIC_DIR.exists():
-    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-
-    @app.get("/{full_path:path}")
-    async def serve_spa(full_path: str):
-        file_path = _safe_static_file(full_path)
-        if file_path is not None:
-            return FileResponse(file_path)
-        return FileResponse(STATIC_ROOT / "index.html")

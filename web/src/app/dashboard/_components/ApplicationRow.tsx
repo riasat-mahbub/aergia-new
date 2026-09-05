@@ -1,11 +1,12 @@
-import { Link } from "@/lib/routerCompat";
+import { Link } from "@tanstack/react-router";
 import type { Application } from "@/contracts/applications";
 import { STATUS_CLASSES, STATUS_LABELS } from "../_constants/applicationStatus";
 
 export default function ApplicationRow({ application }: { application: Application }) {
   return (
     <Link
-      to={`/dashboard/applications/${application.id}`}
+      to="/dashboard/applications/$id"
+      params={{ id: application.id }}
       className="flex items-center justify-between gap-4 rounded-lg px-3 py-3 transition hover:bg-app-surface-muted"
     >
       <div className="min-w-0">

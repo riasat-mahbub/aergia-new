@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "@/lib/routerCompat";
+import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { motion } from "motion/react";
 
 import BuilderHeader from "./_components/BuilderHeader";
@@ -23,9 +23,8 @@ import {
 import { useBuilderApplicationContext } from "./_hooks/useBuilderApplicationContext";
 
 export default function BuilderPage() {
-  const { id = "" } = useParams<{ id: string }>();
-  const [searchParams] = useSearchParams();
-  const applicationId = searchParams.get("application");
+  const { id = "" } = useParams({ from: "/_authenticated/builder/$id" });
+  const { application: applicationId = null } = useSearch({ from: "/_authenticated/builder/$id" });
   const navigate = useNavigate();
   const { currentCV, loadCV, isLoading, isSaving, lastSaved, setIsSaving, setLastSaved } = useBuilderDocumentStore();
 
@@ -202,7 +201,7 @@ export default function BuilderPage() {
           isSaving={isSaving}
           lastSaved={lastSaved}
           showSavedFeedback={showSavedFeedback}
-          onBack={() => navigate("/dashboard/cvs")}
+          onBack={() => navigate({ to: "/dashboard/cvs" })}
           onOpenRelevance={() => setRelevanceDrawerOpen(true)}
           onSave={handleSave}
           formatLastSaved={formatLastSaved}

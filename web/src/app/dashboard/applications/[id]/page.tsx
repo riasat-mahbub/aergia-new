@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "@/lib/routerCompat";
+import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { Pencil, Trash2 } from "lucide-react";
 import ApplicationFormModal from "../_components/ApplicationFormModal";
 import ApplicationJobPanel from "./_components/ApplicationJobPanel";
@@ -29,7 +29,7 @@ import { useTailoringSession } from "./_hooks/useTailoringSession";
 import { useLinkedCv } from "./_hooks/useLinkedCv";
 
 export default function ApplicationDetailPage() {
-  const { id = "" } = useParams();
+  const { id = "" } = useParams({ from: "/_authenticated/dashboard/applications/$id" });
   const navigate = useNavigate();
   const application = useApplicationStore((state) => state.currentApplication);
   const isLoading = useApplicationStore((state) => state.isLoading);
@@ -82,7 +82,11 @@ export default function ApplicationDetailPage() {
     try {
       const result = await generate(application.id);
       if (result.application.generation_status === "ready" && result.cv_id) {
-        navigate(`/builder/${result.cv_id}?application=${application.id}`);
+        navigate({
+          to: "/builder/$id",
+          params: { id: result.cv_id },
+          search: { application: application.id },
+        });
       } else {
         addToast("CV generation failed. Please retry.", "error");
       }
@@ -108,7 +112,7 @@ export default function ApplicationDetailPage() {
     try {
       await remove(application.id);
       addToast("Application deleted", "info");
-      navigate("/dashboard/applications");
+      navigate({ to: "/dashboard/applications" });
     } catch {
       addToast("Unable to delete this application", "error");
     }

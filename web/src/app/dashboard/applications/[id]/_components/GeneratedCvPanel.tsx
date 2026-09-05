@@ -1,4 +1,4 @@
-import { Link } from "@/lib/routerCompat";
+import { Link } from "@tanstack/react-router";
 import { Check, Copy, Download, ExternalLink, Pencil, RefreshCw, XCircle } from "lucide-react";
 import type { Application } from "@/contracts/applications";
 import type { CVDetail } from "@/contracts/cvs";
@@ -69,7 +69,7 @@ export default function GeneratedCvPanel({
             </div>
           )}
           <div className="mt-4 flex flex-wrap gap-2">
-            <Link to={`/builder/${application.cv_id}?application=${application.id}`} className="inline-flex items-center gap-1 rounded-md bg-app-primary px-3 py-2 text-sm font-medium text-white hover:bg-app-primary-hover">Open/Edit CV <Pencil className="h-3.5 w-3.5" /></Link>
+            <Link to="/builder/$id" params={{ id: application.cv_id }} search={{ application: application.id }} className="inline-flex items-center gap-1 rounded-md bg-app-primary px-3 py-2 text-sm font-medium text-white hover:bg-app-primary-hover">Open/Edit CV <Pencil className="h-3.5 w-3.5" /></Link>
             <button type="button" onClick={onExport} className="inline-flex items-center gap-1 rounded-md border border-app-rule-strong px-3 py-2 text-sm font-medium text-app-ink-2 hover:bg-app-surface-muted"><Download className="h-3.5 w-3.5" /> Export PDF</button>
             <button type="button" onClick={onStartTailoring} disabled={tailoringStarting} className="inline-flex items-center gap-1 rounded-md border border-app-primary-soft px-3 py-2 text-sm font-medium text-app-primary hover:bg-app-primary-soft disabled:opacity-50">
               {tailoringStarting ? "Preparing LLM tailoring…" : "LLM Tailoring"}

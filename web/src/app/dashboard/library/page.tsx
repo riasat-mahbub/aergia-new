@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "@/lib/routerCompat";
+import { useSearch } from "@tanstack/react-router";
 import { Plus, Archive } from "lucide-react";
 import { LIBRARY_KIND_LABELS, LIBRARY_KINDS } from "@/lib/library/catalog";
-import type { LibraryEntry, LibraryEntryKind } from "@/contracts/library";
+import type { LibraryEntry } from "@/contracts/library";
 import { useLibraryStore } from "@/store/libraryStore";
 import { useProfileStore } from "../_stores/profileStore";
 import { useToastStore } from "@/store/uiStore";
@@ -12,8 +12,7 @@ import LibraryProfileCard from "./_components/LibraryProfileCard";
 import { countByKind, selectByKind } from "./_lib/librarySelectors";
 
 export default function LibraryPage() {
-  const [searchParams] = useSearchParams();
-  const initialKind = searchParams.get("kind") as LibraryEntryKind | null;
+  const { kind: initialKind } = useSearch({ from: "/_authenticated/dashboard/library" });
 
   const entries = useLibraryStore((s) => s.entries) ?? [];
   const isLoading = useLibraryStore((s) => s.isLoading);

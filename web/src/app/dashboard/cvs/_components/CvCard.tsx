@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { Link } from "@/lib/routerCompat";
+import { Link } from "@tanstack/react-router";
 import type { CVListItem } from "@/contracts/cvs";
 
 const TEMPLATE_STYLES: Record<string, { strip: string; chip: string }> = {
@@ -41,7 +41,8 @@ export default function CvCard({ cv, onEdit, onCopy, onDelete }: CvCardProps) {
             </div>
             {cv.application && (
               <Link
-                to={`/dashboard/applications/${cv.application.id}`}
+                to="/dashboard/applications/$id"
+                params={{ id: cv.application.id }}
                 className="mt-3 flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-app-primary hover:text-app-primary hover:underline"
               >
                 <span className="inline-flex shrink-0 items-center rounded-full bg-app-primary-soft px-2 py-0.5 font-medium">
