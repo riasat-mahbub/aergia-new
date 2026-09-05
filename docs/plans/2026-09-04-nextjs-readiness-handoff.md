@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-04
 **Audience:** The next planning/implementation agent
-**Status:** Route-private service/store/contract separation is implemented; the actual Next.js runtime/deployment cutover remains planned and separately gated.
+**Status:** Superseded on 2026-09-05 by `2026-09-05-self-documenting-repository-structure.md`. The route-private separation described here remains historical context; the current implementation keeps TanStack Start routes under `web/src/routes/`.
 
 ## Decision summary
 

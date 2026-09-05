@@ -1,7 +1,7 @@
 # Frontend boundary and SOLID refactor plan
 
 **Date:** 2026-09-04  
-**Status:** Implemented in the current working tree  
+**Status:** Superseded on 2026-09-05 by `2026-09-05-self-documenting-repository-structure.md`. The boundary rules below are retained as historical context; the current implementation uses `features/` and `shared/` ownership layers.
 **Tracker:** `FEAT-01M1QQX2ZKE6Q05G3MKKKFRBGR`  
 **Depends on:** completed page-oriented ownership refactor
 
