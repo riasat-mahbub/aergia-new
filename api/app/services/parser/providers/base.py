@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from app.schema.models import SectionInstance
+from app.document_schema.models import SectionInstance
 
 from ..keys import redact
 

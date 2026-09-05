@@ -29,7 +29,7 @@ empty-entry behaviour in :func:`build_skills`.
 """
 
 from __future__ import annotations
-from app.schema.models import (
+from app.document_schema.models import (
     Entry,
     FieldBlock,
     LayoutHints,

@@ -27,7 +27,7 @@ import html as _stdlib_html
 import re
 
 from app.core.safe_url import normalize_url
-from app.schema.models import (
+from app.document_schema.models import (
     Entry,
     FieldBlock,
     LayoutHints,

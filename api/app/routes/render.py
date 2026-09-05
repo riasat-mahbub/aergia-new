@@ -26,7 +26,7 @@ from pydantic import BaseModel, Field
 from app.models.user import User
 from app.core.rate_limit import limiter
 from app.core.deps import get_current_user
-from app.schema.models import (
+from app.document_schema.models import (
     Customizations,
     Document,
     SectionInstance,
@@ -39,7 +39,7 @@ from app.services.renderer.html import HTMLDocumentRenderer
 from app.services.renderer.resolve import ManifestVersionError
 
 
-router = APIRouter(prefix="/render", tags=["render"])
+router = APIRouter(prefix="/render")
 logger = logging.getLogger("aergia.render")
 
 

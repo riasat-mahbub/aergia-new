@@ -1,6 +1,6 @@
 """Pydantic → TypeScript codegen for the new schema package.
 
-Reads ``api/app/schema/models.py`` via importlib and emits a single
+Reads ``api/app/document_schema/models.py`` via importlib and emits a single
 ``web/src/generated/schema.ts`` with sorted, deterministic TypeScript
 ``interface`` declarations.
 
@@ -32,8 +32,8 @@ from typing import Any
 from pydantic import BaseModel
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SOURCE_MODULE = "app.schema.models"
-SOURCE_PATH = REPO_ROOT / "api" / "app" / "schema" / "models.py"
+SOURCE_MODULE = "app.document_schema.models"
+SOURCE_PATH = REPO_ROOT / "api" / "app" / "document_schema" / "models.py"
 OUTPUT_PATH = REPO_ROOT / "web" / "src" / "generated" / "schema.ts"
 
 
@@ -139,7 +139,7 @@ def generate() -> str:
     digest = hashlib.sha256(SOURCE_PATH.read_bytes()).hexdigest()[:16]
     blocks = [
         "// This file is generated. Do not edit by hand.",
-        f"// Source: api/app/schema/models.py (sha256:{digest})",
+        f"// Source: api/app/document_schema/models.py (sha256:{digest})",
         "",
     ]
     for model in models:

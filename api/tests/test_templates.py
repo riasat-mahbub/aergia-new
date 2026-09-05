@@ -96,12 +96,12 @@ async def test_multipart_upload_route_does_not_exist(client):
 
 
 def test_user_template_create_schema_is_not_exported():
-    """``UserTemplateCreate`` was deleted from ``app.schema.models``."""
+    """``UserTemplateCreate`` was deleted from ``app.document_schema.models``."""
     import pytest
     from app import schema as schema_pkg
 
     with pytest.raises(ImportError):
-        from app.schema.models import UserTemplateCreate  # noqa: F401
+        from app.document_schema.models import UserTemplateCreate  # noqa: F401
     assert "UserTemplateCreate" not in dir(schema_pkg.models)
 
 

@@ -5,7 +5,7 @@ Fields per entry: ``paper``, ``venue`` (publication venue), ``link``
 """
 
 from __future__ import annotations
-from app.schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextStyle, TextRun
+from app.document_schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextStyle, TextRun
 from ._utils import format_single_date, normalize_url_scheme, rich_text_to_field_block
 
 

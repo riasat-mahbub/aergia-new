@@ -13,7 +13,7 @@ from uuid import uuid4
 
 from app.db.session import async_session
 from app.models.library import Library, LibraryEntry
-from app.schemas.library import library_kind_for_section_type, section_type_for_library_kind
+from app.http_schemas.library import library_kind_for_section_type, section_type_for_library_kind
 from app.services.library import LibraryService, _content_hash, _derive_title
 
 

@@ -14,13 +14,13 @@ from sqlalchemy.orm import selectinload
 
 from app.models.application import Application, ApplicationStatusHistory
 from app.models.user import User
-from app.schemas.application import (
+from app.http_schemas.application import (
     ApplicationCreate,
     ApplicationStatus,
     ApplicationUpdate,
     JobRequirement,
 )
-from app.schemas.cv import CVCreate
+from app.http_schemas.cv import CVCreate
 from app.services.cv import CVService
 from app.services.library import LibraryService
 from app.services.pdf import PDFService, PDFUnavailableError, pdf_page_count

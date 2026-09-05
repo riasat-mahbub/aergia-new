@@ -4,8 +4,8 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.schemas.cv import CVApplicationSummary, CVCreate, CVUpdate, CVResponse, CVListItem
-from app.schemas.library import AddEntryToLibraryRequest, AddEntryToLibraryResponse, PromoteToLibraryResponse
+from app.http_schemas.cv import CVApplicationSummary, CVCreate, CVUpdate, CVResponse, CVListItem
+from app.http_schemas.library import AddEntryToLibraryRequest, AddEntryToLibraryResponse, PromoteToLibraryResponse
 from app.services.cv import CVLinkedToApplicationError, CVService
 from app.services.cv import coerce_customizations
 from app.services.pdf import PDFService
@@ -160,7 +160,7 @@ async def preview_cv(
         template_data = await service.get_template_data(cv.template_id)
         manifest = (template_data or {}).get("manifest", {})
 
-        from app.schema.models import TemplateManifest
+        from app.document_schema.models import TemplateManifest
 
         manifest_model = TemplateManifest.model_validate(manifest)
         document = build_document(cv, manifest_model)

@@ -4,7 +4,7 @@ correct spacing presets and empty policy overrides."""
 import pytest
 
 from app.db.seed import SEED_TEMPLATES
-from app.schema.models import TemplateManifest
+from app.document_schema.models import TemplateManifest
 
 
 MODERN_ID = "generic-modern"
@@ -33,7 +33,7 @@ def test_minimal_seed_overrides_skills_to_inline():
     """The minimal template ships with skills in inline (comma-separated) mode
     so the rendered CV matches the single-column golden reference. The other
     two templates leave ``policy_overrides.by_type`` empty."""
-    from app.schema.models import SectionPolicy
+    from app.document_schema.models import SectionPolicy
     assert _manifest(MINIMAL_ID).policy_overrides.by_type == {
         "skills": SectionPolicy(skill_variant="inline")
     }

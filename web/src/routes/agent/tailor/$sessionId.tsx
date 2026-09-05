@@ -1,6 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import TailorPage from "@/app/agent/tailor/[sessionId]/page";
+import { TailoringSessionPage } from "@/features/tailoring";
 
 export const Route = createFileRoute("/agent/tailor/$sessionId")({
-  component: TailorPage,
+  component: TailoringSessionRoute,
 });
+
+function TailoringSessionRoute() {
+  const { sessionId } = Route.useParams();
+  return <TailoringSessionPage sessionId={sessionId} />;
+}

@@ -15,7 +15,7 @@ from app.core.auth import (
     verify_password,
     verify_token_hash,
 )
-from app.schemas.auth import RegisterRequest, LoginRequest
+from app.http_schemas.auth import RegisterRequest, LoginRequest
 from app.models.auth_session import AuthSession
 
 

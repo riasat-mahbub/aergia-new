@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.schema.models import Customizations, TemplateManifest
+from app.document_schema.models import Customizations, TemplateManifest
 from app.services.renderer import HTMLDocumentRenderer, build_document, resolve
 from app.services.pdf import pdf_page_count
 from app.services.renderer._pdf_runtime import html_to_pdf

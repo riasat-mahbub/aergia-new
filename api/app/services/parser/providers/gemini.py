@@ -22,7 +22,7 @@ from typing import Any
 
 from google import genai
 
-from app.schema.models import SectionInstance
+from app.document_schema.models import SectionInstance
 
 from ..keys import (
     InvalidAPIKeyError,

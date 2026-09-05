@@ -1,14 +1,12 @@
 import {
   HeadContent,
+  Outlet,
   Scripts,
   createRootRouteWithContext,
 } from "@tanstack/react-router";
-import type { SessionResolveResponse } from "@/contracts/auth";
-import { resolveSession } from "@/services/session.functions";
-import RootLayout from "@/app/layout";
-import Loading from "@/app/loading";
-import NotFoundPage from "@/app/not-found";
-import { AuthStoreProvider } from "@/store/authStore";
+import { AuthStoreProvider, resolveSession } from "@/features/authentication";
+import type { SessionResolveResponse } from "@/features/authentication";
+import { LoadingPage, NotFoundPage as AppNotFoundPage, RootLayout } from "@/features/app-shell";
 import "@/index.css";
 import "react-day-picker/style.css";
 
@@ -25,8 +23,8 @@ export const Route = createRootRouteWithContext<StartRouterContext>()({
       { title: "Aergia CV Builder" },
     ],
   }),
-  pendingComponent: Loading,
-  notFoundComponent: NotFoundPage,
+  pendingComponent: LoadingPage,
+  notFoundComponent: AppNotFoundPage,
   component: RootDocument,
 });
 
@@ -39,7 +37,9 @@ function RootDocument() {
       </head>
       <body>
         <AuthStoreProvider initialSession={auth}>
-          <RootLayout />
+          <RootLayout>
+            <Outlet />
+          </RootLayout>
         </AuthStoreProvider>
         <Scripts />
       </body>

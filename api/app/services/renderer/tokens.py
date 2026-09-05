@@ -1,7 +1,7 @@
 """Token-to-renderer-value mapping tables.
 
 The manifest exposes a closed design vocabulary (see
-:data:`app.schema.models.WidthToken`, :data:`SpacingToken`,
+:data:`app.document_schema.models.WidthToken`, :data:`SpacingToken`,
 :data:`FontToken`). The token name is renderer-independent; this
 module is where each token meets a renderer-specific value.
 

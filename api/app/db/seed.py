@@ -26,7 +26,7 @@ from __future__ import annotations
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.template import Template
-from app.schema.models import TemplateManifest
+from app.document_schema.models import TemplateManifest
 
 
 # These seeds are the canonical reference for the design vocabulary.

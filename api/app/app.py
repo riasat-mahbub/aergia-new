@@ -31,6 +31,20 @@ from app.services.renderer._pdf_runtime import close_browser as _close_browser
 settings = get_settings()
 logger = logging.getLogger("aergia.api")
 
+OPENAPI_TAGS = [
+    {"name": "auth", "description": "Session and account authentication."},
+    {"name": "cvs", "description": "CV documents and export operations."},
+    {"name": "applications", "description": "Job applications and relevance analysis."},
+    {"name": "profile", "description": "The signed-in user's profile."},
+    {"name": "library", "description": "Reusable CV library entries."},
+    {"name": "assets", "description": "Uploaded profile assets."},
+    {"name": "templates", "description": "Available CV templates."},
+    {"name": "render", "description": "Document rendering and renderer capabilities."},
+    {"name": "imports", "description": "CV import and parsing operations."},
+    {"name": "tailoring", "description": "Agent-assisted tailoring sessions."},
+    {"name": "system", "description": "Service health and readiness checks."},
+]
+
 MUTATING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 REQUEST_BODY_LIMITS = {
     "/api/v1/render/ast": 2 * 1024 * 1024,
@@ -57,7 +71,7 @@ def _allowed_origin(origin: str | None) -> bool:
     return bool(origin) and origin.rstrip("/") == settings.frontend_url.rstrip("/")
 
 
-def _content_security_policy() -> str:
+def _content_security_policy(path: str | None = None) -> str:
     if settings.environment == "production":
         return (
             "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; "
@@ -66,10 +80,11 @@ def _content_security_policy() -> str:
             "connect-src 'self' https://challenges.cloudflare.com; "
             "frame-src 'self' https://challenges.cloudflare.com"
         )
+    docs_cdn = " https://cdn.jsdelivr.net" if path == "/api/docs" else ""
     return (
         "default-src 'self' http://localhost:5173; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; "
-        "form-action 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com; "
-        "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; "
+        f"form-action 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com{docs_cdn}; "
+        f"style-src 'self' 'unsafe-inline'{docs_cdn}; img-src 'self' data: blob:; font-src 'self' data:; "
         "connect-src 'self' http://localhost:5173 ws://localhost:5173 https://challenges.cloudflare.com; "
         "frame-src 'self' https://challenges.cloudflare.com"
     )
@@ -78,7 +93,7 @@ def _content_security_policy() -> str:
 def _apply_security_headers(response, request: Request):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Content-Security-Policy"] = _content_security_policy()
+    response.headers["Content-Security-Policy"] = _content_security_policy(request.url.path)
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     if settings.environment == "production" and request.url.scheme == "https":
@@ -109,6 +124,10 @@ app = FastAPI(
     version=settings.app_version,
     description="Build professional CVs",
     lifespan=lifespan,
+    docs_url="/api/docs" if settings.api_docs_enabled else None,
+    redoc_url=None,
+    openapi_url="/api/openapi.json" if settings.api_docs_enabled else None,
+    openapi_tags=OPENAPI_TAGS,
 )
 
 app.state.limiter = limiter
@@ -176,16 +195,16 @@ if settings.environment != "production":
         allow_headers=["*"],
     )
 
-app.include_router(auth_router, prefix="/api/v1/auth")
-app.include_router(cvs_router, prefix="/api/v1/cvs")
-app.include_router(applications_router, prefix="/api/v1/applications")
-app.include_router(profile_router, prefix="/api/v1/profile")
-app.include_router(library_router, prefix="/api/v1/library")
-app.include_router(assets_router, prefix="/api/v1/assets")
-app.include_router(templates_router, prefix="/api/v1/templates")
-app.include_router(render_router, prefix="/api/v1")
-app.include_router(imports_router, prefix="/api/v1")
-app.include_router(tailoring_router, prefix="/api/v1")
+app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
+app.include_router(cvs_router, prefix="/api/v1/cvs", tags=["cvs"])
+app.include_router(applications_router, prefix="/api/v1/applications", tags=["applications"])
+app.include_router(profile_router, prefix="/api/v1/profile", tags=["profile"])
+app.include_router(library_router, prefix="/api/v1/library", tags=["library"])
+app.include_router(assets_router, prefix="/api/v1/assets", tags=["assets"])
+app.include_router(templates_router, prefix="/api/v1/templates", tags=["templates"])
+app.include_router(render_router, prefix="/api/v1", tags=["render"])
+app.include_router(imports_router, prefix="/api/v1", tags=["imports"])
+app.include_router(tailoring_router, prefix="/api/v1", tags=["tailoring"])
 
 
 @app.exception_handler(RequestValidationError)
@@ -215,12 +234,12 @@ async def unhandled_exception(request: Request, exc: Exception):
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
-@app.get("/healthz")
+@app.get("/healthz", tags=["system"])
 async def health():
     return {"status": "ok", "app": settings.app_name, "version": settings.app_version}
 
 
-@app.get("/readyz")
+@app.get("/readyz", tags=["system"])
 async def readyz(request: Request):
     from sqlalchemy import text
     from app.db.session import async_session

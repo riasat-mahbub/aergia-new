@@ -6,8 +6,8 @@ from sqlalchemy import select
 from app.models.application import Application
 from app.models.cv import CV
 from app.models.template import Template
-from app.schema.models import Customizations
-from app.schemas.cv import CVCreate, CVUpdate
+from app.document_schema.models import Customizations
+from app.http_schemas.cv import CVCreate, CVUpdate
 from app.services.relevance import (
     REQUIREMENT_ALGORITHM_VERSION,
     evaluate_requirement_relevance,

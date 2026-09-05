@@ -1,192 +1,73 @@
 # Repository Guidelines
 
-Aergia CV Builder — a single-user CV builder: FastAPI backend (`api/`) plus a TanStack Start React 19 web app (`web/`) and the document render pipeline. Rendering is **HTML-first**: the Python HTML renderer produces both the preview and the PDF; the React tree is the editing surface, not a renderer.
+Aergia is a single-user CV builder. The repository contains a FastAPI service,
+a TanStack Start/React web app, an HTML-first document renderer, and the
+portable tailoring skill used by coding agents.
 
-## Project Overview
+## Read the closest instructions first
 
-- **Stack**: FastAPI + SQLAlchemy 2.0 async + aiosqlite + Alembic (Python ≥ 3.12); TanStack Start/Router + React 19 + Vite + Tailwind + Zustand (strict TypeScript).
-- **Single-origin**: TanStack Start serves the UI and same-origin `/api/*` gateway on `:3000` (Nitro only proxies to the private FastAPI service on `:8000`). In dev, Vite on `:5173` proxies `/api` → `localhost:8000` (`web/vite.config.ts`).
-- **HTML-first pipeline**: canonical rendering target is HTML + CSS. PDF export is that HTML rendered by Chromium (Playwright singleton). The React tree mirrors the AST but never generates HTML — it is a *schematic* editor; visual cues (e.g. page-break markers) indicate structural intent, not literal layout.
-- **Templates express taste; renderers express behavior.** Seed templates declare a v2 manifest with a closed token vocabulary; the resolver is the only place tokens become CSS values.
-- **Merge policy**: feature work merges into `master` via a regular merge commit (not squash); the merge is the cutover.
+When work touches a subsystem, read its local guide before editing:
 
-## Architecture & Data Flow
+- `api/AGENTS.md` for the backend and renderer.
+- `web/AGENTS.md` for the frontend.
+- `tailoring-skill/AGENTS.md` for the agent workflow and contracts.
 
-```
-cv.sections (JSONB wire AST, Pydantic)            # api/app/schema/models.py
-  → build_document(cv, manifest)                  # services/renderer/builders/ dispatch by type
-  → Document
-  → resolve(document, renderer, manifest, customizations)   # pure, no I/O
-  → RenderModel                                   # fully resolved; no defaults remain
-  → HTMLDocumentRenderer.render(model)            # complete HTML5 string
-  → HTML                                         # /render/html, /cvs/{id}/preview
-  → html_to_pdf() via Playwright Chromium        # /render/pdf, /cvs/{id}/export/pdf
-```
+Rules in a closer `AGENTS.md` apply to that subtree. When starting from the
+repository root, do not assume the root guide contains subsystem details.
 
-- **Three orthogonal style axes**: `TextStyle` (inline), `SubsectionStyle` (block), `LayoutHints` (page flow). `SectionPolicy` is document semantics, not HTML. The customize panel writes `SectionInstanceStyle` (`style.layout/.subsection/.policy/.text`) plus top-level `Customizations` (`accent_color`, `body_font`, `heading_font`, `spacing`).
-- **Capability gating**: every renderer declares `RendererSupport` with `SupportLevel` (`FULL` / `BEST_EFFORT` / `NONE`). `/render/support` returns the map; the customize panel gates control visibility; the resolver drops `NONE` features. The renderer is the source of truth for what it can do.
-- **Codegen for types only**: `api/scripts/codegen_schema.py` (custom in-tree generator — **not** datamodel-code-generator, which was rejected for dependency issues) emits `web/src/generated/schema.ts` from every `BaseModel` in `app.schema.models` (auto-discovered via `inspect.getmembers`). Never hand-edit generated TS; `npm run codegen:check` guards drift.
-- **Templates**: 3 seed templates (`generic-modern`, `generic-classic`, `generic-minimal`) with v2 manifests and closed vocabulary (`WidthToken`/`SpacingToken`/`FontToken`/`ColorRef` = hex literal or `palette.<name>`; raw CSS strings rejected at the schema boundary). Seeded idempotently on app startup (`db/seed.py`).
+## Architecture that must stay true
 
-## Key Directories
+- The canonical document path is Pydantic AST → pure resolver → resolved
+  render model → Python HTML → Chromium PDF. React is the editing surface;
+  it is not a second renderer.
+- The public web server is TanStack Start on port `3000`. It owns the same
+  origin `/api/*` gateway. FastAPI is the private upstream on port `8000`.
+- Frontend route registration belongs only in `web/src/routes/`. Product
+  capabilities belong in `web/src/features/`. Reusable cross-feature code
+  belongs in `web/src/shared/`.
+- A feature's `index.ts` is its public entrypoint. Routes and other features
+  must not import another feature's internal files. Shared code must not
+  import features or routes.
+- `api/app/document_schema/` is the document AST and renderer model.
+  `api/app/http_schemas/` contains HTTP request and response DTOs.
+- `tailoring-skill/` contains the local skill, protocol contracts, tools, and
+  tests. The browser URL `/agent/tailor/$sessionId` is stable.
 
-```
-api/
-  app/
-    app.py            # FastAPI app: lifespan, CORS (non-prod), API security headers, and router mounts
-    main.py           # entry: re-exports `app` from app.py
-    config.py         # pydantic-settings Settings, reads .env
-    schema/models.py  # SINGLE SOURCE OF TRUTH: Pydantic AST + wire + manifest + RenderModel
-    schemas/          # thin HTTP request/response models (auth, cv, photo)
-    models/           # SQLAlchemy ORM (user, cv, template)
-    db/               # session.py (async engine + get_db), seed.py (idempotent template seeding)
-    core/             # auth (bcrypt/JWT), deps (get_current_user), rate_limit (slowapi)
-    routes/           # auth, cvs, templates, assets, render — mounted under /api/v1
-    services/         # auth, cv, pdf, photo — validation lives here
-    services/renderer/  # builders/, resolve.py, html.py, base.py, support.py, palette.py, tokens.py, policy.py, _pdf_runtime.py
-  alembic/            # env.py (DATABASE_URL override) + versions/
-  scripts/            # codegen_schema.py
-  tests/
-web/
-  src/
-    router.tsx        # TanStack Router factory and Start request-context wiring
-    app/              # route pages, layouts, providers, and route-private _components/_hooks/_lib/_services/_stores/_types
-    components/       # shared section editors, controls, library cards, and preview primitives
-    lib/cv/           # generated-schema facade plus pure section catalog, placement, date, and editor-data modules
-    lib/library/      # pure library kind catalog
-    lib/llm/          # pure provider metadata/detection; credentials live in store/llmKeyStore.ts
-    lib/browser/      # explicit DOM adapters such as downloadBlob
-    lib/rich-text/    # bidirectional wire/Lexical codec
-    middleware/security/ # TanStack Start request security, nonce CSP, and headers
-    store/            # global Zustand stores only; route-owned stores stay under their app subtree
-    generated/schema.ts  # codegen output — never hand-edit
-scripts/              # smoke.sh (hardening gate)
-docs/plans/           # phase plans
-tracker/              # file-based project knowledge graph (see Project tracker)
-```
+## Safe implementation workflow
 
-## Development Commands
+1. Search the tracker before editing: `tracker search "topic"` and
+   `tracker affects <id>`.
+2. Keep product behavior, public URLs, API payloads, database shape, and
+   editor settings unchanged unless the task explicitly changes them.
+3. Use `apply_patch` for hand edits. Use ordinary file moves or mechanical
+   replacements only for a clearly bounded rename/move.
+4. Keep generated files generated. After document-model changes run
+   `cd web && npm run codegen:check` (run `npm run codegen` when needed).
+5. Update the tracker after the work, then run `tracker rebuild && tracker
+   validate`. Existing fork warnings are documented tracker warnings; do not
+   hide or rewrite unrelated history.
+
+## Main checks
 
 ```bash
-./dev.sh                          # SQLite + uvicorn :8000 --reload + Vite dev :5173
-./dev.sh --build                  # prod-like: build frontend, serve via FastAPI only
-./dev.sh --prod --build           # no --reload, no Vite dev server
-./dev.sh --smoke                  # full hardening gate (see Testing & QA)
-
-# Backend (api/)
-source .venv/bin/activate
-pip install -e ".[test]"
-alembic upgrade head
-pytest                            # all tests
-pytest tests/test_auth.py -k full_flow   # single test
-ruff check .                      # lint; line-length 120, target py312
-
-# Frontend (web/)
-npm install
-npm run dev                       # Vite dev server :5173
-npm run build                     # tsc -b && vite build
-npm run lint                      # ESLint (flat config)
-npm run architecture:test        # dependency-boundary fixture checks
-npm run architecture:check       # route privacy + layer direction
-npm run codegen                   # regenerate web/src/generated/schema.ts
-npm run codegen:check             # drift guard (must stay green)
+./dev.sh --smoke
+cd api && .venv/bin/pytest
+cd ../web && npm run lint && npm run typecheck && npm run architecture:test
+cd ../web && npm run architecture:check && npm run codegen:check
+node --test tailoring-skill/tests/*.test.mjs
 ```
 
-## Code Conventions & Common Patterns
+The smoke gate is the release check. Focused frontend behavior tests are a
+follow-up; the architecture fixture suite is the current frontend structure
+guard.
 
-### Backend
+## Change boundaries
 
-- **Validation lives in the service layer**, not as Pydantic methods. Schema models are data shapes; `app.schema.models` (AST source of truth) is distinct from `app.schemas` (HTTP I/O). The schema boundary only enforces shape (e.g. `model_validator` color-ref checks, legacy `{colors, fonts}` rejection in `Customizations._reject_legacy`).
-- **Session lifecycle**: routes depend on `get_db()`, which auto-commits on success and rolls back on exception (`db/session.py:21-28`). Services call `flush()`, never `commit()`.
-- **Async only**: SQLAlchemy 2.0 async + async routes (`aiosqlite`, `check_same_thread=False`, `expire_on_commit=False`).
-- **Renderer is pure**: `resolve()` and builders take already-validated models and do no I/O/DB; `HTMLDocumentRenderer` is "almost stupid" — no decisions or defaults.
-- **Renderer is source of truth for capabilities**: extend `RendererSupport` + a renderer's `support` when adding a capability; never hard-code renderer assumptions in the resolver.
-- **Manifest v2 + closed vocabulary**: templates/zone styles carry only tokens, never raw CSS strings. `_resolve_zone_styles` in the resolver is the ONLY place tokens become CSS.
-- **Auth**: bcrypt cost 12, JWT HS256 (access 15 min / refresh 7 d, claims `{sub: email, exp}`), refresh tokens stored as SHA-256 hashes and rotated on refresh/logout/change-password.
-- **Rate limiting**: slowapi — global `100/minute`, auth routes `10/minute`. Replaced by a no-op `TestLimiter` in test env.
-- **PDF**: reuse the Playwright singleton via `services/renderer/_pdf_runtime.py`; never launch a second browser. `close_browser()` runs on app shutdown.
-- **Codegen after model changes**: run `npm run codegen` (or `api/scripts/codegen_schema.py`) whenever `app/schema/models.py` changes; keep `--check` green.
-
-### Frontend
-
-- **Strict TS**: `strict`, `noUnusedLocals`, `noUnusedParameters`.
-- **Styling**: Tailwind utility classes; no CSS modules beyond template-specific styles.
-- **State**: global Zustand stores in `store/` — `authStore` hydrates from the cookie session, `llmKeyStore` is memory-only, and `uiStore` handles toasts. Dashboard CV-list state and Builder document state are route-owned stores.
-- **API**: one axios client (`services/client.ts`, baseURL `/api/v1`, CSRF/401 refresh callbacks) + typed per-domain wrappers. Browser redirects and downloads live in providers/adapters.
-- **Editor is schematic, not rendered**: components mirror the AST; the only rendered views are the sandboxed iframe preview (`UserTemplateRenderer.tsx`, POST `/render/html`, `PAGE_HEIGHT_PX=1122`, page-break overlay) and the PDF blob export.
-- **Tests**: the previous Vitest/component suite was intentionally removed at
-  the page-structure reset. Focused behavior tests remain a follow-up; the
-  architecture fixture suite is run with `npm run architecture:test`.
-- **Generated types**: import through `lib/cv/schema.ts` (re-exports `web/src/generated/schema.ts`); never edit the generated file.
-
-## Important Files
-
-| File | Why it matters |
-|---|---|
-| `api/app/schema/models.py` | Single source of truth: AST, wire types, manifest v2, Customizations, RenderModel. Codegen input. |
-| `api/app/app.py` | FastAPI API wiring: lifespan (seed templates + Playwright close), CORS, API security headers, and router mounts. |
-| `api/app/services/renderer/resolve.py` | Pure resolver — pipeline brain: cascade, CSS vars, zones, capability gating, `ManifestVersionError`. |
-| `api/app/services/renderer/html.py` | `HTMLDocumentRenderer` — canonical HTML output; print styles, best-effort comments. |
-| `api/app/services/renderer/support.py` | `SupportLevel` + `RendererSupport` capability map. |
-| `api/scripts/codegen_schema.py` | In-tree Pydantic→TS generator; `--check` drift gate. |
-| `web/src/app/builder/[id]/page.tsx` | Schematic editor orchestrator; document commands, persistence, template loading, and visual panes are route-private modules. |
-| `web/src/app/builder/[id]/_components/customization/Inspector.tsx` / `SectionInspector.tsx` | Three-axis style inspector, document customizations, and capability gating. |
-| `web/src/services/client.ts` | Single axios entry point for all API I/O and refresh/CSRF callbacks. |
-| `web/vite.config.ts` | Dev proxy (`/api` → `:8000`) and Vite build configuration. |
-| `api/alembic/env.py` | `DATABASE_URL` override (lines 22-24). `alembic.ini` hardcodes a SQLite URL that is overridden at runtime. |
-| `dev.sh` / `scripts/smoke.sh` | Dev orchestrator / hardening gate. |
-| `README.md` | Project entry point: what it is, quick start, architecture, templates, dev commands, doc map | First read for any new contributor |
-| `DEPLOY.md` | Docker deployment, `.env`, `SECRET_KEY` | Deploying |
-
-## Runtime/Tooling Preferences
-
-- **Python ≥ 3.12** (`requires-python >=3.12`), venv at `api/.venv`, pip. Ruff line-length 120, target py312.
-- **npm only** (`package-lock.json`; no bun/pnpm/yarn). Node version unpinned locally; Docker builds use `node:20-alpine`.
-- **Playwright Chromium required for PDF export**: `playwright install chromium`. Browsers cache to `~/.cache/ms-playwright` locally, `/app/ms-playwright` in Docker.
-- **SECRET_KEY**: default `change-me-in-production` raises `RuntimeError` when `environment=production`.
-- **No CI workflows exist** (no `.github/`). The de-facto gate is `./dev.sh --smoke`. Qlty config (`.qlty/qlty.toml`: bandit, hadolint, osv-scanner, radarlint, ruff, shellcheck, trufflehog) is separate from CI.
-- **Docker**: build context is the repo root (`.`). `api/Dockerfile` builds the private FastAPI upstream and `web/Dockerfile` builds the public TanStack Start server.
-- **Database**: single SQLite file at `data/aergia.db`; no Docker needed for local dev. Backend tests use a dedicated `aergia.test.db`.
-
-## Testing & QA
-
-Two independent stacks; no coverage gate on either side (pytest-cov installed but unconfigured; no coverage script in `web/package.json`).
-
-### Backend — legacy pytest checks (`api/tests/`)
-
-- Keep a legacy test only when it passes unchanged and still exercises current
-  behavior. A test that requires rewriting belongs in the deferred test-suite
-  rebuild; a test that exposes a genuine application regression remains valid.
-- Retained API tests use `httpx.AsyncClient` over `ASGITransport` (not
-  FastAPI `TestClient`).
-- Fresh fixtures, browser flows, and migration-specific coverage are deferred
-  to the replacement test suite.
-
-### Frontend checks (`web/`)
-
-- The previous Vitest/component suite was intentionally removed at the
-  page-structure reset and is not currently configured. Focused behavior tests
-  remain a follow-up once route boundaries settle.
-- `npm run architecture:test` exercises prohibited dependency edges with
-  temporary fixtures; `npm run architecture:check` validates the real tree.
-
-### Migration smoke gate — `./dev.sh --smoke`
-
-Runs Ruff + frontend ESLint + production build, then an isolated live
-TanStack Start/FastAPI smoke against a temporary SQLite database. It checks
-Start SSR, nonce-based CSP/security headers, the same-origin API gateway,
-root-scoped auth cookies, login, refresh rotation, and logout. It intentionally
-does not claim comprehensive behavioral test coverage; that suite is deferred.
-The Alembic bootstrap is bounded by `AERGIA_SMOKE_MIGRATION_TIMEOUT_SECONDS`
-(default 30 seconds) so runtime/database compatibility failures are reported
-instead of hanging the gate.
-
-## Project tracker
-
-This project uses a file-based project knowledge graph in `tracker/` (SCHEMA 3, ULID IDs). See `tracker/README.md` for the dashboard and CLI reference (`search`, `affects`, `new`, `update`, `close`, `reopen`, `history`, `rebuild`, `validate`, `stats`). Live stats (2026-08-10): 228 entries — DONE 129 · IN_PROGRESS 20 · PLANNED 51 · PROPOSED 28 (bugs 26 · features 58 · tasks 136 · adr 5 · docs 1 · epics 2).
-
-## Required skill: project-tracker
-
-This project uses a file-based project knowledge graph in tracker/.
-- Before editing: search for related entries (`tracker search <topic>`)
-- After editing: update entries and rebuild (`tracker update <id> --status ... --note "..."`, `tracker rebuild && tracker validate`)
+- Keep secrets, access tokens, and tailoring capabilities out of files and
+  logs.
+- Keep validation in backend services; schema modules describe data shapes.
+- Keep database sessions async and let route dependencies manage commit or
+  rollback. Services flush but do not commit.
+- Reuse the Playwright singleton for PDF work and close it during app shutdown.
+- Merge feature work into `master` with a regular merge commit; the merge is
+  the cutover.

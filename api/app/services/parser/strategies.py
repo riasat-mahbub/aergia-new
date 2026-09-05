@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from app.schema.models import SectionInstance
+from app.document_schema.models import SectionInstance
 
 from .keys import LLMProvider, redact
 from .schemas import ConfidenceReport, ExtractedDocument

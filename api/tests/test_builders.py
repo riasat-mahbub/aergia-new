@@ -263,7 +263,7 @@ def test_build_section_style_uses_per_instance_policy_over_type_default():
     to the AST node before the resolver applies capability gating.
     """
     from app.services.renderer.builders import build_section_style
-    from app.schema.models import SectionInstanceStyle, SectionPolicy
+    from app.document_schema.models import SectionInstanceStyle, SectionPolicy
 
     style_with, _ = build_section_style(
         instance_type="skills",
@@ -285,7 +285,7 @@ def test_build_section_style_uses_per_instance_policy_over_type_default():
 def test_build_section_style_uses_manifest_override_when_no_instance_policy():
     """Without an instance policy, build_section_style applies the manifest override."""
     from app.services.renderer.builders import build_section_style
-    from app.schema.models import TemplateManifest
+    from app.document_schema.models import TemplateManifest
 
     manifest = TemplateManifest(
         name="M",
@@ -302,7 +302,7 @@ def test_build_section_style_uses_manifest_override_when_no_instance_policy():
 def test_build_section_style_preserves_explicit_manifest_heading_divider_override():
     """A template can still opt out after the default changed to enabled."""
     from app.services.renderer.builders import build_section_style
-    from app.schema.models import TemplateManifest
+    from app.document_schema.models import TemplateManifest
 
     manifest = TemplateManifest(
         name="M",
@@ -324,7 +324,7 @@ def test_build_document_applies_manifest_policy_overrides():
     inline) is silently lost and the PDF renders the default policy while
     the preview renders the override.
     """
-    from app.schema.models import TemplateManifest
+    from app.document_schema.models import TemplateManifest
 
     manifest = TemplateManifest(
         name="M",

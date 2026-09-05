@@ -22,7 +22,7 @@ from typing import Any
 
 import pytest
 
-from app.schema.models import SectionInstance
+from app.document_schema.models import SectionInstance
 from app.services.parser.keys import (
     InvalidAPIKeyError,
     ProviderTransportError,

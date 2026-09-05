@@ -38,7 +38,7 @@ export const accent = {
 export const accentSoft = "var(--app-primary-soft)";
 
 /** Font tokens — what the panel offers for body and heading font.
- * Mirrors the FontToken Literal in api/app/schema/models.py.
+ * Mirrors the FontToken Literal in api/app/document_schema/models.py.
  */
 export const FONT_TOKENS = ["sans-serif", "serif", "mono", "display"] as const;
 export type FontToken = (typeof FONT_TOKENS)[number];

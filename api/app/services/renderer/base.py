@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from app.schema.models import RenderModel
+from app.document_schema.models import RenderModel
 
 from .support import RendererSupport
 

@@ -32,8 +32,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.cv import CV
 from app.models.library import Library, LibraryEntry
-from app.schema.models import SectionInstance
-from app.schemas.library import (
+from app.document_schema.models import SectionInstance
+from app.http_schemas.library import (
     LIBRARY_ENTRY_KINDS,
     LibraryEntryCreate,
     LibraryEntryUpdate,

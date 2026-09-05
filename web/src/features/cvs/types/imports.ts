@@ -1,0 +1,22 @@
+import type { SectionInstance } from "@/shared/cv/schema";
+
+export interface ParseConfidence {
+  path: (string | number)[];
+  level: "high" | "medium" | "low";
+}
+
+export interface ParseReport {
+  fields: ParseConfidence[];
+  overall_level: "high" | "medium" | "low";
+}
+
+export interface ParseMeta {
+  source: "regex" | "llm";
+  warnings: string[];
+}
+
+export interface ParseResult {
+  sections: SectionInstance[];
+  confidence: ParseReport;
+  meta: ParseMeta;
+}
