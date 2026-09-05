@@ -1,37 +1,24 @@
 import { useEffect, useCallback, useState, useRef } from "react";
-import { useLocation, useNavigate, useBlocker } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 
-import ExportPDFButton from "./components/ExportPDFButton";
-import PromoteToLibraryButton from "./components/PromoteToLibraryButton";
-import RelevanceDrawer from "./components/RelevanceDrawer";
-import ContentSectionList from "./components/ContentSectionList";
+import ExportPDFButton from "./_components/ExportPDFButton";
+import PromoteToLibraryButton from "./_components/PromoteToLibraryButton";
+import RelevanceDrawer from "./_components/RelevanceDrawer";
+import ContentSectionList from "./_components/ContentSectionList";
 import { useCVStore } from "@/store/cvStore";
-import { useSupportStore } from "@/store/supportStore";
-import UserTemplateRenderer from "./components/preview/UserTemplateRenderer";
-import Inspector from "./components/customization/Inspector";
+import { useSupportStore } from "./_stores/supportStore";
+import UserTemplateRenderer from "./_components/preview/UserTemplateRenderer";
+import Inspector from "./_components/customization/Inspector";
 import type { SectionInstance, SectionInstanceStyle, LayoutConfig } from "@/lib/cv/types";
 import { createDefaultInstance, getFirstZoneId, migratePlacement } from "@/lib/cv/types";
 import { updateCV } from "@/services/cvs";
 import * as templatesApi from "@/services/templates";
-import { getApplication, recomputeApplicationRelevance } from "@/services/applications";
-import type { Application, RelevanceAnalysis } from "@/contracts/applications";
 import type { UserTemplate } from "@/contracts/templates";
-
-export const APPLICATION_RELEVANCE_TOOLTIP =
-  "Weighted job-requirement coverage of this CV—not an ATS or hiring probability.";
-
-export function applicationMatchesCv(application: Application | null, cvId: string): boolean {
-  return Boolean(application && application.cv_id === cvId);
-}
-
-function isRelevanceResult(value: Application["relevance"]): value is RelevanceAnalysis {
-  return "score" in value && typeof value.score === "number";
-}
-
-function applicationRelevance(application: Application | null): RelevanceAnalysis | null {
-  return application && isRelevanceResult(application.relevance) ? application.relevance : null;
-}
+import { APPLICATION_RELEVANCE_TOOLTIP } from "./_lib/applicationRelevance";
+import { sectionStyleHasValues } from "./_lib/sectionStyle";
+import { useBuilderApplicationContext } from "./_hooks/useBuilderApplicationContext";
+import { useUnsavedChanges, type BuilderSaveData } from "./_hooks/useUnsavedChanges";
 
 export default function BuilderPage() {
   const location = useLocation();
@@ -47,15 +34,17 @@ export default function BuilderPage() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [activeTab, setActiveTab] = useState<"content" | "customize">("content");
   const [relevanceDrawerOpen, setRelevanceDrawerOpen] = useState(false);
-  const [relevanceRefreshing, setRelevanceRefreshing] = useState(false);
-  const [relevanceRefreshError, setRelevanceRefreshError] = useState(false);
   // Inspector replaces CustomizePanel as of Phase C of
   // FEAT-01M0X607K4MWVGGCVZWWMSKJHE.
-  const [applicationContext, setApplicationContext] = useState<Application | null>(null);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showSavedFeedback, setShowSavedFeedback] = useState(false);
-  const hasChangesRef = useRef(false);
   const pendingSaveRef = useRef<Promise<unknown> | null>(null);
+  const {
+    applicationContext,
+    relevance,
+    relevanceRefreshing,
+    relevanceRefreshError,
+    refreshApplicationRelevance,
+  } = useBuilderApplicationContext({ applicationId, cvId: id });
 
   useEffect(() => {
     if (!id) return;
@@ -91,26 +80,6 @@ export default function BuilderPage() {
     return () => { cancelled = true; };
   }, [id, loadCV]);
   useEffect(() => {
-    let cancelled = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset invalid/stale application context on route changes
-    setApplicationContext(null);
-    if (!applicationId || !id) return () => { cancelled = true; };
-
-    (async () => {
-      try {
-        const application = await getApplication(applicationId);
-        if (!cancelled && applicationMatchesCv(application, id)) {
-          setApplicationContext(application);
-        }
-      } catch {
-        // Invalid or cross-resource application IDs leave the ordinary builder unchanged.
-      }
-    })();
-
-    return () => { cancelled = true; };
-  }, [applicationId, id]);
-
-  useEffect(() => {
     useSupportStore.getState().ensureLoaded();
   }, []);
 
@@ -120,7 +89,6 @@ export default function BuilderPage() {
   // available to async handlers without re-running them every render.
   const instancesRef = useRef(instances);
   const idRef = useRef(id);
-  const applicationRef = useRef<Application | null>(applicationContext);
   const customizationsRef = useRef(customizations);
   const instancesForUnloadRef = useRef({ sections: localInstances, customizations: localCustomizations });
   useEffect(() => { instancesRef.current = instances; }, [instances]);
@@ -129,25 +97,6 @@ export default function BuilderPage() {
   useEffect(() => {
     instancesForUnloadRef.current = { sections: localInstances, customizations: localCustomizations };
   }, [localInstances, localCustomizations]);
-  useEffect(() => { applicationRef.current = applicationContext; }, [applicationContext]);
-  const refreshApplicationRelevance = useCallback(async () => {
-    const linkedApplication = applicationRef.current;
-    if (!linkedApplication) return;
-    setRelevanceRefreshing(true);
-    setRelevanceRefreshError(false);
-    try {
-      const refreshed = await recomputeApplicationRelevance(linkedApplication.id);
-      if (refreshed.cv_id === idRef.current) {
-        applicationRef.current = refreshed;
-        setApplicationContext(refreshed);
-      }
-    } catch {
-      // Relevance refresh is best effort; the saved CV remains authoritative.
-      setRelevanceRefreshError(true);
-    } finally {
-      setRelevanceRefreshing(false);
-    }
-  }, []);
   useEffect(() => {
     if (!currentCV || !isLoaded) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- template fetch reset; see Phase 9 lint debt
@@ -164,7 +113,7 @@ export default function BuilderPage() {
   }, [currentCV?.template_id, isLoaded, id]);
 
   const triggerSave = useCallback(
-    async (saveData: { sections: SectionInstance[]; customizations: Record<string, unknown> }) => {
+    async (saveData: BuilderSaveData) => {
       const cvId = idRef.current;
       if (!cvId) return;
       try {
@@ -174,15 +123,20 @@ export default function BuilderPage() {
         await p;
         await refreshApplicationRelevance();
         setLastSaved(new Date());
-        hasChangesRef.current = false;
-        setHasUnsavedChanges(false);
       } finally {
         setIsSaving(false);
         pendingSaveRef.current = null;
       }
     },
-    [setIsSaving, setLastSaved, setHasUnsavedChanges, refreshApplicationRelevance]
+    [setIsSaving, setLastSaved, refreshApplicationRelevance]
   );
+
+  const getPendingSaveData = useCallback(() => instancesForUnloadRef.current, []);
+  const { hasUnsavedChanges, markDirty, markClean } = useUnsavedChanges({
+    enabled: Boolean(id),
+    getPendingSaveData,
+    save: triggerSave,
+  });
 
   const handleSave = useCallback(async () => {
     const cvId = idRef.current;
@@ -195,56 +149,26 @@ export default function BuilderPage() {
       await p;
       await refreshApplicationRelevance();
       setLastSaved(new Date());
-      hasChangesRef.current = false;
-      setHasUnsavedChanges(false);
+      markClean();
       setShowSavedFeedback(true);
       setTimeout(() => setShowSavedFeedback(false), 2000);
     } finally {
       setIsSaving(false);
       pendingSaveRef.current = null;
     }
-  }, [setIsSaving, setLastSaved, setHasUnsavedChanges, setShowSavedFeedback, refreshApplicationRelevance]);
-
-  const blocker = useBlocker(
-    ({ currentLocation, nextLocation }) =>
-      hasChangesRef.current &&
-      currentLocation.pathname !== nextLocation.pathname &&
-      id != null
-  );
-
-  useEffect(() => {
-    if (blocker.state !== "blocked") return;
-    (async () => {
-      try {
-        await triggerSave(instancesForUnloadRef.current);
-      } finally {
-        blocker.proceed();
-      }
-    })();
-  }, [blocker.state, triggerSave]);
-
-  useEffect(() => {
-    if (!hasChangesRef.current) return;
-    const handler = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, []);
+  }, [setIsSaving, setLastSaved, setShowSavedFeedback, refreshApplicationRelevance, markClean]);
 
   const handleToggle = useCallback(
     (sectionId: string) => {
-      hasChangesRef.current = true;
-      setHasUnsavedChanges(true);
+      markDirty();
       setLocalInstances((prev) => prev.map((i) => (i.id === sectionId ? { ...i, enabled: !i.enabled } : i)));
     },
-    []
+    [markDirty]
   );
 
   const handleUpdateData = useCallback(
     (sectionId: string, data: unknown) => {
-      hasChangesRef.current = true;
-      setHasUnsavedChanges(true);
+      markDirty();
       // Empty list after last entry is removed → drop the section entirely.
       if (Array.isArray(data) && data.length === 0) {
         setLocalInstances((prev) => prev.filter((i) => i.id !== sectionId));
@@ -254,21 +178,19 @@ export default function BuilderPage() {
         prev.map((i) => (i.id === sectionId ? { ...i, data: data as SectionInstance["data"] } : i)),
       );
     },
-    []
+    [markDirty]
   );
   const handleReorderInstances = useCallback(
     (newInstances: SectionInstance[]) => {
-      hasChangesRef.current = true;
-      setHasUnsavedChanges(true);
+      markDirty();
       setLocalInstances(newInstances);
     },
-    []
+    [markDirty]
   );
 
   const handleAddSection = useCallback(
     (type: string, zoneId?: string) => {
-      hasChangesRef.current = true;
-      setHasUnsavedChanges(true);
+      markDirty();
       const newInstance = createDefaultInstance(type);
       setLocalInstances((prev) => [...prev, newInstance]);
 
@@ -289,30 +211,27 @@ export default function BuilderPage() {
         };
       });
     },
-    []
+    [markDirty]
   );
   const handleRemoveInstance = useCallback(
     (sectionId: string) => {
-      hasChangesRef.current = true;
-      setHasUnsavedChanges(true);
+      markDirty();
       setLocalInstances((prev) => prev.filter((i) => i.id !== sectionId));
     },
-    []
+    [markDirty]
   );
 
   const handleRenameInstance = useCallback(
     (sectionId: string, title: string) => {
-      hasChangesRef.current = true;
-      setHasUnsavedChanges(true);
+      markDirty();
       setLocalInstances((prev) => prev.map((i) => (i.id === sectionId ? { ...i, title } : i)));
     },
-    []
+    [markDirty]
   );
 
   const handleUpdateStyle = useCallback(
     (sectionId: string, style: SectionInstanceStyle) => {
-      hasChangesRef.current = true;
-      setHasUnsavedChanges(true);
+      markDirty();
       // Persist the style object when any field (including an explicit
       // show_title or a per-field style) is set. The customize panel strips
       // the object entirely when nothing is set; this matches that intent.
@@ -323,24 +242,22 @@ export default function BuilderPage() {
         )
       );
     },
-    []
+    [markDirty]
   );
 
   const handleUpdateCustomizations = useCallback(
     (next: Record<string, unknown>) => {
-      hasChangesRef.current = true;
-      setHasUnsavedChanges(true);
+      markDirty();
       setLocalCustomizations(next);
     },
-    [],
+    [markDirty],
   );
 
   const handleReset = useCallback(() => {
-    hasChangesRef.current = true;
-    setHasUnsavedChanges(true);
+    markDirty();
     setLocalCustomizations({});
     setLocalInstances((prev) => prev.map((i) => ({ ...i, style: undefined })));
-  }, []);
+  }, [markDirty]);
   const handleTemplateChange = useCallback(
     async (newTemplateId: string) => {
       if (!id) return;
@@ -419,8 +336,6 @@ export default function BuilderPage() {
     const hours = Math.floor(minutes / 60);
     return `${hours}h ago`;
   }, []);
-  const relevance = applicationRelevance(applicationContext);
-
   return (
     <>
     {showLoading ? (
@@ -563,27 +478,5 @@ export default function BuilderPage() {
       </motion.div>
     )}
     </>
-  );
-}
-
-/**
- * Predicate that mirrors the CustomizePanel's own collapsing rule: a section
- * style object carries a meaningful user pick iff at least one of its fields
- * (including per-field typography) is set. A `field_styles` object that is
- * null or empty is treated as "no values" so the parent collapses to
- * `undefined`, matching the child.
- *
- * Exported so the style rule remains independently reusable without
- * rendering the full BuilderPage.
- */
-export function sectionStyleHasValues(style: SectionInstanceStyle): boolean {
-  // True when any of the three axes has at least one populated key.
-  // The customize panel emits only the three-axis shape; legacy keys
-  // never appear on the wire.
-  return Boolean(
-    (style.layout && Object.keys(style.layout).length > 0) ||
-      (style.subsection && Object.keys(style.subsection).length > 0) ||
-      (style.policy && Object.keys(style.policy).length > 0) ||
-      (style.text && Object.keys(style.text).length > 0)
   );
 }

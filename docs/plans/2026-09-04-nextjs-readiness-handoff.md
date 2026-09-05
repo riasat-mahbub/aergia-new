@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-04
 **Audience:** The next planning/implementation agent
-**Status:** Stage 1 and the initial frontend service-layer relocation implemented; service/store/contract separation and the actual Next.js runtime/deployment cutover are planned and separately gated.
+**Status:** Route-private service/store/contract separation is implemented; the actual Next.js runtime/deployment cutover remains planned and separately gated.
 
 ## Decision summary
 
@@ -22,6 +22,23 @@ The frontend will use explicit boundaries for reusable code:
 - `contracts/` owns API request/response types and other shared service types.
 - `lib/` owns pure reusable logic and utilities that are not service or state
   boundaries.
+
+Route-private code follows the same boundaries inside the owning route folder:
+
+- `_components/` contains components used only by that route subtree.
+- `_hooks/` contains route-specific React hooks.
+- `_lib/` contains route-specific pure helpers and presentation logic.
+- `_services/` contains API/domain calls used only by that route subtree.
+- `_types/` contains route-local contracts and types.
+- `_constants/` contains route-local constants and presentation mappings.
+- `_stores/` contains Zustand stores used only by that route subtree.
+
+The underscore keeps implementation folders from becoming URL segments in a
+future Next App Router build. Code used by more than one route subtree remains
+in the shared top-level `components/`, `services/`, `contracts/`, `store/`, or
+`lib/` boundary. `web/scripts/check-frontend-boundaries.mjs` enforces the
+folder names and prevents imports of a route-private module from outside its
+owning `app` subtree.
 
 Services are ordinary importable TypeScript modules, not Angular-style
 dependency-injected classes. Services must not update Zustand stores or import
@@ -168,37 +185,60 @@ web/src/
     error.tsx
     not-found.tsx
     router.tsx                      # temporary React Router registry only
-    providers/
+    _providers/
       ClientProviders.tsx
       AuthBoundary.tsx
     login/
       page.tsx                      # moved LoginPage implementation
-      components/                   # login-only components
+      _components/                  # login-only components
     register/
       page.tsx
-      components/
+      _components/
     agent/tailor/[sessionId]/
       page.tsx
     dashboard/
       layout.tsx                    # moved dashboard shell/auth composition
       page.tsx
-      cvs/page.tsx
-      library/page.tsx
-      applications/page.tsx
-      applications/[id]/page.tsx
+      _components/                  # dashboard-owned components
+      _constants/
+      _lib/
+      _services/
+      _stores/
+      _types/
+      cvs/
+        page.tsx
+        _components/
+        _services/
+        _types/
+      library/
+        page.tsx
+        _components/
+      applications/
+        page.tsx
+        _components/
+        _lib/
+        [id]/
+          page.tsx
+          _hooks/
+          _lib/
+          _services/
+          _types/
       settings/page.tsx
     builder/
-      [id]/page.tsx
+      [id]/
+        page.tsx
+        _components/
+        _hooks/
+        _lib/
+        _services/
+        _stores/
+        _types/
 
   contracts/                       # API request/response and service types
     auth.ts
     applications.ts
     cvs.ts
-    imports.ts
     library.ts
-    profile.ts
-    render.ts
-    tailoring.ts
     templates.ts
 
   services/                        # common frontend API/domain operations
@@ -207,19 +247,12 @@ web/src/
     cvs.ts
     applications.ts
     library.ts
-    profile.ts
-    render.ts
-    tailoring.ts
     templates.ts
-    imports.ts
 
   store/                            # global client state
     authStore.ts
-    applicationStore.ts
     cvStore.ts
     libraryStore.ts
-    profileStore.ts
-    supportStore.ts
     uiStore.ts
 
   components/                       # genuinely shared UI/domain components
@@ -231,7 +264,7 @@ web/src/
 ```
 
 Page-owned components move with their page. For example, login form code
-belongs under `app/login/components/`, while an application card used by both
+belongs under `app/login/_components/`, while an application card used by both
 the list and detail screens remains in a shared application component folder.
 Use the import graph to decide; do not move code merely because it is nearby.
 

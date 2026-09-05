@@ -1,6 +1,6 @@
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { BriefcaseBusiness, FileText, LayoutDashboard, Library, LogOut, Settings } from "lucide-react";
-import AuthBoundary from "@/app/providers/AuthBoundary";
+import AuthBoundary from "@/app/_providers/AuthBoundary";
 import { useAuthStore } from "@/store/authStore";
 
 const navItems = [

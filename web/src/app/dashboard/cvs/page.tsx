@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import { useCVStore } from "@/store/cvStore";
-import CvCard from "./components/CvCard";
-import CreateCvModal from "./components/CreateCvModal";
-import DeleteCvModal from "./components/DeleteCvModal";
-import ImportCvButton from "./components/ImportCvButton";
+import CvCard from "./_components/CvCard";
+import CreateCvModal from "./_components/CreateCvModal";
+import DeleteCvModal from "./_components/DeleteCvModal";
+import ImportCvButton from "./_components/import/ImportCvButton";
 import LoadingSkeleton from "@/components/common/LoadingSkeleton";
 import EmptyState from "@/components/common/EmptyState";
 

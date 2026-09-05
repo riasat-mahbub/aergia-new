@@ -1,6 +1,6 @@
 import { Outlet } from "react-router-dom";
 import ErrorBoundary from "./error";
-import ClientProviders from "./providers/ClientProviders";
+import ClientProviders from "./_providers/ClientProviders";
 
 export default function RootLayout() {
   return (

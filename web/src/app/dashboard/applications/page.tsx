@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus } from "lucide-react";
-import ApplicationCard from "./components/ApplicationCard";
-import ApplicationFormModal from "@/components/applications/ApplicationFormModal";
+import ApplicationCard from "./_components/ApplicationCard";
+import ApplicationFormModal from "./_components/ApplicationFormModal";
 import EmptyState from "@/components/common/EmptyState";
 import LoadingSkeleton from "@/components/common/LoadingSkeleton";
 import {
@@ -11,8 +11,9 @@ import {
   type ApplicationGenerateResponse,
   type ApplicationStatus,
 } from "@/contracts/applications";
-import { applicationMatchesSearch, RELEVANCE_TOOLTIP, relevanceScore, STATUS_LABELS } from "@/components/applications/applicationPresentation";
-import { useApplicationStore } from "@/store/applicationStore";
+import { applicationMatchesSearch, RELEVANCE_TOOLTIP, relevanceScore } from "./_lib/applicationPresentation";
+import { STATUS_LABELS } from "../_constants/applicationStatus";
+import { useApplicationStore } from "@/app/dashboard/_stores/applicationStore";
 import { useToastStore } from "@/store/uiStore";
 
 export default function ApplicationsPage() {
