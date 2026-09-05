@@ -35,9 +35,14 @@ const pureLibPrefixes = [
   "lib/rich-text/",
   "lib/security/",
   "lib/validators/",
+  "shared/cv/",
+  "shared/forms/",
+  "shared/rich-text/",
+  "shared/security/",
 ];
 
 function walk(directory) {
+  if (!fs.existsSync(directory)) return [];
   const entries = fs.readdirSync(directory, { withFileTypes: true });
   const files = [];
   for (const entry of entries) {
@@ -53,6 +58,7 @@ function walk(directory) {
 }
 
 function walkDirectories(directory) {
+  if (!fs.existsSync(directory)) return [];
   const entries = fs.readdirSync(directory, { withFileTypes: true });
   const directories = [];
   for (const entry of entries) {
@@ -93,6 +99,20 @@ function privateOwner(filePath, srcDir) {
   return segments.slice(0, privateIndex).join("/");
 }
 
+function featureOwner(filePath) {
+  const segments = filePath.split("/");
+  return segments[0] === "features" && segments[1] ? segments[1] : null;
+}
+
+function featureBoundary(filePath) {
+  const segments = filePath.split("/");
+  return segments[0] === "features" && segments[2] ? segments[2] : null;
+}
+
+function isFeaturePublicEntry(filePath, owner) {
+  return filePath === `features/${owner}/index.ts` || filePath === `features/${owner}/index.tsx`;
+}
+
 function importSpecifiers(source) {
   const specifiers = new Set();
   const patterns = [
@@ -123,11 +143,22 @@ function isReactOrStatePackage(specifier) {
 function dependencyViolations(importerPath, targetPath, specifier, source) {
   const violations = [];
   const importerIsPure = isPureLib(importerPath);
+  const importerFeature = featureOwner(importerPath);
+  const targetFeature = targetPath ? featureOwner(targetPath) : null;
+  const importerBoundary = featureBoundary(importerPath);
+  const importerIsRoute = isPathIn(importerPath, "routes");
+  const importerIsShared = isPathIn(importerPath, "shared");
 
   if (importerIsPure) {
     if (isReactOrStatePackage(specifier)) {
       violations.push(`${importerPath} is pure but imports framework/transport package ${specifier}`);
     }
+  }
+  if (specifier === "axios" && importerPath !== "shared/api/client.ts" && importerPath !== "services/client.ts") {
+    violations.push(`${importerPath} must use the shared API client instead of configuring axios directly`);
+  }
+  if (importerBoundary === "domain" && isReactOrStatePackage(specifier)) {
+    violations.push(`${importerPath} domain code must not import framework/state/transport package ${specifier}`);
   }
   if (!targetPath) return violations;
 
@@ -135,6 +166,9 @@ function dependencyViolations(importerPath, targetPath, specifier, source) {
   const targetIsComponents = isPathIn(targetPath, "components");
   const targetIsStore = isPathIn(targetPath, "store");
   const targetIsServices = isPathIn(targetPath, "services");
+  const targetIsRoutes = isPathIn(targetPath, "routes");
+  const targetIsFeatures = isPathIn(targetPath, "features");
+  const targetIsShared = isPathIn(targetPath, "shared");
 
   if (importerIsPure) {
     if (targetIsApp || targetIsComponents || targetIsStore || targetIsServices) {
@@ -155,6 +189,56 @@ function dependencyViolations(importerPath, targetPath, specifier, source) {
     violations.push(`${importerPath} shared component imports app module ${targetPath}`);
   }
 
+  if (targetIsFeatures) {
+    const isPublicEntry = targetFeature && isFeaturePublicEntry(targetPath, targetFeature);
+    if (importerIsRoute && !isPublicEntry) {
+      violations.push(`${importerPath} must import ${targetFeature} through its public feature entrypoint`);
+    }
+    if (importerIsShared) {
+      violations.push(`${importerPath} shared code must not import feature module ${targetPath}`);
+    }
+    if (importerFeature && importerFeature !== targetFeature && !isPublicEntry) {
+      violations.push(`${importerPath} must import ${targetFeature} through its public feature entrypoint`);
+    }
+  }
+  if ((importerIsShared || importerFeature) && targetIsRoutes) {
+    violations.push(`${importerPath} must not import route module ${targetPath}`);
+  }
+  if (importerIsShared && targetIsFeatures) {
+    violations.push(`${importerPath} shared code must not import feature module ${targetPath}`);
+  }
+  if (targetPath === "generated/schema.ts" && importerPath !== "shared/cv/schema.ts") {
+    violations.push(`${importerPath} must import generated schema types through shared/cv/schema.ts`);
+  }
+
+  if (importerBoundary === "domain") {
+    if (
+      isPathIn(targetPath, "routes") ||
+      isPathIn(targetPath, "components") ||
+      isPathIn(targetPath, "shared/ui") ||
+      isPathIn(targetPath, "shared/cv-editor") ||
+      ["components", "pages", "hooks", "api", "state"].includes(featureBoundary(targetPath))
+    ) {
+      violations.push(`${importerPath} domain code must not import UI, API, state, or route module ${targetPath}`);
+    }
+  }
+  if (importerBoundary === "api") {
+    if (["components", "pages", "hooks", "state"].includes(featureBoundary(targetPath))) {
+      violations.push(`${importerPath} API code must not import UI, pages, hooks, or state module ${targetPath}`);
+    }
+    if (isPathIn(targetPath, "shared/ui") || isPathIn(targetPath, "shared/cv-editor")) {
+      violations.push(`${importerPath} API code must not import UI module ${targetPath}`);
+    }
+  }
+  if (importerBoundary === "state") {
+    if (["components", "pages"].includes(featureBoundary(targetPath))) {
+      violations.push(`${importerPath} state code must not import UI module ${targetPath}`);
+    }
+    if (isPathIn(targetPath, "shared/ui") || isPathIn(targetPath, "shared/cv-editor")) {
+      violations.push(`${importerPath} state code must not import UI module ${targetPath}`);
+    }
+  }
+
   return violations;
 }
 
@@ -171,6 +255,9 @@ export function collectViolations(srcDir = defaultSrcDir) {
   for (const importer of walk(srcDir)) {
     const importerPath = relativeSourcePath(importer, srcDir);
     const source = fs.readFileSync(importer, "utf8");
+    if (featureOwner(importerPath) && importerPath.endsWith("/index.ts") && /export\s+\*\s+from/u.test(source)) {
+      violations.push(`${importerPath} must use explicit public exports instead of export *`);
+    }
     if (isPureLib(importerPath) && /\b(?:window|document|navigator)\s*(?:[.[]|\()/u.test(source)) {
       violations.push(`${importerPath} is pure but reaches browser globals`);
     }
