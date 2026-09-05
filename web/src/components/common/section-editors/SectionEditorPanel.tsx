@@ -1,4 +1,4 @@
-import type { SectionInstance } from "@/lib/cv/types";
+import type { SectionInstance } from "@/lib/cv/schema";
 import { renderSectionEditor } from "./SectionRegistry";
 import type { SectionEditorActions, SectionEditorMode } from "./types";
 

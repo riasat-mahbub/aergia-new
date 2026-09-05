@@ -23,12 +23,13 @@ import {
   type TextFormatType,
 } from "lexical";
 import type { EditorState } from "lexical";
-import type { RichTextBlock } from "@/generated/schema";
+import type { RichTextBlock } from "@/lib/cv/schema";
 import { lexicalToBlocks, blocksToLexical } from "@/lib/rich-text/transform";
 import { safeLinkUrl } from "@/lib/security/safeUrl";
 import RichTextToolbar from "./RichTextToolbar";
-import { listItemsInSelection, normalizeListTextFormat } from "./richTextEditorUtils";
-import { setListItemsLink } from "./richTextEditorUtils";
+import { listItemsInSelection } from "./selection";
+import { normalizeListTextFormat } from "./formatting";
+import { setListItemsLink } from "./links";
 import { sanitizeRichTextHtml } from "./richTextPaste";
 import { $generateNodesFromDOM } from "@lexical/html";
 

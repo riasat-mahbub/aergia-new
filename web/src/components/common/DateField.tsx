@@ -2,7 +2,11 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { DayPicker } from "react-day-picker";
 import { Calendar, X } from "lucide-react";
-import type { DateStyle, DateStyleKey } from "@/lib/cv/types";
+import {
+  formatDateToValue,
+  formatDisplayDate,
+  parseValueToDate,
+} from "@/lib/cv/date";
 
 interface DateFieldProps {
   value: string | null;
@@ -23,119 +27,6 @@ interface DateFieldProps {
  *   and the range is joined with `style.rangeSep`. The default behavior
  *   (no style) is unchanged.
  */
-export function formatDateRange(
-  start: string,
-  end: string | null,
-  current: boolean,
-  style?: DateStyle | null,
-): string {
-  if (!start) return "";
-  if (current) return `${formatSingleDate(start, style)} – Present`;
-  if (!end) return formatSingleDate(start, style);
-  const a = formatSingleDate(start, style);
-  const b = formatSingleDate(end, style);
-  return `${a}${style?.rangeSep ?? " – "}${b}`;
-}
-
-export const DATE_STYLE_OPTIONS: ReadonlyArray<{
-  value: DateStyleKey;
-  label: string;
-  rangeSep: string;
-}> = [
-  { value: "YYYY-MM", label: "YYYY-MM", rangeSep: " – " },
-  { value: "YYYY/MM", label: "YYYY/MM", rangeSep: "/" },
-  { value: "MM/YYYY", label: "MM/YYYY", rangeSep: "/" },
-  { value: "MM-YYYY", label: "MM-YYYY", rangeSep: "-" },
-  { value: "MM.YYYY", label: "MM.YYYY", rangeSep: "." },
-  { value: "YYYY.MM", label: "YYYY.MM", rangeSep: "." },
-  { value: "Mon YYYY", label: "Mon YYYY (e.g. Mar 2021)", rangeSep: " – " },
-  { value: "Month YYYY", label: "Month YYYY (default; e.g. March 2021)", rangeSep: " – " },
-  { value: "YYYY", label: "YYYY", rangeSep: " – " },
-  { value: "Mon-YYYY", label: "Mon-YYYY (e.g. Mar-2021)", rangeSep: "-" },
-];
-
-/**
- * Format a single "YYYY-MM" date string for display using the given style.
- *
- * - Empty input → ""
- * - Unparseable input (e.g. legacy year-only "2020", out-of-range months) → raw value
- * - Unset/empty style → raw value
- * - Otherwise switches on style.key
- */
-export function formatSingleDate(
-  value: string | null | undefined,
-  style?: DateStyle | null,
-): string {
-  if (!value) return "";
-  if (!style || !style.key) return value;
-  const d = parseValueToDate(value);
-  if (!d) return value;
-  const year = d.getFullYear();
-  const month = d.getMonth();
-  const yy = String(year);
-  const mm = String(month + 1).padStart(2, "0");
-  switch (style.key) {
-    case "YYYY-MM":
-      return `${yy}-${mm}`;
-    case "YYYY/MM":
-      return `${yy}/${mm}`;
-    case "MM/YYYY":
-      return `${mm}/${yy}`;
-    case "MM-YYYY":
-      return `${mm}-${yy}`;
-    case "MM.YYYY":
-      return `${mm}.${yy}`;
-    case "YYYY.MM":
-      return `${yy}.${mm}`;
-    case "Mon YYYY":
-      return `${SHORT_MONTH_NAMES[month]} ${yy}`;
-    case "Month YYYY":
-      return `${MONTH_NAMES[month]} ${yy}`;
-    case "YYYY":
-      return `${yy}`;
-    case "Mon-YYYY":
-      return `${SHORT_MONTH_NAMES[month]}-${yy}`;
-    default:
-      return value;
-  }
-}
-
-
-/** Parse a "YYYY-MM" string into a Date set to the first of that month. */
-function parseValueToDate(value: string | null | undefined): Date | undefined {
-  if (!value) return undefined;
-  const [y, m] = value.split("-");
-  if (!y || !m) return undefined;
-  const year = Number(y);
-  const month = Number(m);
-  if (!Number.isInteger(year) || !Number.isInteger(month)) return undefined;
-  if (month < 1 || month > 12) return undefined;
-  return new Date(year, month - 1, 1);
-}
-
-/** Format a Date as "YYYY-MM" using local time (matches the existing data model). */
-function formatDateToValue(d: Date): string {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  return `${year}-${month}`;
-}
-
-const SHORT_MONTH_NAMES = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
-
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
-function formatDisplay(value: string | null | undefined): string {
-  const d = parseValueToDate(value);
-  if (!d) return "";
-  return `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
-}
-
 const POPOVER_WIDTH = 280; // approximate; read from the rendered element if available
 const POPOVER_GAP = 4;
 
@@ -153,7 +44,7 @@ export default function DateField({
   const popoverId = useId();
 
   const selected = parseValueToDate(value);
-  const display = formatDisplay(value);
+  const display = formatDisplayDate(value);
   const showClear = !!value && !disabled;
 
   // Year range: 1950 → current+10. Plenty of headroom for birth years and

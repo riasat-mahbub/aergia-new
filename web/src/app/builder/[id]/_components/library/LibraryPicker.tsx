@@ -3,11 +3,8 @@ import Modal from "@/components/common/Modal";
 import { useToastStore } from "@/store/uiStore";
 import { useLibraryStore } from "@/store/libraryStore";
 import type { LibraryEntry, LibraryEntryKind } from "@/contracts/library";
-import {
-  LIBRARY_KIND_LABELS,
-  cloneLibrary,
-  sectionTypeForLibraryKind,
-} from "@/services/library";
+import { LIBRARY_KIND_LABELS, sectionTypeForLibraryKind } from "@/lib/library/catalog";
+import { cloneLibrary } from "@/services/library";
 import LibraryEntryCard from "@/components/library/LibraryEntryCard";
 
 interface LibraryPickerProps {

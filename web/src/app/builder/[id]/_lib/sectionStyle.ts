@@ -1,4 +1,4 @@
-import type { SectionInstanceStyle } from "@/lib/cv/types";
+import type { SectionInstanceStyle } from "@/lib/cv/schema";
 
 /**
  * A style object carries a meaningful user pick iff at least one of its

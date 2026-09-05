@@ -12,13 +12,13 @@ import SummaryCard from "./_components/SummaryCard";
 import ApplicationRow from "./_components/ApplicationRow";
 import { formatDate, templateLabel } from "./_lib/dashboardPresentation";
 import { useApplicationStore } from "@/app/dashboard/_stores/applicationStore";
-import { useCVStore } from "@/store/cvStore";
+import { useCVListStore } from "@/app/dashboard/_stores/cvListStore";
 import { useLibraryStore } from "@/store/libraryStore";
 
 export default function DashboardPage() {
-  const cvList = useCVStore((state) => state.cvList);
-  const cvLoading = useCVStore((state) => state.isLoading);
-  const fetchCVs = useCVStore((state) => state.fetchCVs);
+  const cvList = useCVListStore((state) => state.cvList);
+  const cvLoading = useCVListStore((state) => state.isLoading);
+  const fetchCVs = useCVListStore((state) => state.fetchCVs);
   const libraryEntries = useLibraryStore((state) => state.entries);
   const libraryLoaded = useLibraryStore((state) => state.loaded);
   const libraryFetch = useLibraryStore((state) => state.fetchAll);

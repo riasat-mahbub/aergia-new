@@ -49,15 +49,15 @@ api/
   tests/
 web/
   src/
-    main.tsx          # createBrowserRouter entry; /dashboard under ProtectedRoute > AppLayout
-    App.tsx           # auth store hydrate(), ErrorBoundary, toasts
-    pages/            # BuilderPage (schematic editor orchestrator), auth pages
-    components/       # builder/, sections/ (SectionRegistry → 8 editors), customization/ (Inspector, SectionInspector), preview/ (iframe + page-break overlay)
-    lib/
-      store/          # Zustand: authStore, cvStore, uiStore, supportStore
-      api/            # axios client + typed wrappers (cvs, templates, render)
-      sections/       # types.ts (re-exports generated), fieldsForInstance.ts
-      test/setup.ts   # Vitest setup: jest-dom + localStorage shim
+    main.tsx          # RouterProvider entry; route modules are lazy-loaded by app/router.tsx
+    app/              # route pages, layouts, providers, and route-private _components/_hooks/_lib/_services/_stores/_types
+    components/       # shared section editors, controls, library cards, and preview primitives
+    lib/cv/           # generated-schema facade plus pure section catalog, placement, date, and editor-data modules
+    lib/library/      # pure library kind catalog
+    lib/llm/          # pure provider metadata/detection; credentials live in store/llmKeyStore.ts
+    lib/browser/      # explicit DOM adapters such as downloadBlob
+    lib/rich-text/    # bidirectional wire/Lexical codec
+    store/            # global Zustand stores only; route-owned stores stay under their app subtree
     generated/schema.ts  # codegen output — never hand-edit
 scripts/              # smoke.sh (hardening gate)
 docs/plans/           # phase plans
@@ -84,8 +84,9 @@ ruff check .                      # lint; line-length 120, target py312
 npm install
 npm run dev                       # Vite dev server :5173
 npm run build                     # tsc -b && vite build
-npm run test                      # Vitest (all)
 npm run lint                      # ESLint (flat config)
+npm run architecture:test        # dependency-boundary fixture checks
+npm run architecture:check       # route privacy + layer direction
 npm run codegen                   # regenerate web/src/generated/schema.ts
 npm run codegen:check             # drift guard (must stay green)
 ```
@@ -109,11 +110,13 @@ npm run codegen:check             # drift guard (must stay green)
 
 - **Strict TS**: `strict`, `noUnusedLocals`, `noUnusedParameters`.
 - **Styling**: Tailwind utility classes; no CSS modules beyond template-specific styles.
-- **State**: Zustand stores in `lib/store/` — `authStore` hydrates from localStorage on mount, `cvStore` (CV list/current + CRUD), `uiStore` (toasts, driven via `getState()` from the API interceptor), `supportStore` (renderer SupportMap with ensureLoaded/retry).
-- **API**: one axios client (`lib/api/client.ts`, baseURL `/api/v1`, Bearer injection, 401 refresh, toast on error) + typed per-domain wrappers.
+- **State**: global Zustand stores in `store/` — `authStore` hydrates from the cookie session, `llmKeyStore` is memory-only, and `uiStore` handles toasts. Dashboard CV-list state and Builder document state are route-owned stores.
+- **API**: one axios client (`services/client.ts`, baseURL `/api/v1`, CSRF/401 refresh callbacks) + typed per-domain wrappers. Browser redirects and downloads live in providers/adapters.
 - **Editor is schematic, not rendered**: components mirror the AST; the only rendered views are the sandboxed iframe preview (`UserTemplateRenderer.tsx`, POST `/render/html`, `PAGE_HEIGHT_PX=1122`, page-break overlay) and the PDF blob export.
-- **Tests**: co-located `__tests__/` next to components; component tests mock stores/APIs/DnD/router liberally.
-- **Generated types**: import from `lib/sections/types.ts` (re-exports `web/src/generated/schema.ts`); never edit the generated file.
+- **Tests**: the previous Vitest/component suite was intentionally removed at
+  the page-structure reset. Focused behavior tests remain a follow-up; the
+  architecture fixture suite is run with `npm run architecture:test`.
+- **Generated types**: import through `lib/cv/schema.ts` (re-exports `web/src/generated/schema.ts`); never edit the generated file.
 
 ## Important Files
 
@@ -125,10 +128,10 @@ npm run codegen:check             # drift guard (must stay green)
 | `api/app/services/renderer/html.py` | `HTMLDocumentRenderer` — canonical HTML output; print styles, best-effort comments. |
 | `api/app/services/renderer/support.py` | `SupportLevel` + `RendererSupport` capability map. |
 | `api/scripts/codegen_schema.py` | In-tree Pydantic→TS generator; `--check` drift gate. |
-| `web/src/pages/BuilderPage.tsx` | Schematic editor orchestrator: save/unsaved blocker, template switch, `sectionStyleHasValues`. |
-| `web/src/components/customization/Inspector.tsx` / `SectionInspector.tsx` | Three-axis style inspector, document customizations, and capability gating. |
-| `web/src/lib/api/client.ts` | Single axios entry point for all API I/O. |
-| `web/vite.config.ts` | Dev proxy (`/api` → `:8000`, lines 9-13), Vitest jsdom config. |
+| `web/src/app/builder/[id]/page.tsx` | Schematic editor orchestrator; document commands, persistence, template loading, and visual panes are route-private modules. |
+| `web/src/app/builder/[id]/_components/customization/Inspector.tsx` / `SectionInspector.tsx` | Three-axis style inspector, document customizations, and capability gating. |
+| `web/src/services/client.ts` | Single axios entry point for all API I/O and refresh/CSRF callbacks. |
+| `web/vite.config.ts` | Dev proxy (`/api` → `:8000`) and Vite build configuration. |
 | `api/alembic/env.py` | `DATABASE_URL` override (lines 22-24). `alembic.ini` hardcodes a SQLite URL that is overridden at runtime. |
 | `dev.sh` / `scripts/smoke.sh` | Dev orchestrator / hardening gate. |
 | `README.md` | Project entry point: what it is, quick start, architecture, templates, dev commands, doc map | First read for any new contributor |
@@ -155,15 +158,21 @@ Two independent stacks; no coverage gate on either side (pytest-cov installed bu
 - ~180 test functions across 20 files: auth full flow, resolver (with `FakeRenderer` protocol double), codegen drift guard, customize-panel wiring.
 - Gotcha: the `auth_headers` fixture is duplicated per integration file.
 
-### Frontend — Vitest (`web/src/`)
+### Frontend checks (`web/`)
 
-- Vitest 4 + jsdom + @testing-library; globals enabled; discovery locked to `src/**/*.test.{ts,tsx}` (Vitest block in `web/vite.config.ts`).
-- Setup: `web/src/lib/test/setup.ts` (jest-dom + in-memory localStorage shim).
-- ~143 cases across 28 files. Component tests mock stores/APIs/DnD/router; several tests deliberately mirror Python logic (e.g. `DateField.test.tsx` ↔ `test_format_single_date.py`) to lock cross-language contracts.
+- The previous Vitest/component suite was intentionally removed at the
+  page-structure reset and is not currently configured. Focused behavior tests
+  remain a follow-up once route boundaries settle.
+- `npm run architecture:test` exercises prohibited dependency edges with
+  temporary fixtures; `npm run architecture:check` validates the real tree.
 
 ### Smoke gate — `./dev.sh --smoke`
 
-Runs pytest + Ruff + source-only Vitest + ESLint (smoke config) + production build, then an isolated live-render smoke (`api/scripts/smoke_live.py`: register/login, assert the 3 seed templates, preview HTML + PDF + SPA checks) against `generic-modern`, `generic-classic`, `generic-minimal` on a fresh temp SQLite (`AERGIA_SMOKE_PORT=8765`).
+Runs pytest + Ruff + frontend ESLint + production build, then an isolated
+live-render smoke (`api/scripts/smoke_live.py`: register/login, assert the 3
+seed templates, preview HTML + PDF + SPA checks) against `generic-modern`,
+`generic-classic`, `generic-minimal` on a fresh temp SQLite
+(`AERGIA_SMOKE_PORT=8765`).
 
 ## Project tracker
 

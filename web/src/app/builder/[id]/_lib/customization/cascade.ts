@@ -15,7 +15,7 @@ import type {
   LayoutHints,
   SectionInstanceStyle,
   SubsectionStyle,
-} from "@/generated/schema";
+} from "@/lib/cv/schema";
 import {
   defaultLayoutFor,
   defaultPolicyFor,

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { FileDown, Loader2 } from "lucide-react";
-import { exportPDF, downloadPDF } from "@/services/cvs";
+import { exportPDF } from "@/services/cvs";
+import { downloadBlob } from "@/lib/browser/downloadBlob";
 import { useToastStore } from "@/store/uiStore";
 
 interface ExportPDFButtonProps {
@@ -21,7 +22,7 @@ export default function ExportPDFButton({ cvId, cvTitle, onBeforeExport }: Expor
       const filename = cvTitle
         ? `${cvTitle.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`
         : "cv.pdf";
-      downloadPDF(blob, filename);
+      downloadBlob(blob, filename);
       addToast("PDF exported successfully", "success");
     } catch {
       addToast("Failed to export PDF", "error");

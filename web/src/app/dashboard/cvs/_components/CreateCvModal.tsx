@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Modal from "@/components/common/Modal";
-import { useCVStore } from "@/store/cvStore";
+import { useCVListStore } from "@/app/dashboard/_stores/cvListStore";
 import { fetchSystemTemplates } from "@/services/templates";
 
 interface TemplateOption {
@@ -17,7 +17,7 @@ interface Props {
 
 export default function CreateCvModal({ open, onClose }: Props) {
   const navigate = useNavigate();
-  const { createCV } = useCVStore();
+  const { createCV } = useCVListStore();
   const [title, setTitle] = useState("");
   const [templateId, setTemplateId] = useState("generic-minimal");
   const [systemTemplates, setSystemTemplates] = useState<TemplateOption[]>([]);

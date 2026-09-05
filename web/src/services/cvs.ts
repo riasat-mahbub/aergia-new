@@ -36,14 +36,3 @@ export async function exportPDF(id: string): Promise<Blob> {
   });
   return data;
 }
-
-export function downloadPDF(blob: Blob, filename: string = "cv.pdf") {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}

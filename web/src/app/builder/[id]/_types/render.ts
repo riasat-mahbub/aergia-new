@@ -1,3 +1,5 @@
+import type { SectionInstance, TemplateManifest } from "@/lib/cv/schema";
+
 export type SupportLevelValue = "FULL" | "BEST_EFFORT" | "NONE";
 
 /** Feature-to-renderer capability levels returned by the render support API. */
@@ -10,4 +12,15 @@ export interface SupportMap {
   feature_skills_inline: SupportLevelValue;
   feature_section_underline: SupportLevelValue;
   feature_anchor_styling: SupportLevelValue;
+}
+
+export interface RenderHtmlRequest {
+  manifest: TemplateManifest | null;
+  cv_sections: SectionInstance[];
+  customizations: Record<string, unknown>;
+  preview: boolean;
+}
+
+export interface RenderHtmlResponse {
+  html: string;
 }

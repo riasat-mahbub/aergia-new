@@ -1,17 +1,15 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Plus, Archive } from "lucide-react";
-import {
-  LIBRARY_KIND_LABELS,
-  LIBRARY_KINDS,
-} from "@/services/library";
+import { LIBRARY_KIND_LABELS, LIBRARY_KINDS } from "@/lib/library/catalog";
 import type { LibraryEntry, LibraryEntryKind } from "@/contracts/library";
-import { useLibraryStore, selectByKind, countByKind } from "@/store/libraryStore";
+import { useLibraryStore } from "@/store/libraryStore";
 import { useProfileStore } from "../_stores/profileStore";
 import { useToastStore } from "@/store/uiStore";
 import LibraryKindGroup from "./_components/LibraryKindGroup";
 import LibraryCreateModal from "./_components/LibraryCreateModal";
 import LibraryProfileCard from "./_components/LibraryProfileCard";
+import { countByKind, selectByKind } from "./_lib/librarySelectors";
 
 export default function LibraryPage() {
   const [searchParams] = useSearchParams();

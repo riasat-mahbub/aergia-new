@@ -2,45 +2,6 @@ import { create } from "zustand";
 import * as libraryApi from "@/services/library";
 import type { LibraryEntry, LibraryEntryKind } from "@/contracts/library";
 
-// ─── Selectors ──────────────────────────────────────────────────────
-//
-// `selectByKind` is a pure helper that buckets entries by their kind.
-// Exported as a free function so components can use it without subscribing
-// to the store.
-
-export function selectByKind(entries: LibraryEntry[]): Record<LibraryEntryKind, LibraryEntry[]> {
-  const buckets: Record<LibraryEntryKind, LibraryEntry[]> = {
-    experience: [],
-    education: [],
-    skill: [],
-    project: [],
-    certification: [],
-    language: [],
-    research: [],
-  };
-  for (const e of entries) {
-    // Defensive: an entry's kind may be unknown (legacy data, future
-    // kinds not yet declared, or an upstream drift). Silently drop
-    // unknown kinds rather than crashing the dashboard with
-    // "buckets[e.kind] is undefined". `LibraryEntryKind` is a TS-only
-    // narrowing; at runtime any string can arrive.
-    const bucket = buckets[e.kind as LibraryEntryKind];
-    if (bucket) bucket.push(e);
-  }
-  return buckets;
-}
-
-export function countByKind(entries: LibraryEntry[]): Record<LibraryEntryKind, number> {
-  const buckets = selectByKind(entries);
-  const out = {} as Record<LibraryEntryKind, number>;
-  (Object.keys(buckets) as LibraryEntryKind[]).forEach((k) => {
-    out[k] = buckets[k].length;
-  });
-  return out;
-}
-
-// ─── Store ──────────────────────────────────────────────────────────
-
 interface LibraryState {
   entries: LibraryEntry[];
   isLoading: boolean;

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import * as authApi from "@/services/auth";
 import type { AccountTier, RegisterRequest } from "@/contracts/auth";
-import { forgetAllKeys } from "@/lib/llm/keys";
+import { forgetAllKeys } from "@/store/llmKeyStore";
 
 interface AuthState {
   isAuthenticated: boolean;

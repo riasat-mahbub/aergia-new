@@ -25,7 +25,7 @@ import type {
   SectionPolicy,
   SubsectionStyle,
   TextStyle,
-} from "@/generated/schema";
+} from "@/lib/cv/schema";
 
 /** Per-section-type policy defaults. Mirrors SECTION_POLICIES in
  * api/app/services/renderer/policy.py. */

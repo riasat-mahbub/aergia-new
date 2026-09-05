@@ -1,4 +1,4 @@
-import type { ExperienceEntry } from "@/lib/cv/types";
+import type { ExperienceEntry } from "@/lib/cv/sectionData";
 import { useFieldArray } from "@/lib/forms/useFieldArray";
 import DateField from "@/components/common/DateField";
 import SortableAccordionList from "@/components/common/SortableAccordionList";

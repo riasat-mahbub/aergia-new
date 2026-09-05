@@ -1,5 +1,5 @@
 import ProfileEditor from "@/components/common/section-editors/profile/ProfileEditor";
-import type { ProfileData } from "@/lib/cv/types";
+import type { ProfileData } from "@/lib/cv/sectionData";
 import type { UserProfile } from "../../_types/profile";
 
 interface UserProfileEditorProps {

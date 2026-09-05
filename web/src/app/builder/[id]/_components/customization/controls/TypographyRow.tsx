@@ -19,7 +19,7 @@
  */
 
 import { useMemo } from "react";
-import type { TextStyle } from "@/generated/schema";
+import type { TextStyle } from "@/lib/cv/schema";
 import { FONT_SIZE_CSS, FONT_SIZE_LABELS, FONT_SIZE_TOKENS } from "@/styles/tokens";
 import { ink, radius, ruleDefault } from "@/styles/tokens";
 import { TEXT_STYLE_DEFAULTS } from "../../../_lib/customization/styleDefaults";

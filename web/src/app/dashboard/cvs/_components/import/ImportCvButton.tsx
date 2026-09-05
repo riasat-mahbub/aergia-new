@@ -5,20 +5,10 @@ import { FileUp, Loader2 } from "lucide-react";
 import ImportCvModal from "./ImportCvModal";
 import { importPDF } from "../../_services/imports";
 import { useToastStore } from "@/store/uiStore";
-import { useCVStore } from "@/store/cvStore";
-import {
-  forgetAllKeys,
-  useLLMKeys,
-  pickActiveProvider,
-  type LLMProviderKey,
-} from "@/lib/llm/keys";
-
-const PROVIDER_DISPLAY_NAME: Record<LLMProviderKey, string> = {
-  openai: "OpenAI",
-  anthropic: "Anthropic",
-  gemini: "Gemini",
-  groq: "Groq",
-};
+import { useCVListStore } from "@/app/dashboard/_stores/cvListStore";
+import type { LLMProviderKey } from "@/contracts/llm";
+import { PROVIDER_LABELS, pickActiveProvider } from "@/lib/llm/providers";
+import { forgetAllKeys, loadKeys, useLLMKeys } from "@/store/llmKeyStore";
 
 /**
  * Header control for importing a PDF. API-key configuration lives in the
@@ -33,7 +23,7 @@ const PROVIDER_DISPLAY_NAME: Record<LLMProviderKey, string> = {
 export default function ImportCvButton() {
   const navigate = useNavigate();
   const addToast = useToastStore((s) => s.addToast);
-  const createCV = useCVStore((s) => s.createCV);
+  const createCV = useCVListStore((s) => s.createCV);
   const keys = useLLMKeys();
 
   const [open, setOpen] = useState(false);
@@ -41,7 +31,7 @@ export default function ImportCvButton() {
 
   const activeProvider = pickActiveProvider(keys);
   const label = activeProvider
-    ? `Import CV · ${PROVIDER_DISPLAY_NAME[activeProvider]}`
+    ? `Import CV · ${PROVIDER_LABELS[activeProvider]}`
     : "Import CV";
 
   const handleSubmit = async (input: {
@@ -51,7 +41,13 @@ export default function ImportCvButton() {
   }) => {
     setBusy(true);
     try {
-      const parsed = await importPDF(input.file);
+      const importKeys = loadKeys();
+      const provider: LLMProviderKey | null = pickActiveProvider(importKeys);
+      const apiKey = provider ? importKeys[provider] : undefined;
+      const parsed = await importPDF(
+        input.file,
+        provider && apiKey ? { provider, apiKey } : undefined,
+      );
       const cv = await createCV(
         input.title,
         input.templateId,
@@ -64,6 +60,7 @@ export default function ImportCvButton() {
       // Modal stays open so the user can retry without losing their
       // typed title or chosen file.
     } finally {
+      forgetAllKeys();
       setBusy(false);
     }
   };
