@@ -8,7 +8,7 @@ backend-friendly.
 */
 
 import type { SerializedEditorState } from "lexical";
-import type { RichTextBlock, RichTextItem, TextStyle } from "../../generated/schema";
+import type { RichTextBlock, RichTextItem, TextStyle } from "@/lib/cv/schema";
 import { safeLinkUrl } from "../security/safeUrl";
 import { FONT_SIZE_CSS, type FontSizeToken } from "../../styles/tokens";
 

@@ -1,4 +1,5 @@
-import type { SectionType } from "@/lib/cv/types";
+import type { SectionType } from "@/lib/cv/sectionCatalog";
+import type { SectionInstance } from "@/lib/cv/schema";
 
 export type LibraryEntryKind =
   | "experience"
@@ -18,14 +19,7 @@ export interface LibraryEntry {
 }
 
 export interface LibraryCloneResponse {
-  section_instance: {
-    id: string;
-    type: SectionType;
-    title: string;
-    enabled: boolean;
-    data: unknown;
-    style: unknown;
-  };
+  section_instance: SectionInstance & { type: SectionType };
 }
 
 export interface PromoteToLibraryResponse {

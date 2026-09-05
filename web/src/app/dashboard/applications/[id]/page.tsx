@@ -1,35 +1,32 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { Check, ChevronDown, ChevronUp, Copy, Download, ExternalLink, Pencil, RefreshCw, Trash2, XCircle } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import ApplicationFormModal from "../_components/ApplicationFormModal";
+import ApplicationJobPanel from "./_components/ApplicationJobPanel";
+import ApplicationRelevancePanel from "./_components/ApplicationRelevancePanel";
+import ApplicationStatusHistory from "./_components/ApplicationStatusHistory";
+import GeneratedCvPanel from "./_components/GeneratedCvPanel";
 import LoadingSkeleton from "@/components/common/LoadingSkeleton";
-import { exportPDF, downloadPDF, fetchCV } from "@/services/cvs";
-import type { CVDetail } from "@/contracts/cvs";
+import { exportPDF } from "@/services/cvs";
+import { downloadBlob } from "@/lib/browser/downloadBlob";
 import { APPLICATION_STATUSES } from "@/contracts/applications";
 import type {
   ApplicationStatus,
 } from "@/contracts/applications";
 import { useApplicationStore } from "@/app/dashboard/_stores/applicationStore";
 import { useToastStore } from "@/store/uiStore";
-import { safeExternalUrl } from "@/lib/security/safeUrl";
 import {
-  RELEVANCE_TOOLTIP,
   formatFollowUpDate,
   isFollowUpOverdue,
 } from "../_lib/applicationPresentation";
 import { STATUS_CLASSES, STATUS_LABELS } from "../../_constants/applicationStatus";
 import {
-  isQualityResult,
   isRelevanceResult,
-  relevanceScoreFromSnapshot,
   sectionTypes,
   selectedSourceCount,
 } from "./_lib/applicationDetail";
-import {
-  isTerminalTailoringStatus,
-  sessionStatusLabel,
-} from "./_lib/tailoringPresentation";
 import { useTailoringSession } from "./_hooks/useTailoringSession";
+import { useLinkedCv } from "./_hooks/useLinkedCv";
 
 export default function ApplicationDetailPage() {
   const { id = "" } = useParams();
@@ -44,8 +41,6 @@ export default function ApplicationDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
-  const [linkedCV, setLinkedCV] = useState<CVDetail | null>(null);
-  const [jobExpanded, setJobExpanded] = useState(false);
   const {
     tailoringSession,
     tailoringStarting,
@@ -61,20 +56,7 @@ export default function ApplicationDetailPage() {
     if (id) fetch(id);
   }, [fetch, id]);
 
-  useEffect(() => {
-    if (!application?.cv_id) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear stale linked CV when application changes
-      setLinkedCV(null);
-      return;
-    }
-    let cancelled = false;
-    fetchCV(application.cv_id).then((cv) => {
-      if (!cancelled) setLinkedCV(cv);
-    }).catch(() => {
-      if (!cancelled) setLinkedCV(null);
-    });
-    return () => { cancelled = true; };
-  }, [application?.cv_id]);
+  const linkedCV = useLinkedCv(application?.cv_id);
 
   const relevance = application && isRelevanceResult(application.relevance) ? application.relevance : null;
   const sections = useMemo(() => sectionTypes(linkedCV), [linkedCV]);
@@ -83,9 +65,6 @@ export default function ApplicationDetailPage() {
   if (isLoading || !application || application.id !== id) {
     return <div className="mx-auto max-w-4xl px-4 py-8">{isLoading ? <LoadingSkeleton count={2} /> : <p className="text-sm text-app-ink-2">Application not found.</p>}</div>;
   }
-
-  const safeJobUrl = safeExternalUrl(application.job_url);
-  const safeTailoringSessionUrl = tailoringSession ? safeExternalUrl(tailoringSession.session_url) : null;
 
   const handleStatusChange = async (status: ApplicationStatus) => {
     setStatusSaving(true);
@@ -118,7 +97,7 @@ export default function ApplicationDetailPage() {
     if (!application.cv_id) return;
     try {
       const blob = await exportPDF(application.cv_id);
-      downloadPDF(blob, `${application.company}-${application.role}.pdf`);
+      downloadBlob(blob, `${application.company}-${application.role}.pdf`);
     } catch {
       addToast("Unable to export this CV", "error");
     }
@@ -166,141 +145,29 @@ export default function ApplicationDetailPage() {
       </header>
 
       <div className="mt-6 grid gap-4 md:grid-cols-2">
-        <section className={`flex flex-col overflow-hidden rounded-lg border border-app-rule bg-app-surface p-5 shadow-sm ${jobExpanded ? "" : "h-60 md:h-64"}`}>
-          <div id="application-job-details" className="relative min-h-0 flex-1 overflow-hidden">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-app-ink-3">Job</h2>
-            <div className="mt-4 whitespace-pre-wrap text-sm leading-6 text-app-ink-2">{application.job_description}</div>
-            {safeJobUrl && <a href={safeJobUrl} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex items-center gap-1 text-sm text-app-primary hover:underline">Open job listing <ExternalLink className="h-3.5 w-3.5" /></a>}
-            {application.notes && <p className="mt-4 border-t border-app-rule-soft pt-4 text-sm text-app-ink-2">{application.notes}</p>}
-            {!jobExpanded && <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-app-surface to-transparent" />}
-          </div>
-          <button
-            type="button"
-            aria-expanded={jobExpanded}
-            aria-controls="application-job-details"
-            onClick={() => setJobExpanded((expanded) => !expanded)}
-            className="mt-3 inline-flex shrink-0 items-center gap-1 self-start text-sm font-medium text-app-primary hover:text-app-primary-hover"
-          >
-            {jobExpanded ? "See less" : "See more"}
-            {jobExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </button>
-        </section>
-
-        <section className="flex flex-col overflow-hidden rounded-lg border border-app-rule bg-app-surface p-5 shadow-sm">
-          <div className="relative min-h-0 flex-1 overflow-hidden">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-app-ink-3">Relevance</h2>
-                <p className="mt-2 text-3xl font-semibold text-app-ink" title={RELEVANCE_TOOLTIP}>{relevance ? `${relevance.score}%` : "—"}</p>
-              </div>
-              {application.fits_one_page !== null && <span className={application.fits_one_page ? "text-sm text-app-primary" : "text-sm text-app-warning"}>{application.fits_one_page ? "One-page fit" : "Could not fit one page without rewriting content"}</span>}
-            </div>
-            <p className="mt-3 text-xs text-app-ink-3">{RELEVANCE_TOOLTIP}</p>
-            {application.cv_id && <Link to={`/builder/${application.cv_id}?application=${application.id}`} className="mt-4 inline-flex text-sm font-medium text-app-primary hover:text-app-primary-hover">Open the linked CV to inspect matched, missing, and source evidence</Link>}
-          </div>
-        </section>
+        <ApplicationJobPanel application={application} />
+        <ApplicationRelevancePanel application={application} relevance={relevance} />
       </div>
 
-      <section className="mt-4 rounded-lg border border-app-rule bg-app-surface p-5 shadow-sm">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-app-ink-3">Generated CV</h2>
-        {application.cv_id ? (
-          <>
-            <p className="mt-2 text-sm text-app-ink-2">{linkedCV?.title || `${application.company} — ${application.role}`}</p>
-            {sections.length > 0 && <p className="mt-2 text-xs text-app-ink-3">Sections: {sections.join(" → ")}</p>}
-            {sourceCount !== null && <p className="mt-2 text-xs text-app-ink-3">Selected Library rows: {sourceCount}</p>}
-            {isQualityResult(application.quality) && (
-              <div className="mt-4 rounded-md bg-app-canvas px-3 py-3">
-                <p className={`text-sm font-medium ${application.quality.status === "error" ? "text-app-danger" : application.quality.status === "warning" ? "text-app-warning" : "text-app-primary"}`}>
-                  Quality checks: {application.quality.status === "pass" ? "Passed" : `${application.quality.issues.length} issue${application.quality.issues.length === 1 ? "" : "s"}`}
-                </p>
-                {application.quality.page_count !== null && <p className="mt-1 text-xs text-app-ink-3">Rendered pages: {application.quality.page_count}</p>}
-                {application.quality.issues.length > 0 && <ul className="mt-2 space-y-1 text-xs text-app-ink-2">{application.quality.issues.map((issue, index) => <li key={`${issue.code}-${index}`}>{issue.message}</li>)}</ul>}
-              </div>
-            )}
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Link to={`/builder/${application.cv_id}?application=${application.id}`} className="inline-flex items-center gap-1 rounded-md bg-app-primary px-3 py-2 text-sm font-medium text-white hover:bg-app-primary-hover">Open/Edit CV <Pencil className="h-3.5 w-3.5" /></Link>
-              <button type="button" onClick={handleExport} className="inline-flex items-center gap-1 rounded-md border border-app-rule-strong px-3 py-2 text-sm font-medium text-app-ink-2 hover:bg-app-surface-muted"><Download className="h-3.5 w-3.5" /> Export PDF</button>
-              <button type="button" onClick={startTailoring} disabled={tailoringStarting} className="inline-flex items-center gap-1 rounded-md border border-app-primary-soft px-3 py-2 text-sm font-medium text-app-primary hover:bg-app-primary-soft disabled:opacity-50">
-                {tailoringStarting ? "Preparing LLM tailoring…" : "LLM Tailoring"}
-              </button>
-            </div>
-            <p className="mt-3 text-xs text-app-ink-3">Your installed coding agent composes a fresh CV locally from the full Library and profile. It may reorganize sections when it explains and cites the decision; you remain the final reviewer. The current CV remains unchanged as optional source evidence.</p>
-            {tailoringSession && (
-              <div className="mt-4 rounded-md bg-app-canvas px-3 py-3" role="status">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium text-app-ink">Use your coding agent</p>
-                    <p className="mt-1 text-xs text-app-ink-3">
-                      {sessionStatusLabel(tailoringStatus?.status ?? tailoringSession.status)} · expires {new Date(tailoringSession.expires_at).toLocaleTimeString()}
-                    </p>
-                  </div>
-                  {!isTerminalTailoringStatus(tailoringStatus?.status) && (
-                    <button type="button" onClick={cancelTailoring} className="inline-flex items-center gap-1 text-xs font-medium text-app-danger hover:underline">
-                      <XCircle className="h-3.5 w-3.5" /> Cancel
-                    </button>
-                  )}
-                </div>
-                <p className="mt-3 text-xs text-app-ink-2">Copy this prompt and paste it into Codex, Claude Code, or OpenCode with the Aergia tailoring skill installed.</p>
-                <textarea
-                  aria-label="Aergia tailoring prompt"
-                  readOnly
-                  value={tailoringSession.prompt}
-                  rows={6}
-                  className="mt-2 block w-full resize-y rounded border border-app-rule-strong bg-app-surface px-2 py-2 text-xs leading-5 text-app-ink-2"
-                />
-                <div className="mt-2 flex flex-wrap items-center gap-3">
-                  <button type="button" onClick={copyPrompt} className="inline-flex items-center gap-1 rounded-md bg-app-primary px-3 py-2 text-xs font-medium text-white hover:bg-app-primary-hover">
-                    {promptCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                    {promptCopied ? "Copied" : "Copy prompt"}
-                  </button>
-                  {safeTailoringSessionUrl && <a href={safeTailoringSessionUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-app-primary hover:underline">
-                    Open session link <ExternalLink className="h-3.5 w-3.5" />
-                  </a>}
-                </div>
-                {tailoringStatus?.result && (
-                  <div className="mt-3 border-t border-app-rule-soft pt-3 text-xs text-app-ink-2">
-                    <p className="font-medium text-app-ink">Result</p>
-                    <p className="mt-1">
-                      Relevance: {relevanceScoreFromSnapshot(tailoringStatus.result.before_relevance) ?? "—"}% → {relevanceScoreFromSnapshot(tailoringStatus.result.relevance) ?? "—"}%
-                    </p>
-                    {tailoringStatus.result.gaps.length > 0 && <p className="mt-1">Remaining gaps: {tailoringStatus.result.gaps.map((gap) => gap.requirement).join(", ")}</p>}
-                  </div>
-                )}
-              </div>
-            )}
-            {tailoringResult && (
-              <div className="mt-4 rounded-md bg-app-primary-soft px-3 py-3 text-xs text-app-ink-2" role="status">
-                <p className="font-medium text-app-ink">Tailored CV ready</p>
-                <p className="mt-1">
-                  Relevance: {relevanceScoreFromSnapshot(tailoringResult.before_relevance) ?? "—"}% → {relevanceScoreFromSnapshot(tailoringResult.relevance) ?? "—"}%
-                </p>
-                {tailoringResult.gaps.length > 0 && <p className="mt-1">Remaining gaps: {tailoringResult.gaps.map((gap) => gap.requirement).join(", ")}</p>}
-                <p className="mt-1 text-app-ink-3">Requirement feedback is available in the linked CV&apos;s relevance details.</p>
-              </div>
-            )}
-          </>
-        ) : (
-          <>
-            <p className="mt-2 text-sm text-app-ink-2">{application.generation_status === "failed" ? "CV generation failed. Please retry." : "Generation is pending."}</p>
-            <button type="button" onClick={handleRetry} disabled={retrying} className="mt-4 inline-flex items-center gap-1 rounded-md border border-app-primary-soft px-3 py-2 text-sm font-medium text-app-primary hover:bg-app-primary-soft disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${retrying ? "animate-spin" : ""}`} /> {retrying ? "Generating…" : "Retry generation"}</button>
-          </>
-        )}
-      </section>
+      <GeneratedCvPanel
+        application={application}
+        linkedCV={linkedCV}
+        sections={sections}
+        sourceCount={sourceCount}
+        tailoringSession={tailoringSession}
+        tailoringStarting={tailoringStarting}
+        tailoringStatus={tailoringStatus}
+        tailoringResult={tailoringResult}
+        promptCopied={promptCopied}
+        retrying={retrying}
+        onExport={handleExport}
+        onRetry={handleRetry}
+        onStartTailoring={startTailoring}
+        onCopyPrompt={copyPrompt}
+        onCancelTailoring={cancelTailoring}
+      />
 
-      <section className="mt-4 rounded-lg border border-app-rule bg-app-surface p-5 shadow-sm">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-app-ink-3">Status history</h2>
-        {(application.status_history ?? []).length > 0 ? (
-          <ol className="mt-4 space-y-3 border-l border-app-rule pl-4">
-            {(application.status_history ?? []).map((event) => (
-              <li key={event.id} className="relative text-sm text-app-ink-2">
-                <span className="absolute -left-[1.3rem] top-1.5 h-2 w-2 rounded-full bg-app-primary" />
-                <span className="font-medium text-app-ink">{event.from_status ? `${STATUS_LABELS[event.from_status]} → ` : "Started as "}{STATUS_LABELS[event.to_status]}</span>
-                <span className="ml-2 text-xs text-app-ink-3">{formatFollowUpDate(event.changed_at.slice(0, 10))}</span>
-              </li>
-            ))}
-          </ol>
-        ) : <p className="mt-2 text-sm text-app-ink-2">No status changes recorded yet.</p>}
-      </section>
+      <ApplicationStatusHistory application={application} />
 
       <div className="mt-6 flex justify-end gap-2">
         <button type="button" onClick={() => setEditOpen(true)} className="inline-flex items-center gap-1 rounded-md border border-app-rule-strong px-3 py-2 text-sm font-medium text-app-ink-2 hover:bg-app-surface-muted"><Pencil className="h-3.5 w-3.5" /> Edit job</button>

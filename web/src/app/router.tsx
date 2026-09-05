@@ -1,38 +1,37 @@
+import type { ComponentType } from "react";
 import { createBrowserRouter, createRoutesFromElements, Route } from "react-router-dom";
 import RootLayout from "./layout";
-import HomePage from "./page";
-import LoginPage from "./login/page";
-import RegisterPage from "./register/page";
-import AgentTailoringPage from "./agent/tailor/[sessionId]/page";
-import DashboardLayout from "./dashboard/layout";
-import DashboardPage from "./dashboard/page";
-import CvListPage from "./dashboard/cvs/page";
-import LibraryPage from "./dashboard/library/page";
-import ApplicationsPage from "./dashboard/applications/page";
-import ApplicationDetailPage from "./dashboard/applications/[id]/page";
-import BuilderPage from "./builder/[id]/page";
-import SettingsPage from "./dashboard/settings/page";
-import NotFoundPage from "./not-found";
+import Loading from "./loading";
+
+type RouteModule = { default: ComponentType };
+
+/** Adapt a page module to React Router's route-level lazy contract. */
+function lazyRoute(load: () => Promise<RouteModule>) {
+  return async () => {
+    const module = await load();
+    return { Component: module.default, HydrateFallback: Loading };
+  };
+}
 
 const router = createBrowserRouter(
   createRoutesFromElements(
     <Route element={<RootLayout />}>
-      <Route index element={<HomePage />} />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
-      <Route path="/agent/tailor/:sessionId" element={<AgentTailoringPage />} />
-      <Route element={<DashboardLayout />}>
-        <Route path="/builder/:id" element={<BuilderPage />} />
+      <Route index lazy={lazyRoute(() => import("./page"))} />
+      <Route path="/login" lazy={lazyRoute(() => import("./login/page"))} />
+      <Route path="/register" lazy={lazyRoute(() => import("./register/page"))} />
+      <Route path="/agent/tailor/:sessionId" lazy={lazyRoute(() => import("./agent/tailor/[sessionId]/page"))} />
+      <Route lazy={lazyRoute(() => import("./dashboard/layout"))}>
+        <Route path="/builder/:id" lazy={lazyRoute(() => import("./builder/[id]/page"))} />
       </Route>
-      <Route path="/dashboard" element={<DashboardLayout />}>
-        <Route index element={<DashboardPage />} />
-        <Route path="cvs" element={<CvListPage />} />
-        <Route path="library" element={<LibraryPage />} />
-        <Route path="applications" element={<ApplicationsPage />} />
-        <Route path="applications/:id" element={<ApplicationDetailPage />} />
-        <Route path="settings" element={<SettingsPage />} />
+      <Route path="/dashboard" lazy={lazyRoute(() => import("./dashboard/layout"))}>
+        <Route index lazy={lazyRoute(() => import("./dashboard/page"))} />
+        <Route path="cvs" lazy={lazyRoute(() => import("./dashboard/cvs/page"))} />
+        <Route path="library" lazy={lazyRoute(() => import("./dashboard/library/page"))} />
+        <Route path="applications" lazy={lazyRoute(() => import("./dashboard/applications/page"))} />
+        <Route path="applications/:id" lazy={lazyRoute(() => import("./dashboard/applications/[id]/page"))} />
+        <Route path="settings" lazy={lazyRoute(() => import("./dashboard/settings/page"))} />
       </Route>
-      <Route path="*" element={<NotFoundPage />} />
+      <Route path="*" lazy={lazyRoute(() => import("./not-found"))} />
     </Route>,
   ),
 );

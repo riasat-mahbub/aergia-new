@@ -1,6 +1,6 @@
 import { Plus, Trash2 } from "lucide-react";
 import { SOCIAL_ICON_OPTIONS } from "./socialIcons";
-import type { ProfileData, SocialLink } from "@/lib/cv/types";
+import type { ProfileData, SocialLink } from "@/lib/cv/sectionData";
 
 
 interface Props {

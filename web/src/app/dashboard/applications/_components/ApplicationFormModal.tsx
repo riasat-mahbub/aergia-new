@@ -4,8 +4,15 @@ import { useApplicationStore } from "@/app/dashboard/_stores/applicationStore";
 import type {
   Application,
   ApplicationGenerateResponse,
-  ApplicationUpdateData,
 } from "@/contracts/applications";
+import {
+  applicationSaveError,
+  createDataFromForm,
+  formFromApplication,
+  updateDataFromForm,
+  validateApplicationForm,
+  type ApplicationFormState,
+} from "../_lib/applicationForm";
 
 interface ApplicationFormModalProps {
   open: boolean;
@@ -13,34 +20,6 @@ interface ApplicationFormModalProps {
   initialApplication?: Application | null;
   onSaved?: (application: Application) => void;
   onGenerated?: (result: ApplicationGenerateResponse) => void;
-}
-
-const EMPTY_FORM = {
-  company: "",
-  role: "",
-  job_description: "",
-  job_url: "",
-  notes: "",
-  next_follow_up_at: "",
-};
-
-type FormState = typeof EMPTY_FORM;
-
-function formFromApplication(application: Application | null | undefined): FormState {
-  if (!application) return EMPTY_FORM;
-  return {
-    company: application.company,
-    role: application.role,
-    job_description: application.job_description,
-    job_url: application.job_url ?? "",
-    notes: application.notes ?? "",
-    next_follow_up_at: application.next_follow_up_at ?? "",
-  };
-}
-
-function errorDetail(error: unknown): string {
-  void error;
-  return "Unable to save this application. Please try again.";
 }
 
 export default function ApplicationFormModal({
@@ -53,7 +32,7 @@ export default function ApplicationFormModal({
   const create = useApplicationStore((state) => state.create);
   const update = useApplicationStore((state) => state.update);
   const generate = useApplicationStore((state) => state.generate);
-  const [form, setForm] = useState<FormState>(() => formFromApplication(initialApplication));
+  const [form, setForm] = useState<ApplicationFormState>(() => formFromApplication(initialApplication));
   const [busy, setBusy] = useState(false);
   const [phase, setPhase] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -68,17 +47,15 @@ export default function ApplicationFormModal({
     setPhase("");
   }, [open, initialApplication]);
 
-  const setField = (field: keyof FormState, value: string) => {
+  const setField = (field: keyof ApplicationFormState, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const company = form.company.trim();
-    const role = form.role.trim();
-    const jobDescription = form.job_description.trim();
-    if (!company || !role || !jobDescription) {
-      setError("Company, Role, and Job description are required.");
+    const validationError = validateApplicationForm(form);
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
@@ -86,14 +63,7 @@ export default function ApplicationFormModal({
     setError(null);
     try {
       if (initialApplication) {
-        const changes: ApplicationUpdateData = {
-          company,
-          role,
-          job_description: jobDescription,
-          job_url: form.job_url.trim() || null,
-          notes: form.notes.trim() || null,
-          next_follow_up_at: form.next_follow_up_at || null,
-        };
+        const changes = updateDataFromForm(form);
         const saved = await update(initialApplication.id, changes);
         onSaved?.(saved);
         onClose();
@@ -101,14 +71,7 @@ export default function ApplicationFormModal({
       }
 
       setPhase("Saving application…");
-      const created = await create({
-        company,
-        role,
-        job_description: jobDescription,
-        job_url: form.job_url.trim() || undefined,
-        notes: form.notes.trim() || undefined,
-        ...(form.next_follow_up_at ? { next_follow_up_at: form.next_follow_up_at } : {}),
-      });
+      const created = await create(createDataFromForm(form));
       onSaved?.(created);
       setPhase("Generating tailored CV…");
       try {
@@ -116,11 +79,11 @@ export default function ApplicationFormModal({
         onGenerated?.(result);
         onSaved?.(result.application);
       } catch (generationError) {
-        setError(errorDetail(generationError));
+        setError(applicationSaveError(generationError));
       }
       onClose();
     } catch (saveError) {
-      setError(errorDetail(saveError));
+      setError(applicationSaveError(saveError));
     } finally {
       setBusy(false);
       setPhase("");

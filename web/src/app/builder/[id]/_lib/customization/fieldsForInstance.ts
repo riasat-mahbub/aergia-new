@@ -13,7 +13,7 @@
  * Rich-text fields are flagged so the typography group can hide.
  */
 
-import type { SectionInstance } from "@/lib/cv/types";
+import type { SectionInstance } from "@/lib/cv/schema";
 
 export interface FieldRow {
   /** The canonical key. For indexed fields, the base key ("tag"). */

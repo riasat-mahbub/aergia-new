@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "architecture:check": "node scripts/check-frontend-boundaries.mjs",
+    "architecture:test": "node scripts/check-frontend-boundaries-fixtures.mjs",
     "codegen": "cd ../api && .venv/bin/python scripts/codegen_schema.py",
     "codegen:check": "cd ../api && .venv/bin/python scripts/codegen_schema.py --check"
   },

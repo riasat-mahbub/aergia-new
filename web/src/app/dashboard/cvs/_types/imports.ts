@@ -1,4 +1,4 @@
-import type { SectionInstance } from "@/lib/cv/types";
+import type { SectionInstance } from "@/lib/cv/schema";
 
 export interface ParseConfidence {
   path: (string | number)[];

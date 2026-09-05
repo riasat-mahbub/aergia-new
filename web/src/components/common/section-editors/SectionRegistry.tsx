@@ -1,6 +1,6 @@
 import type { ComponentType, ReactNode } from "react";
 
-import type { SectionType } from "@/lib/cv/types";
+import type { SectionType } from "@/lib/cv/sectionCatalog";
 import ProfileEditor from "./profile/ProfileEditor";
 import ExperienceEditor from "./experience/ExperienceEditor";
 import EducationEditor from "./education/EducationEditor";

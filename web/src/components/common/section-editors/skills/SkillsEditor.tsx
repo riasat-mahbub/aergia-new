@@ -1,4 +1,4 @@
-import type { SkillGroup } from "@/lib/cv/types";
+import type { SkillGroup } from "@/lib/cv/sectionData";
 import { useFieldArray } from "@/lib/forms/useFieldArray";
 import SortableAccordionList from "@/components/common/SortableAccordionList";
 import EntryAddRow from "@/components/common/section-editors/_shared/EntryAddRow";

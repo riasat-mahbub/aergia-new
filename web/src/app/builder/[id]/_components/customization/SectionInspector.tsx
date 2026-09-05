@@ -25,11 +25,11 @@ import type {
   SectionPolicy,
   SubsectionStyle,
   TextStyle,
-} from "@/generated/schema";
+} from "@/lib/cv/schema";
 import { fieldsForInstance } from "../../_lib/customization/fieldsForInstance";
-import { DATE_STYLE_OPTIONS } from "@/components/common/DateField";
+import { DATE_STYLE_OPTIONS } from "@/lib/cv/date";
 import { effectiveStyle } from "../../_lib/customization/cascade";
-import type { SectionInstanceStyle } from "@/lib/cv/types";
+import type { SectionInstanceStyle } from "@/lib/cv/schema";
 import {
   SECTION_SPACING_TOKENS,
   ink,

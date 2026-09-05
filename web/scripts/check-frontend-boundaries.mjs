@@ -3,8 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const srcDir = path.resolve(scriptDir, "../src");
-const appDir = path.join(srcDir, "app");
+const defaultSrcDir = path.resolve(scriptDir, "../src");
 const sourceExtensions = new Set([".js", ".jsx", ".ts", ".tsx"]);
 const privateFolderNames = new Set([
   "_components",
@@ -25,6 +24,18 @@ const legacyRouteFolderNames = new Set([
   "types",
   "providers",
 ]);
+
+// These directories contain behavior that must remain framework- and
+// transport-independent. `lib/browser` is intentionally excluded because it
+// is an explicit DOM adapter rather than a pure utility.
+const pureLibPrefixes = [
+  "lib/cv/",
+  "lib/library/",
+  "lib/llm/",
+  "lib/rich-text/",
+  "lib/security/",
+  "lib/validators/",
+];
 
 function walk(directory) {
   const entries = fs.readdirSync(directory, { withFileTypes: true });
@@ -53,7 +64,7 @@ function walkDirectories(directory) {
   return directories;
 }
 
-function resolveImport(importer, specifier) {
+function resolveImport(importer, specifier, srcDir) {
   let candidate;
   if (specifier.startsWith("@/")) {
     candidate = path.join(srcDir, specifier.slice(2));
@@ -69,12 +80,12 @@ function resolveImport(importer, specifier) {
   return candidates.find((filePath) => fs.existsSync(filePath) && fs.statSync(filePath).isFile()) ?? null;
 }
 
-function relativeSourcePath(filePath) {
+function relativeSourcePath(filePath, srcDir) {
   return path.relative(srcDir, filePath).split(path.sep).join("/");
 }
 
-function privateOwner(filePath) {
-  const relativePath = relativeSourcePath(filePath);
+function privateOwner(filePath, srcDir) {
+  const relativePath = relativeSourcePath(filePath, srcDir);
   const segments = relativePath.split("/");
   if (segments[0] !== "app") return null;
   const privateIndex = segments.findIndex((segment) => privateFolderNames.has(segment));
@@ -95,31 +106,95 @@ function importSpecifiers(source) {
   return specifiers;
 }
 
-const violations = [];
-for (const directory of walkDirectories(appDir)) {
-  if (legacyRouteFolderNames.has(path.basename(directory))) {
-    violations.push(`${relativeSourcePath(directory)} uses a legacy route folder name; use an underscore-prefixed private folder`);
-  }
+function isPureLib(relativePath) {
+  return pureLibPrefixes.some((prefix) => relativePath.startsWith(prefix));
 }
 
-for (const importer of walk(srcDir)) {
-  const importerPath = relativeSourcePath(importer);
-  const source = fs.readFileSync(importer, "utf8");
-  for (const specifier of importSpecifiers(source)) {
-    const target = resolveImport(importer, specifier);
-    if (!target) continue;
-    const owner = privateOwner(target);
-    if (!owner) continue;
-    if (!importerPath.startsWith(`${owner}/`)) {
-      violations.push(`${importerPath} imports ${relativeSourcePath(target)}, which is private to ${owner}`);
+function isPathIn(relativePath, prefix) {
+  return relativePath === prefix || relativePath.startsWith(`${prefix}/`);
+}
+
+function isReactOrStatePackage(specifier) {
+  return ["react", "react-dom", "react-router-dom", "zustand", "axios"].some(
+    (prefix) => specifier === prefix || specifier.startsWith(`${prefix}/`),
+  );
+}
+
+function dependencyViolations(importerPath, targetPath, specifier, source) {
+  const violations = [];
+  const importerIsPure = isPureLib(importerPath);
+
+  if (importerIsPure) {
+    if (isReactOrStatePackage(specifier)) {
+      violations.push(`${importerPath} is pure but imports framework/transport package ${specifier}`);
     }
   }
+  if (!targetPath) return violations;
+
+  const targetIsApp = isPathIn(targetPath, "app");
+  const targetIsComponents = isPathIn(targetPath, "components");
+  const targetIsStore = isPathIn(targetPath, "store");
+  const targetIsServices = isPathIn(targetPath, "services");
+
+  if (importerIsPure) {
+    if (targetIsApp || targetIsComponents || targetIsStore || targetIsServices) {
+      violations.push(`${importerPath} is pure but imports ${targetPath}`);
+    }
+  }
+
+  if (importerPath.startsWith("contracts/") && (targetIsApp || targetIsComponents || targetIsStore || targetIsServices)) {
+    violations.push(`${importerPath} contract imports ${targetPath}`);
+  }
+  if (importerPath.startsWith("services/") && (targetIsApp || targetIsComponents || targetIsStore)) {
+    violations.push(`${importerPath} service imports ${targetPath}`);
+  }
+  if (importerPath.startsWith("store/") && (targetIsApp || targetIsComponents)) {
+    violations.push(`${importerPath} store imports ${targetPath}`);
+  }
+  if (importerPath.startsWith("components/") && targetIsApp) {
+    violations.push(`${importerPath} shared component imports app module ${targetPath}`);
+  }
+
+  return violations;
 }
 
-if (violations.length > 0) {
-  console.error("Frontend boundary check failed:");
-  for (const violation of violations) console.error(`- ${violation}`);
-  process.exit(1);
+export function collectViolations(srcDir = defaultSrcDir) {
+  const appDir = path.join(srcDir, "app");
+  const violations = [];
+
+  for (const directory of walkDirectories(appDir)) {
+    if (legacyRouteFolderNames.has(path.basename(directory))) {
+      violations.push(`${relativeSourcePath(directory, srcDir)} uses a legacy route folder name; use an underscore-prefixed private folder`);
+    }
+  }
+
+  for (const importer of walk(srcDir)) {
+    const importerPath = relativeSourcePath(importer, srcDir);
+    const source = fs.readFileSync(importer, "utf8");
+    if (isPureLib(importerPath) && /\b(?:window|document|navigator)\s*(?:[.[]|\()/u.test(source)) {
+      violations.push(`${importerPath} is pure but reaches browser globals`);
+    }
+    for (const specifier of importSpecifiers(source)) {
+      const target = resolveImport(importer, specifier, srcDir);
+      const targetPath = target ? relativeSourcePath(target, srcDir) : null;
+      violations.push(...dependencyViolations(importerPath, targetPath, specifier, source));
+      if (!target) continue;
+      const owner = privateOwner(target, srcDir);
+      if (owner && !importerPath.startsWith(`${owner}/`)) {
+        violations.push(`${importerPath} imports ${targetPath}, which is private to ${owner}`);
+      }
+    }
+  }
+
+  return violations;
 }
 
-console.log("Frontend boundary check passed: route-private modules stay within their owning app subtree.");
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
+  const violations = collectViolations();
+  if (violations.length > 0) {
+    console.error("Frontend boundary check failed:");
+    for (const violation of violations) console.error(`- ${violation}`);
+    process.exit(1);
+  }
+  console.log("Frontend boundary check passed: route privacy and layer direction are valid.");
+}

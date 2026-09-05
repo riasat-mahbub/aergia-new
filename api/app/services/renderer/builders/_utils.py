@@ -46,7 +46,7 @@ MONTH_NAMES = [
 
 
 # Canonical list of date-format presets. Mirrors the dropdown in
-# ``web/src/components/sections/DateField.tsx``.
+# ``web/src/lib/cv/date.ts``.
 DATE_STYLE_OPTIONS: list[tuple[str, str, str]] = [
     ("YYYY-MM", "YYYY-MM", " \u2013 "),
     ("YYYY/MM", "YYYY/MM", "/"),

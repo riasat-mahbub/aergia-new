@@ -1,3 +1,8 @@
+import type { Customizations, SectionInstance } from "@/lib/cv/schema";
+
+export type CVSections = SectionInstance[];
+export type CVCustomizations = Customizations & Record<string, unknown>;
+
 export interface CVApplicationSummary {
   id: string;
   company: string;
@@ -21,8 +26,8 @@ export interface CVDetail {
   title: string;
   description: string | null;
   template_id: string;
-  customizations: Record<string, unknown>;
-  sections: unknown;
+  customizations: CVCustomizations;
+  sections: CVSections;
   extra_metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
@@ -32,14 +37,14 @@ export interface CVCreateData {
   title: string;
   description?: string;
   template_id?: string;
-  sections?: unknown;
-  customizations?: Record<string, unknown>;
+  sections?: CVSections;
+  customizations?: CVCustomizations;
 }
 
 export interface CVUpdateData {
   title?: string;
   description?: string;
   template_id?: string;
-  sections?: unknown;
-  customizations?: Record<string, unknown>;
+  sections?: CVSections;
+  customizations?: CVCustomizations;
 }

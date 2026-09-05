@@ -3,31 +3,20 @@ import { Save, Trash2, X } from "lucide-react";
 
 import Modal from "@/components/common/Modal";
 import { useToastStore } from "@/store/uiStore";
+import type { LLMKeyMap, LLMProviderKey } from "@/contracts/llm";
 import {
   PROVIDER_AUTOCOMPLETE,
+  PROVIDER_LABELS,
+  PROVIDER_ORDER,
   PROVIDER_PREFIXES,
   detectProviderShape,
-  forgetAllKeys,
-  forgetKey,
-  loadKeys,
-  saveKeys,
-  type LLMKeyMap,
-  type LLMProviderKey,
-} from "@/lib/llm/keys";
+} from "@/lib/llm/providers";
+import { forgetAllKeys, forgetKey, loadKeys, saveKeys } from "@/store/llmKeyStore";
 
 interface Props {
   open: boolean;
   onClose: () => void;
 }
-
-const PROVIDER_LABEL: Record<LLMProviderKey, string> = {
-  openai: "OpenAI",
-  anthropic: "Anthropic",
-  gemini: "Gemini",
-  groq: "Groq",
-};
-
-const PROVIDERS: LLMProviderKey[] = ["openai", "anthropic", "gemini", "groq"];
 
 /**
  * Settings dialog for per-provider LLM API keys.
@@ -72,7 +61,7 @@ function LLMKeyDialogBody({ onClose }: { onClose: () => void }) {
       addToast("API keys cleared from memory.", "info");
     } else {
       const labels = savedProviders
-        .map((p) => PROVIDER_LABEL[p as LLMProviderKey])
+        .map((p) => PROVIDER_LABELS[p as LLMProviderKey])
         .join(", ");
       addToast(`Saved API keys for: ${labels}`, "success");
     }
@@ -112,7 +101,7 @@ function LLMKeyDialogBody({ onClose }: { onClose: () => void }) {
         </p>
 
         <div className="space-y-3">
-          {PROVIDERS.map((provider) => {
+          {PROVIDER_ORDER.map((provider) => {
             const current = values[provider] ?? "";
             const detected = detectProviderShape(current);
             const mismatch =
@@ -123,7 +112,7 @@ function LLMKeyDialogBody({ onClose }: { onClose: () => void }) {
                   htmlFor={`key-${provider}`}
                   className="block text-sm font-medium text-app-ink-2"
                 >
-                  {PROVIDER_LABEL[provider]}
+                  {PROVIDER_LABELS[provider]}
                 </label>
                 <div className="flex items-center gap-2">
                   <input
@@ -148,7 +137,7 @@ function LLMKeyDialogBody({ onClose }: { onClose: () => void }) {
                       type="button"
                       onClick={() => handleForgetOne(provider)}
                       className="flex items-center gap-1 rounded border border-app-rule-strong px-2 py-1 text-xs text-app-ink-2 hover:bg-app-surface-muted"
-                      title={`Forget ${PROVIDER_LABEL[provider]} key`}
+                      title={`Forget ${PROVIDER_LABELS[provider]} key`}
                     >
                       <Trash2 className="h-3 w-3" />
                       Forget
@@ -157,7 +146,7 @@ function LLMKeyDialogBody({ onClose }: { onClose: () => void }) {
                 </div>
                 {mismatch ? (
                   <p className="text-xs text-app-warning">
-                    Looks like a {PROVIDER_LABEL[mismatch]} key. Move it to
+                    Looks like a {PROVIDER_LABELS[mismatch]} key. Move it to
                     that slot?
                   </p>
                 ) : null}

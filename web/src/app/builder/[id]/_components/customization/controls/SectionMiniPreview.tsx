@@ -14,8 +14,8 @@
  */
 
 import { useMemo } from "react";
-import type { SectionInstance } from "@/lib/cv/types";
-import { SECTION_LABELS } from "@/lib/cv/types";
+import type { SectionInstance } from "@/lib/cv/schema";
+import { SECTION_LABELS } from "@/lib/cv/sectionCatalog";
 import { fieldsForInstance } from "../../../_lib/customization/fieldsForInstance";
 import { effectiveStyle } from "../../../_lib/customization/cascade";
 import { ink, radius, ruleDefault } from "@/styles/tokens";

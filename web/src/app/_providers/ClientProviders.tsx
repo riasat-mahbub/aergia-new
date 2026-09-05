@@ -1,7 +1,8 @@
 import { useEffect, type ReactNode } from "react";
 import ToastContainer from "@/components/common/Toast";
-import { setApiErrorHandler } from "@/services/client";
+import { setApiErrorHandler, setUnauthorizedHandler } from "@/services/client";
 import { useToastStore } from "@/store/uiStore";
+import { forgetAllKeys } from "@/store/llmKeyStore";
 
 interface ClientProvidersProps {
   children: ReactNode;
@@ -9,10 +10,23 @@ interface ClientProvidersProps {
 
 export default function ClientProviders({ children }: ClientProvidersProps) {
   useEffect(() => {
-    const dispose = setApiErrorHandler((message) => {
+    const disposeError = setApiErrorHandler((message) => {
       useToastStore.getState().addToast(message, "error");
     });
-    return dispose;
+    const disposeUnauthorized = setUnauthorizedHandler(() => {
+      forgetAllKeys();
+      if (typeof localStorage !== "undefined") {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+      }
+      if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
+    });
+    return () => {
+      disposeError();
+      disposeUnauthorized();
+    };
   }, []);
 
   return (

@@ -1,4 +1,4 @@
-import type { TemplateManifest } from "@/lib/cv/types";
+import type { TemplateManifest } from "@/lib/cv/schema";
 
 export interface UserTemplate {
   id: string;

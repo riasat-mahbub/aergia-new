@@ -19,6 +19,7 @@ function hasMutatingMethod(method: string | undefined): boolean {
 
 let refreshPromise: Promise<void> | null = null;
 let apiErrorHandler: ((message: string) => void) | null = null;
+let unauthorizedHandler: (() => void) | null = null;
 
 /**
  * Register an application-level error reporter without coupling the HTTP
@@ -29,6 +30,14 @@ export function setApiErrorHandler(handler: ((message: string) => void) | null):
   apiErrorHandler = handler;
   return () => {
     if (apiErrorHandler === handler) apiErrorHandler = null;
+  };
+}
+
+/** Register the app-owned response to an unrecoverable authenticated request. */
+export function setUnauthorizedHandler(handler: (() => void) | null): () => void {
+  unauthorizedHandler = handler;
+  return () => {
+    if (unauthorizedHandler === handler) unauthorizedHandler = null;
   };
 }
 
@@ -74,11 +83,7 @@ client.interceptors.response.use(
         await refreshSession();
         return client(originalRequest);
       } catch {
-        if (typeof localStorage !== "undefined") {
-          localStorage.removeItem("access_token");
-          localStorage.removeItem("refresh_token");
-        }
-        if (typeof window !== "undefined") window.location.href = "/login";
+        unauthorizedHandler?.();
       }
     }
 

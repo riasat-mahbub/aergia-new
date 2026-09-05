@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
-import { useCVStore } from "@/store/cvStore";
+import { useCVListStore } from "@/app/dashboard/_stores/cvListStore";
 import CvCard from "./_components/CvCard";
 import CreateCvModal from "./_components/CreateCvModal";
 import DeleteCvModal from "./_components/DeleteCvModal";
@@ -11,7 +11,7 @@ import EmptyState from "@/components/common/EmptyState";
 
 export default function CvListPage() {
   const navigate = useNavigate();
-  const { cvList, isLoading, fetchCVs, deleteCV, copyCV } = useCVStore();
+  const { cvList, isLoading, fetchCVs, deleteCV, copyCV } = useCVListStore();
   const [showCreate, setShowCreate] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
 

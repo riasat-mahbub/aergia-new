@@ -2,13 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import Modal from "@/components/common/Modal";
 import SectionEditorPanel from "@/components/common/section-editors/SectionEditorPanel";
-import {
-  LIBRARY_KINDS,
-  LIBRARY_KIND_LABELS,
-  sectionTypeForLibraryKind,
-} from "@/services/library";
+import { LIBRARY_KINDS, LIBRARY_KIND_LABELS, sectionTypeForLibraryKind } from "@/lib/library/catalog";
 import type { LibraryEntry, LibraryEntryKind } from "@/contracts/library";
-import { createDefaultSectionData } from "@/lib/cv/types";
+import { createDefaultSectionData } from "@/lib/cv/sectionCatalog";
 import { useLibraryStore } from "@/store/libraryStore";
 
 interface LibraryCreateModalProps {

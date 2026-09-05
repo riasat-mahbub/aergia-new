@@ -1,7 +1,7 @@
 """Tests for format_single_date + style= extension of format_date_range.
 
 Mirrors the TypeScript `formatSingleDate` helper in
-web/src/lib/sections/DateField.tsx and the shared `DATE_STYLE_OPTIONS` list.
+web/src/lib/cv/date.ts and the shared `DATE_STYLE_OPTIONS` list.
 """
 import pytest
 

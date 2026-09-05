@@ -1,5 +1,5 @@
 import type { ChangeEvent } from "react";
-import type { ResearchEntry } from "@/lib/cv/types";
+import type { ResearchEntry } from "@/lib/cv/sectionData";
 import { useFieldArray } from "@/lib/forms/useFieldArray";
 import DateField from "@/components/common/DateField";
 import SortableAccordionList from "@/components/common/SortableAccordionList";

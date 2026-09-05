@@ -1,6 +1,6 @@
 import { Plus } from "lucide-react";
 import type { LibraryEntry, LibraryEntryKind } from "@/contracts/library";
-import { LIBRARY_KIND_LABELS } from "@/services/library";
+import { LIBRARY_KIND_LABELS } from "@/lib/library/catalog";
 import LibraryEntryCard from "@/components/library/LibraryEntryCard";
 
 interface LibraryKindGroupProps {
