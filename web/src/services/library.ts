@@ -1,5 +1,5 @@
 import client from "./client";
-import type { SectionType } from "@/lib/sections/types";
+import type { SectionType } from "@/lib/cv/types";
 import type {
   AddEntryToLibraryData,
   AddEntryToLibraryResponse,

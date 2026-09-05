@@ -1,4 +1,4 @@
-import type { SectionType } from "@/lib/sections/types";
+import type { SectionType } from "@/lib/cv/types";
 
 export type LibraryEntryKind =
   | "experience"

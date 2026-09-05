@@ -1,5 +1,5 @@
 import { User, Briefcase, GraduationCap, Wrench, FolderKanban, Globe, Award, BookOpen, Plus } from "lucide-react";
-import { SECTION_LABELS, SECTION_TYPES } from "@/lib/sections/types";
+import { SECTION_LABELS, SECTION_TYPES } from "@/lib/cv/types";
 import Modal from "@/components/common/Modal";
 
 interface Props {

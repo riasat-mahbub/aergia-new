@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { KeyRound, ShieldCheck } from "lucide-react";
-import ProfileCard from "@/components/profile/ProfileCard";
+import SettingsProfileCard from "./components/SettingsProfileCard";
 import LLMKeyDialog from "./components/LLMKeyDialog";
 import { useProfileStore } from "@/store/profileStore";
 
@@ -27,14 +27,10 @@ export default function SettingsPage() {
       <p className="mb-6 text-sm text-app-ink-2">Manage your profile and the tools used to import CVs.</p>
 
       <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-        <ProfileCard
+        <SettingsProfileCard
           profile={profile}
           isLoading={profileLoading}
           onSave={updateProfile}
-          eyebrow="Settings Profile"
-          description="Shared profile details used when building your CVs."
-          testId="settings-profile-card"
-          surfaceClassName="rounded-lg border border-app-rule bg-app-surface p-5 shadow-sm"
         />
 
         <section className="rounded-lg border border-app-rule bg-app-surface p-5 shadow-sm" aria-labelledby="import-settings-heading">

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { SectionInstance, TemplateManifest } from "@/lib/sections/types";
+import type { SectionInstance, TemplateManifest } from "@/lib/cv/types";
 import client from "@/services/client";
 import { applyPreviewPagination } from "./pagePagination";
 import { A4_PAGE_GEOMETRY, PAGE_HEIGHT_PX, PAGE_WIDTH_PX, scaleForAvailableWidth } from "./pageGeometry";
