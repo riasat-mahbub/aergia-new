@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/lib/routerCompat";
 import Modal from "@/components/common/Modal";
 import { useCVListStore } from "@/app/dashboard/_stores/cvListStore";
 import { fetchSystemTemplates } from "@/services/templates";

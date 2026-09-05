@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "@/lib/routerCompat";
 import { Pencil, Trash2 } from "lucide-react";
 import ApplicationFormModal from "../_components/ApplicationFormModal";
 import ApplicationJobPanel from "./_components/ApplicationJobPanel";

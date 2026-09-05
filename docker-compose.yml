@@ -11,6 +11,7 @@ services:
     environment:
       - SECRET_KEY=${SECRET_KEY:?SECRET_KEY must be set}
       - ENVIRONMENT=production
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
       - TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY:?TURNSTILE_SITE_KEY must be set}
       - TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY:?TURNSTILE_SECRET_KEY must be set}
       - TURNSTILE_EXPECTED_HOSTNAME=${TURNSTILE_EXPECTED_HOSTNAME:?TURNSTILE_EXPECTED_HOSTNAME must be set}
@@ -24,6 +25,19 @@ services:
       - |
         alembic upgrade head && \
         exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --forwarded-allow-ips "$FORWARDED_ALLOW_IPS"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      - AERGIA_API_ORIGIN=http://api:8000
+      - AERGIA_FRONTEND_ORIGIN=${FRONTEND_URL:-http://localhost:3000}
+    depends_on:
+      - api
     restart: unless-stopped
 
 volumes:

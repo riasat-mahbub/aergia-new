@@ -22,7 +22,7 @@ while [[ $# -gt 0 ]]; do
       echo "Usage: ./dev.sh [--prod] [--build] [--smoke]"
       echo ""
       echo "  --prod    Run uvicorn without --reload (production-like)"
-      echo "  --build   Build frontend and serve via FastAPI (no Vite dev server)"
+      echo "  --build   Build the TanStack Start server and run it (no Vite dev server)"
       echo "  --smoke   Run backend checks, frontend ESLint/build, and an isolated live-render smoke test"
       exit 0
       ;;
@@ -94,11 +94,7 @@ if [ "$BUILD" = true ]; then
         npm install
     fi
     npm run build
-    echo "Frontend built to web/dist/"
-    STATIC_DIR="$API_DIR/static"
-    mkdir -p "$STATIC_DIR"
-    cp -r dist/* "$STATIC_DIR/"
-    echo "Copied frontend build to $STATIC_DIR"
+    echo "TanStack Start server built to web/.output/"
 fi
 
 # ── 4. Start API server ───────────────────────────────────────────
@@ -124,7 +120,7 @@ UVICORN_OPTS+=(--forwarded-allow-ips "$FORWARDED_ALLOW_IPS")
 uvicorn app.main:app "${UVICORN_OPTS[@]}" &
 API_PID=$!
 
-# ── 5. Start frontend dev server (unless --build or --prod) ───────
+# ── 5. Start the frontend ────────────────────────────────────────
 WEB_PID=""
 if [ "$BUILD" = false ] && [ "$PROD" = false ]; then
     echo "=== Starting Frontend on :5173 ==="
@@ -132,7 +128,22 @@ if [ "$BUILD" = false ] && [ "$PROD" = false ]; then
     if [ ! -d "node_modules" ]; then
         npm install
     fi
-    npm run dev &
+    AERGIA_API_ORIGIN="${AERGIA_API_ORIGIN:-http://127.0.0.1:8000}" \
+    AERGIA_FRONTEND_ORIGIN="${AERGIA_FRONTEND_ORIGIN:-http://127.0.0.1:5173}" \
+      npm run dev -- --host 0.0.0.0 &
+    WEB_PID=$!
+elif [ "$BUILD" = true ] || [ "$PROD" = true ]; then
+    if [ ! -f "$WEB_DIR/.output/server/index.mjs" ]; then
+        echo "ERROR: TanStack Start output is missing; run ./dev.sh --build first" >&2
+        exit 1
+    fi
+    FRONTEND_PORT="${FRONTEND_PORT:-3000}"
+    echo "=== Starting TanStack Start on :$FRONTEND_PORT ==="
+    cd "$WEB_DIR"
+    AERGIA_API_ORIGIN="${AERGIA_API_ORIGIN:-http://127.0.0.1:8000}" \
+    AERGIA_FRONTEND_ORIGIN="${AERGIA_FRONTEND_ORIGIN:-http://127.0.0.1:$FRONTEND_PORT}" \
+    HOST=0.0.0.0 PORT="$FRONTEND_PORT" \
+      node .output/server/index.mjs &
     WEB_PID=$!
 fi
 
@@ -140,7 +151,11 @@ echo ""
 echo "==================================="
 echo "  Aergia CV Builder is running!"
 if [ -n "$WEB_PID" ]; then
-    echo "  Frontend: http://localhost:5173"
+    if [ "$BUILD" = true ] || [ "$PROD" = true ]; then
+      echo "  Frontend: http://localhost:${FRONTEND_PORT:-3000}"
+    else
+      echo "  Frontend: http://localhost:5173"
+    fi
 fi
 echo "  API:      http://localhost:8000"
 echo "  Press Ctrl+C to stop all services"

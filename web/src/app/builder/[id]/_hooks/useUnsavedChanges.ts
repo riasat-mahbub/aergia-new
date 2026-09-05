@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useBlocker } from "react-router-dom";
+import { useBlocker } from "@/lib/routerCompat";
 import type { SectionInstance } from "@/lib/cv/schema";
 
 export interface BuilderSaveData {

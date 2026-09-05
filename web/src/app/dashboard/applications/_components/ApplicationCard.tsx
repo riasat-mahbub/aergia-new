@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 import { ArrowRight, CalendarDays, FileText, RefreshCw, Trash2 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link } from "@/lib/routerCompat";
 import type { Application } from "@/contracts/applications";
 import {
   formatApplicationDate,

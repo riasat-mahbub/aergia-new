@@ -1,12 +1,14 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/lib/routerCompat";
+import { useRouter } from "@tanstack/react-router";
 import { loginSchema, type LoginFormData } from "@/lib/validators/auth";
 import { useAuthStore } from "@/store/authStore";
 import { useState } from "react";
 
 export default function LoginForm() {
   const navigate = useNavigate();
+  const router = useRouter();
   const login = useAuthStore((s) => s.login);
   const isLoading = useAuthStore((s) => s.isLoading);
   const [error, setError] = useState<string | null>(null);
@@ -23,6 +25,10 @@ export default function LoginForm() {
     setError(null);
     try {
       await login(data.email, data.password);
+      // The root loader owns the request-scoped auth snapshot used by the
+      // protected route guard. Revalidate it before navigating so a login
+      // cannot be rejected by the stale anonymous snapshot.
+      await router.invalidate({ sync: true });
       navigate("/dashboard", { replace: true });
     } catch {
       setError("Invalid email or password");

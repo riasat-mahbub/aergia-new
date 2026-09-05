@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "@/lib/routerCompat";
 import { Plus, Archive } from "lucide-react";
 import { LIBRARY_KIND_LABELS, LIBRARY_KINDS } from "@/lib/library/catalog";
 import type { LibraryEntry, LibraryEntryKind } from "@/contracts/library";

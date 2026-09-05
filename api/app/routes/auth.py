@@ -11,9 +11,10 @@ from app.schemas.auth import (
     TokenResponse,
     RefreshRequest,
     SessionResponse,
+    SessionResolveResponse,
 )
 from app.config import get_settings
-from app.core.auth import ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME, verify_refresh_token
+from app.core.auth import ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME, verify_access_token, verify_refresh_token
 from app.services.auth import AuthService
 from app.core.deps import get_optional_current_user
 from app.models.user import User
@@ -22,9 +23,15 @@ from app.services.turnstile import TurnstileRejected, verify_turnstile
 router = APIRouter()
 settings = get_settings()
 
+AUTH_COOKIE_PATH = "/"
+LEGACY_ACCESS_COOKIE_PATH = "/api/v1"
+LEGACY_REFRESH_COOKIE_PATH = "/api/v1/auth"
+
 
 def _set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
     secure = settings.environment == "production"
+    response.delete_cookie(ACCESS_COOKIE_NAME, path=LEGACY_ACCESS_COOKIE_PATH)
+    response.delete_cookie(REFRESH_COOKIE_NAME, path=LEGACY_REFRESH_COOKIE_PATH)
     response.set_cookie(
         ACCESS_COOKIE_NAME,
         access_token,
@@ -32,7 +39,7 @@ def _set_auth_cookies(response: Response, access_token: str, refresh_token: str)
         httponly=True,
         secure=secure,
         samesite="lax",
-        path="/api/v1",
+        path=AUTH_COOKIE_PATH,
     )
     response.set_cookie(
         REFRESH_COOKIE_NAME,
@@ -41,13 +48,18 @@ def _set_auth_cookies(response: Response, access_token: str, refresh_token: str)
         httponly=True,
         secure=secure,
         samesite="lax",
-        path="/api/v1/auth",
+        path=AUTH_COOKIE_PATH,
     )
 
 
 def _clear_auth_cookies(response: Response) -> None:
-    response.delete_cookie(ACCESS_COOKIE_NAME, path="/api/v1")
-    response.delete_cookie(REFRESH_COOKIE_NAME, path="/api/v1/auth")
+    response.delete_cookie(ACCESS_COOKIE_NAME, path=AUTH_COOKIE_PATH)
+    response.delete_cookie(REFRESH_COOKIE_NAME, path=AUTH_COOKIE_PATH)
+    # Remove cookies issued by the pre-Start Vite deployment. Keeping these
+    # cleanup entries for one release lets an already-authenticated browser
+    # migrate without retaining two path-scoped values with the same name.
+    response.delete_cookie(ACCESS_COOKIE_NAME, path=LEGACY_ACCESS_COOKIE_PATH)
+    response.delete_cookie(REFRESH_COOKIE_NAME, path=LEGACY_REFRESH_COOKIE_PATH)
 
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
@@ -119,7 +131,10 @@ async def refresh(
             return TokenResponse(access_token=access_token, refresh_token=refresh_token)
         return AuthMessageResponse(message="Session refreshed")
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired refresh token") from exc
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token",
+        ) from exc
 
 
 @router.post("/logout", status_code=status.HTTP_200_OK)
@@ -150,3 +165,59 @@ async def session(
         authenticated=current_user is not None,
         account_tier=current_user.account_tier if current_user is not None else None,
     )
+
+
+@router.post("/resolve", response_model=SessionResolveResponse)
+@limiter.limit("60/minute")
+async def resolve_session(
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+):
+    """Resolve the browser session once for a server-rendered page request.
+
+    The endpoint intentionally returns a safe session snapshot only. If the
+    short-lived access cookie is expired, it rotates the refresh cookie and
+    returns the newly resolved account in the same response. Raw tokens never
+    cross the Start/server-render boundary.
+    """
+
+    service = AuthService(db)
+    access_token = request.cookies.get(ACCESS_COOKIE_NAME)
+    refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
+    had_auth_cookies = bool(access_token or refresh_token)
+    access_email = verify_access_token(access_token or "") if access_token else None
+    if access_email:
+        current_user = await service.get_user_by_email(access_email)
+        if current_user:
+            return SessionResolveResponse(
+                authenticated=True,
+                account_tier=current_user.account_tier,
+                refreshed=False,
+            )
+
+    if refresh_token:
+        try:
+            new_access_token, new_refresh_token = await service.refresh(refresh_token)
+            _set_auth_cookies(response, new_access_token, new_refresh_token)
+            refreshed_email = verify_access_token(new_access_token)
+            current_user = (
+                await service.get_user_by_email(refreshed_email)
+                if refreshed_email
+                else None
+            )
+            if current_user:
+                return SessionResolveResponse(
+                    authenticated=True,
+                    account_tier=current_user.account_tier,
+                    refreshed=True,
+                )
+        except ValueError:
+            # A stale or concurrently rotated refresh cookie is an anonymous
+            # session from the page renderer's perspective. Clear every known
+            # cookie path so the browser can recover with a fresh login.
+            pass
+
+    if had_auth_cookies:
+        _clear_auth_cookies(response)
+    return SessionResolveResponse(authenticated=False, account_tier=None, refreshed=False)

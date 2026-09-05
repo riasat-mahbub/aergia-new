@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "@/lib/routerCompat";
 import { Check, Copy, Download, ExternalLink, Pencil, RefreshCw, XCircle } from "lucide-react";
 import type { Application } from "@/contracts/applications";
 import type { CVDetail } from "@/contracts/cvs";

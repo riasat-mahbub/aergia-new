@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "@/lib/routerCompat";
 import type { Application, RelevanceAnalysis } from "@/contracts/applications";
 import { RELEVANCE_TOOLTIP } from "../../_lib/applicationPresentation";
 

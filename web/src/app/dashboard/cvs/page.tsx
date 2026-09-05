@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/lib/routerCompat";
 import { motion } from "motion/react";
 import { useCVListStore } from "@/app/dashboard/_stores/cvListStore";
 import CvCard from "./_components/CvCard";

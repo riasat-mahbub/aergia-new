@@ -90,21 +90,23 @@ safe place or contact the instance operator if you need help.
 If you are using an existing Aergia instance, you can skip this section. To
 run your own production instance, see [`DEPLOY.md`](DEPLOY.md).
 
-The production container:
+The production services:
 
 - runs database migrations automatically before starting the app;
 - includes the pinned GLiNER2.5-small model and lazy-loads one process-local
   copy for requirement extraction;
 - serializes model inference; 2+ vCPUs and 8GB RAM are the preferred target
   (`DEPLOY.md` documents the constrained lower bound);
-- stores the SQLite database and uploaded images in Docker volumes; and
-- binds its local port to `127.0.0.1:8000` so a host-based Cloudflare Tunnel
-  can be used without exposing the app directly to the Internet.
+- stores the SQLite database and uploaded images in Docker volumes;
+- runs the public TanStack Start server on `127.0.0.1:3000` while keeping
+  FastAPI on `127.0.0.1:8000` for internal API calls and health checks; and
+- binds both local ports so a host-based Cloudflare Tunnel can be used without
+  exposing either service directly to the Internet.
 
 For the documented Cloudflare setup, the tunnel target is:
 
 ```bash
-cloudflared tunnel --url http://localhost:8000
+cloudflared tunnel --url http://localhost:3000
 ```
 
 Set a real `SECRET_KEY` in `.env` before starting the container. The app is

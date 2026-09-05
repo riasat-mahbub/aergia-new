@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate, useLocation } from "@/lib/routerCompat";
 import { useAuthStore } from "@/store/authStore";
 
 interface AuthBoundaryProps {

@@ -7,6 +7,7 @@ venv/
 node_modules/
 node_modules_bak/
 dist/
+web/.output/
 build/
 *.db
 *.sqlite3

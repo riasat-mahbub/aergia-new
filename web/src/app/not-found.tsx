@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "@/lib/routerCompat";
 import { motion } from "motion/react";
 
 export default function NotFoundPage() {
