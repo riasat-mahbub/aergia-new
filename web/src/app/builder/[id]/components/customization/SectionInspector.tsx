@@ -26,10 +26,10 @@ import type {
   SubsectionStyle,
   TextStyle,
 } from "@/generated/schema";
-import { fieldsForInstance } from "@/lib/sections/fieldsForInstance";
-import { DATE_STYLE_OPTIONS } from "@/lib/sections/DateField";
-import { effectiveStyle } from "@/lib/sections/cascade";
-import type { SectionInstanceStyle } from "@/lib/sections/types";
+import { fieldsForInstance } from "@/lib/customization/fieldsForInstance";
+import { DATE_STYLE_OPTIONS } from "@/components/common/DateField";
+import { effectiveStyle } from "@/lib/customization/cascade";
+import type { SectionInstanceStyle } from "@/lib/cv/types";
 import {
   SECTION_SPACING_TOKENS,
   ink,

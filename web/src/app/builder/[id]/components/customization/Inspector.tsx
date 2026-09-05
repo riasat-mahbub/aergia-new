@@ -21,8 +21,8 @@
  */
 
 import { useEffect, useState } from "react";
-import type { SectionInstance, SectionInstanceStyle } from "@/lib/sections/types";
-import { SECTION_LABELS } from "@/lib/sections/types";
+import type { SectionInstance, SectionInstanceStyle } from "@/lib/cv/types";
+import { SECTION_LABELS } from "@/lib/cv/types";
 import { FONT_TOKEN_LABELS, FONT_TOKENS } from "@/styles/tokens";
 import type { FontToken } from "@/styles/tokens";
 import { ink, ruleDefault, accent } from "@/styles/tokens";

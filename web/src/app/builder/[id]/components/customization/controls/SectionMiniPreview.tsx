@@ -14,10 +14,10 @@
  */
 
 import { useMemo } from "react";
-import type { SectionInstance } from "@/lib/sections/types";
-import { SECTION_LABELS } from "@/lib/sections/types";
-import { fieldsForInstance } from "@/lib/sections/fieldsForInstance";
-import { effectiveStyle } from "@/lib/sections/cascade";
+import type { SectionInstance } from "@/lib/cv/types";
+import { SECTION_LABELS } from "@/lib/cv/types";
+import { fieldsForInstance } from "@/lib/customization/fieldsForInstance";
+import { effectiveStyle } from "@/lib/customization/cascade";
 import { ink, radius, ruleDefault } from "@/styles/tokens";
 
 interface Props {

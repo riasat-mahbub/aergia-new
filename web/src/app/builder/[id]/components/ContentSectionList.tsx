@@ -26,9 +26,13 @@ import {
   Plus,
 } from "lucide-react";
 
-import type { SectionInstance } from "@/lib/sections/types";
-import { SECTION_LABELS } from "@/lib/sections/types";
-import SectionEditorPanel from "@/components/sections/SectionEditorPanel";
+import type { SectionInstance } from "@/lib/cv/types";
+import { SECTION_LABELS } from "@/lib/cv/types";
+import { isLibraryKind } from "@/services/library";
+import AddFromLibraryButton from "@/components/library/AddFromLibraryButton";
+import AddToLibraryButton from "@/components/library/AddToLibraryButton";
+import SectionEditorPanel from "@/components/common/section-editors/SectionEditorPanel";
+import type { SectionEditorActions } from "@/components/common/section-editors/types";
 import AddSectionModal from "./AddSectionModal";
 import Modal from "@/components/common/Modal";
 
@@ -82,6 +86,26 @@ function SortableRow({
     if (next) onRenameInstance(instance.id, next);
     setEditingTitle(null);
   };
+
+  const editorActions: SectionEditorActions | undefined = cvId
+    ? {
+        renderEntryAction: ({ kind, entryId, entry, entryLabel }) => {
+          if (!isLibraryKind(kind)) return null;
+          return (
+            <AddToLibraryButton
+              cvId={cvId}
+              sectionId={instance.id}
+              entryId={entryId}
+              kind={kind}
+              entryData={entry}
+              entryLabel={entryLabel}
+            />
+          );
+        },
+        renderAddAction: ({ kind, onPick }) =>
+          isLibraryKind(kind) ? <AddFromLibraryButton kind={kind} onPick={onPick} /> : null,
+      }
+    : undefined;
 
   return (
     <div
@@ -207,7 +231,11 @@ function SortableRow({
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-              <SectionEditorPanel instance={instance} onChange={onUpdateData} cvId={cvId} />
+              <SectionEditorPanel
+                instance={instance}
+                onChange={onUpdateData}
+                actions={editorActions}
+              />
           </motion.div>
         )}
       </AnimatePresence>

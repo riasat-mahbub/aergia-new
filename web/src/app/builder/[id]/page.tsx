@@ -10,8 +10,8 @@ import { useCVStore } from "@/store/cvStore";
 import { useSupportStore } from "@/store/supportStore";
 import UserTemplateRenderer from "./components/preview/UserTemplateRenderer";
 import Inspector from "./components/customization/Inspector";
-import type { SectionInstance, SectionInstanceStyle, LayoutConfig } from "@/lib/sections/types";
-import { createDefaultInstance, getFirstZoneId, migratePlacement } from "@/lib/sections/types";
+import type { SectionInstance, SectionInstanceStyle, LayoutConfig } from "@/lib/cv/types";
+import { createDefaultInstance, getFirstZoneId, migratePlacement } from "@/lib/cv/types";
 import { updateCV } from "@/services/cvs";
 import * as templatesApi from "@/services/templates";
 import { getApplication, recomputeApplicationRelevance } from "@/services/applications";
@@ -242,7 +242,7 @@ export default function BuilderPage() {
   );
 
   const handleUpdateData = useCallback(
-    (sectionId: string, data: any) => {
+    (sectionId: string, data: unknown) => {
       hasChangesRef.current = true;
       setHasUnsavedChanges(true);
       // Empty list after last entry is removed → drop the section entirely.
@@ -250,7 +250,9 @@ export default function BuilderPage() {
         setLocalInstances((prev) => prev.filter((i) => i.id !== sectionId));
         return;
       }
-      setLocalInstances((prev) => prev.map((i) => (i.id === sectionId ? { ...i, data } : i)));
+      setLocalInstances((prev) =>
+        prev.map((i) => (i.id === sectionId ? { ...i, data: data as SectionInstance["data"] } : i)),
+      );
     },
     []
   );
