@@ -45,7 +45,7 @@ api/
     services/         # auth, cv, pdf, photo — validation lives here
     services/renderer/  # builders/, resolve.py, html.py, base.py, support.py, palette.py, tokens.py, policy.py, _pdf_runtime.py
   alembic/            # env.py (DATABASE_URL override) + versions/
-  scripts/            # codegen_schema.py, smoke_live.py
+  scripts/            # codegen_schema.py
   tests/
 web/
   src/
@@ -57,6 +57,7 @@ web/
     lib/llm/          # pure provider metadata/detection; credentials live in store/llmKeyStore.ts
     lib/browser/      # explicit DOM adapters such as downloadBlob
     lib/rich-text/    # bidirectional wire/Lexical codec
+    middleware/security/ # TanStack Start request security, nonce CSP, and headers
     store/            # global Zustand stores only; route-owned stores stay under their app subtree
     generated/schema.ts  # codegen output — never hand-edit
 scripts/              # smoke.sh (hardening gate)
@@ -151,12 +152,15 @@ npm run codegen:check             # drift guard (must stay green)
 
 Two independent stacks; no coverage gate on either side (pytest-cov installed but unconfigured; no coverage script in `web/package.json`).
 
-### Backend — pytest (`api/tests/`)
+### Backend — legacy pytest checks (`api/tests/`)
 
-- `httpx.AsyncClient` over `ASGITransport` (NOT FastAPI `TestClient`); `pytest-asyncio` mode `auto` (`api/pyproject.toml:42`) — no `@pytest.mark.asyncio` decorators needed (redundant ones persist in places; don't add more).
-- `api/tests/conftest.py` (session scope) forces `aergia.test.db`, applies `alembic upgrade head`, and seeds templates before each session. The test DB is not cleaned between runs.
-- ~180 test functions across 20 files: auth full flow, resolver (with `FakeRenderer` protocol double), codegen drift guard, customize-panel wiring.
-- Gotcha: the `auth_headers` fixture is duplicated per integration file.
+- Keep a legacy test only when it passes unchanged and still exercises current
+  behavior. A test that requires rewriting belongs in the deferred test-suite
+  rebuild; a test that exposes a genuine application regression remains valid.
+- Retained API tests use `httpx.AsyncClient` over `ASGITransport` (not
+  FastAPI `TestClient`).
+- Fresh fixtures, browser flows, and migration-specific coverage are deferred
+  to the replacement test suite.
 
 ### Frontend checks (`web/`)
 
@@ -166,13 +170,16 @@ Two independent stacks; no coverage gate on either side (pytest-cov installed bu
 - `npm run architecture:test` exercises prohibited dependency edges with
   temporary fixtures; `npm run architecture:check` validates the real tree.
 
-### Smoke gate — `./dev.sh --smoke`
+### Migration smoke gate — `./dev.sh --smoke`
 
-Runs pytest + Ruff + frontend ESLint + production build, then an isolated
-live-render smoke (`api/scripts/smoke_live.py`: register/login, assert the 3
-seed templates, preview HTML + PDF + SPA checks) against `generic-modern`,
-`generic-classic`, `generic-minimal` on a fresh temp SQLite
-(`AERGIA_SMOKE_PORT=8765`).
+Runs Ruff + frontend ESLint + production build, then an isolated live
+TanStack Start/FastAPI smoke against a temporary SQLite database. It checks
+Start SSR, nonce-based CSP/security headers, the same-origin API gateway,
+root-scoped auth cookies, login, refresh rotation, and logout. It intentionally
+does not claim comprehensive behavioral test coverage; that suite is deferred.
+The Alembic bootstrap is bounded by `AERGIA_SMOKE_MIGRATION_TIMEOUT_SECONDS`
+(default 30 seconds) so runtime/database compatibility failures are reported
+instead of hanging the gate.
 
 ## Project tracker
 
