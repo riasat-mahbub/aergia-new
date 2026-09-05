@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { Link } from "react-router-dom";
+import { Link } from "@/lib/routerCompat";
 import type { CVListItem } from "@/contracts/cvs";
 
 const TEMPLATE_STYLES: Record<string, { strip: string; chip: string }> = {

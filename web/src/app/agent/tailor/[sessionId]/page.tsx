@@ -1,4 +1,4 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams } from "@/lib/routerCompat";
 
 /**
  * Public landing page for the link embedded in the copied agent prompt.

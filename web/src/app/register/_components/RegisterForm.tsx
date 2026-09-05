@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/lib/routerCompat";
 import { registerSchema, type RegisterFormData } from "@/lib/validators/auth";
 import { useAuthStore } from "@/store/authStore";
 import { getRegistrationConfig } from "@/services/auth";

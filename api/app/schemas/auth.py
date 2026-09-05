@@ -58,6 +58,12 @@ class SessionResponse(BaseModel):
     account_tier: AccountTier | None = None
 
 
+class SessionResolveResponse(SessionResponse):
+    """Session state returned by the server-side auth bootstrap endpoint."""
+
+    refreshed: bool = False
+
+
 class RefreshRequest(BaseModel):
     refresh_token: str
 
@@ -70,5 +76,6 @@ __all__ = [
     "RefreshRequest",
     "RegisterRequest",
     "SessionResponse",
+    "SessionResolveResponse",
     "TokenResponse",
 ]

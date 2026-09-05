@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/lib/routerCompat";
 import { Plus } from "lucide-react";
 import ApplicationCard from "./_components/ApplicationCard";
 import ApplicationFormModal from "./_components/ApplicationFormModal";

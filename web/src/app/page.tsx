@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/lib/routerCompat";
 import { useAuthStore } from "@/store/authStore";
 import { FileText, Palette, Download, GripVertical, Eye, Shield } from "lucide-react";
 

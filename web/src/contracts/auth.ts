@@ -5,6 +5,10 @@ export interface SessionResponse {
   account_tier: AccountTier | null;
 }
 
+export interface SessionResolveResponse extends SessionResponse {
+  refreshed: boolean;
+}
+
 export interface LoginRequest {
   email: string;
   password: string;

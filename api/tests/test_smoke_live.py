@@ -46,8 +46,8 @@ def _register_login_ready_handler(
             200,
             json={"message": "Logged in"},
             headers=[
-                ("set-cookie", "aergia_access_token=token; Path=/api/v1; HttpOnly"),
-                ("set-cookie", "aergia_refresh_token=refresh; Path=/api/v1/auth; HttpOnly"),
+                ("set-cookie", "aergia_access_token=token; Path=/; HttpOnly"),
+                ("set-cookie", "aergia_refresh_token=refresh; Path=/; HttpOnly"),
                 ("set-cookie", "aergia_csrf=csrf-token; Path=/"),
             ],
         )

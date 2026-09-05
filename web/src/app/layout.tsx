@@ -1,4 +1,4 @@
-import { Outlet } from "react-router-dom";
+import { Outlet } from "@/lib/routerCompat";
 import ErrorBoundary from "./error";
 import ClientProviders from "./_providers/ClientProviders";
 

@@ -2,7 +2,7 @@
 # Phase 8 hardening smoke runner.
 # Exercises the HTML-first three-axis architecture end to end without
 # touching user data. Runs against a fresh temporary SQLite database and
-# the just-built frontend assets, then removes its working directory. Frontend
+# the just-built TanStack Start server, then removes its working directory. Frontend
 # unit tests are intentionally omitted until the separate test reset.
 # Lives at <repo>/scripts/smoke.sh; the dispatcher is `dev.sh --smoke`.
 
@@ -40,23 +40,30 @@ for tool in "$WEB_DIR/node_modules/.bin/eslint" \
 done
 
 SMOKE_PORT="${AERGIA_SMOKE_PORT:-8765}"
+WEB_PORT="${AERGIA_SMOKE_WEB_PORT:-$((SMOKE_PORT + 1))}"
 TMP_DIR="$(mktemp -d -t aergia-smoke.XXXXXX)"
-SERVER_LOG="$TMP_DIR/server.log"
-SERVER_PID=""
+API_SERVER_LOG="$TMP_DIR/api-server.log"
+WEB_SERVER_LOG="$TMP_DIR/web-server.log"
+API_SERVER_PID=""
+WEB_SERVER_PID=""
 PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}"
 
-if ss -tln 2>/dev/null | grep -qE "[:.]${SMOKE_PORT}[[:space:]]"; then
-  echo "ERROR: smoke port ${SMOKE_PORT} is already in use; set AERGIA_SMOKE_PORT to a free port" >&2
-  exit 2
-fi
+for port in "$SMOKE_PORT" "$WEB_PORT"; do
+  if ss -tln 2>/dev/null | grep -qE "[:.]${port}[[:space:]]"; then
+    echo "ERROR: smoke port ${port} is already in use; choose free AERGIA_SMOKE_PORT/AERGIA_SMOKE_WEB_PORT values" >&2
+    exit 2
+  fi
+done
 
 cleanup() {
   local exit_code=$?
-  if [[ -n "$SERVER_PID" ]] && kill -0 "$SERVER_PID" 2>/dev/null; then
-    kill "$SERVER_PID" 2>/dev/null || true
-    pkill -P "$SERVER_PID" 2>/dev/null || true
-    wait "$SERVER_PID" 2>/dev/null || true
-  fi
+  for pid in "$WEB_SERVER_PID" "$API_SERVER_PID"; do
+    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+      pkill -P "$pid" 2>/dev/null || true
+      wait "$pid" 2>/dev/null || true
+    fi
+  done
   sleep 0.3
   rm -rf "$TMP_DIR"
   exit "$exit_code"
@@ -84,45 +91,91 @@ echo "=== Smoke: frontend eslint (react-hooks) ==="
 echo "=== Smoke: frontend build ==="
 (cd "$WEB_DIR" && npm run build)
 
-# ── Stage 5: live render smoke ───────────────────────────────────────
-echo "=== Smoke: live render ==="
-SERVER_DIR="$TMP_DIR/api"
-mkdir -p "$SERVER_DIR/static"
-cp -r "$WEB_DIR/dist/." "$SERVER_DIR/static/"
+# ── Stage 5: live Start/API smoke ────────────────────────────────────
+echo "=== Smoke: live TanStack Start + FastAPI gateway ==="
 
 (cd "$API_DIR" && "$VENV/bin/alembic" upgrade head)
 
-(cd "$SERVER_DIR" \
-  && PYTHONPATH="$API_DIR" \
+(cd "$API_DIR" \
+  && FRONTEND_URL="http://127.0.0.1:${WEB_PORT}" \
+     PYTHONPATH="$API_DIR" \
      exec "$VENV/bin/uvicorn" app.main:app \
        --host 127.0.0.1 --port "$SMOKE_PORT" \
-       > "$SERVER_LOG" 2>&1) &
-SERVER_PID=$!
+       > "$API_SERVER_LOG" 2>&1) &
+API_SERVER_PID=$!
 
-# Wait for /readyz.
-ready=0
+# Wait for FastAPI /readyz.
+api_ready=0
 for _ in $(seq 1 120); do
-  if ! kill -0 "$SERVER_PID" 2>/dev/null; then
-    echo "ERROR: smoke server exited before readiness" >&2
-    cat "$SERVER_LOG" >&2
+  if ! kill -0 "$API_SERVER_PID" 2>/dev/null; then
+    echo "ERROR: FastAPI smoke server exited before readiness" >&2
+    cat "$API_SERVER_LOG" >&2
     exit 1
   fi
   body="$(curl -fsS "http://127.0.0.1:${SMOKE_PORT}/readyz" 2>/dev/null || true)"
   if [[ -n "$body" ]] && [[ "$body" == *'"status":"ok"'* ]]; then
-    ready=1
+    api_ready=1
     break
   fi
   sleep 0.25
 done
 
-if [[ "$ready" -ne 1 ]]; then
-  echo "ERROR: smoke server did not become ready within 30s" >&2
-  cat "$SERVER_LOG" >&2
+if [[ "$api_ready" -ne 1 ]]; then
+  echo "ERROR: FastAPI smoke server did not become ready within 30s" >&2
+  cat "$API_SERVER_LOG" >&2
   exit 1
 fi
 
-# Live checks: register, login, exercise each seed template.
-(cd "$API_DIR" && "$VENV/bin/python" "$API_DIR/scripts/smoke_live.py" \
-  --base-url "http://127.0.0.1:${SMOKE_PORT}")
+# Start is the public origin; FastAPI remains the private upstream.
+(cd "$WEB_DIR" \
+  && AERGIA_API_ORIGIN="http://127.0.0.1:${SMOKE_PORT}" \
+     AERGIA_FRONTEND_ORIGIN="http://127.0.0.1:${WEB_PORT}" \
+     HOST=127.0.0.1 PORT="$WEB_PORT" \
+     exec node .output/server/index.mjs \
+       > "$WEB_SERVER_LOG" 2>&1) &
+WEB_SERVER_PID=$!
 
-echo "SMOKE OK: modern/classic/minimal preview + PDF + built SPA"
+web_ready=0
+for _ in $(seq 1 120); do
+  if ! kill -0 "$WEB_SERVER_PID" 2>/dev/null; then
+    echo "ERROR: TanStack Start smoke server exited before readiness" >&2
+    cat "$WEB_SERVER_LOG" >&2
+    exit 1
+  fi
+  if curl -fsS "http://127.0.0.1:${WEB_PORT}/" 2>/dev/null | grep -q "Aergia"; then
+    web_ready=1
+    break
+  fi
+  sleep 0.25
+done
+
+if [[ "$web_ready" -ne 1 ]]; then
+  echo "ERROR: TanStack Start smoke server did not become ready within 30s" >&2
+  cat "$WEB_SERVER_LOG" >&2
+  exit 1
+fi
+
+WEB_URL="http://127.0.0.1:${WEB_PORT}"
+curl -fsS "$WEB_URL/login" | grep -q "Sign in"
+dashboard_headers="$TMP_DIR/dashboard.headers"
+curl -fsS -D "$dashboard_headers" -o /dev/null "$WEB_URL/dashboard"
+grep -q '^location: /login' "$dashboard_headers"
+curl -fsS "$WEB_URL/api/v1/auth/registration-config" | grep -q 'turnstile_required'
+
+cookie_jar="$TMP_DIR/cookies.txt"
+smoke_email="smoke-${BASHPID}@example.com"
+curl -fsS -c "$cookie_jar" -b "$cookie_jar" \
+  -H 'Content-Type: application/json' \
+  -X POST "$WEB_URL/api/v1/auth/register" \
+  --data "{\"email\":\"${smoke_email}\",\"password\":\"testpass123\"}" \
+  >/dev/null
+login_headers="$TMP_DIR/login.headers"
+curl -fsS -D "$login_headers" -o /dev/null -c "$cookie_jar" -b "$cookie_jar" \
+  -H 'Content-Type: application/json' \
+  -X POST "$WEB_URL/api/v1/auth/login" \
+  --data "{\"email\":\"${smoke_email}\",\"password\":\"testpass123\"}"
+grep -q 'aergia_access_token=.*Path=/' "$login_headers"
+grep -q 'aergia_refresh_token=.*Path=/' "$login_headers"
+curl -fsS -b "$cookie_jar" "$WEB_URL/dashboard" | grep -q 'authenticated:!0'
+
+echo "SMOKE OK: TanStack Start SSR + FastAPI gateway + root-scoped auth cookies"

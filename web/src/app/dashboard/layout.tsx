@@ -1,6 +1,6 @@
-import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "@/lib/routerCompat";
+import { useRouter } from "@tanstack/react-router";
 import { BriefcaseBusiness, FileText, LayoutDashboard, Library, LogOut, Settings } from "lucide-react";
-import AuthBoundary from "@/app/_providers/AuthBoundary";
 import { useAuthStore } from "@/store/authStore";
 
 const navItems = [
@@ -13,18 +13,19 @@ const navItems = [
 
 export default function DashboardLayout() {
   const navigate = useNavigate();
+  const router = useRouter();
   const location = useLocation();
   const logout = useAuthStore((state) => state.logout);
   const isBuilder = location.pathname.includes("/builder/");
 
   const handleLogout = async () => {
     await logout();
+    await router.invalidate({ sync: true });
     navigate("/login");
   };
 
   return (
-    <AuthBoundary>
-      <div className="min-h-screen bg-app-canvas">
+    <div className="min-h-screen bg-app-canvas">
         <nav className="flex min-h-14 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b bg-app-surface px-4 py-2 shadow-sm sm:px-6 sm:py-0">
           <div className="flex min-w-0 flex-1 items-center gap-4">
             {isBuilder ? (
@@ -73,7 +74,6 @@ export default function DashboardLayout() {
         <main>
           <Outlet />
         </main>
-      </div>
-    </AuthBoundary>
+    </div>
   );
 }

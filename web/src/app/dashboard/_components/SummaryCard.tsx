@@ -1,5 +1,5 @@
 import { ArrowRight, type LucideIcon } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link } from "@/lib/routerCompat";
 
 interface SummaryCardProps {
   to: string;

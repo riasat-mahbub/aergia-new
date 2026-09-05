@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "@/lib/routerCompat";
 import { FileUp, Loader2 } from "lucide-react";
 
 import ImportCvModal from "./ImportCvModal";

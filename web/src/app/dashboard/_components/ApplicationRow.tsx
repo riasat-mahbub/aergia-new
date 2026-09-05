@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "@/lib/routerCompat";
 import type { Application } from "@/contracts/applications";
 import { STATUS_CLASSES, STATUS_LABELS } from "../_constants/applicationStatus";
 

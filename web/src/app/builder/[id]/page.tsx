@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "@/lib/routerCompat";
 import { motion } from "motion/react";
 
 import BuilderHeader from "./_components/BuilderHeader";

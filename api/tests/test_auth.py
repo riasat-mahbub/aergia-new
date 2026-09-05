@@ -52,6 +52,43 @@ async def test_auth_full_flow(client):
 
 
 @pytest.mark.asyncio
+async def test_login_uses_root_scoped_cookies_and_resolve_bootstraps_session(client):
+    email = f"resolve-{uuid4().hex}@example.com"
+    password = "testpass123"
+    await client.post("/api/v1/auth/register", json={"email": email, "password": password})
+
+    login_resp = await client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    assert login_resp.status_code == 200
+    set_cookies = login_resp.headers.get_list("set-cookie")
+    assert any("aergia_access_token=" in value and "Path=/;" in value for value in set_cookies)
+    assert any("aergia_refresh_token=" in value and "Path=/;" in value for value in set_cookies)
+
+    resolved = await client.post("/api/v1/auth/resolve")
+    assert resolved.status_code == 200
+    assert resolved.json() == {"authenticated": True, "account_tier": "free", "refreshed": False}
+    assert "access_token" not in resolved.json()
+    assert "refresh_token" not in resolved.json()
+
+
+@pytest.mark.asyncio
+async def test_resolve_rotates_refresh_when_access_cookie_expires(client):
+    email = f"resolve-refresh-{uuid4().hex}@example.com"
+    password = "testpass123"
+    await client.post("/api/v1/auth/register", json={"email": email, "password": password})
+    login_resp = await client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    assert login_resp.status_code == 200
+
+    client.cookies.delete("aergia_access_token")
+    resolved = await client.post("/api/v1/auth/resolve")
+    assert resolved.status_code == 200
+    assert resolved.json() == {"authenticated": True, "account_tier": "free", "refreshed": True}
+    assert any(
+        "aergia_access_token=" in value and "Path=/;" in value
+        for value in resolved.headers.get_list("set-cookie")
+    )
+
+
+@pytest.mark.asyncio
 async def test_logout_is_idempotent_without_access_token(client):
     email = f"logout-refresh-only-{uuid4().hex}@example.com"
     password = "testpass123"

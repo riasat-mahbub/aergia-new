@@ -1,5 +1,5 @@
 import { Component, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "@/lib/routerCompat";
 
 interface Props {
   children: ReactNode;

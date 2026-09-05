@@ -1,13 +1,5 @@
-# Stage 1 — Build frontend
-FROM node:20-alpine AS frontend-build
-
-WORKDIR /build
-COPY web/package.json web/package-lock.json ./
-RUN npm ci
-COPY web/ .
-RUN npm run build
-
-# Stage 2 — Production image
+# The public UI is built and served by web/Dockerfile. This image is the
+# private FastAPI upstream used by the TanStack Start gateway.
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -40,9 +32,6 @@ RUN python -c 'import os; from gliner2 import AutoExtractor; AutoExtractor.from_
 
 # Create data directory for SQLite
 RUN mkdir -p /app/data
-
-# Copy built frontend from Stage 1
-COPY --from=frontend-build /build/dist /app/static
 
 EXPOSE 8000
 

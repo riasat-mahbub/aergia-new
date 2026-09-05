@@ -26,9 +26,9 @@ cp .env.example .env
 # Do not leave SECRET_KEY empty or use the example placeholder.
 # Set the Turnstile site/secret keys and the public hostname as well.
 
-# 4. Start the service
+# 4. Start the API and TanStack Start web service
 docker compose up -d
-# The container runs `alembic upgrade head` before starting Uvicorn.
+# The API container runs `alembic upgrade head` before starting Uvicorn.
 
 # 5. Verify it's running
 curl http://localhost:8000/healthz
@@ -36,7 +36,8 @@ curl http://localhost:8000/healthz
 
 # 6. Open in browser
 # https://your-domain.com
-# Port 8000 is loopback-only; access the app through the HTTPS tunnel.
+# The public web service is on loopback port 3000; the API remains on
+# loopback port 8000 for health checks and internal server-to-server calls.
 ```
 
 ## Environment Variables
@@ -45,6 +46,7 @@ curl http://localhost:8000/healthz
 |---|---|---|---|
 | `SECRET_KEY` | **Yes** | — | JWT signing key (generate with `secrets.token_urlsafe(32)`) |
 | `ENVIRONMENT` | Fixed by Compose | `production` | Enables production security settings |
+| `FRONTEND_URL` | No | `http://localhost:3000` | Public origin used for CSRF/CORS and generated links |
 | `TURNSTILE_SITE_KEY` | **Yes** | — | Public site key for the registration widget |
 | `TURNSTILE_SECRET_KEY` | **Yes** | — | Server-only Turnstile verification secret |
 | `TURNSTILE_EXPECTED_HOSTNAME` | **Yes** | — | Public hostname returned by Turnstile |
@@ -126,12 +128,12 @@ local health check; use the HTTPS domain for the application.
 
 1. Point your domain to Cloudflare
 2. Install `cloudflared` on the VPS
-3. Run: `cloudflared tunnel --url http://localhost:8000`
+3. Run: `cloudflared tunnel --url http://localhost:3000`
 
 Cloudflare's free tier includes DDoS mitigation, rate limiting, WAF, and automatic HTTPS.
 
-The Compose file exposes the API only on loopback. With a tunnel or reverse
-proxy, set `TRUSTED_PROXY_IPS` to the actual immediate peer seen by the API
+The Compose file exposes the web service and API only on loopback. With a tunnel
+or reverse proxy, set `TRUSTED_PROXY_IPS` to the actual immediate peer seen by the API
 and set `FORWARDED_ALLOW_IPS` to the same explicitly known peer set when
 forwarded scheme/host handling is required. Leave both empty when there is no
 proxy. Never use `*` and never trust an arbitrary client-supplied
@@ -151,14 +153,14 @@ Add to `docker-compose.yml` as a sidecar service:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
     depends_on:
-      - api
+      - web
 ```
 
 Create `Caddyfile`:
 
 ```
 your-domain.com {
-    reverse_proxy api:8000
+    reverse_proxy web:3000
 }
 ```
 
