@@ -1,7 +1,7 @@
 # Self-documenting repository structure implementation plan
 
 **Date:** 2026-09-05  
-**Status:** Planned  
+**Status:** Implemented
 **Tracker:** `TASK-01M1ST82B1EYQ1D1861A9RDEV2`  
 **Baseline:** `master` at `d0f78fe` with a clean worktree  
 **Supersedes:** The `web/src/app` ownership direction in
@@ -1322,3 +1322,16 @@ The work is complete only when all statements are true:
 - Root and subsystem README and AGENTS files have distinct roles.
 - All automated and manual checks in Phase 10 pass.
 - The tracker is rebuilt, valid, and updated.
+
+## 10. Implementation result
+
+The repository structure, guidance files, tailoring package, backend package
+names, OpenAPI exposure, and frontend boundary checks are implemented. The
+frontend architecture checks, typecheck, lint, production build, codegen drift
+check, Ruff, tailoring contract tests, and direct OpenAPI checks pass.
+
+The full smoke command reaches the isolated migration step but exceeds its
+30-second timeout in this environment. Focused pytest commands show the same
+runtime hang before producing test output; no application assertion failure
+was reported. Re-run the smoke and pytest checks in a compatible async SQLite
+runtime before release.
