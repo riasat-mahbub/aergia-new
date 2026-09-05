@@ -7,11 +7,11 @@ import {
 } from "@/services/library";
 import type { LibraryEntry, LibraryEntryKind } from "@/contracts/library";
 import { useLibraryStore, selectByKind, countByKind } from "@/store/libraryStore";
-import { useProfileStore } from "@/store/profileStore";
+import { useProfileStore } from "../_stores/profileStore";
 import { useToastStore } from "@/store/uiStore";
-import LibraryKindGroup from "./components/LibraryKindGroup";
-import LibraryCreateModal from "./components/LibraryCreateModal";
-import LibraryProfileCard from "./components/LibraryProfileCard";
+import LibraryKindGroup from "./_components/LibraryKindGroup";
+import LibraryCreateModal from "./_components/LibraryCreateModal";
+import LibraryProfileCard from "./_components/LibraryProfileCard";
 
 export default function LibraryPage() {
   const [searchParams] = useSearchParams();

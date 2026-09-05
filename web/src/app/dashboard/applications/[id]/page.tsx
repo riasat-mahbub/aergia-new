@@ -1,95 +1,35 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Check, ChevronDown, ChevronUp, Copy, Download, ExternalLink, Pencil, RefreshCw, Trash2, XCircle } from "lucide-react";
-import ApplicationFormModal from "@/components/applications/ApplicationFormModal";
+import ApplicationFormModal from "../_components/ApplicationFormModal";
 import LoadingSkeleton from "@/components/common/LoadingSkeleton";
 import { exportPDF, downloadPDF, fetchCV } from "@/services/cvs";
 import type { CVDetail } from "@/contracts/cvs";
 import { APPLICATION_STATUSES } from "@/contracts/applications";
 import type {
-  Application,
   ApplicationStatus,
-  CVQualityResult,
-  RelevanceAnalysis,
 } from "@/contracts/applications";
-import { useApplicationStore } from "@/store/applicationStore";
+import { useApplicationStore } from "@/app/dashboard/_stores/applicationStore";
 import { useToastStore } from "@/store/uiStore";
-import {
-  cancelTailoringSession,
-  createTailoringSession,
-  getTailoringSessionStatus,
-} from "@/services/tailoring";
-import type {
-  TailoringSession,
-  TailoringSessionResult,
-  TailoringSessionStatusResponse,
-} from "@/contracts/tailoring";
 import { safeExternalUrl } from "@/lib/security/safeUrl";
 import {
   RELEVANCE_TOOLTIP,
-  STATUS_CLASSES,
-  STATUS_LABELS,
   formatFollowUpDate,
   isFollowUpOverdue,
-} from "@/components/applications/applicationPresentation";
-
-
-function isRelevanceResult(value: Application["relevance"]): value is RelevanceAnalysis {
-  return "score" in value && typeof value.score === "number";
-}
-
-function isQualityResult(value: Application["quality"]): value is CVQualityResult {
-  return Boolean(value && "status" in value && "issues" in value && Array.isArray(value.issues));
-}
-
-function sectionTypes(cv: CVDetail | null): string[] {
-  if (!cv || !Array.isArray(cv.sections)) return [];
-  return cv.sections.flatMap((section) => {
-    if (typeof section !== "object" || section === null || !("type" in section)) return [];
-    return typeof section.type === "string" ? [section.type] : [];
-  });
-}
-
-function selectedSourceCount(cv: CVDetail | null): number | null {
-  if (!cv || typeof cv.extra_metadata !== "object" || cv.extra_metadata === null) return null;
-  if (!("selected_sources" in cv.extra_metadata)) return null;
-  const sources = cv.extra_metadata.selected_sources;
-  return Array.isArray(sources) ? sources.length : null;
-}
-
-function relevanceScoreFromSnapshot(value: Record<string, unknown> | null | undefined): number | null {
-  const score = value?.score;
-  return typeof score === "number" ? score : null;
-}
-
-function sessionStatusLabel(status: TailoringSessionStatusResponse["status"]): string {
-  switch (status) {
-    case "created": return "Ready to start";
-    case "exchanged": return "Agent connected";
-    case "submitted": return "Validating patch";
-    case "applied": return "Tailoring applied";
-    case "failed": return "Tailoring failed";
-    case "expired": return "Expired";
-    case "cancelled": return "Cancelled";
-    case "stale": return "Source CV changed — restart required";
-    default: return status;
-  }
-}
-
-function isTerminalTailoringStatus(status: TailoringSessionStatusResponse["status"] | undefined): boolean {
-  return status === "applied" || status === "failed" || status === "expired" || status === "cancelled" || status === "stale";
-}
-
-function terminalTailoringToast(status: TailoringSessionStatusResponse["status"]): { message: string; type: "success" | "error" | "info" } | null {
-  switch (status) {
-    case "applied": return { message: "Your tailored CV is ready. Relevance has been updated.", type: "success" };
-    case "failed": return { message: "Tailoring failed. No CV changes were saved.", type: "error" };
-    case "expired": return { message: "The tailoring session expired. Start a new session to try again.", type: "info" };
-    case "cancelled": return { message: "Tailoring session cancelled.", type: "info" };
-    case "stale": return { message: "The source CV changed during tailoring. Start a new session to try again.", type: "error" };
-    default: return null;
-  }
-}
+} from "../_lib/applicationPresentation";
+import { STATUS_CLASSES, STATUS_LABELS } from "../../_constants/applicationStatus";
+import {
+  isQualityResult,
+  isRelevanceResult,
+  relevanceScoreFromSnapshot,
+  sectionTypes,
+  selectedSourceCount,
+} from "./_lib/applicationDetail";
+import {
+  isTerminalTailoringStatus,
+  sessionStatusLabel,
+} from "./_lib/tailoringPresentation";
+import { useTailoringSession } from "./_hooks/useTailoringSession";
 
 export default function ApplicationDetailPage() {
   const { id = "" } = useParams();
@@ -106,12 +46,16 @@ export default function ApplicationDetailPage() {
   const [statusSaving, setStatusSaving] = useState(false);
   const [linkedCV, setLinkedCV] = useState<CVDetail | null>(null);
   const [jobExpanded, setJobExpanded] = useState(false);
-  const [tailoringSession, setTailoringSession] = useState<TailoringSession | null>(null);
-  const [tailoringStarting, setTailoringStarting] = useState(false);
-  const [tailoringStatus, setTailoringStatus] = useState<TailoringSessionStatusResponse | null>(null);
-  const [tailoringResult, setTailoringResult] = useState<TailoringSessionResult | null>(null);
-  const [promptCopied, setPromptCopied] = useState(false);
-  const lastTailoringToast = useRef<string | null>(null);
+  const {
+    tailoringSession,
+    tailoringStarting,
+    tailoringStatus,
+    tailoringResult,
+    promptCopied,
+    startTailoring,
+    copyPrompt,
+    cancelTailoring,
+  } = useTailoringSession({ applicationId: application?.id ?? id, fetchApplication: fetch, addToast });
 
   useEffect(() => {
     if (id) fetch(id);
@@ -131,42 +75,6 @@ export default function ApplicationDetailPage() {
     });
     return () => { cancelled = true; };
   }, [application?.cv_id]);
-
-  useEffect(() => {
-    if (!tailoringSession || isTerminalTailoringStatus(tailoringStatus?.status)) return;
-    let cancelled = false;
-
-    const poll = async () => {
-      try {
-        const status = await getTailoringSessionStatus(tailoringSession.session_id);
-        if (cancelled) return;
-        setTailoringStatus(status);
-        const toast = terminalTailoringToast(status.status);
-        const toastKey = `${tailoringSession.session_id}:${status.status}`;
-        if (toast && lastTailoringToast.current !== toastKey) {
-          lastTailoringToast.current = toastKey;
-          addToast(toast.message, toast.type);
-        }
-        if (status.status === "applied") {
-          setTailoringResult(status.result);
-          // The prompt is no longer actionable once the server has applied
-          // the patch. Keep the result summary visible below the actions.
-          setTailoringSession(null);
-          await fetch(tailoringSession.application_id);
-        }
-      } catch {
-        // The shared API client reports actionable errors. Keep the last known
-        // session state visible while the user can retry from this page.
-      }
-    };
-
-    void poll();
-    const timer = window.setInterval(() => { void poll(); }, 3000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [addToast, fetch, tailoringSession, tailoringStatus?.status]);
 
   const relevance = application && isRelevanceResult(application.relevance) ? application.relevance : null;
   const sections = useMemo(() => sectionTypes(linkedCV), [linkedCV]);
@@ -213,57 +121,6 @@ export default function ApplicationDetailPage() {
       downloadPDF(blob, `${application.company}-${application.role}.pdf`);
     } catch {
       addToast("Unable to export this CV", "error");
-    }
-  };
-
-  const handleStartTailoring = async () => {
-    setTailoringStarting(true);
-    try {
-      const session = await createTailoringSession(application.id);
-      setTailoringSession(session);
-      setTailoringStatus(null);
-      setTailoringResult(null);
-      setPromptCopied(false);
-      addToast("Local tailoring session created", "info");
-    } catch {
-      addToast("Unable to create a local tailoring session", "error");
-    } finally {
-      setTailoringStarting(false);
-    }
-  };
-
-  const handleCopyPrompt = async () => {
-    if (!tailoringSession) return;
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(tailoringSession.prompt);
-      } else {
-        const textarea = document.createElement("textarea");
-        textarea.value = tailoringSession.prompt;
-        textarea.setAttribute("readonly", "true");
-        textarea.style.position = "fixed";
-        textarea.style.opacity = "0";
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textarea);
-      }
-      setPromptCopied(true);
-      addToast("Prompt copied — paste it into your coding agent", "info");
-    } catch {
-      addToast("Unable to copy the tailoring prompt", "error");
-    }
-  };
-
-  const handleCancelTailoring = async () => {
-    if (!tailoringSession) return;
-    try {
-      const status = await cancelTailoringSession(tailoringSession.session_id);
-      setTailoringStatus(status);
-      lastTailoringToast.current = `${tailoringSession.session_id}:cancelled`;
-      addToast("Tailoring session cancelled", "info");
-    } catch {
-      addToast("Unable to cancel the tailoring session", "error");
     }
   };
 
@@ -363,7 +220,7 @@ export default function ApplicationDetailPage() {
             <div className="mt-4 flex flex-wrap gap-2">
               <Link to={`/builder/${application.cv_id}?application=${application.id}`} className="inline-flex items-center gap-1 rounded-md bg-app-primary px-3 py-2 text-sm font-medium text-white hover:bg-app-primary-hover">Open/Edit CV <Pencil className="h-3.5 w-3.5" /></Link>
               <button type="button" onClick={handleExport} className="inline-flex items-center gap-1 rounded-md border border-app-rule-strong px-3 py-2 text-sm font-medium text-app-ink-2 hover:bg-app-surface-muted"><Download className="h-3.5 w-3.5" /> Export PDF</button>
-              <button type="button" onClick={handleStartTailoring} disabled={tailoringStarting} className="inline-flex items-center gap-1 rounded-md border border-app-primary-soft px-3 py-2 text-sm font-medium text-app-primary hover:bg-app-primary-soft disabled:opacity-50">
+              <button type="button" onClick={startTailoring} disabled={tailoringStarting} className="inline-flex items-center gap-1 rounded-md border border-app-primary-soft px-3 py-2 text-sm font-medium text-app-primary hover:bg-app-primary-soft disabled:opacity-50">
                 {tailoringStarting ? "Preparing LLM tailoring…" : "LLM Tailoring"}
               </button>
             </div>
@@ -378,7 +235,7 @@ export default function ApplicationDetailPage() {
                     </p>
                   </div>
                   {!isTerminalTailoringStatus(tailoringStatus?.status) && (
-                    <button type="button" onClick={handleCancelTailoring} className="inline-flex items-center gap-1 text-xs font-medium text-app-danger hover:underline">
+                    <button type="button" onClick={cancelTailoring} className="inline-flex items-center gap-1 text-xs font-medium text-app-danger hover:underline">
                       <XCircle className="h-3.5 w-3.5" /> Cancel
                     </button>
                   )}
@@ -392,7 +249,7 @@ export default function ApplicationDetailPage() {
                   className="mt-2 block w-full resize-y rounded border border-app-rule-strong bg-app-surface px-2 py-2 text-xs leading-5 text-app-ink-2"
                 />
                 <div className="mt-2 flex flex-wrap items-center gap-3">
-                  <button type="button" onClick={handleCopyPrompt} className="inline-flex items-center gap-1 rounded-md bg-app-primary px-3 py-2 text-xs font-medium text-white hover:bg-app-primary-hover">
+                  <button type="button" onClick={copyPrompt} className="inline-flex items-center gap-1 rounded-md bg-app-primary px-3 py-2 text-xs font-medium text-white hover:bg-app-primary-hover">
                     {promptCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                     {promptCopied ? "Copied" : "Copy prompt"}
                   </button>
@@ -454,5 +311,3 @@ export default function ApplicationDetailPage() {
     </div>
   );
 }
-
-export { RELEVANCE_TOOLTIP };

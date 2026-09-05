@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { KeyRound, ShieldCheck } from "lucide-react";
-import SettingsProfileCard from "./components/SettingsProfileCard";
-import LLMKeyDialog from "./components/LLMKeyDialog";
-import { useProfileStore } from "@/store/profileStore";
+import SettingsProfileCard from "./_components/SettingsProfileCard";
+import LLMKeyDialog from "./_components/LLMKeyDialog";
+import { useProfileStore } from "../_stores/profileStore";
 
 export default function SettingsPage() {
   const profile = useProfileStore((s) => s.profile);
