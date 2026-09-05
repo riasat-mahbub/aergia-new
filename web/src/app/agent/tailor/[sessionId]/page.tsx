@@ -1,4 +1,4 @@
-import { Link, useParams } from "@/lib/routerCompat";
+import { Link, useParams } from "@tanstack/react-router";
 
 /**
  * Public landing page for the link embedded in the copied agent prompt.
@@ -6,7 +6,7 @@ import { Link, useParams } from "@/lib/routerCompat";
  * only to the scoped exchange endpoint by the installed skill.
  */
 export default function AgentTailoringPage() {
-  const { sessionId = "" } = useParams();
+  const { sessionId = "" } = useParams({ from: "/agent/tailor/$sessionId" });
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-12">

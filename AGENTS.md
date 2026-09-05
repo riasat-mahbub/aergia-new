@@ -1,11 +1,11 @@
 # Repository Guidelines
 
-Aergia CV Builder — a single-user CV builder: FastAPI backend (`api/`) serving a React 19 SPA (`web/`) plus the document render pipeline. Rendering is **HTML-first**: the Python HTML renderer produces both the preview and the PDF; the React tree is the editing surface, not a renderer.
+Aergia CV Builder — a single-user CV builder: FastAPI backend (`api/`) plus a TanStack Start React 19 web app (`web/`) and the document render pipeline. Rendering is **HTML-first**: the Python HTML renderer produces both the preview and the PDF; the React tree is the editing surface, not a renderer.
 
 ## Project Overview
 
-- **Stack**: FastAPI + SQLAlchemy 2.0 async + aiosqlite + Alembic (Python ≥ 3.12); React 19 + Vite 6 + Tailwind + Zustand (strict TypeScript).
-- **Single-origin**: the FastAPI app on `:8000` serves both `/api/v1/*` and the built SPA at `/*` (SPA catch-all `/{full_path:path}`). In dev, Vite on `:5173` proxies `/api` → `localhost:8000` (`web/vite.config.ts:9-13`). No reverse proxy.
+- **Stack**: FastAPI + SQLAlchemy 2.0 async + aiosqlite + Alembic (Python ≥ 3.12); TanStack Start/Router + React 19 + Vite + Tailwind + Zustand (strict TypeScript).
+- **Single-origin**: TanStack Start serves the UI and same-origin `/api/*` gateway on `:3000` (Nitro only proxies to the private FastAPI service on `:8000`). In dev, Vite on `:5173` proxies `/api` → `localhost:8000` (`web/vite.config.ts`).
 - **HTML-first pipeline**: canonical rendering target is HTML + CSS. PDF export is that HTML rendered by Chromium (Playwright singleton). The React tree mirrors the AST but never generates HTML — it is a *schematic* editor; visual cues (e.g. page-break markers) indicate structural intent, not literal layout.
 - **Templates express taste; renderers express behavior.** Seed templates declare a v2 manifest with a closed token vocabulary; the resolver is the only place tokens become CSS values.
 - **Merge policy**: feature work merges into `master` via a regular merge commit (not squash); the merge is the cutover.
@@ -33,7 +33,7 @@ cv.sections (JSONB wire AST, Pydantic)            # api/app/schema/models.py
 ```
 api/
   app/
-    app.py            # FastAPI app: lifespan, CORS (non-prod), security headers, router mounts, SPA fallback
+    app.py            # FastAPI app: lifespan, CORS (non-prod), API security headers, and router mounts
     main.py           # entry: re-exports `app` from app.py
     config.py         # pydantic-settings Settings, reads .env
     schema/models.py  # SINGLE SOURCE OF TRUTH: Pydantic AST + wire + manifest + RenderModel
@@ -49,7 +49,7 @@ api/
   tests/
 web/
   src/
-    main.tsx          # RouterProvider entry; route modules are lazy-loaded by app/router.tsx
+    router.tsx        # TanStack Router factory and Start request-context wiring
     app/              # route pages, layouts, providers, and route-private _components/_hooks/_lib/_services/_stores/_types
     components/       # shared section editors, controls, library cards, and preview primitives
     lib/cv/           # generated-schema facade plus pure section catalog, placement, date, and editor-data modules
@@ -124,7 +124,7 @@ npm run codegen:check             # drift guard (must stay green)
 | File | Why it matters |
 |---|---|
 | `api/app/schema/models.py` | Single source of truth: AST, wire types, manifest v2, Customizations, RenderModel. Codegen input. |
-| `api/app/app.py` | App wiring: lifespan (seed templates + Playwright close), CORS, security headers, router mounts, SPA fallback. |
+| `api/app/app.py` | FastAPI API wiring: lifespan (seed templates + Playwright close), CORS, API security headers, and router mounts. |
 | `api/app/services/renderer/resolve.py` | Pure resolver — pipeline brain: cascade, CSS vars, zones, capability gating, `ManifestVersionError`. |
 | `api/app/services/renderer/html.py` | `HTMLDocumentRenderer` — canonical HTML output; print styles, best-effort comments. |
 | `api/app/services/renderer/support.py` | `SupportLevel` + `RendererSupport` capability map. |
@@ -145,7 +145,7 @@ npm run codegen:check             # drift guard (must stay green)
 - **Playwright Chromium required for PDF export**: `playwright install chromium`. Browsers cache to `~/.cache/ms-playwright` locally, `/app/ms-playwright` in Docker.
 - **SECRET_KEY**: default `change-me-in-production` raises `RuntimeError` when `environment=production`.
 - **No CI workflows exist** (no `.github/`). The de-facto gate is `./dev.sh --smoke`. Qlty config (`.qlty/qlty.toml`: bandit, hadolint, osv-scanner, radarlint, ruff, shellcheck, trufflehog) is separate from CI.
-- **Docker**: build context is the repo root (`.`), not `api/` — the `api/Dockerfile` needs both `api/` and `web/`; SPA is copied to `/app/static`.
+- **Docker**: build context is the repo root (`.`). `api/Dockerfile` builds the private FastAPI upstream and `web/Dockerfile` builds the public TanStack Start server.
 - **Database**: single SQLite file at `data/aergia.db`; no Docker needed for local dev. Backend tests use a dedicated `aergia.test.db`.
 
 ## Testing & QA

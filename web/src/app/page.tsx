@@ -1,4 +1,4 @@
-import { useNavigate } from "@/lib/routerCompat";
+import { useNavigate } from "@tanstack/react-router";
 import { useAuthStore } from "@/store/authStore";
 import { FileText, Palette, Download, GripVertical, Eye, Shield } from "lucide-react";
 
@@ -22,7 +22,7 @@ export default function HomePage() {
         <div className="flex items-center gap-3">
           {isAuthenticated ? (
             <button
-              onClick={() => navigate("/dashboard")}
+              onClick={() => navigate({ to: "/dashboard" })}
               className="rounded-md bg-app-primary px-4 py-2 text-sm text-white hover:bg-app-primary-hover"
             >
               Go to Dashboard
@@ -30,13 +30,13 @@ export default function HomePage() {
           ) : (
             <>
               <button
-                onClick={() => navigate("/login")}
+                onClick={() => navigate({ to: "/login" })}
                 className="rounded-md border border-app-primary-soft px-4 py-2 text-sm text-app-primary hover:bg-app-primary-soft"
               >
                 Sign in
               </button>
               <button
-                onClick={() => navigate("/register")}
+                onClick={() => navigate({ to: "/register" })}
                 className="rounded-md bg-app-primary px-4 py-2 text-sm text-white hover:bg-app-primary-hover"
               >
                 Get started
@@ -55,14 +55,14 @@ export default function HomePage() {
         </p>
         {isAuthenticated ? (
           <button
-            onClick={() => navigate("/dashboard")}
+            onClick={() => navigate({ to: "/dashboard" })}
             className="mt-8 rounded-md bg-app-primary px-6 py-3 text-base text-white hover:bg-app-primary-hover"
           >
             Go to Dashboard &rarr;
           </button>
         ) : (
           <button
-            onClick={() => navigate("/login")}
+            onClick={() => navigate({ to: "/login" })}
             className="mt-8 rounded-md bg-app-primary px-6 py-3 text-base text-white hover:bg-app-primary-hover"
           >
             Start building &rarr;

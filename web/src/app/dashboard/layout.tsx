@@ -1,4 +1,4 @@
-import { Link, NavLink, Outlet, useLocation, useNavigate } from "@/lib/routerCompat";
+import { Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { useRouter } from "@tanstack/react-router";
 import { BriefcaseBusiness, FileText, LayoutDashboard, Library, LogOut, Settings } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
@@ -21,7 +21,7 @@ export default function DashboardLayout() {
   const handleLogout = async () => {
     await logout();
     await router.invalidate({ sync: true });
-    navigate("/login");
+    navigate({ to: "/login" });
   };
 
   return (
@@ -44,19 +44,16 @@ export default function DashboardLayout() {
             {!isBuilder && (
               <div className="flex min-w-0 items-center gap-1 overflow-x-auto py-1">
                 {navItems.map(({ to, label, Icon, end }) => (
-                  <NavLink
+                  <Link
                     key={to}
                     to={to}
-                    end={end}
-                    className={({ isActive }) => `flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition ${
-                      isActive
-                        ? "bg-app-primary-soft font-medium text-app-primary"
-                        : "text-app-ink-3 hover:bg-app-surface-muted hover:text-app-ink-2"
-                    }`}
+                    activeOptions={{ exact: end }}
+                    activeProps={{ className: "flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition bg-app-primary-soft font-medium text-app-primary" }}
+                    inactiveProps={{ className: "flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition text-app-ink-3 hover:bg-app-surface-muted hover:text-app-ink-2" }}
                   >
                     <Icon className="h-4 w-4" />
                     {label}
-                  </NavLink>
+                  </Link>
                 ))}
               </div>
             )}

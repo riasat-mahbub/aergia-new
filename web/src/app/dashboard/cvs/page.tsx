@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "@/lib/routerCompat";
+import { useNavigate } from "@tanstack/react-router";
 import { motion } from "motion/react";
 import { useCVListStore } from "@/app/dashboard/_stores/cvListStore";
 import CvCard from "./_components/CvCard";
@@ -73,7 +73,7 @@ export default function CvListPage() {
             <CvCard
               key={cv.id}
               cv={cv}
-              onEdit={(id) => navigate(`/builder/${id}`)}
+              onEdit={(id) => navigate({ to: "/builder/$id", params: { id } })}
               onCopy={(id) => copyCV(id)}
               onDelete={(id) => setDeleteTarget({ id, title: cv.title })}
             />

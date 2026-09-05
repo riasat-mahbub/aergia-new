@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "@/lib/routerCompat";
+import { useNavigate } from "@tanstack/react-router";
 import Modal from "@/components/common/Modal";
 import { useCVListStore } from "@/app/dashboard/_stores/cvListStore";
 import { fetchSystemTemplates } from "@/services/templates";
@@ -38,7 +38,7 @@ export default function CreateCvModal({ open, onClose }: Props) {
     try {
       const cv = await createCV(title.trim(), templateId);
       onClose();
-      navigate(`/builder/${cv.id}`);
+      navigate({ to: "/builder/$id", params: { id: cv.id } });
     } catch {
       setLoading(false);
     }

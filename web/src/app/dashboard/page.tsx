@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Link } from "@/lib/routerCompat";
+import { Link } from "@tanstack/react-router";
 import { motion } from "motion/react";
 import {
   ArrowRight,
@@ -92,7 +92,8 @@ export default function DashboardPage() {
                 {recentCvs.map((cv) => (
                   <Link
                     key={cv.id}
-                    to={`/builder/${cv.id}`}
+                    to="/builder/$id"
+                    params={{ id: cv.id }}
                     className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0"
                   >
                     <div className="min-w-0">

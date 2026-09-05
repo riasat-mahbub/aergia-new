@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useNavigate } from "@/lib/routerCompat";
+import { useNavigate } from "@tanstack/react-router";
 import { registerSchema, type RegisterFormData } from "@/lib/validators/auth";
 import { useAuthStore } from "@/store/authStore";
 import { getRegistrationConfig } from "@/services/auth";
@@ -68,7 +68,7 @@ export default function RegisterForm() {
     try {
       await registerUser(data.email, data.password, turnstileToken ?? undefined);
       setSuccess(true);
-      setTimeout(() => navigate("/login"), 2000);
+      setTimeout(() => navigate({ to: "/login" }), 2000);
     } catch {
       setError("Registration failed. Email may already be in use.");
       setTurnstileToken(null);

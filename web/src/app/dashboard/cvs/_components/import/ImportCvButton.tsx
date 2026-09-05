@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "@/lib/routerCompat";
+import { useNavigate } from "@tanstack/react-router";
 import { FileUp, Loader2 } from "lucide-react";
 
 import ImportCvModal from "./ImportCvModal";
@@ -54,7 +54,7 @@ export default function ImportCvButton() {
         parsed.sections
       );
       setOpen(false);
-      navigate(`/builder/${cv.id}`);
+      navigate({ to: "/builder/$id", params: { id: cv.id } });
     } catch {
       addToast("Failed to import CV", "error");
       // Modal stays open so the user can retry without losing their

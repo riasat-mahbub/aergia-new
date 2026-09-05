@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useBlocker } from "@/lib/routerCompat";
+import { useBlocker } from "@tanstack/react-router";
 import type { SectionInstance } from "@/lib/cv/schema";
 
 export interface BuilderSaveData {
@@ -34,21 +34,20 @@ export function useUnsavedChanges({
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset dirty state when the route document changes
     dirtyRef.current = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset dirty state when the route document changes
     setHasUnsavedChanges(false);
   }, [resetKey]);
 
-  const blocker = useBlocker(
-    ({ currentLocation, nextLocation }) =>
-      enabled &&
-      dirtyRef.current &&
-      currentLocation.pathname !== nextLocation.pathname,
-  );
+  const blocker = useBlocker({
+    withResolver: true,
+    enableBeforeUnload: () => enabled && dirtyRef.current,
+    shouldBlockFn: ({ current, next }) =>
+      enabled && dirtyRef.current && current.pathname !== next.pathname,
+  });
 
   useEffect(() => {
-    if (blocker.state !== "blocked") return;
+    if (blocker.status !== "blocked") return;
     (async () => {
       try {
         await save(getPendingSaveData());
@@ -59,15 +58,6 @@ export function useUnsavedChanges({
       }
     })();
   }, [blocker, getPendingSaveData, markClean, save]);
-
-  useEffect(() => {
-    if (!dirtyRef.current) return;
-    const handler = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, []);
 
   return { hasUnsavedChanges, markDirty, markClean };
 }

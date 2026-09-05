@@ -1,5 +1,5 @@
 import { Component, type ReactNode } from "react";
-import { Link } from "@/lib/routerCompat";
+import { Link } from "@tanstack/react-router";
 
 interface Props {
   children: ReactNode;
