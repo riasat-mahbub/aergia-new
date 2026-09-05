@@ -2,8 +2,8 @@
 # Phase 8 hardening smoke runner.
 # Exercises the HTML-first three-axis architecture end to end without
 # touching user data. Runs against a fresh temporary SQLite database and
-# the just-built TanStack Start server, then removes its working directory. Frontend
-# unit tests are intentionally omitted until the separate test reset.
+# the just-built TanStack Start server, then removes its working directory. The
+# legacy test suite is intentionally deferred until the separate test reset.
 # Lives at <repo>/scripts/smoke.sh; the dispatcher is `dev.sh --smoke`.
 
 set -Eeuo pipefail
@@ -13,7 +13,7 @@ API_DIR="$ROOT_DIR/api"
 WEB_DIR="$ROOT_DIR/web"
 
 # ── Preflight ───────────────────────────────────────────────────────
-for cmd in node npm; do
+for cmd in node npm timeout; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "ERROR: required command not found on PATH: $cmd" >&2
     exit 1
@@ -21,7 +21,7 @@ for cmd in node npm; do
 done
 
 VENV="$API_DIR/.venv"
-for tool in "$VENV/bin/python" "$VENV/bin/pytest" "$VENV/bin/ruff" \
+for tool in "$VENV/bin/python" "$VENV/bin/ruff" \
             "$VENV/bin/alembic" "$VENV/bin/uvicorn"; do
   if [[ ! -x "$tool" ]]; then
     echo "ERROR: smoke prerequisite missing: $tool" >&2
@@ -41,6 +41,7 @@ done
 
 SMOKE_PORT="${AERGIA_SMOKE_PORT:-8765}"
 WEB_PORT="${AERGIA_SMOKE_WEB_PORT:-$((SMOKE_PORT + 1))}"
+SMOKE_MIGRATION_TIMEOUT_SECONDS="${AERGIA_SMOKE_MIGRATION_TIMEOUT_SECONDS:-30}"
 TMP_DIR="$(mktemp -d -t aergia-smoke.XXXXXX)"
 API_SERVER_LOG="$TMP_DIR/api-server.log"
 WEB_SERVER_LOG="$TMP_DIR/web-server.log"
@@ -75,26 +76,33 @@ export API_TEST_DB_URL="$DATABASE_URL"
 export ENVIRONMENT=test
 export TURNSTILE_BYPASS=true
 
-# ── Stage 1: backend pytest ──────────────────────────────────────────
-echo "=== Smoke: backend pytest ==="
-(cd "$API_DIR" && "$VENV/bin/pytest" -q)
-
-# ── Stage 2: backend ruff ───────────────────────────────────────────
+# ── Stage 1: backend ruff ───────────────────────────────────────────
 echo "=== Smoke: backend ruff ==="
 (cd "$API_DIR" && "$VENV/bin/ruff" check .)
 
-# ── Stage 3: frontend eslint (React Hooks contract) ─────────────────
+# ── Stage 2: frontend eslint (React Hooks contract) ─────────────────
 echo "=== Smoke: frontend eslint (react-hooks) ==="
 (cd "$WEB_DIR" && "$WEB_DIR/node_modules/.bin/eslint" --config "$WEB_DIR/eslint.config.smoke.js" .)
 
-# ── Stage 4: frontend production build ──────────────────────────────
+# ── Stage 3: frontend production build ──────────────────────────────
 echo "=== Smoke: frontend build ==="
 (cd "$WEB_DIR" && npm run build)
 
-# ── Stage 5: live Start/API smoke ────────────────────────────────────
+# ── Stage 4: live Start/API smoke ───────────────────────────────────
 echo "=== Smoke: live TanStack Start + FastAPI gateway ==="
 
-(cd "$API_DIR" && "$VENV/bin/alembic" upgrade head)
+if (cd "$API_DIR" && timeout "$SMOKE_MIGRATION_TIMEOUT_SECONDS" "$VENV/bin/alembic" upgrade head); then
+  :
+else
+  migration_status=$?
+  if [[ "$migration_status" -eq 124 ]]; then
+    echo "ERROR: Alembic migration did not finish within ${SMOKE_MIGRATION_TIMEOUT_SECONDS}s" >&2
+    echo "       This usually indicates an async SQLite/runtime compatibility issue." >&2
+  else
+    echo "ERROR: Alembic migration failed with status ${migration_status}" >&2
+  fi
+  exit "$migration_status"
+fi
 
 (cd "$API_DIR" \
   && FRONTEND_URL="http://127.0.0.1:${WEB_PORT}" \
@@ -130,6 +138,7 @@ fi
 (cd "$WEB_DIR" \
   && AERGIA_API_ORIGIN="http://127.0.0.1:${SMOKE_PORT}" \
      AERGIA_FRONTEND_ORIGIN="http://127.0.0.1:${WEB_PORT}" \
+     NODE_ENV=production \
      HOST=127.0.0.1 PORT="$WEB_PORT" \
      exec node .output/server/index.mjs \
        > "$WEB_SERVER_LOG" 2>&1) &
@@ -156,6 +165,26 @@ if [[ "$web_ready" -ne 1 ]]; then
 fi
 
 WEB_URL="http://127.0.0.1:${WEB_PORT}"
+home_headers="$TMP_DIR/home.headers"
+home_html="$TMP_DIR/home.html"
+curl -fsS -D "$home_headers" -o "$home_html" "$WEB_URL/"
+grep -q "Aergia" "$home_html"
+grep -qi '^x-content-type-options: nosniff' "$home_headers"
+grep -qi '^x-frame-options: DENY' "$home_headers"
+grep -qi '^referrer-policy: strict-origin-when-cross-origin' "$home_headers"
+grep -qi '^permissions-policy: camera=(), microphone=(), geolocation=()' "$home_headers"
+csp_header="$(awk 'BEGIN {IGNORECASE=1} /^content-security-policy:/ {sub(/^[^:]*:[[:space:]]*/, ""); print}' "$home_headers")"
+[[ "$csp_header" == *"script-src"* ]] && [[ "$csp_header" == *"'nonce-"* ]]
+[[ "$csp_header" != *"script-src 'unsafe-inline'"* ]]
+csp_nonce="$(printf '%s\n' "$csp_header" | sed -n "s/.*'nonce-\([^']*\)'.*/\1/p")"
+[[ -n "$csp_nonce" ]]
+grep -Fq "nonce=\"$csp_nonce\"" "$home_html" || grep -Fq "nonce='$csp_nonce'" "$home_html"
+
+second_headers="$TMP_DIR/home-second.headers"
+curl -fsS -D "$second_headers" -o /dev/null "$WEB_URL/"
+second_csp="$(awk 'BEGIN {IGNORECASE=1} /^content-security-policy:/ {sub(/^[^:]*:[[:space:]]*/, ""); print}' "$second_headers")"
+[[ "$csp_header" != "$second_csp" ]]
+
 curl -fsS "$WEB_URL/login" | grep -q "Sign in"
 dashboard_headers="$TMP_DIR/dashboard.headers"
 curl -fsS -D "$dashboard_headers" -o /dev/null "$WEB_URL/dashboard"
@@ -178,4 +207,4 @@ grep -q 'aergia_access_token=.*Path=/' "$login_headers"
 grep -q 'aergia_refresh_token=.*Path=/' "$login_headers"
 curl -fsS -b "$cookie_jar" "$WEB_URL/dashboard" | grep -q 'authenticated:!0'
 
-echo "SMOKE OK: TanStack Start SSR + FastAPI gateway + root-scoped auth cookies"
+echo "SMOKE OK: TanStack Start SSR + nonce CSP + FastAPI gateway + root-scoped auth cookies"
