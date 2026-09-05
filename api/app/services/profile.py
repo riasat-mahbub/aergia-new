@@ -3,7 +3,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
-from app.schemas.profile import UserProfile, UserProfileUpdate
+from app.http_schemas.profile import UserProfile, UserProfileUpdate
 
 
 class ProfileService:

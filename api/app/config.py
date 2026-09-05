@@ -93,6 +93,11 @@ class Settings(BaseSettings):
             and self.turnstile_expected_action
         )
 
+    @property
+    def api_docs_enabled(self) -> bool:
+        """Keep interactive API documentation available to developers only."""
+        return self.environment in {"development", "test"}
+
 _settings: Settings | None = None
 
 

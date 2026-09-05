@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import ApplicationsPage from "@/app/dashboard/applications/page";
+import { ApplicationListPage } from "@/features/applications";
 
 export const Route = createFileRoute("/_authenticated/dashboard/applications")({
   ssr: false,
-  component: ApplicationsPage,
+  component: ApplicationListPage,
 });

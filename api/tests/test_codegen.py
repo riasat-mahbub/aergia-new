@@ -8,7 +8,7 @@ from pathlib import Path
 from pydantic import BaseModel
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SCHEMA_MODULE = "app.schema.models"
+SCHEMA_MODULE = "app.document_schema.models"
 
 
 def _discovered_python_models() -> set[str]:

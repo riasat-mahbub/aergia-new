@@ -3,8 +3,8 @@
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.auth import RegisterRequest, LoginRequest
-from app.schemas.cv import CVCreate, DEFAULT_SECTIONS
+from app.http_schemas.auth import RegisterRequest, LoginRequest
+from app.http_schemas.cv import CVCreate, DEFAULT_SECTIONS
 
 
 class TestAuthSchemas:

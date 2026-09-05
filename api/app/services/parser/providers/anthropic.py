@@ -24,7 +24,7 @@ from anthropic import (
     RateLimitError as AnthropicRateLimitError,
 )
 
-from app.schema.models import SectionInstance
+from app.document_schema.models import SectionInstance
 
 from ..keys import (
     InvalidAPIKeyError,

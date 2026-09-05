@@ -18,7 +18,7 @@ from __future__ import annotations
 import re
 import uuid
 
-from app.schema.models import SectionInstance
+from app.document_schema.models import SectionInstance
 from pydantic import ValidationError
 from .classify import (
     DATE_RANGE_RE,

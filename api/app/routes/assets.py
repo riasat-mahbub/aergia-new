@@ -3,7 +3,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.schemas.photo import PhotoUploadResponse
+from app.http_schemas.photo import PhotoUploadResponse
 from app.services.photo import PhotoService
 from app.core.deps import get_current_user
 from app.models.user import User

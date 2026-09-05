@@ -4,7 +4,7 @@ Fields per entry: ``language``, ``proficiency``.
 """
 
 from __future__ import annotations
-from app.schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextRun
+from app.document_schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextRun
 
 
 def build_languages(instance: SectionInstance, resolved_layout: LayoutHints | None = None) -> Section:

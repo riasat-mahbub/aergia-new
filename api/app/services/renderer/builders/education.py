@@ -4,7 +4,7 @@ Fields per entry: ``degree``, ``institution``, ``date``, ``gpa``, ``summary``.
 """
 
 from __future__ import annotations
-from app.schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextRun
+from app.document_schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextRun
 from ._utils import format_date_range
 
 

@@ -5,7 +5,7 @@ Fields per entry: ``project``, ``link`` (the URL), ``date``,
 """
 
 from __future__ import annotations
-from app.schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextStyle, TextRun
+from app.document_schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextStyle, TextRun
 from ._utils import format_date_range, normalize_url_scheme, rich_text_to_field_block
 
 

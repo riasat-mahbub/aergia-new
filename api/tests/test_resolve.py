@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from app.schema.models import (
+from app.document_schema.models import (
     Customizations,
     Document,
     Entry,
@@ -192,7 +192,7 @@ def test_resolver_preserves_per_instance_policy():
     Two skills instances carry different skill_variant overrides; the
     resolver honours them instead of falling back to the type default.
     """
-    from app.schema.models import SectionPolicy
+    from app.document_schema.models import SectionPolicy
 
     doc = Document(sections=[
         Section(id="s_block", type="skills", title="Backend",
@@ -209,7 +209,7 @@ def test_resolver_preserves_per_instance_policy():
 
 def test_resolver_preserves_per_instance_policy_when_fallback_type_default_differs():
     """An explicit show_title override on an instance beats the type default."""
-    from app.schema.models import SectionPolicy
+    from app.document_schema.models import SectionPolicy
 
     # profile has show_title=False by default; override to True on this instance.
     doc = Document(sections=[
@@ -280,7 +280,7 @@ def test_support_full_preserves_layout_hints():
 def test_resolver_maps_width_tokens():
     """``narrow`` → 30%, ``half`` → 50%, ``full`` → 100%, ``auto`` → auto."""
     from app.services.renderer.resolve import _resolve_zone_styles
-    from app.schema.models import Zone
+    from app.document_schema.models import Zone
     for token, expected in [("narrow", "30%"), ("half", "50%"), ("full", "100%"), ("auto", "auto")]:
         zone = Zone(id="z", styles={"width": token})
         assert _resolve_zone_styles(zone)["width"] == expected
@@ -289,7 +289,7 @@ def test_resolver_maps_width_tokens():
 def test_resolver_maps_padding_tokens():
     """``none`` → 0, ``tight`` → 12px, ``comfortable`` → 24px, ``loose`` → 32px."""
     from app.services.renderer.resolve import _resolve_zone_styles
-    from app.schema.models import Zone
+    from app.document_schema.models import Zone
     for token, expected in [("none", "0"), ("tight", "12px"), ("comfortable", "24px"), ("loose", "32px")]:
         zone = Zone(id="z", styles={"padding": token})
         assert _resolve_zone_styles(zone)["padding"] == expected
@@ -298,7 +298,7 @@ def test_resolver_maps_padding_tokens():
 def test_resolver_maps_color_palette_reference():
     """A ``palette.<name>`` reference resolves through :data:`DEFAULT_PALETTE`."""
     from app.services.renderer.resolve import _resolve_zone_styles
-    from app.schema.models import Zone
+    from app.document_schema.models import Zone
     zone = Zone(id="z", styles={"background": "palette.surface-2"})
     assert _resolve_zone_styles(zone)["background-color"] == "#f8fafc"
 
@@ -306,7 +306,7 @@ def test_resolver_maps_color_palette_reference():
 def test_resolver_falls_back_to_hex_literal():
     """A ``#RRGGBB`` literal is returned unchanged."""
     from app.services.renderer.resolve import _resolve_zone_styles
-    from app.schema.models import Zone
+    from app.document_schema.models import Zone
     zone = Zone(id="z", styles={"background": "#aabbcc"})
     assert _resolve_zone_styles(zone)["background-color"] == "#aabbcc"
 
@@ -357,7 +357,7 @@ def test_resolve_placement_matches_instance_id_before_type():
 def test_per_section_text_overlay_applies_to_runs():
     """``customizations.per_section[id].text[field]`` must land on the
     section's runs, mirroring the per-instance field-style path."""
-    from app.schema.models import Customizations
+    from app.document_schema.models import Customizations
 
     doc = Document(sections=[
         Section(id="p", type="profile", title="P", enabled=True,
@@ -375,7 +375,7 @@ def test_entry_layout_cascades_from_manifest_override():
     """A manifest's policy_overrides.by_type[type].entry_layout wins over
     the SECTION_POLICIES default."""
     from app.services.renderer.policy import resolve_policy
-    from app.schema.models import PolicyOverrides, SectionPolicy
+    from app.document_schema.models import PolicyOverrides, SectionPolicy
     manifest = _manifest().model_copy(update={
         "policy_overrides": PolicyOverrides(by_type={
             "research": SectionPolicy(entry_layout="stack"),
@@ -404,7 +404,7 @@ def test_entry_layout_cascades_from_section_policy_default():
 def test_entry_layout_overlay_from_per_instance_policy():
     """A per-instance SectionInstanceStyle.policy.entry_layout wins over
     the resolved section policy via _overlay_policy."""
-    from app.schema.models import SectionInstanceStyle, SectionPolicy
+    from app.document_schema.models import SectionInstanceStyle, SectionPolicy
     from app.services.renderer.resolve import _overlay_policy
     base = SectionPolicy(entry_layout="two-column", show_title=True)
     override = SectionInstanceStyle(policy=SectionPolicy(entry_layout="stack"))

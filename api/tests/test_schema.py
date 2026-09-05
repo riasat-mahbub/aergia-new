@@ -8,7 +8,7 @@ is the right shape)."""
 from __future__ import annotations
 
 
-from app.schema.models import (
+from app.document_schema.models import (
     Customizations,
     DateStyle,
     Document,
@@ -160,7 +160,7 @@ def test_customizations_accepts_layout():
 def test_field_block_accepts_group_and_icon():
     """FieldBlock carries the row-group and social-icon metadata that the
     builders emit and the renderer consumes (Option A row layouts)."""
-    from app.schema.models import FieldBlock, TextRun
+    from app.document_schema.models import FieldBlock, TextRun
 
     fb = FieldBlock(key="social_links.0", runs=[TextRun(text="X")], group="social", icon="x")
     assert fb.group == "social"
@@ -170,7 +170,7 @@ def test_field_block_accepts_group_and_icon():
 
 def test_field_block_accepts_right_align():
     """FieldBlock.align marks a right-rail field (dates, proficiency)."""
-    from app.schema.models import FieldBlock, TextRun
+    from app.document_schema.models import FieldBlock, TextRun
 
     fb = FieldBlock(key="date", runs=[TextRun(text="2026")], group="header", align="right")
     assert fb.align == "right"

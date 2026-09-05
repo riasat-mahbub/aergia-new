@@ -15,7 +15,7 @@ three-axis style onto the section.
 
 from __future__ import annotations
 
-from app.schema.models import (
+from app.document_schema.models import (
     DateStyle,
     Document,
     LayoutHints,

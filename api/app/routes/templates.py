@@ -14,7 +14,7 @@ from sqlalchemy import select
 from app.db.session import get_db
 from app.models.template import Template
 from app.models.user import User
-from app.schema.models import TemplateListItem, TemplateDetail
+from app.document_schema.models import TemplateListItem, TemplateDetail
 from app.core.deps import get_optional_current_user
 
 

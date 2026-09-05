@@ -12,7 +12,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from app.schema.models import RichTextBlock
+from app.document_schema.models import RichTextBlock
 
 
 class TailoringPolicyError(ValueError):

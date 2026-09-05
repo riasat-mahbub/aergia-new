@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.schema.models import SectionInstance
+from app.document_schema.models import SectionInstance
 from app.services.parser.schemas import ConfidenceReport, ExtractedDocument
 from app.services.parser.strategies import LLMStrategy, RegexStrategy
 

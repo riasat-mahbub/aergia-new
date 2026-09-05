@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 
 from app.core.safe_url import normalize_url
-from app.schemas.application import CVQualityIssue, CVQualityResult
+from app.http_schemas.application import CVQualityIssue, CVQualityResult
 
 
 _URL_KEYS = frozenset({"url", "link", "site_url", "photo_url", "paper_url", "credential_url"})

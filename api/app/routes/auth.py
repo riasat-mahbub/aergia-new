@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.rate_limit import limiter
 from app.db.session import get_db
-from app.schemas.auth import (
+from app.http_schemas.auth import (
     AuthMessageResponse,
     RegisterRequest,
     RegistrationConfigResponse,

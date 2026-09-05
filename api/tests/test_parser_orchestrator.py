@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from app.schema.models import SectionInstance
+from app.document_schema.models import SectionInstance
 from app.services.parser import imports as orch
 from app.services.parser.imports import parse_cv
 from app.services.parser.keys import (

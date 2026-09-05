@@ -13,7 +13,7 @@ and frontend cannot drift.
 from __future__ import annotations
 
 from app.core.safe_url import normalize_url
-from app.schema.models import DateStyle, FieldBlock, RichTextBlock, TextRun
+from app.document_schema.models import DateStyle, FieldBlock, RichTextBlock, TextRun
 
 
 def normalize_url_scheme(value: object) -> str:
@@ -46,7 +46,7 @@ MONTH_NAMES = [
 
 
 # Canonical list of date-format presets. Mirrors the dropdown in
-# ``web/src/lib/cv/date.ts``.
+# ``web/src/shared/cv/date.ts``.
 DATE_STYLE_OPTIONS: list[tuple[str, str, str]] = [
     ("YYYY-MM", "YYYY-MM", " \u2013 "),
     ("YYYY/MM", "YYYY/MM", "/"),

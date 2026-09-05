@@ -20,7 +20,7 @@ from difflib import SequenceMatcher
 from datetime import date, datetime
 from math import log2
 
-from app.schemas.application import (
+from app.http_schemas.application import (
     ExtractedKeyword,
     JobRequirement,
     MatchEvidence,

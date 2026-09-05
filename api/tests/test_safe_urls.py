@@ -4,9 +4,9 @@ from pydantic import ValidationError
 import pytest
 
 from app.core.safe_url import normalize_url
-from app.schemas.application import ApplicationCreate
-from app.schemas.profile import ProfileSocialLink, UserProfileUpdate
-from app.schema.models import TextStyle
+from app.http_schemas.application import ApplicationCreate
+from app.http_schemas.profile import ProfileSocialLink, UserProfileUpdate
+from app.document_schema.models import TextStyle
 
 
 @pytest.mark.parametrize("value", [

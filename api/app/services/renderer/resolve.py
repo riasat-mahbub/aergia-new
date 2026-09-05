@@ -24,7 +24,7 @@ already-validated models and returns a fully resolved :class:`RenderModel`.
 
 from __future__ import annotations
 
-from app.schema.models import (
+from app.document_schema.models import (
     Customizations,
     Document,
     LayoutHints,

@@ -10,7 +10,7 @@ cascades three-axis style and the renderer emits HTML.
 """
 
 from __future__ import annotations
-from app.schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextRun, TextStyle
+from app.document_schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextRun, TextStyle
 from ._utils import normalize_url_scheme
 
 def build_profile(instance: SectionInstance, resolved_layout: LayoutHints | None = None) -> Section:

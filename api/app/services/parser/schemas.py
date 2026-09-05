@@ -2,11 +2,11 @@
 
 These models are NOT exported to the frontend codegen output. The TypeScript
 generator (``api/scripts/codegen_schema.py``) only discovers Pydantic models
-in ``app.schema.models``. Parser-internal models stay inside the parser
+in ``app.document_schema.models``. Parser-internal models stay inside the parser
 package as long as they don't represent wire/HTTP shapes the frontend
 consumes; only :class:`ParseResult` is used at the route boundary.
 
-Public source of truth for a parsed CV is :class:`app.schema.models.SectionInstance`.
+Public source of truth for a parsed CV is :class:`app.document_schema.models.SectionInstance`.
 Each ``ParseResult.sections`` element must round-trip through
 ``SectionInstance.model_validate`` and is the same shape the existing
 ``build_document`` accepts.
@@ -18,7 +18,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from app.schema.models import SectionInstance
+from app.document_schema.models import SectionInstance
 
 
 class TextBlock(BaseModel):

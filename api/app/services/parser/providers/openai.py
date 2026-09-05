@@ -27,7 +27,7 @@ from openai import (
     RateLimitError as OpenAIRateLimitError,
 )
 
-from app.schema.models import SectionInstance
+from app.document_schema.models import SectionInstance
 
 from ..keys import (
     InvalidAPIKeyError,

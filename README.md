@@ -7,13 +7,28 @@ You can use it to create several versions of your CV, import an existing PDF,
 track the jobs you are applying for, and export a polished PDF when you are
 ready to apply.
 
+## Repository map
+
+The root README is the product and operator overview. For implementation work,
+start with the README closest to the code:
+
+- [`api/README.md`](api/README.md) — FastAPI routes, services, schemas, and
+  renderer.
+- [`web/README.md`](web/README.md) — TanStack Start routes, features, and
+  shared frontend code.
+- [`tailoring-skill/README.md`](tailoring-skill/README.md) — coding-agent
+  skill, protocol contracts, tools, and tests.
+- [`docs/plans/`](docs/plans/) — active implementation plans.
+- [`tracker/README.md`](tracker/README.md) — project knowledge graph and
+  task history.
+
 ## What you can do
 
 - **Build multiple CVs.** Create reusable CV drafts and versions from scratch.
   Add Profile, Experience, Education, Skills, Projects, Languages,
   Certifications, Research, or Extras sections.
 - **Start from an existing CV.** Import a PDF and review the extracted content
-  in the editor before using it as a new CV.W
+  in the editor before using it as a new CV.
 - **Choose your look.** Use Modern, Classic, or Minimal templates, then adjust
   colors, fonts, section order, spacing, and layout.
 - **Reuse your best work.** Save experiences, skills, projects, education,
@@ -115,6 +130,9 @@ available through the HTTPS hostname configured for the tunnel.
 ## Documentation status
 
 - [`DEPLOY.md`](DEPLOY.md) is the current operator guide.
+- [`api/README.md`](api/README.md), [`web/README.md`](web/README.md), and
+  [`tailoring-skill/README.md`](tailoring-skill/README.md) explain local code
+  ownership and commands.
 - `docs/plans/` contains active internal implementation plans, not user
   instructions.
 - `tracker-legacy/` contains historical tracker exports and is not part of the

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 
-from app.schema.models import (
+from app.document_schema.models import (
     Customizations,
     Document,
     Entry,
@@ -549,7 +549,7 @@ def test_chip_keys_render_field_as_inline_pill():
     from app.services.renderer.builders import build_section_style
     style, policy = build_section_style("projects", None, manifest)
     doc.sections[0] = doc.sections[0].model_copy(update={
-        "layout": (doc.sections[0].layout or __import__("app.schema.models", fromlist=["LayoutHints"]).LayoutHints()).model_copy(update={"chip_keys": ["tech"]}),
+        "layout": (doc.sections[0].layout or __import__("app.document_schema.models", fromlist=["LayoutHints"]).LayoutHints()).model_copy(update={"chip_keys": ["tech"]}),
         "policy": policy,
     })
     model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())

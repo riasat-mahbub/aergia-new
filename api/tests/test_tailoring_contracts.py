@@ -8,8 +8,8 @@ import pytest
 from pydantic import ValidationError
 
 from app.models.library import LibraryEntry
-from app.schemas.application import RequirementRelevanceResult
-from app.schemas.tailoring import (
+from app.http_schemas.application import RequirementRelevanceResult
+from app.http_schemas.tailoring import (
     ReportGapChange,
     TailoringCodeExchange,
     TailoringEvidencePacket,
@@ -34,7 +34,7 @@ from app.services.tailoring import (
 from app.services.tailoring_policy import TailoringPolicyError, validate_document_delta
 
 
-_FIXTURES = Path(__file__).parents[2] / "contracts" / "fixtures"
+_FIXTURES = Path(__file__).parents[2] / "tailoring-skill" / "contracts" / "fixtures"
 
 
 def test_valid_tailoring_patch_fixture_matches_protocol():

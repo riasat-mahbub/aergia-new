@@ -24,7 +24,7 @@ import json
 
 from pydantic import ValidationError
 
-from app.schema.models import SectionInstance
+from app.document_schema.models import SectionInstance
 
 from ._extract_pdfplumber import extract_with_pdfplumber
 from .schemas import ExtractedDocument

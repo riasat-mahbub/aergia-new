@@ -11,7 +11,7 @@ to inline via the customize panel.
 
 from __future__ import annotations
 
-from app.schema.models import SectionPolicy, TemplateManifest
+from app.document_schema.models import SectionPolicy, TemplateManifest
 
 
 SECTION_POLICIES: dict[str, SectionPolicy] = {

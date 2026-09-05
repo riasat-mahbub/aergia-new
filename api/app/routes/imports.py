@@ -55,7 +55,7 @@ from app.services.parser.extract import UnsupportedFormatError
 from app.services.parser.keys import LLMProvider
 
 
-router = APIRouter(prefix="/cvs/import", tags=["imports"])
+router = APIRouter(prefix="/cvs/import")
 
 
 ALLOWED_MIME = {"application/pdf"}

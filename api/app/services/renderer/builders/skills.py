@@ -6,7 +6,7 @@ Each row in the data is a :class:`SkillGroup` with a ``category`` and
 """
 
 from __future__ import annotations
-from app.schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextRun, TextStyle
+from app.document_schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextRun, TextStyle
 
 
 def build_skills(instance: SectionInstance, resolved_layout: LayoutHints | None = None) -> Section:

@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any, Protocol
 
-from app.schemas.application import JobRequirement
+from app.http_schemas.application import JobRequirement
 from app.services.relevance_taxonomy import ALIAS_TO_CANONICAL, TAXONOMY
 
 logger = logging.getLogger(__name__)

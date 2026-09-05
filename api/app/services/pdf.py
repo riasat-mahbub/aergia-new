@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pypdfium2 as pdfium
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.schema.models import TemplateManifest
+from app.document_schema.models import TemplateManifest
 from app.services.cv import CVService, coerce_customizations
 from app.services.renderer import HTMLDocumentRenderer, build_document, resolve
 from app.services.renderer._pdf_runtime import html_to_pdf

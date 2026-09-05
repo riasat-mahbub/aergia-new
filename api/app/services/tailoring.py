@@ -21,11 +21,11 @@ from app.models.cv import CV
 from app.models.library import Library, LibraryEntry
 from app.models.tailoring_session import TailoringSession
 from app.models.user import User
-from app.schema.models import SectionInstance
-from app.schemas.application import JobRequirement, RequirementRelevanceResult
-from app.schemas.cv import CVCreate
+from app.document_schema.models import SectionInstance
+from app.http_schemas.application import JobRequirement, RequirementRelevanceResult
+from app.http_schemas.cv import CVCreate
 from app.services.cv import CVService
-from app.schemas.tailoring import (
+from app.http_schemas.tailoring import (
     AddLibraryEntryChange,
     CreateSectionChange,
     PROTOCOL_VERSION,

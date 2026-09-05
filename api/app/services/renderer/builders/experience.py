@@ -16,7 +16,7 @@ location — they are independent fields on opposite ends of one row.
 """
 
 from __future__ import annotations
-from app.schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextRun
+from app.document_schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextRun
 from ._utils import format_date_range, rich_text_to_field_block
 
 def build_experience(instance: SectionInstance, resolved_layout: LayoutHints | None = None) -> Section:
