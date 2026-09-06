@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import SiteNavbar from "./components/SiteNavbar";
+import SiteNavbar from "../components/SiteNavbar";
 
 interface WorkspaceLayoutProps {
   children: ReactNode;
