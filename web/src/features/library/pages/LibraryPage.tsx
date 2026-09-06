@@ -83,7 +83,7 @@ export default function LibraryPage({ initialKind }: LibraryPageProps) {
             </p>
             <div className="mt-4 flex justify-center gap-2">
               <a
-                href="/dashboard/cvs"
+                href="/cvs"
                 className="inline-flex items-center rounded-md border border-lib-rule bg-lib-surface px-4 py-2 text-sm font-medium text-lib-ink hover:bg-lib-surface-2"
               >
                 Open a CV to promote

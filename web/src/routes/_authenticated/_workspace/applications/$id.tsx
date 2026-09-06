@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ApplicationDetailPage } from "@/features/applications";
 
-export const Route = createFileRoute("/_authenticated/dashboard/applications/$id")({
+export const Route = createFileRoute("/_authenticated/_workspace/applications/$id")({
   ssr: false,
   component: ApplicationDetailRoute,
 });

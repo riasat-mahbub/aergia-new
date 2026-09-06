@@ -50,21 +50,21 @@ export default function DashboardPage() {
 
       <div className="grid gap-4 md:grid-cols-3">
         <SummaryCard
-          to="/dashboard/cvs"
+          to="/cvs"
           label="CVs"
           count={authoredCvs.length}
           description={generatedCvCount ? `${generatedCvCount} tailored CV${generatedCvCount === 1 ? "" : "s"} in Applications` : "Reusable CVs and versions"}
           Icon={FileText}
         />
         <SummaryCard
-          to="/dashboard/library"
+          to="/library"
           label="Library"
           count={libraryLoaded ? libraryEntries.length : 0}
           description="Reusable experience, skills, and more"
           Icon={Library}
         />
         <SummaryCard
-          to="/dashboard/applications"
+          to="/applications"
           label="Applications"
           count={applications.length}
           description="Jobs you are tracking"
@@ -79,7 +79,7 @@ export default function DashboardPage() {
               <h2 id="recent-cvs-heading" className="text-lg font-semibold text-app-ink">Recent CVs</h2>
               <p className="mt-1 text-sm text-app-ink-3">Your reusable CV drafts and versions.</p>
             </div>
-            <Link to="/dashboard/cvs" className="text-sm font-medium text-app-primary hover:text-app-primary-hover">
+            <Link to="/cvs" className="text-sm font-medium text-app-primary hover:text-app-primary-hover">
               View all
             </Link>
           </div>
@@ -110,7 +110,7 @@ export default function DashboardPage() {
               <div className="rounded-lg border border-dashed border-app-rule-strong px-4 py-6 text-center">
                 <p className="text-sm font-medium text-app-ink">No reusable CVs yet</p>
                 <p className="mt-1 text-sm text-app-ink-3">Start with a CV you can adapt for every application.</p>
-                <Link to="/dashboard/cvs" className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-app-primary hover:text-app-primary-hover">
+                <Link to="/cvs" className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-app-primary hover:text-app-primary-hover">
                   <Plus className="h-4 w-4" />
                   Create a CV
                 </Link>
@@ -125,7 +125,7 @@ export default function DashboardPage() {
               <h2 id="recent-applications-heading" className="text-lg font-semibold text-app-ink">Applications</h2>
               <p className="mt-1 text-sm text-app-ink-3">Your latest tracked opportunities.</p>
             </div>
-            <Link to="/dashboard/applications" className="text-sm font-medium text-app-primary hover:text-app-primary-hover">
+            <Link to="/applications" className="text-sm font-medium text-app-primary hover:text-app-primary-hover">
               View all
             </Link>
           </div>
@@ -141,7 +141,7 @@ export default function DashboardPage() {
               <div className="rounded-lg border border-dashed border-app-rule-strong px-4 py-6 text-center">
                 <p className="text-sm font-medium text-app-ink">No applications yet</p>
                 <p className="mt-1 text-sm text-app-ink-3">Track a job to keep its notes and tailored CV together.</p>
-                <Link to="/dashboard/applications" className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-app-primary hover:text-app-primary-hover">
+                <Link to="/applications" className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-app-primary hover:text-app-primary-hover">
                   Track an application <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>

@@ -41,7 +41,7 @@ export default function CvCard({ cv, onEdit, onCopy, onDelete }: CvCardProps) {
             </div>
             {cv.application && (
               <Link
-                to="/dashboard/applications/$id"
+                to="/applications/$id"
                 params={{ id: cv.application.id }}
                 className="mt-3 flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-app-primary hover:text-app-primary hover:underline"
               >

@@ -4,10 +4,10 @@ import { useAuthStore } from "@/features/authentication";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", Icon: LayoutDashboard, end: true },
-  { to: "/dashboard/cvs", label: "CVs", Icon: FileText },
-  { to: "/dashboard/library", label: "Library", Icon: Library },
-  { to: "/dashboard/applications", label: "Applications", Icon: BriefcaseBusiness },
-  { to: "/dashboard/settings", label: "Settings", Icon: Settings },
+  { to: "/cvs", label: "CVs", Icon: FileText },
+  { to: "/library", label: "Library", Icon: Library },
+  { to: "/applications", label: "Applications", Icon: BriefcaseBusiness },
+  { to: "/settings", label: "Settings", Icon: Settings },
 ];
 
 export default function SiteNavbar() {

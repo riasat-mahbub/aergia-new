@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
-import { SiteNavbar } from "@/features/app-shell";
+import SiteNavbar from "./components/SiteNavbar";
 
-interface DashboardLayoutProps {
+interface WorkspaceLayoutProps {
   children: ReactNode;
   showNavbar?: boolean;
 }
 
-export default function DashboardLayout({ children, showNavbar = true }: DashboardLayoutProps) {
+export default function WorkspaceLayout({ children, showNavbar = true }: WorkspaceLayoutProps) {
 
   return (
     <div className="min-h-screen bg-app-canvas">

@@ -23,7 +23,7 @@ export default function TailoringSessionPage({ sessionId }: TailoringSessionPage
         <p className="mt-4 text-xs leading-5 text-app-ink-3">
           If the skill is missing or outdated, your agent should ask before installing or updating it from the official Aergia source.
         </p>
-        <Link to="/dashboard/applications" className="mt-6 inline-flex text-sm font-medium text-app-primary hover:underline">
+        <Link to="/applications" className="mt-6 inline-flex text-sm font-medium text-app-primary hover:underline">
           Return to Aergia
         </Link>
       </section>

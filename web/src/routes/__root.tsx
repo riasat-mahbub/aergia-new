@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-router";
 import { AuthStoreProvider, resolveSession } from "@/features/authentication";
 import type { SessionResolveResponse } from "@/features/authentication";
-import { LoadingPage, NotFoundPage as AppNotFoundPage, RootLayout } from "@/features/app-shell";
+import { LoadingPage, NotFoundPage as AppNotFoundPage, RootLayout } from "@/app-shell";
 import "@/index.css";
 import "react-day-picker/style.css";
 

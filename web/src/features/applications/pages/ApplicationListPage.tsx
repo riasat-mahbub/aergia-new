@@ -42,7 +42,7 @@ export default function ApplicationsPage() {
   );
 
   const handleGenerated = async (result: ApplicationGenerateResponse) => {
-    navigate({ to: "/dashboard/applications/$id", params: { id: result.application.id } });
+    navigate({ to: "/applications/$id", params: { id: result.application.id } });
     if (result.application.generation_status === "failed") {
       addToast("CV generation failed. Please retry.", "error");
     }

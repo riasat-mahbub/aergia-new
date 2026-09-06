@@ -5,7 +5,7 @@ import { STATUS_CLASSES, STATUS_LABELS } from "@/features/applications";
 export default function ApplicationRow({ application }: { application: Application }) {
   return (
     <Link
-      to="/dashboard/applications/$id"
+      to="/applications/$id"
       params={{ id: application.id }}
       className="flex items-center justify-between gap-4 rounded-lg px-3 py-3 transition hover:bg-app-surface-muted"
     >

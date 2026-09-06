@@ -2,7 +2,7 @@ import { ArrowRight, type LucideIcon } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 interface SummaryCardProps {
-  to: "/dashboard/cvs" | "/dashboard/library" | "/dashboard/applications";
+  to: "/cvs" | "/library" | "/applications";
   label: string;
   count: number;
   description: string;

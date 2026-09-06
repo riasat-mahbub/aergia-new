@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { LibraryPage } from "@/features/library";
 import { z } from "zod";
 
-export const Route = createFileRoute("/_authenticated/dashboard/library")({
+export const Route = createFileRoute("/_authenticated/_workspace/library")({
   ssr: false,
   validateSearch: z.object({ kind: z.string().optional() }),
   component: LibraryRoute,

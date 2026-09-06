@@ -75,7 +75,7 @@ export default function LibraryPicker({ open, onClose, kind, onPick }: LibraryPi
                 type="button"
                 onClick={() => {
                   window.open(
-                    `/dashboard/library?kind=${kind}`,
+                    `/library?kind=${kind}`,
                     "_blank",
                     "noopener,noreferrer",
                   );
@@ -136,7 +136,7 @@ export default function LibraryPicker({ open, onClose, kind, onPick }: LibraryPi
                 type="button"
                 onClick={() => {
                   window.open(
-                    `/dashboard/library?kind=${kind}`,
+                    `/library?kind=${kind}`,
                     "_blank",
                     "noopener,noreferrer",
                   );
