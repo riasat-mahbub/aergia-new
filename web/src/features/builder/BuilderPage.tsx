@@ -205,7 +205,7 @@ export default function BuilderPage({ cvId, applicationId }: BuilderPageProps) {
           isSaving={isSaving}
           lastSaved={lastSaved}
           showSavedFeedback={showSavedFeedback}
-          onBack={() => navigate({ to: "/dashboard/cvs" })}
+          onBack={() => navigate({ to: "/cvs" })}
           onOpenRelevance={() => setRelevanceDrawerOpen(true)}
           onSave={handleSave}
           formatLastSaved={formatLastSaved}

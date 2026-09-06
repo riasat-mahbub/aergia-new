@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useAuthStore } from "@/features/authentication";
-import { SiteNavbar } from "@/features/app-shell";
+import { SiteNavbar } from "@/app-shell";
 import { FileText, Palette, Download, GripVertical, Eye, Shield } from "lucide-react";
 
 const features = [

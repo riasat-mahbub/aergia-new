@@ -116,7 +116,7 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
     try {
       await remove(application.id);
       addToast("Application deleted", "info");
-      navigate({ to: "/dashboard/applications" });
+      navigate({ to: "/applications" });
     } catch {
       addToast("Unable to delete this application", "error");
     }
@@ -124,7 +124,7 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <Link to="/dashboard/applications" className="text-sm text-app-ink-3 hover:text-app-ink-2">&larr; Applications</Link>
+      <Link to="/applications" className="text-sm text-app-ink-3 hover:text-app-ink-2">&larr; Applications</Link>
       <header className="mt-4 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.14em] text-app-primary">Application</p>

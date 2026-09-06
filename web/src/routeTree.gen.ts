@@ -13,16 +13,16 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as AuthenticatedWorkspaceRouteRouteImport } from './routes/_authenticated/_workspace/route'
 import { Route as AuthenticatedBuilderRouteRouteImport } from './routes/_authenticated/builder/route'
-import { Route as AuthenticatedDashboardRouteRouteImport } from './routes/_authenticated/dashboard/route'
+import { Route as AuthenticatedWorkspaceApplicationsRouteRouteImport } from './routes/_authenticated/_workspace/applications/route'
+import { Route as AuthenticatedWorkspaceCvsRouteImport } from './routes/_authenticated/_workspace/cvs'
+import { Route as AuthenticatedWorkspaceDashboardRouteImport } from './routes/_authenticated/_workspace/dashboard'
+import { Route as AuthenticatedWorkspaceLibraryRouteImport } from './routes/_authenticated/_workspace/library'
+import { Route as AuthenticatedWorkspaceSettingsRouteImport } from './routes/_authenticated/_workspace/settings'
 import { Route as AuthenticatedBuilderIdRouteImport } from './routes/_authenticated/builder/$id'
-import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
-import { Route as AuthenticatedDashboardApplicationsRouteRouteImport } from './routes/_authenticated/dashboard/applications/route'
-import { Route as AuthenticatedDashboardCvsRouteImport } from './routes/_authenticated/dashboard/cvs'
-import { Route as AuthenticatedDashboardLibraryRouteImport } from './routes/_authenticated/dashboard/library'
-import { Route as AuthenticatedDashboardSettingsRouteImport } from './routes/_authenticated/dashboard/settings'
 import { Route as AgentTailorSessionIdRouteImport } from './routes/agent/tailor/$sessionId'
-import { Route as AuthenticatedDashboardApplicationsIdRouteImport } from './routes/_authenticated/dashboard/applications/$id'
+import { Route as AuthenticatedWorkspaceApplicationsIdRouteImport } from './routes/_authenticated/_workspace/applications/$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -43,63 +43,62 @@ const RegisterRoute = RegisterRouteImport.update({
   path: '/register',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedWorkspaceRouteRoute =
+  AuthenticatedWorkspaceRouteRouteImport.update({
+    id: '/_workspace',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedBuilderRouteRoute =
   AuthenticatedBuilderRouteRouteImport.update({
     id: '/builder',
     path: '/builder',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedDashboardRouteRoute =
-  AuthenticatedDashboardRouteRouteImport.update({
+const AuthenticatedWorkspaceApplicationsRouteRoute =
+  AuthenticatedWorkspaceApplicationsRouteRouteImport.update({
+    id: '/applications',
+    path: '/applications',
+    getParentRoute: () => AuthenticatedWorkspaceRouteRoute,
+  } as any)
+const AuthenticatedWorkspaceCvsRoute =
+  AuthenticatedWorkspaceCvsRouteImport.update({
+    id: '/cvs',
+    path: '/cvs',
+    getParentRoute: () => AuthenticatedWorkspaceRouteRoute,
+  } as any)
+const AuthenticatedWorkspaceDashboardRoute =
+  AuthenticatedWorkspaceDashboardRouteImport.update({
     id: '/dashboard',
     path: '/dashboard',
-    getParentRoute: () => AuthenticatedRouteRoute,
+    getParentRoute: () => AuthenticatedWorkspaceRouteRoute,
+  } as any)
+const AuthenticatedWorkspaceLibraryRoute =
+  AuthenticatedWorkspaceLibraryRouteImport.update({
+    id: '/library',
+    path: '/library',
+    getParentRoute: () => AuthenticatedWorkspaceRouteRoute,
+  } as any)
+const AuthenticatedWorkspaceSettingsRoute =
+  AuthenticatedWorkspaceSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedWorkspaceRouteRoute,
   } as any)
 const AuthenticatedBuilderIdRoute = AuthenticatedBuilderIdRouteImport.update({
   id: '/$id',
   path: '/$id',
   getParentRoute: () => AuthenticatedBuilderRouteRoute,
 } as any)
-const AuthenticatedDashboardIndexRoute =
-  AuthenticatedDashboardIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedDashboardRouteRoute,
-  } as any)
-const AuthenticatedDashboardApplicationsRouteRoute =
-  AuthenticatedDashboardApplicationsRouteRouteImport.update({
-    id: '/applications',
-    path: '/applications',
-    getParentRoute: () => AuthenticatedDashboardRouteRoute,
-  } as any)
-const AuthenticatedDashboardCvsRoute =
-  AuthenticatedDashboardCvsRouteImport.update({
-    id: '/cvs',
-    path: '/cvs',
-    getParentRoute: () => AuthenticatedDashboardRouteRoute,
-  } as any)
-const AuthenticatedDashboardLibraryRoute =
-  AuthenticatedDashboardLibraryRouteImport.update({
-    id: '/library',
-    path: '/library',
-    getParentRoute: () => AuthenticatedDashboardRouteRoute,
-  } as any)
-const AuthenticatedDashboardSettingsRoute =
-  AuthenticatedDashboardSettingsRouteImport.update({
-    id: '/settings',
-    path: '/settings',
-    getParentRoute: () => AuthenticatedDashboardRouteRoute,
-  } as any)
 const AgentTailorSessionIdRoute = AgentTailorSessionIdRouteImport.update({
   id: '/agent/tailor/$sessionId',
   path: '/agent/tailor/$sessionId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedDashboardApplicationsIdRoute =
-  AuthenticatedDashboardApplicationsIdRouteImport.update({
+const AuthenticatedWorkspaceApplicationsIdRoute =
+  AuthenticatedWorkspaceApplicationsIdRouteImport.update({
     id: '/$id',
     path: '/$id',
-    getParentRoute: () => AuthenticatedDashboardApplicationsRouteRoute,
+    getParentRoute: () => AuthenticatedWorkspaceApplicationsRouteRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -107,29 +106,28 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/builder': typeof AuthenticatedBuilderRouteRouteWithChildren
-  '/dashboard': typeof AuthenticatedDashboardRouteRouteWithChildren
-  '/dashboard/applications': typeof AuthenticatedDashboardApplicationsRouteRouteWithChildren
+  '/applications': typeof AuthenticatedWorkspaceApplicationsRouteRouteWithChildren
+  '/cvs': typeof AuthenticatedWorkspaceCvsRoute
+  '/dashboard': typeof AuthenticatedWorkspaceDashboardRoute
+  '/library': typeof AuthenticatedWorkspaceLibraryRoute
+  '/settings': typeof AuthenticatedWorkspaceSettingsRoute
   '/builder/$id': typeof AuthenticatedBuilderIdRoute
-  '/dashboard/cvs': typeof AuthenticatedDashboardCvsRoute
-  '/dashboard/library': typeof AuthenticatedDashboardLibraryRoute
-  '/dashboard/settings': typeof AuthenticatedDashboardSettingsRoute
   '/agent/tailor/$sessionId': typeof AgentTailorSessionIdRoute
-  '/dashboard/': typeof AuthenticatedDashboardIndexRoute
-  '/dashboard/applications/$id': typeof AuthenticatedDashboardApplicationsIdRoute
+  '/applications/$id': typeof AuthenticatedWorkspaceApplicationsIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/builder': typeof AuthenticatedBuilderRouteRouteWithChildren
-  '/dashboard/applications': typeof AuthenticatedDashboardApplicationsRouteRouteWithChildren
+  '/applications': typeof AuthenticatedWorkspaceApplicationsRouteRouteWithChildren
+  '/cvs': typeof AuthenticatedWorkspaceCvsRoute
+  '/dashboard': typeof AuthenticatedWorkspaceDashboardRoute
+  '/library': typeof AuthenticatedWorkspaceLibraryRoute
+  '/settings': typeof AuthenticatedWorkspaceSettingsRoute
   '/builder/$id': typeof AuthenticatedBuilderIdRoute
-  '/dashboard/cvs': typeof AuthenticatedDashboardCvsRoute
-  '/dashboard/library': typeof AuthenticatedDashboardLibraryRoute
-  '/dashboard/settings': typeof AuthenticatedDashboardSettingsRoute
   '/agent/tailor/$sessionId': typeof AgentTailorSessionIdRoute
-  '/dashboard': typeof AuthenticatedDashboardIndexRoute
-  '/dashboard/applications/$id': typeof AuthenticatedDashboardApplicationsIdRoute
+  '/applications/$id': typeof AuthenticatedWorkspaceApplicationsIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -137,16 +135,16 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/_authenticated/_workspace': typeof AuthenticatedWorkspaceRouteRouteWithChildren
   '/_authenticated/builder': typeof AuthenticatedBuilderRouteRouteWithChildren
-  '/_authenticated/dashboard': typeof AuthenticatedDashboardRouteRouteWithChildren
-  '/_authenticated/dashboard/applications': typeof AuthenticatedDashboardApplicationsRouteRouteWithChildren
+  '/_authenticated/_workspace/applications': typeof AuthenticatedWorkspaceApplicationsRouteRouteWithChildren
+  '/_authenticated/_workspace/cvs': typeof AuthenticatedWorkspaceCvsRoute
+  '/_authenticated/_workspace/dashboard': typeof AuthenticatedWorkspaceDashboardRoute
+  '/_authenticated/_workspace/library': typeof AuthenticatedWorkspaceLibraryRoute
+  '/_authenticated/_workspace/settings': typeof AuthenticatedWorkspaceSettingsRoute
   '/_authenticated/builder/$id': typeof AuthenticatedBuilderIdRoute
-  '/_authenticated/dashboard/cvs': typeof AuthenticatedDashboardCvsRoute
-  '/_authenticated/dashboard/library': typeof AuthenticatedDashboardLibraryRoute
-  '/_authenticated/dashboard/settings': typeof AuthenticatedDashboardSettingsRoute
   '/agent/tailor/$sessionId': typeof AgentTailorSessionIdRoute
-  '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
-  '/_authenticated/dashboard/applications/$id': typeof AuthenticatedDashboardApplicationsIdRoute
+  '/_authenticated/_workspace/applications/$id': typeof AuthenticatedWorkspaceApplicationsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -155,45 +153,44 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/builder'
+    | '/applications'
+    | '/cvs'
     | '/dashboard'
-    | '/dashboard/applications'
+    | '/library'
+    | '/settings'
     | '/builder/$id'
-    | '/dashboard/cvs'
-    | '/dashboard/library'
-    | '/dashboard/settings'
     | '/agent/tailor/$sessionId'
-    | '/dashboard/'
-    | '/dashboard/applications/$id'
+    | '/applications/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
     | '/register'
     | '/builder'
-    | '/dashboard/applications'
-    | '/builder/$id'
-    | '/dashboard/cvs'
-    | '/dashboard/library'
-    | '/dashboard/settings'
-    | '/agent/tailor/$sessionId'
+    | '/applications'
+    | '/cvs'
     | '/dashboard'
-    | '/dashboard/applications/$id'
+    | '/library'
+    | '/settings'
+    | '/builder/$id'
+    | '/agent/tailor/$sessionId'
+    | '/applications/$id'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/login'
     | '/register'
+    | '/_authenticated/_workspace'
     | '/_authenticated/builder'
-    | '/_authenticated/dashboard'
-    | '/_authenticated/dashboard/applications'
+    | '/_authenticated/_workspace/applications'
+    | '/_authenticated/_workspace/cvs'
+    | '/_authenticated/_workspace/dashboard'
+    | '/_authenticated/_workspace/library'
+    | '/_authenticated/_workspace/settings'
     | '/_authenticated/builder/$id'
-    | '/_authenticated/dashboard/cvs'
-    | '/_authenticated/dashboard/library'
-    | '/_authenticated/dashboard/settings'
     | '/agent/tailor/$sessionId'
-    | '/_authenticated/dashboard/'
-    | '/_authenticated/dashboard/applications/$id'
+    | '/_authenticated/_workspace/applications/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -234,6 +231,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/_workspace': {
+      id: '/_authenticated/_workspace'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedWorkspaceRouteRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/builder': {
       id: '/_authenticated/builder'
       path: '/builder'
@@ -241,12 +245,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBuilderRouteRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/dashboard': {
-      id: '/_authenticated/dashboard'
+    '/_authenticated/_workspace/applications': {
+      id: '/_authenticated/_workspace/applications'
+      path: '/applications'
+      fullPath: '/applications'
+      preLoaderRoute: typeof AuthenticatedWorkspaceApplicationsRouteRouteImport
+      parentRoute: typeof AuthenticatedWorkspaceRouteRoute
+    }
+    '/_authenticated/_workspace/cvs': {
+      id: '/_authenticated/_workspace/cvs'
+      path: '/cvs'
+      fullPath: '/cvs'
+      preLoaderRoute: typeof AuthenticatedWorkspaceCvsRouteImport
+      parentRoute: typeof AuthenticatedWorkspaceRouteRoute
+    }
+    '/_authenticated/_workspace/dashboard': {
+      id: '/_authenticated/_workspace/dashboard'
       path: '/dashboard'
       fullPath: '/dashboard'
-      preLoaderRoute: typeof AuthenticatedDashboardRouteRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
+      preLoaderRoute: typeof AuthenticatedWorkspaceDashboardRouteImport
+      parentRoute: typeof AuthenticatedWorkspaceRouteRoute
+    }
+    '/_authenticated/_workspace/library': {
+      id: '/_authenticated/_workspace/library'
+      path: '/library'
+      fullPath: '/library'
+      preLoaderRoute: typeof AuthenticatedWorkspaceLibraryRouteImport
+      parentRoute: typeof AuthenticatedWorkspaceRouteRoute
+    }
+    '/_authenticated/_workspace/settings': {
+      id: '/_authenticated/_workspace/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedWorkspaceSettingsRouteImport
+      parentRoute: typeof AuthenticatedWorkspaceRouteRoute
     }
     '/_authenticated/builder/$id': {
       id: '/_authenticated/builder/$id'
@@ -255,41 +287,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBuilderIdRouteImport
       parentRoute: typeof AuthenticatedBuilderRouteRoute
     }
-    '/_authenticated/dashboard/': {
-      id: '/_authenticated/dashboard/'
-      path: '/'
-      fullPath: '/dashboard/'
-      preLoaderRoute: typeof AuthenticatedDashboardIndexRouteImport
-      parentRoute: typeof AuthenticatedDashboardRouteRoute
-    }
-    '/_authenticated/dashboard/applications': {
-      id: '/_authenticated/dashboard/applications'
-      path: '/applications'
-      fullPath: '/dashboard/applications'
-      preLoaderRoute: typeof AuthenticatedDashboardApplicationsRouteRouteImport
-      parentRoute: typeof AuthenticatedDashboardRouteRoute
-    }
-    '/_authenticated/dashboard/cvs': {
-      id: '/_authenticated/dashboard/cvs'
-      path: '/cvs'
-      fullPath: '/dashboard/cvs'
-      preLoaderRoute: typeof AuthenticatedDashboardCvsRouteImport
-      parentRoute: typeof AuthenticatedDashboardRouteRoute
-    }
-    '/_authenticated/dashboard/library': {
-      id: '/_authenticated/dashboard/library'
-      path: '/library'
-      fullPath: '/dashboard/library'
-      preLoaderRoute: typeof AuthenticatedDashboardLibraryRouteImport
-      parentRoute: typeof AuthenticatedDashboardRouteRoute
-    }
-    '/_authenticated/dashboard/settings': {
-      id: '/_authenticated/dashboard/settings'
-      path: '/settings'
-      fullPath: '/dashboard/settings'
-      preLoaderRoute: typeof AuthenticatedDashboardSettingsRouteImport
-      parentRoute: typeof AuthenticatedDashboardRouteRoute
-    }
     '/agent/tailor/$sessionId': {
       id: '/agent/tailor/$sessionId'
       path: '/agent/tailor/$sessionId'
@@ -297,15 +294,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgentTailorSessionIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/dashboard/applications/$id': {
-      id: '/_authenticated/dashboard/applications/$id'
+    '/_authenticated/_workspace/applications/$id': {
+      id: '/_authenticated/_workspace/applications/$id'
       path: '/$id'
-      fullPath: '/dashboard/applications/$id'
-      preLoaderRoute: typeof AuthenticatedDashboardApplicationsIdRouteImport
-      parentRoute: typeof AuthenticatedDashboardApplicationsRouteRoute
+      fullPath: '/applications/$id'
+      preLoaderRoute: typeof AuthenticatedWorkspaceApplicationsIdRouteImport
+      parentRoute: typeof AuthenticatedWorkspaceApplicationsRouteRoute
     }
   }
 }
+
+interface AuthenticatedWorkspaceApplicationsRouteRouteChildren {
+  AuthenticatedWorkspaceApplicationsIdRoute: typeof AuthenticatedWorkspaceApplicationsIdRoute
+}
+
+const AuthenticatedWorkspaceApplicationsRouteRouteChildren: AuthenticatedWorkspaceApplicationsRouteRouteChildren =
+  {
+    AuthenticatedWorkspaceApplicationsIdRoute:
+      AuthenticatedWorkspaceApplicationsIdRoute,
+  }
+
+const AuthenticatedWorkspaceApplicationsRouteRouteWithChildren =
+  AuthenticatedWorkspaceApplicationsRouteRoute._addFileChildren(
+    AuthenticatedWorkspaceApplicationsRouteRouteChildren,
+  )
+
+interface AuthenticatedWorkspaceRouteRouteChildren {
+  AuthenticatedWorkspaceApplicationsRouteRoute: typeof AuthenticatedWorkspaceApplicationsRouteRouteWithChildren
+  AuthenticatedWorkspaceCvsRoute: typeof AuthenticatedWorkspaceCvsRoute
+  AuthenticatedWorkspaceDashboardRoute: typeof AuthenticatedWorkspaceDashboardRoute
+  AuthenticatedWorkspaceLibraryRoute: typeof AuthenticatedWorkspaceLibraryRoute
+  AuthenticatedWorkspaceSettingsRoute: typeof AuthenticatedWorkspaceSettingsRoute
+}
+
+const AuthenticatedWorkspaceRouteRouteChildren: AuthenticatedWorkspaceRouteRouteChildren =
+  {
+    AuthenticatedWorkspaceApplicationsRouteRoute:
+      AuthenticatedWorkspaceApplicationsRouteRouteWithChildren,
+    AuthenticatedWorkspaceCvsRoute: AuthenticatedWorkspaceCvsRoute,
+    AuthenticatedWorkspaceDashboardRoute: AuthenticatedWorkspaceDashboardRoute,
+    AuthenticatedWorkspaceLibraryRoute: AuthenticatedWorkspaceLibraryRoute,
+    AuthenticatedWorkspaceSettingsRoute: AuthenticatedWorkspaceSettingsRoute,
+  }
+
+const AuthenticatedWorkspaceRouteRouteWithChildren =
+  AuthenticatedWorkspaceRouteRoute._addFileChildren(
+    AuthenticatedWorkspaceRouteRouteChildren,
+  )
 
 interface AuthenticatedBuilderRouteRouteChildren {
   AuthenticatedBuilderIdRoute: typeof AuthenticatedBuilderIdRoute
@@ -321,53 +356,15 @@ const AuthenticatedBuilderRouteRouteWithChildren =
     AuthenticatedBuilderRouteRouteChildren,
   )
 
-interface AuthenticatedDashboardApplicationsRouteRouteChildren {
-  AuthenticatedDashboardApplicationsIdRoute: typeof AuthenticatedDashboardApplicationsIdRoute
-}
-
-const AuthenticatedDashboardApplicationsRouteRouteChildren: AuthenticatedDashboardApplicationsRouteRouteChildren =
-  {
-    AuthenticatedDashboardApplicationsIdRoute:
-      AuthenticatedDashboardApplicationsIdRoute,
-  }
-
-const AuthenticatedDashboardApplicationsRouteRouteWithChildren =
-  AuthenticatedDashboardApplicationsRouteRoute._addFileChildren(
-    AuthenticatedDashboardApplicationsRouteRouteChildren,
-  )
-
-interface AuthenticatedDashboardRouteRouteChildren {
-  AuthenticatedDashboardApplicationsRouteRoute: typeof AuthenticatedDashboardApplicationsRouteRouteWithChildren
-  AuthenticatedDashboardCvsRoute: typeof AuthenticatedDashboardCvsRoute
-  AuthenticatedDashboardLibraryRoute: typeof AuthenticatedDashboardLibraryRoute
-  AuthenticatedDashboardSettingsRoute: typeof AuthenticatedDashboardSettingsRoute
-  AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
-}
-
-const AuthenticatedDashboardRouteRouteChildren: AuthenticatedDashboardRouteRouteChildren =
-  {
-    AuthenticatedDashboardApplicationsRouteRoute:
-      AuthenticatedDashboardApplicationsRouteRouteWithChildren,
-    AuthenticatedDashboardCvsRoute: AuthenticatedDashboardCvsRoute,
-    AuthenticatedDashboardLibraryRoute: AuthenticatedDashboardLibraryRoute,
-    AuthenticatedDashboardSettingsRoute: AuthenticatedDashboardSettingsRoute,
-    AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
-  }
-
-const AuthenticatedDashboardRouteRouteWithChildren =
-  AuthenticatedDashboardRouteRoute._addFileChildren(
-    AuthenticatedDashboardRouteRouteChildren,
-  )
-
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedWorkspaceRouteRoute: typeof AuthenticatedWorkspaceRouteRouteWithChildren
   AuthenticatedBuilderRouteRoute: typeof AuthenticatedBuilderRouteRouteWithChildren
-  AuthenticatedDashboardRouteRoute: typeof AuthenticatedDashboardRouteRouteWithChildren
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedWorkspaceRouteRoute:
+    AuthenticatedWorkspaceRouteRouteWithChildren,
   AuthenticatedBuilderRouteRoute: AuthenticatedBuilderRouteRouteWithChildren,
-  AuthenticatedDashboardRouteRoute:
-    AuthenticatedDashboardRouteRouteWithChildren,
 }
 
 const AuthenticatedRouteRouteWithChildren =

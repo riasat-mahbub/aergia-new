@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
-import { DashboardLayout } from "@/features/dashboard";
+import { WorkspaceLayout } from "@/app-shell";
 
 export const Route = createFileRoute("/_authenticated/builder")({
   ssr: "data-only",
@@ -7,5 +7,5 @@ export const Route = createFileRoute("/_authenticated/builder")({
 });
 
 function BuilderLayout() {
-  return <DashboardLayout showNavbar={false}><Outlet /></DashboardLayout>;
+  return <WorkspaceLayout showNavbar={false}><Outlet /></WorkspaceLayout>;
 }
