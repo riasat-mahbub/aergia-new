@@ -7,12 +7,16 @@ import type { UserProfile } from "@/features/profile";
 interface SettingsProfileCardProps {
   profile: UserProfile | null;
   isLoading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
   onSave: (profile: UserProfile) => Promise<UserProfile>;
 }
 
 export default function SettingsProfileCard({
   profile,
   isLoading = false,
+  error = null,
+  onRetry,
   onSave,
 }: SettingsProfileCardProps) {
   const [open, setOpen] = useState(false);
@@ -66,6 +70,12 @@ export default function SettingsProfileCard({
             Edit
           </button>
         </div>
+        {error && !isLoading && (
+          <div className="mt-4 rounded-md border border-app-danger/30 bg-app-danger-soft p-3 text-sm text-app-danger" role="alert">
+            <p>{error}</p>
+            {onRetry && <button type="button" onClick={onRetry} className="mt-2 rounded-md border border-app-danger/40 px-3 py-1.5 font-medium hover:bg-app-danger/10">Try again</button>}
+          </div>
+        )}
         <p className="mt-4 text-xs text-app-ink-3">Shared profile details used when building your CVs.</p>
       </section>
 

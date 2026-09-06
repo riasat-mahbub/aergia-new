@@ -31,6 +31,7 @@ export default function BuilderPage({ cvId, applicationId }: BuilderPageProps) {
   const id = cvId;
   const navigate = useNavigate();
   const { currentCV, loadCV, isLoading, isSaving, lastSaved, setIsSaving, setLastSaved } = useBuilderDocumentStore();
+  const documentError = useBuilderDocumentStore((state) => state.error);
 
   const [activeTab, setActiveTab] = useState<"content" | "customize">("content");
   const [relevanceDrawerOpen, setRelevanceDrawerOpen] = useState(false);
@@ -51,6 +52,7 @@ export default function BuilderPage({ cvId, applicationId }: BuilderPageProps) {
     setCustomizations,
     isLoaded,
     showLoading,
+    retry,
   } = useBuilderDocumentLoader({ id, loadCV });
   useEffect(() => {
     useSupportStore.getState().ensureLoaded();
@@ -192,7 +194,20 @@ export default function BuilderPage({ cvId, applicationId }: BuilderPageProps) {
         animate={{ opacity: 1 }}
         className="flex h-screen items-center justify-center"
       >
-        <p className="text-app-ink-3">{isLoading ? "Loading CV..." : "CV not found"}</p>
+        <p className="text-app-ink-3">{isLoading || !isLoaded ? "Loading CV..." : "CV not found"}</p>
+      </motion.div>
+    ) : documentError ? (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="flex h-screen items-center justify-center"
+      >
+        <div className="text-center" role="alert">
+          <p className="text-app-danger">{documentError}</p>
+          <button type="button" onClick={retry} className="mt-3 rounded-md border border-app-rule-strong px-3 py-1.5 text-sm font-medium text-app-ink-2 hover:bg-app-surface-muted">
+            Try again
+          </button>
+        </div>
       </motion.div>
     ) : currentCV ? (
       <div className="flex h-screen flex-col">

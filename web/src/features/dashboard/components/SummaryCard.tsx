@@ -4,7 +4,7 @@ import { Link } from "@tanstack/react-router";
 interface SummaryCardProps {
   to: "/cvs" | "/library" | "/applications";
   label: string;
-  count: number;
+  count: number | string;
   description: string;
   Icon: LucideIcon;
 }

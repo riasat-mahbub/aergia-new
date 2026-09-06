@@ -20,8 +20,10 @@ import { Route as AuthenticatedWorkspaceCvsRouteImport } from './routes/_authent
 import { Route as AuthenticatedWorkspaceDashboardRouteImport } from './routes/_authenticated/_workspace/dashboard'
 import { Route as AuthenticatedWorkspaceLibraryRouteImport } from './routes/_authenticated/_workspace/library'
 import { Route as AuthenticatedWorkspaceSettingsRouteImport } from './routes/_authenticated/_workspace/settings'
+import { Route as AuthenticatedBuilderIndexRouteImport } from './routes/_authenticated/builder/index'
 import { Route as AuthenticatedBuilderIdRouteImport } from './routes/_authenticated/builder/$id'
 import { Route as AgentTailorSessionIdRouteImport } from './routes/agent/tailor/$sessionId'
+import { Route as AuthenticatedWorkspaceApplicationsIndexRouteImport } from './routes/_authenticated/_workspace/applications/index'
 import { Route as AuthenticatedWorkspaceApplicationsIdRouteImport } from './routes/_authenticated/_workspace/applications/$id'
 
 const IndexRoute = IndexRouteImport.update({
@@ -84,6 +86,12 @@ const AuthenticatedWorkspaceSettingsRoute =
     path: '/settings',
     getParentRoute: () => AuthenticatedWorkspaceRouteRoute,
   } as any)
+const AuthenticatedBuilderIndexRoute =
+  AuthenticatedBuilderIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedBuilderRouteRoute,
+  } as any)
 const AuthenticatedBuilderIdRoute = AuthenticatedBuilderIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -94,6 +102,12 @@ const AgentTailorSessionIdRoute = AgentTailorSessionIdRouteImport.update({
   path: '/agent/tailor/$sessionId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedWorkspaceApplicationsIndexRoute =
+  AuthenticatedWorkspaceApplicationsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedWorkspaceApplicationsRouteRoute,
+  } as any)
 const AuthenticatedWorkspaceApplicationsIdRoute =
   AuthenticatedWorkspaceApplicationsIdRouteImport.update({
     id: '/$id',
@@ -113,21 +127,23 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedWorkspaceSettingsRoute
   '/builder/$id': typeof AuthenticatedBuilderIdRoute
   '/agent/tailor/$sessionId': typeof AgentTailorSessionIdRoute
+  '/builder/': typeof AuthenticatedBuilderIndexRoute
   '/applications/$id': typeof AuthenticatedWorkspaceApplicationsIdRoute
+  '/applications/': typeof AuthenticatedWorkspaceApplicationsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
-  '/builder': typeof AuthenticatedBuilderRouteRouteWithChildren
-  '/applications': typeof AuthenticatedWorkspaceApplicationsRouteRouteWithChildren
   '/cvs': typeof AuthenticatedWorkspaceCvsRoute
   '/dashboard': typeof AuthenticatedWorkspaceDashboardRoute
   '/library': typeof AuthenticatedWorkspaceLibraryRoute
   '/settings': typeof AuthenticatedWorkspaceSettingsRoute
   '/builder/$id': typeof AuthenticatedBuilderIdRoute
   '/agent/tailor/$sessionId': typeof AgentTailorSessionIdRoute
+  '/builder': typeof AuthenticatedBuilderIndexRoute
   '/applications/$id': typeof AuthenticatedWorkspaceApplicationsIdRoute
+  '/applications': typeof AuthenticatedWorkspaceApplicationsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -144,7 +160,9 @@ export interface FileRoutesById {
   '/_authenticated/_workspace/settings': typeof AuthenticatedWorkspaceSettingsRoute
   '/_authenticated/builder/$id': typeof AuthenticatedBuilderIdRoute
   '/agent/tailor/$sessionId': typeof AgentTailorSessionIdRoute
+  '/_authenticated/builder/': typeof AuthenticatedBuilderIndexRoute
   '/_authenticated/_workspace/applications/$id': typeof AuthenticatedWorkspaceApplicationsIdRoute
+  '/_authenticated/_workspace/applications/': typeof AuthenticatedWorkspaceApplicationsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -160,21 +178,23 @@ export interface FileRouteTypes {
     | '/settings'
     | '/builder/$id'
     | '/agent/tailor/$sessionId'
+    | '/builder/'
     | '/applications/$id'
+    | '/applications/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
     | '/register'
-    | '/builder'
-    | '/applications'
     | '/cvs'
     | '/dashboard'
     | '/library'
     | '/settings'
     | '/builder/$id'
     | '/agent/tailor/$sessionId'
+    | '/builder'
     | '/applications/$id'
+    | '/applications'
   id:
     | '__root__'
     | '/'
@@ -190,7 +210,9 @@ export interface FileRouteTypes {
     | '/_authenticated/_workspace/settings'
     | '/_authenticated/builder/$id'
     | '/agent/tailor/$sessionId'
+    | '/_authenticated/builder/'
     | '/_authenticated/_workspace/applications/$id'
+    | '/_authenticated/_workspace/applications/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -280,6 +302,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWorkspaceSettingsRouteImport
       parentRoute: typeof AuthenticatedWorkspaceRouteRoute
     }
+    '/_authenticated/builder/': {
+      id: '/_authenticated/builder/'
+      path: '/'
+      fullPath: '/builder/'
+      preLoaderRoute: typeof AuthenticatedBuilderIndexRouteImport
+      parentRoute: typeof AuthenticatedBuilderRouteRoute
+    }
     '/_authenticated/builder/$id': {
       id: '/_authenticated/builder/$id'
       path: '/$id'
@@ -294,6 +323,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgentTailorSessionIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/_workspace/applications/': {
+      id: '/_authenticated/_workspace/applications/'
+      path: '/'
+      fullPath: '/applications/'
+      preLoaderRoute: typeof AuthenticatedWorkspaceApplicationsIndexRouteImport
+      parentRoute: typeof AuthenticatedWorkspaceApplicationsRouteRoute
+    }
     '/_authenticated/_workspace/applications/$id': {
       id: '/_authenticated/_workspace/applications/$id'
       path: '/$id'
@@ -306,12 +342,15 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedWorkspaceApplicationsRouteRouteChildren {
   AuthenticatedWorkspaceApplicationsIdRoute: typeof AuthenticatedWorkspaceApplicationsIdRoute
+  AuthenticatedWorkspaceApplicationsIndexRoute: typeof AuthenticatedWorkspaceApplicationsIndexRoute
 }
 
 const AuthenticatedWorkspaceApplicationsRouteRouteChildren: AuthenticatedWorkspaceApplicationsRouteRouteChildren =
   {
     AuthenticatedWorkspaceApplicationsIdRoute:
       AuthenticatedWorkspaceApplicationsIdRoute,
+    AuthenticatedWorkspaceApplicationsIndexRoute:
+      AuthenticatedWorkspaceApplicationsIndexRoute,
   }
 
 const AuthenticatedWorkspaceApplicationsRouteRouteWithChildren =
@@ -344,11 +383,13 @@ const AuthenticatedWorkspaceRouteRouteWithChildren =
 
 interface AuthenticatedBuilderRouteRouteChildren {
   AuthenticatedBuilderIdRoute: typeof AuthenticatedBuilderIdRoute
+  AuthenticatedBuilderIndexRoute: typeof AuthenticatedBuilderIndexRoute
 }
 
 const AuthenticatedBuilderRouteRouteChildren: AuthenticatedBuilderRouteRouteChildren =
   {
     AuthenticatedBuilderIdRoute: AuthenticatedBuilderIdRoute,
+    AuthenticatedBuilderIndexRoute: AuthenticatedBuilderIndexRoute,
   }
 
 const AuthenticatedBuilderRouteRouteWithChildren =

@@ -1,7 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { ApplicationListPage } from "@/features/applications";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_authenticated/_workspace/applications")({
   ssr: false,
-  component: ApplicationListPage,
+  component: ApplicationsLayout,
 });
+
+function ApplicationsLayout() {
+  return <Outlet />;
+}

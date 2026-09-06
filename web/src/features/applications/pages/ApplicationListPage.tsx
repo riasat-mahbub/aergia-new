@@ -20,6 +20,7 @@ export default function ApplicationsPage() {
   const navigate = useNavigate();
   const applications = useApplicationStore((state) => state.applications);
   const isLoading = useApplicationStore((state) => state.isLoading);
+  const error = useApplicationStore((state) => state.error);
   const fetchAll = useApplicationStore((state) => state.fetchAll);
   const generate = useApplicationStore((state) => state.generate);
   const remove = useApplicationStore((state) => state.remove);
@@ -103,7 +104,15 @@ export default function ApplicationsPage() {
       </div>
 
       {isLoading && <LoadingSkeleton count={4} />}
-      {!isLoading && applications.length === 0 && (
+      {error && !isLoading && (
+        <div className="rounded-lg border border-app-danger/30 bg-app-danger-soft p-5 text-sm text-app-danger" role="alert">
+          <p>{error}</p>
+          <button type="button" onClick={fetchAll} className="mt-3 rounded-md border border-app-danger/40 px-3 py-1.5 font-medium hover:bg-app-danger/10">
+            Try again
+          </button>
+        </div>
+      )}
+      {!error && !isLoading && applications.length === 0 && (
         <EmptyState title="No applications yet" description="Save a job description to generate your first tailored CV." action={{ label: "Track application", onClick: () => setFormOpen(true) }} />
       )}
       {!isLoading && applications.length > 0 && filteredApplications.length === 0 && (
