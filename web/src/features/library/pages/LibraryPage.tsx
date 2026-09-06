@@ -19,9 +19,11 @@ export default function LibraryPage({ initialKind }: LibraryPageProps) {
   const entries = useLibraryStore((s) => s.entries) ?? [];
   const isLoading = useLibraryStore((s) => s.isLoading);
   const loaded = useLibraryStore((s) => s.loaded);
+  const error = useLibraryStore((s) => s.error);
   const fetchProfile = useProfileStore((s) => s.fetch);
   const profile = useProfileStore((s) => s.profile);
   const profileLoading = useProfileStore((s) => s.isLoading);
+  const profileError = useProfileStore((s) => s.error);
   const updateProfile = useProfileStore((s) => s.update);
   const fetchAll = useLibraryStore((s) => s.fetchAll);
   const remove = useLibraryStore((s) => s.remove);
@@ -70,11 +72,25 @@ export default function LibraryPage({ initialKind }: LibraryPageProps) {
             Add entry
           </button>
         </header>
-        <LibraryProfileCard profile={profile} isLoading={profileLoading} onSave={updateProfile} />
+        <LibraryProfileCard
+          profile={profile}
+          isLoading={profileLoading}
+          error={profileError}
+          onRetry={fetchProfile}
+          onSave={updateProfile}
+        />
 
-        {!loaded && isLoading && <p className="text-sm text-lib-ink-2">Loading…</p>}
+        {error && !isLoading && (
+          <div className="rounded-lg border border-lib-accent/40 bg-lib-surface p-5 text-sm text-lib-ink-2" role="alert">
+            <p>{error}</p>
+            <button type="button" onClick={fetchAll} className="mt-3 rounded-md border border-lib-rule px-3 py-1.5 font-medium hover:bg-lib-surface-2">
+              Try again
+            </button>
+          </div>
+        )}
+        {!error && !loaded && isLoading && <p className="text-sm text-lib-ink-2">Loading…</p>}
 
-        {loaded && isEmpty ? (
+        {!error && loaded && isEmpty ? (
           <div className="rounded-lg border-2 border-dashed border-lib-rule bg-lib-surface px-6 py-12 text-center">
             <Archive className="mx-auto mb-4 h-12 w-12 text-lib-ink-3" />
             <h2 className="text-lg font-semibold text-lib-ink">Your library is empty</h2>
@@ -97,7 +113,7 @@ export default function LibraryPage({ initialKind }: LibraryPageProps) {
               </button>
             </div>
           </div>
-        ) : (
+        ) : !error && loaded ? (
           <div className="space-y-8">
             {LIBRARY_KINDS.map((kind) => (
               <LibraryKindGroup
@@ -114,7 +130,7 @@ export default function LibraryPage({ initialKind }: LibraryPageProps) {
               />
             ))}
           </div>
-        )}
+        ) : null}
       </div>
 
       <LibraryCreateModal

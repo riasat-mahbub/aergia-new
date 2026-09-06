@@ -8,6 +8,7 @@ import { useProfileStore } from "@/features/profile";
 export default function SettingsPage() {
   const profile = useProfileStore((s) => s.profile);
   const profileLoading = useProfileStore((s) => s.isLoading);
+  const profileError = useProfileStore((s) => s.error);
   const profileLoaded = useProfileStore((s) => s.loaded);
   const fetchProfile = useProfileStore((s) => s.fetch);
   const updateProfile = useProfileStore((s) => s.update);
@@ -30,6 +31,8 @@ export default function SettingsPage() {
         <SettingsProfileCard
           profile={profile}
           isLoading={profileLoading}
+          error={profileError}
+          onRetry={fetchProfile}
           onSave={updateProfile}
         />
 

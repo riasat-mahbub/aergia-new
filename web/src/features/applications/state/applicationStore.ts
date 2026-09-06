@@ -13,6 +13,7 @@ interface ApplicationState {
   isLoading: boolean;
   isSaving: boolean;
   loaded: boolean;
+  error: string | null;
   fetchAll: () => Promise<void>;
   fetch: (id: string) => Promise<Application | null>;
   create: (input: ApplicationCreateData) => Promise<Application>;
@@ -35,19 +36,24 @@ export const useApplicationStore = create<ApplicationState>((set) => ({
   isLoading: false,
   isSaving: false,
   loaded: false,
+  error: null,
 
   fetchAll: async () => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
     try {
       const applications = await applicationApi.listApplications();
-      set({ applications, isLoading: false, loaded: true });
+      set({ applications, isLoading: false, loaded: true, error: null });
     } catch {
-      set({ isLoading: false, loaded: true });
+      set({
+        isLoading: false,
+        loaded: true,
+        error: "Unable to load applications. Please try again.",
+      });
     }
   },
 
   fetch: async (id) => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
     try {
       const application = await applicationApi.getApplication(id);
       set((state) => ({
@@ -55,10 +61,16 @@ export const useApplicationStore = create<ApplicationState>((set) => ({
         applications: replaceApplication(state.applications, application),
         isLoading: false,
         loaded: true,
+        error: null,
       }));
       return application;
     } catch {
-      set({ currentApplication: null, isLoading: false, loaded: true });
+      set({
+        currentApplication: null,
+        isLoading: false,
+        loaded: true,
+        error: "Unable to load this application. Please try again.",
+      });
       return null;
     }
   },

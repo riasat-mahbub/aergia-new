@@ -5,6 +5,7 @@ import type { CVDetail, CVListItem, CVSections } from "@/features/cvs/types";
 export interface CVListState {
   cvList: CVListItem[];
   isLoading: boolean;
+  error: string | null;
 
   fetchCVs: () => Promise<void>;
   createCV: (title: string, template_id?: string, sections?: CVSections) => Promise<CVDetail>;
@@ -16,14 +17,15 @@ export interface CVListState {
 export const useCVListStore = create<CVListState>((set, get) => ({
   cvList: [],
   isLoading: false,
+  error: null,
 
   fetchCVs: async () => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
     try {
       const cvList = await cvsApi.fetchCVs();
-      set({ cvList, isLoading: false });
+      set({ cvList, isLoading: false, error: null });
     } catch {
-      set({ isLoading: false });
+      set({ isLoading: false, error: "Unable to load CVs. Please try again." });
     }
   },
 

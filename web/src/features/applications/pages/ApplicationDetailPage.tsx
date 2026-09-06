@@ -37,6 +37,7 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
   const navigate = useNavigate();
   const application = useApplicationStore((state) => state.currentApplication);
   const isLoading = useApplicationStore((state) => state.isLoading);
+  const error = useApplicationStore((state) => state.error);
   const fetch = useApplicationStore((state) => state.fetch);
   const update = useApplicationStore((state) => state.update);
   const generate = useApplicationStore((state) => state.generate);
@@ -66,8 +67,25 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
   const sections = useMemo(() => sectionTypes(linkedCV), [linkedCV]);
   const sourceCount = selectedSourceCount(linkedCV);
 
-  if (isLoading || !application || application.id !== id) {
-    return <div className="mx-auto max-w-4xl px-4 py-8">{isLoading ? <LoadingSkeleton count={2} /> : <p className="text-sm text-app-ink-2">Application not found.</p>}</div>;
+  if (isLoading) {
+    return <div className="mx-auto max-w-4xl px-4 py-8"><LoadingSkeleton count={2} /></div>;
+  }
+
+  if (error) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-8">
+        <div className="rounded-lg border border-app-danger/30 bg-app-danger-soft p-5 text-sm text-app-danger" role="alert">
+          <p>{error}</p>
+          <button type="button" onClick={() => fetch(id)} className="mt-3 rounded-md border border-app-danger/40 px-3 py-1.5 font-medium hover:bg-app-danger/10">
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!application || application.id !== id) {
+    return <div className="mx-auto max-w-4xl px-4 py-8"><p className="text-sm text-app-ink-2">Application not found.</p></div>;
   }
 
   const handleStatusChange = async (status: ApplicationStatus) => {

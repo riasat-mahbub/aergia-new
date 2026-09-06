@@ -6,6 +6,7 @@ interface LibraryState {
   entries: LibraryEntry[];
   isLoading: boolean;
   loaded: boolean;
+  error: string | null;
 
   fetchAll: () => Promise<void>;
   create: (
@@ -19,14 +20,19 @@ export const useLibraryStore = create<LibraryState>((set) => ({
   entries: [],
   isLoading: false,
   loaded: false,
+  error: null,
 
   fetchAll: async () => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
     try {
       const entries = await libraryApi.listLibrary();
-      set({ entries, isLoading: false, loaded: true });
+      set({ entries, isLoading: false, loaded: true, error: null });
     } catch {
-      set({ isLoading: false, loaded: true });
+      set({
+        isLoading: false,
+        loaded: true,
+        error: "Unable to load the library. Please try again.",
+      });
     }
   },
 

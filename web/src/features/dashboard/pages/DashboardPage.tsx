@@ -18,13 +18,16 @@ import { useLibraryStore } from "@/features/library";
 export default function DashboardPage() {
   const cvList = useCVListStore((state) => state.cvList);
   const cvLoading = useCVListStore((state) => state.isLoading);
+  const cvError = useCVListStore((state) => state.error);
   const fetchCVs = useCVListStore((state) => state.fetchCVs);
   const libraryEntries = useLibraryStore((state) => state.entries);
   const libraryLoaded = useLibraryStore((state) => state.loaded);
+  const libraryError = useLibraryStore((state) => state.error);
   const libraryFetch = useLibraryStore((state) => state.fetchAll);
   const applications = useApplicationStore((state) => state.applications);
   const applicationsLoading = useApplicationStore((state) => state.isLoading);
   const applicationsLoaded = useApplicationStore((state) => state.loaded);
+  const applicationsError = useApplicationStore((state) => state.error);
   const fetchApplications = useApplicationStore((state) => state.fetchAll);
 
   useEffect(() => {
@@ -52,22 +55,22 @@ export default function DashboardPage() {
         <SummaryCard
           to="/cvs"
           label="CVs"
-          count={authoredCvs.length}
-          description={generatedCvCount ? `${generatedCvCount} tailored CV${generatedCvCount === 1 ? "" : "s"} in Applications` : "Reusable CVs and versions"}
+          count={cvError ? "—" : authoredCvs.length}
+          description={cvError ? "Unable to load CVs" : generatedCvCount ? `${generatedCvCount} tailored CV${generatedCvCount === 1 ? "" : "s"} in Applications` : "Reusable CVs and versions"}
           Icon={FileText}
         />
         <SummaryCard
           to="/library"
           label="Library"
-          count={libraryLoaded ? libraryEntries.length : 0}
-          description="Reusable experience, skills, and more"
+          count={libraryError ? "—" : libraryLoaded ? libraryEntries.length : 0}
+          description={libraryError ? "Unable to load library" : "Reusable experience, skills, and more"}
           Icon={Library}
         />
         <SummaryCard
           to="/applications"
           label="Applications"
-          count={applications.length}
-          description="Jobs you are tracking"
+          count={applicationsError ? "—" : applications.length}
+          description={applicationsError ? "Unable to load applications" : "Jobs you are tracking"}
           Icon={BriefcaseBusiness}
         />
       </div>
@@ -85,7 +88,14 @@ export default function DashboardPage() {
           </div>
 
           <div className="mt-5">
-            {cvLoading ? (
+            {cvError ? (
+              <div className="rounded-lg border border-app-danger/30 bg-app-danger-soft px-4 py-6 text-center text-sm text-app-danger" role="alert">
+                <p>{cvError}</p>
+                <button type="button" onClick={fetchCVs} className="mt-3 rounded-md border border-app-danger/40 px-3 py-1.5 font-medium hover:bg-app-danger/10">
+                  Try again
+                </button>
+              </div>
+            ) : cvLoading ? (
               <p className="text-sm text-app-ink-3">Loading CVs…</p>
             ) : recentCvs.length > 0 ? (
               <div className="divide-y divide-app-rule-soft">
@@ -131,7 +141,14 @@ export default function DashboardPage() {
           </div>
 
           <div className="mt-5">
-            {applicationsLoading && !applicationsLoaded ? (
+            {applicationsError ? (
+              <div className="rounded-lg border border-app-danger/30 bg-app-danger-soft px-4 py-6 text-center text-sm text-app-danger" role="alert">
+                <p>{applicationsError}</p>
+                <button type="button" onClick={fetchApplications} className="mt-3 rounded-md border border-app-danger/40 px-3 py-1.5 font-medium hover:bg-app-danger/10">
+                  Try again
+                </button>
+              </div>
+            ) : applicationsLoading && !applicationsLoaded ? (
               <p className="text-sm text-app-ink-3">Loading applications…</p>
             ) : recentApplications.length > 0 ? (
               <div className="divide-y divide-app-rule-soft">

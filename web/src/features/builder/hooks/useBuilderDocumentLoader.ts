@@ -16,6 +16,7 @@ export interface BuilderDocumentDraft {
   setCustomizations: Dispatch<SetStateAction<Record<string, unknown>>>;
   isLoaded: boolean;
   showLoading: boolean;
+  retry: () => void;
 }
 
 /** Loads one route document and normalizes legacy placement before editing starts. */
@@ -24,6 +25,7 @@ export function useBuilderDocumentLoader({ id, loadCV }: UseBuilderDocumentLoade
   const [instances, setInstances] = useState<SectionInstance[]>([]);
   const [customizations, setCustomizations] = useState<Record<string, unknown>>({});
   const [isLoaded, setIsLoaded] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!id) return;
@@ -58,7 +60,7 @@ export function useBuilderDocumentLoader({ id, loadCV }: UseBuilderDocumentLoade
     return () => {
       cancelled = true;
     };
-  }, [id, loadCV]);
+  }, [id, loadCV, reloadKey]);
 
   return {
     instances,
@@ -67,5 +69,6 @@ export function useBuilderDocumentLoader({ id, loadCV }: UseBuilderDocumentLoade
     setCustomizations,
     isLoaded,
     showLoading,
+    retry: () => setReloadKey((value) => value + 1),
   };
 }

@@ -7,12 +7,16 @@ import type { UserProfile } from "@/features/profile";
 interface LibraryProfileCardProps {
   profile: UserProfile | null;
   isLoading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
   onSave: (profile: UserProfile) => Promise<UserProfile>;
 }
 
 export default function LibraryProfileCard({
   profile,
   isLoading = false,
+  error = null,
+  onRetry,
   onSave,
 }: LibraryProfileCardProps) {
   const [open, setOpen] = useState(false);
@@ -66,6 +70,12 @@ export default function LibraryProfileCard({
             Edit
           </button>
         </div>
+        {error && !isLoading && (
+          <div className="mt-4 rounded-md border border-lib-accent/40 bg-lib-surface-2 p-3 text-sm text-lib-ink-2" role="alert">
+            <p>{error}</p>
+            {onRetry && <button type="button" onClick={onRetry} className="mt-2 rounded-md border border-lib-rule px-3 py-1.5 font-medium hover:bg-lib-surface-2">Try again</button>}
+          </div>
+        )}
         <p className="mt-4 text-xs text-lib-ink-3">One profile powers tailored CV generation. It cannot be cloned or deleted.</p>
       </section>
 

@@ -11,7 +11,7 @@ import EmptyState from "@/shared/ui/EmptyState";
 
 export default function CvListPage() {
   const navigate = useNavigate();
-  const { cvList, isLoading, fetchCVs, deleteCV, copyCV } = useCVListStore();
+  const { cvList, isLoading, error, fetchCVs, deleteCV, copyCV } = useCVListStore();
   const [showCreate, setShowCreate] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
 
@@ -53,8 +53,16 @@ export default function CvListPage() {
       />
 
       {isLoading && <LoadingSkeleton count={6} />}
+      {error && !isLoading && (
+        <div className="rounded-lg border border-app-danger/30 bg-app-danger-soft p-5 text-sm text-app-danger" role="alert">
+          <p>{error}</p>
+          <button type="button" onClick={fetchCVs} className="mt-3 rounded-md border border-app-danger/40 px-3 py-1.5 font-medium hover:bg-app-danger/10">
+            Try again
+          </button>
+        </div>
+      )}
 
-      {!isLoading && authoredCvs.length === 0 && (
+      {!error && !isLoading && authoredCvs.length === 0 && (
         <EmptyState
           title="No reusable CVs yet"
           description="Create your first CV to start building a library of versions. Tailored application CVs appear under Applications."

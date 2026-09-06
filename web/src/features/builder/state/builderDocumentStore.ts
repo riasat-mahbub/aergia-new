@@ -7,6 +7,7 @@ export interface BuilderDocumentState {
   isLoading: boolean;
   isSaving: boolean;
   lastSaved: Date | null;
+  error: string | null;
 
   loadCV: (id: string) => Promise<void>;
   setIsSaving: (saving: boolean) => void;
@@ -19,14 +20,15 @@ export const useBuilderDocumentStore = create<BuilderDocumentState>((set) => ({
   isLoading: false,
   isSaving: false,
   lastSaved: null,
+  error: null,
 
   loadCV: async (id) => {
-    set({ isLoading: true, currentCV: null, isSaving: false, lastSaved: null });
+    set({ isLoading: true, currentCV: null, isSaving: false, lastSaved: null, error: null });
     try {
       const currentCV = await cvsApi.fetchCV(id);
-      set({ currentCV, isLoading: false });
+      set({ currentCV, isLoading: false, error: null });
     } catch {
-      set({ isLoading: false });
+      set({ isLoading: false, error: "Unable to load this CV. Please try again." });
     }
   },
 
