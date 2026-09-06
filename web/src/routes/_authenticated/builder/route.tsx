@@ -7,5 +7,5 @@ export const Route = createFileRoute("/_authenticated/builder")({
 });
 
 function BuilderLayout() {
-  return <DashboardLayout><Outlet /></DashboardLayout>;
+  return <DashboardLayout showNavbar={false}><Outlet /></DashboardLayout>;
 }

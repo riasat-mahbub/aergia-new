@@ -3,3 +3,4 @@ export { default as ErrorPage } from "./ErrorPage";
 export { default as LoadingPage } from "./LoadingPage";
 export { default as NotFoundPage } from "./NotFoundPage";
 export { default as RootLayout } from "./RootLayout";
+export { default as SiteNavbar } from "./components/SiteNavbar";

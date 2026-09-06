@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useAuthStore } from "@/features/authentication";
+import { SiteNavbar } from "@/features/app-shell";
 import { FileText, Palette, Download, GripVertical, Eye, Shield } from "lucide-react";
 
 const features = [
@@ -17,34 +18,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-app-primary-soft to-app-surface">
-      <header className="flex items-center justify-between px-6 py-4">
-        <span className="text-xl font-bold text-app-primary">Aergia</span>
-        <div className="flex items-center gap-3">
-          {isAuthenticated ? (
-            <button
-              onClick={() => navigate({ to: "/dashboard" })}
-              className="rounded-md bg-app-primary px-4 py-2 text-sm text-white hover:bg-app-primary-hover"
-            >
-              Go to Dashboard
-            </button>
-          ) : (
-            <>
-              <button
-                onClick={() => navigate({ to: "/login" })}
-                className="rounded-md border border-app-primary-soft px-4 py-2 text-sm text-app-primary hover:bg-app-primary-soft"
-              >
-                Sign in
-              </button>
-              <button
-                onClick={() => navigate({ to: "/register" })}
-                className="rounded-md bg-app-primary px-4 py-2 text-sm text-white hover:bg-app-primary-hover"
-              >
-                Get started
-              </button>
-            </>
-          )}
-        </div>
-      </header>
+      <SiteNavbar />
 
       <section className="flex flex-col items-center px-4 py-20 text-center">
         <h1 className="text-5xl font-bold tracking-tight text-app-ink sm:text-6xl">
