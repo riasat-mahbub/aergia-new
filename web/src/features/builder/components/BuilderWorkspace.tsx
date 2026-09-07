@@ -22,7 +22,7 @@ interface BuilderWorkspaceProps {
   onReorderInstances: (instances: SectionInstance[]) => void;
   onUpdateStyle: (sectionId: string, style: SectionInstanceStyle) => void;
   onCustomizationsChange: (customizations: Record<string, unknown>) => void;
-  onTemplateChange: () => void;
+  onTemplateChange: () => void | Promise<void>;
   onReset: () => void;
 }
 

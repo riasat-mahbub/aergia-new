@@ -39,7 +39,7 @@ interface Props {
   instances: SectionInstance[];
   onUpdateStyle: (id: string, style: SectionInstanceStyle) => void;
   onCustomizationsChange: (customizations: Record<string, unknown>) => void;
-  onTemplateChange: () => void;
+  onTemplateChange: () => void | Promise<void>;
   onReset: () => void;
   customizations: Record<string, unknown>;
 }

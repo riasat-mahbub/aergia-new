@@ -52,13 +52,6 @@ export function useTemplateManifest({
   const handleTemplateChange = useCallback(
     async (newTemplateId: string) => {
       if (!id) return;
-      if (
-        !window.confirm(
-          "Switching templates installs the new template's zones and reassigns every section to the first zone. Per-section content (text, entries, order) is preserved. Continue?",
-        )
-      ) {
-        return;
-      }
 
       try {
         setIsSaving(true);

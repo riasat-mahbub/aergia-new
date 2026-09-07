@@ -13,11 +13,13 @@
 
 import { useState } from "react";
 import Modal from "@/shared/ui/Modal";
+import ConfirmModal from "@/shared/ui/ConfirmModal";
+import { useToastStore } from "@/shared/state/uiStore";
 import { accent, danger, ink, radius, ruleDefault } from "@/styles/tokens";
 
 interface Props {
   templateName: string;
-  onChangeTemplate: () => void;
+  onChangeTemplate: () => void | Promise<void>;
   onReset: () => void;
   /** Whether there's anything to reset — disable when there's nothing. */
   canReset: boolean;
@@ -25,6 +27,8 @@ interface Props {
 
 export default function ResetFooter({ templateName, onChangeTemplate, onReset, canReset }: Props) {
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [templateConfirmOpen, setTemplateConfirmOpen] = useState(false);
+  const addToast = useToastStore((state) => state.addToast);
 
   return (
     <>
@@ -37,7 +41,7 @@ export default function ResetFooter({ templateName, onChangeTemplate, onReset, c
           <span className="text-sm font-medium" style={{ color: ink.ink }}>{templateName}</span>
           <button
             type="button"
-            onClick={onChangeTemplate}
+            onClick={() => setTemplateConfirmOpen(true)}
             className="text-xs underline"
             style={{ color: accent.accent }}
           >
@@ -57,6 +61,16 @@ export default function ResetFooter({ templateName, onChangeTemplate, onReset, c
         </button>
       </div>
 
+      <ConfirmModal
+        open={templateConfirmOpen}
+        onClose={() => setTemplateConfirmOpen(false)}
+        onConfirm={onChangeTemplate}
+        onError={() => addToast("Unable to change the template", "error")}
+        title="Change template?"
+        description="Switching templates installs the new template's zones and reassigns every section to the first zone. Per-section content (text, entries, order) is preserved."
+        confirmLabel="Change template"
+        variant="primary"
+      />
       <Modal open={confirmOpen} onClose={() => setConfirmOpen(false)}>
         <h2 className="mb-2 text-lg font-semibold" style={{ color: ink.ink }}>
           Reset to template defaults?

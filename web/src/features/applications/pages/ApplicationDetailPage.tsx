@@ -27,6 +27,7 @@ import {
 } from "../domain/detail/applicationDetail";
 import { useTailoringSession } from "@/features/tailoring";
 import { useLinkedCv } from "../hooks/useLinkedCv";
+import ConfirmModal from "@/shared/ui/ConfirmModal";
 
 export interface ApplicationDetailPageProps {
   applicationId: string;
@@ -44,6 +45,7 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
   const remove = useApplicationStore((state) => state.remove);
   const addToast = useToastStore((state) => state.addToast);
   const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
   const {
@@ -130,14 +132,9 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
   };
 
   const handleDelete = async () => {
-    if (!window.confirm(`Delete the application for ${application.company}?`)) return;
-    try {
-      await remove(application.id);
-      addToast("Application deleted", "info");
-      navigate({ to: "/applications" });
-    } catch {
-      addToast("Unable to delete this application", "error");
-    }
+    await remove(application.id);
+    addToast("Application deleted", "info");
+    navigate({ to: "/applications" });
   };
 
   return (
@@ -197,9 +194,18 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
 
       <div className="mt-6 flex justify-end gap-2">
         <button type="button" onClick={() => setEditOpen(true)} className="inline-flex items-center gap-1 rounded-md border border-app-rule-strong px-3 py-2 text-sm font-medium text-app-ink-2 hover:bg-app-surface-muted"><Pencil className="h-3.5 w-3.5" /> Edit job</button>
-        <button type="button" onClick={handleDelete} className="inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm text-app-danger hover:bg-app-danger-soft"><Trash2 className="h-3.5 w-3.5" /> Delete</button>
+        <button type="button" onClick={() => setDeleteOpen(true)} className="inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm text-app-danger hover:bg-app-danger-soft"><Trash2 className="h-3.5 w-3.5" /> Delete</button>
       </div>
 
+      <ConfirmModal
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        onConfirm={handleDelete}
+        onError={() => addToast("Unable to delete this application", "error")}
+        title="Delete application?"
+        description={<>Delete the application for <span className="font-medium text-app-ink">{application.company}</span>? This action cannot be undone.</>}
+        confirmLabel="Delete application"
+      />
       <ApplicationFormModal open={editOpen} onClose={() => setEditOpen(false)} initialApplication={application} />
     </div>
   );
