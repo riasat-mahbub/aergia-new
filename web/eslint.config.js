@@ -35,6 +35,7 @@ export default [
       ...(REACT_HOOKS_RECOMMENDED.rules ?? {}),
       ...(TYPESCRIPT_RECOMMENDED.rules ?? {}),
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+      "no-alert": "error",
     },
   },
 ];

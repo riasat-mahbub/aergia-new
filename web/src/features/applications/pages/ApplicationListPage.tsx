@@ -5,6 +5,7 @@ import ApplicationCard from "../components/ApplicationCard";
 import ApplicationFormModal from "../components/ApplicationFormModal";
 import EmptyState from "@/shared/ui/EmptyState";
 import LoadingSkeleton from "@/shared/ui/LoadingSkeleton";
+import ConfirmModal from "@/shared/ui/ConfirmModal";
 import {
   APPLICATION_STATUSES,
   type Application,
@@ -28,6 +29,7 @@ export default function ApplicationsPage() {
   const [filter, setFilter] = useState<ApplicationStatus | "all">("all");
   const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Application | null>(null);
   const [retryingId, setRetryingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -61,13 +63,8 @@ export default function ApplicationsPage() {
   };
 
   const handleDelete = async (application: Application) => {
-    if (!window.confirm(`Delete the application for ${application.company}?`)) return;
-    try {
-      await remove(application.id);
-      addToast("Application deleted", "info");
-    } catch {
-      addToast("Unable to delete this application", "error");
-    }
+    await remove(application.id);
+    addToast("Application deleted", "info");
   };
 
   return (
@@ -126,12 +123,25 @@ export default function ApplicationsPage() {
               application={application}
               retrying={retryingId === application.id}
               onRetry={() => handleRetry(application)}
-              onDelete={() => handleDelete(application)}
+              onDelete={() => setDeleteTarget(application)}
             />
           ))}
         </div>
       )}
 
+      <ConfirmModal
+        open={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => deleteTarget ? handleDelete(deleteTarget) : undefined}
+        onError={() => addToast("Unable to delete this application", "error")}
+        title="Delete application?"
+        description={deleteTarget ? (
+          <>
+            Delete the application for <span className="font-medium text-app-ink">{deleteTarget.company}</span>? This action cannot be undone.
+          </>
+        ) : null}
+        confirmLabel="Delete application"
+      />
       <ApplicationFormModal open={formOpen} onClose={() => setFormOpen(false)} onGenerated={handleGenerated} />
     </div>
   );

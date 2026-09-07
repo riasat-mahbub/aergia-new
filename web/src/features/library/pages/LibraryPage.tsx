@@ -8,6 +8,7 @@ import { useToastStore } from "@/shared/state/uiStore";
 import LibraryKindGroup from "../components/LibraryKindGroup";
 import LibraryCreateModal from "../components/LibraryCreateModal";
 import LibraryProfileCard from "../components/LibraryProfileCard";
+import ConfirmModal from "@/shared/ui/ConfirmModal";
 import { countByKind, selectByKind } from "../domain/librarySelectors";
 
 export interface LibraryPageProps {
@@ -31,6 +32,7 @@ export default function LibraryPage({ initialKind }: LibraryPageProps) {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<LibraryEntry | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<LibraryEntry | null>(null);
   const buckets = selectByKind(entries);
   const counts = countByKind(entries);
   const isEmpty = entries.length === 0;
@@ -45,7 +47,6 @@ export default function LibraryPage({ initialKind }: LibraryPageProps) {
   }, [fetchAll, fetchProfile]);
 
   const handleDelete = async (entry: LibraryEntry) => {
-    if (!confirm(`Delete "${LIBRARY_KIND_LABELS[entry.kind]}" entry from library?`)) return;
     await remove(entry.id);
     addToast("Library entry deleted", "info");
   };
@@ -125,7 +126,7 @@ export default function LibraryPage({ initialKind }: LibraryPageProps) {
                 kind={kind}
                 entries={buckets[kind]}
                 onAdd={() => setCreateOpen(true)}
-                onDeleteEntry={handleDelete}
+                onDeleteEntry={(entry) => setDeleteTarget(entry)}
                 highlighted={initialKind === kind}
               />
             ))}
@@ -133,6 +134,17 @@ export default function LibraryPage({ initialKind }: LibraryPageProps) {
         ) : null}
       </div>
 
+      <ConfirmModal
+        open={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => deleteTarget ? handleDelete(deleteTarget) : undefined}
+        onError={() => addToast("Unable to delete this library entry", "error")}
+        title="Delete library entry?"
+        description={deleteTarget ? (
+          <>Delete this <span className="font-medium text-app-ink">{LIBRARY_KIND_LABELS[deleteTarget.kind]}</span> entry from your library? This action cannot be undone.</>
+        ) : null}
+        confirmLabel="Delete entry"
+      />
       <LibraryCreateModal
         open={createOpen || !!editTarget}
         onClose={closeEntryModal}
