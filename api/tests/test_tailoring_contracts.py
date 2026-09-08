@@ -1,8 +1,10 @@
 """Phase 1 protocol fixture checks against the server-side Pydantic contract."""
 
 import json
+from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
+from zipfile import ZipFile
 
 import pytest
 from pydantic import ValidationError
@@ -32,16 +34,28 @@ from app.services.tailoring import (
     library_entry_content_hash,
 )
 from app.services.tailoring_policy import TailoringPolicyError, validate_document_delta
+from app.services.tailoring_skill import build_tailoring_skill_bundle
 
 
-_FIXTURES = Path(__file__).parents[2] / "tailoring-skill" / "contracts" / "fixtures"
+_FIXTURES = (
+    Path(__file__).parents[2]
+    / "tailoring-skill"
+    / "skills"
+    / "aergia-tailor"
+    / "references"
+    / "fixtures"
+)
 
 
 def test_valid_tailoring_patch_fixture_matches_protocol():
     payload = json.loads((_FIXTURES / "tailoring-patch.valid.json").read_text())
     patch = TailoringPatch.model_validate(payload)
     assert patch.protocol_version == 1
-    assert [change.operation for change in patch.changes] == ["replace_description", "report_gap"]
+    assert [change.operation for change in patch.changes] == [
+        "add_library_entry",
+        "replace_description",
+        "report_gap",
+    ]
 
 
 def test_valid_evidence_fixture_matches_protocol():
@@ -101,10 +115,31 @@ def test_tailoring_exchange_requires_protocol_version():
 
 
 def test_tailoring_prompt_keeps_the_code_out_of_the_session_url():
-    prompt = build_tailoring_prompt("https://aergia.example/agent/tailor/session-1", "code-1234567890123456")
+    skill_url = "https://aergia.example/api/v1/tailoring/skill.zip"
+    prompt = build_tailoring_prompt(
+        "https://aergia.example/agent/tailor/session-1",
+        "code-1234567890123456",
+        skill_url,
+    )
     assert "https://aergia.example/agent/tailor/session-1" in prompt
     assert "One-time session code: code-1234567890123456" in prompt
-    assert "ask for approval" in prompt
+    assert skill_url in prompt
+    assert "approval" in prompt
+
+
+def test_tailoring_skill_bundle_is_self_contained_and_deterministic():
+    first = build_tailoring_skill_bundle()
+    second = build_tailoring_skill_bundle()
+
+    assert first == second
+    with ZipFile(BytesIO(first.content)) as archive:
+        names = set(archive.namelist())
+        skill_text = archive.read("aergia-tailor/SKILL.md").decode()
+
+    assert skill_text.startswith("---\nname: aergia-tailor\n")
+    assert "aergia-tailor/scripts/validate-patch.mjs" in names
+    assert "aergia-tailor/scripts/verify-cv-facts.mjs" in names
+    assert "aergia-tailor/references/tailoring-patch.schema.json" in names
 
 
 def test_web_evidence_requires_a_safe_bounded_citation():

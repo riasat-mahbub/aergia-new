@@ -29,9 +29,34 @@ from app.services.tailoring import (
     TailoringUnauthorizedError,
     TailoringUnavailableError,
 )
+from app.services.tailoring_skill import build_tailoring_skill_bundle
 from app.services.quotas import QuotaExceededError, QuotaResource
 
 router = APIRouter()
+
+
+@router.get("/tailoring/skill.zip", response_class=Response)
+@limiter.limit("30/minute")
+async def download_tailoring_skill(request: Request):
+    """Download the official self-contained skill without account credentials."""
+
+    try:
+        bundle = build_tailoring_skill_bundle()
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="The Aergia tailoring skill bundle is unavailable",
+        ) from exc
+    return Response(
+        content=bundle.content,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": 'attachment; filename="aergia-tailor.zip"',
+            "Cache-Control": "public, max-age=300",
+            "ETag": f'"sha256-{bundle.sha256}"',
+            "X-Aergia-Skill-Protocol-Version": "1",
+        },
+    )
 
 
 def _raise_service_error(exc: Exception) -> None:

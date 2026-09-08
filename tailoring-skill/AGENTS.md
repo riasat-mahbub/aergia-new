@@ -7,9 +7,10 @@ session link without the user's approval.
 ## Layout
 
 ```text
-skills/aergia-tailor/SKILL.md  provider-neutral agent instructions
-contracts/                     versioned evidence/patch JSON Schemas
-tools/                         local JD, fact, and patch validators
+skills/aergia-tailor/          self-contained installable skill
+  SKILL.md                     provider-neutral agent instructions
+  scripts/                     local JD, fact, and patch validators
+  references/                  protocol schemas and fixtures
 tests/                         Node built-in safety-tool tests
 ```
 
@@ -32,7 +33,7 @@ describes local skill assets only.
 
 ## Verification
 
-Run the complete local tool tests after changing tools or contracts:
+Run the complete local tool tests after changing scripts or contracts:
 
 ```bash
 node --test tailoring-skill/tests/*.test.mjs

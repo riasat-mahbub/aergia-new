@@ -38,6 +38,7 @@ class TailoringSessionCreateResponse(_StrictModel):
     cv_id: str
     code: str
     session_url: str = Field(min_length=1, max_length=2048)
+    skill_url: str = Field(min_length=1, max_length=2048)
     prompt: str = Field(min_length=1, max_length=5000)
     status: Literal["created"] = "created"
     expires_at: datetime
@@ -148,7 +149,7 @@ class TailoringEvidencePacket(_StrictModel):
     target_cv: TailoringCV | None = None
     profile: dict
     protected_facts: dict
-    library: list[TailoringLibraryEntry] = Field(max_length=100)
+    library: list[TailoringLibraryEntry]
     requirements: list[dict] = Field(max_length=100)
 
 

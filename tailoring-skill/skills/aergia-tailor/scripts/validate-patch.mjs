@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -24,6 +24,16 @@ const RENDERABLE_SECTION_TYPES = new Set([
   "profile", "experience", "education", "skills", "projects", "languages", "certifications", "research", "extras",
 ]);
 
+const LIBRARY_KIND_TO_SECTION_TYPE = new Map([
+  ["experience", "experience"],
+  ["education", "education"],
+  ["skill", "skills"],
+  ["project", "projects"],
+  ["language", "languages"],
+  ["certification", "certifications"],
+  ["research", "research"],
+]);
+
 const PROFILE_IMMUTABLE_FIELDS = [
   "name", "email", "email_link", "phone", "location", "site_text", "site_url", "photo_url", "social_links",
 ];
@@ -32,7 +42,7 @@ function parseArgs(argv) {
   const args = {};
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
-    if (argument === "--patch" || argument === "--evidence") {
+    if (argument === "--patch" || argument === "--evidence" || argument === "--output") {
       const value = argv[index + 1];
       if (!value) throw new Error(`${argument} requires a file path`);
       args[argument.slice(2)] = value;
@@ -42,7 +52,7 @@ function parseArgs(argv) {
     if (argument === "--help" || argument === "-h") return { help: true };
     throw new Error(`Unknown option: ${argument}`);
   }
-  if (!args.patch || !args.evidence) throw new Error("Usage: validate-patch.mjs --evidence evidence.json --patch patch.json");
+  if (!args.patch || !args.evidence) throw new Error("Usage: validate-patch.mjs --evidence evidence.json --patch patch.json [--output tailored-cv.json]");
   return args;
 }
 
@@ -266,7 +276,7 @@ function validateChange(change, evidence, sections, evidenceSections = sections)
       if (current.type !== "profile" || change.section.type !== "profile") {
         throw new Error("The profile section cannot be replaced by another section type");
       }
-      if (change.section.enabled !== true) throw new Error("The profile section must remain enabled");
+      if ((change.section.enabled ?? true) !== true) throw new Error("The profile section must remain enabled");
       assertProfileIdentityUnchanged(current, change.section);
     }
     return;
@@ -321,6 +331,9 @@ function validateChange(change, evidence, sections, evidenceSections = sections)
     if (!change.source_row_id) throw new Error("Library additions require source_row_id");
     const sourceRow = source.payload?.find((row) => row?.id === change.source_row_id);
     if (!sourceRow) throw new Error(`Unknown Library source row ID: ${change.source_row_id}`);
+    if (LIBRARY_KIND_TO_SECTION_TYPE.get(source.kind) !== section.type) {
+      throw new Error("Library source kind does not match the target section");
+    }
     if (change.entry_id !== undefined && change.entry_id !== null && !String(change.entry_id).trim()) {
       throw new Error("Library addition entry_id must be non-empty when provided");
     }
@@ -356,16 +369,15 @@ function validateChange(change, evidence, sections, evidenceSections = sections)
 }
 
 function appendLibraryAddition(sections, evidence, change) {
-  // Server-generated IDs cannot be known locally. They are fine for a final
-  // copy-only operation, but an explicit ID is required to target the new row
-  // with a later prose operation in the same patch.
-  if (!change.entry_id) return;
   const section = findSection(sections, change.section_id);
   if (!Array.isArray(section.data)) throw new Error("Library additions require an entry-based section");
   const source = (evidence.library ?? []).find((entry) => entry?.id === change.library_entry_id);
   const sourceRow = source?.payload?.find((row) => row?.id === change.source_row_id);
   if (!sourceRow) throw new Error(`Unknown Library source row ID: ${change.source_row_id}`);
-  section.data.push({ ...structuredClone(sourceRow), id: change.entry_id });
+  // The server chooses a random ID when one is omitted. A local-only ID keeps
+  // the preview complete; later patch operations still require an explicit ID.
+  const previewId = change.entry_id ?? `local-preview-${change.source_row_id}-${section.data.length + 1}`;
+  section.data.push({ ...structuredClone(sourceRow), id: previewId });
   if (section.enabled === false) section.enabled = true;
 }
 
@@ -384,7 +396,59 @@ function applyStructuralChange(sections, change) {
   }
 }
 
-export function validatePatch(patch, evidence) {
+function applyValidatedChange(sections, evidence, change) {
+  applyStructuralChange(sections, change);
+  if (change.operation === "add_library_entry") {
+    appendLibraryAddition(sections, evidence, change);
+    return;
+  }
+  if (["create_section", "replace_section", "remove_section", "reorder_sections", "report_gap"].includes(change.operation)) {
+    return;
+  }
+
+  const section = findSection(sections, change.section_id);
+  if (change.operation === "remove_entry") {
+    section.data.splice(section.data.findIndex((entry) => entry?.id === change.entry_id), 1);
+    return;
+  }
+  if (change.operation === "reorder_entries") {
+    const entries = new Map(section.data.map((entry) => [entry.id, entry]));
+    section.data.splice(0, section.data.length, ...change.entry_ids.map((id) => entries.get(id)));
+    return;
+  }
+
+  const entry = findTarget(section, change.entry_id);
+  const field = change.operation === "replace_description" ? "description" : change.field;
+  if (["replace_description", "replace_rich_text", "rewrite_rich_text"].includes(change.operation)) {
+    entry[field] = structuredClone(change.value);
+    return;
+  }
+
+  const blocks = entry[field];
+  const block = blocks.find((candidate) => candidate?.id === change.block_id);
+  if (change.operation === "remove_bullet") {
+    block.items.splice(block.items.findIndex((item) => item?.id === change.item_id), 1);
+    if (block.items.length === 0) blocks.splice(blocks.indexOf(block), 1);
+    return;
+  }
+  if (change.operation === "reorder_bullets") {
+    const items = new Map(block.items.map((item) => [item.id, item]));
+    block.items.splice(0, block.items.length, ...change.item_ids.map((id) => items.get(id)));
+  }
+}
+
+function materializedDocument(evidence, sections) {
+  const source = evidence?.target_cv ?? evidence?.cv;
+  const document = structuredClone(source);
+  if (Array.isArray(document.sections)) {
+    document.sections = sections;
+  } else {
+    document.sections.sections = sections;
+  }
+  return document;
+}
+
+function validateAndMaterialize(patch, evidence) {
   if (patch?.protocol_version !== 1) throw new Error("Patch protocol_version must be 1");
   if (patch.base_revision !== evidence.base_revision || patch.base_hash !== evidence.base_hash) {
     throw new Error("Patch snapshot identity does not match the evidence packet");
@@ -397,14 +461,22 @@ export function validatePatch(patch, evidence) {
   const workingSections = structuredClone(sections);
   patch.changes.forEach((change) => {
     validateChange(change, evidence, workingSections, evidenceSections);
-    applyStructuralChange(workingSections, change);
-    if (change.operation === "add_library_entry") appendLibraryAddition(workingSections, evidence, change);
+    applyValidatedChange(workingSections, evidence, change);
   });
+  return materializedDocument(evidence, workingSections);
+}
+
+export function validatePatch(patch, evidence) {
+  validateAndMaterialize(patch, evidence);
   return { valid: true, operation_count: patch.changes.length };
 }
 
+export function materializePatch(patch, evidence) {
+  return validateAndMaterialize(patch, evidence);
+}
+
 function printHelp() {
-  console.log("Usage: validate-patch.mjs --evidence evidence.json --patch patch.json");
+  console.log("Usage: validate-patch.mjs --evidence evidence.json --patch patch.json [--output tailored-cv.json]");
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -413,7 +485,12 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     if (args.help) {
       printHelp();
     } else {
-      const result = validatePatch(await readJson(args.patch), await readJson(args.evidence));
+      const patch = await readJson(args.patch);
+      const evidence = await readJson(args.evidence);
+      const result = validatePatch(patch, evidence);
+      if (args.output) {
+        await writeFile(args.output, `${JSON.stringify(materializePatch(patch, evidence), null, 2)}\n`, "utf8");
+      }
       console.log(JSON.stringify(result));
     }
   } catch (error) {

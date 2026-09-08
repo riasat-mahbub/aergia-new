@@ -1,7 +1,9 @@
 """Phase 1 local-agent tailoring protocol integration tests."""
 
 from datetime import datetime, timedelta, timezone
+from io import BytesIO
 from uuid import uuid4
+from zipfile import ZipFile
 
 from app.db.session import async_session
 from app.models.application import Application
@@ -67,6 +69,18 @@ async def _ready_application(client, headers: dict[str, str]) -> tuple[str, str]
     return application_id, cv_id
 
 
+async def test_tailoring_skill_bundle_is_public_and_installable(client):
+    response = await client.get("/api/v1/tailoring/skill.zip")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/zip"
+    assert response.headers["content-disposition"] == 'attachment; filename="aergia-tailor.zip"'
+    assert response.headers["x-aergia-skill-protocol-version"] == "1"
+    with ZipFile(BytesIO(response.content)) as archive:
+        assert "aergia-tailor/SKILL.md" in archive.namelist()
+        assert "aergia-tailor/scripts/validate-patch.mjs" in archive.namelist()
+
+
 async def test_tailoring_protocol_create_exchange_evidence_submit_apply_score(client, monkeypatch):
     headers = await _auth_headers(client, "tailoring-owner")
     application_id, cv_id = await _ready_application(client, headers)
@@ -92,8 +106,10 @@ async def test_tailoring_protocol_create_exchange_evidence_submit_apply_score(cl
     assert session["cv_id"] == cv_id
     assert len(session["code"]) >= 32
     assert session["session_url"].endswith(f"/agent/tailor/{session['session_id']}")
+    assert session["skill_url"].endswith("/api/v1/tailoring/skill.zip")
     assert "Use the Aergia tailoring skill" in session["prompt"]
     assert session["code"] in session["prompt"]
+    assert session["skill_url"] in session["prompt"]
 
     exchanged = await client.post(
         "/api/v1/tailoring/exchange",

@@ -23,6 +23,7 @@ ARG TORCH_VERSION=2.9.1+cpu
 ENV GLINER2_MODEL_REVISION=${GLINER2_MODEL_REVISION}
 
 COPY api/ .
+COPY tailoring-skill/skills/aergia-tailor /app/tailoring-skill/skills/aergia-tailor
 RUN python -m pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu \
       --no-deps "torch==${TORCH_VERSION}" && \
     python -m pip install --no-cache-dir -e ".[model]" && \

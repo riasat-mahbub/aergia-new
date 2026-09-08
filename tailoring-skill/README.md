@@ -1,8 +1,9 @@
 # Aergia tailoring skill assets
 
-This directory is not an Aergia CLI and is not an agent runtime. It contains
-the skill instructions and local validation tools used by an already-installed
-coding agent such as Codex, Claude Code, or OpenCode.
+This directory contains a self-contained skill for coding agents such as
+Codex, Claude Code, or OpenCode. The installable directory is
+`skills/aergia-tailor/`; copying or extracting that one directory into an
+agent's user-level skills directory includes every required script and schema.
 
 The user starts from Aergia Web. Aergia creates a short-lived session and
 shows a copyable prompt. The user pastes that prompt into their coding agent;
@@ -11,16 +12,18 @@ only the session evidence, creates a local patch, validates it, and submits it
 to the server.
 
 The skill must never ask the user to install or use a normal Aergia access
-token. If the skill is missing or incompatible, it must ask for approval before
-installing or updating from the official Aergia source.
+token. A tailoring prompt includes the same-origin official bundle URL. If the
+skill is missing or incompatible, the coding agent must ask for approval before
+downloading or updating it.
 
 ## Layout
 
-- `skills/aergia-tailor/SKILL.md` — provider-neutral workflow instructions.
-- `contracts/` — versioned evidence and patch JSON Schemas plus fixtures.
-- `tools/jd-check.mjs` — local JD requirement guardrail.
-- `tools/verify-cv-facts.mjs` — local prose fact guardrail.
-- `tools/validate-patch.mjs` — dependency-free local protocol guardrail.
+- `skills/aergia-tailor/SKILL.md` — provider-neutral workflow instructions and
+  required skill metadata.
+- `skills/aergia-tailor/references/` — versioned evidence and patch JSON
+  Schemas plus fixtures.
+- `skills/aergia-tailor/scripts/` — the in-memory session helper and
+  dependency-free local JD, patch, and fact guardrails.
 - `tests/` — Node's built-in tests for the local safety tools.
 - `THIRD_PARTY_NOTICES.md` — attribution for adapted safety tooling.
 
@@ -28,17 +31,13 @@ The browser entrypoint for a session remains `/agent/tailor/$sessionId`; the
 directory name `tailoring-skill/` describes the local assets and does not
 change that public URL.
 
-The evidence packet is authoritative input. The Library is supplied as the
-user's bounded snapshot, not as a relevance-filtered shortlist, so the local
-agent may select an entry that the initial generator omitted. The packet's
-`cv` is the current linked CV for optional evidence; `target_cv` is the fresh
-empty document scaffold that patch operations must compose. The successful
-submission creates a new CV and leaves the current CV untouched. The agent
-may copy an entry and then tailor the copied row's supported prose fields by
-giving the add operation an explicit new CV entry ID and following it with a
-normal prose operation. It may also create custom `extras` sections, replace
-sections wholesale, remove non-profile sections, and reorder sections. Every
-structural decision must include a non-empty reason and at least one evidence
-citation; the server stores both for human review. It may write only the patch
-output; it must not edit the source evidence files or the reusable Library
-rows.
+The evidence packet is authoritative input. The Library is a bounded snapshot,
+not a relevance-filtered shortlist, so the local agent has broad discretion to
+select evidence and compose a better document. The packet's `cv` is the linked
+CV for optional evidence; `target_cv` is a fresh scaffold. A successful
+submission creates a new CV and leaves the linked source CV untouched.
+
+The protocol supports targeted prose edits as well as complete section
+creation, replacement, removal, and ordering. This freedom remains bounded by
+renderer compatibility, immutable profile identity, evidence-backed candidate
+facts, and auditable reasons/citations for structural decisions.
