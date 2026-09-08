@@ -50,6 +50,7 @@ export default function GeneratedCvPanel({
   onCancelTailoring,
 }: GeneratedCvPanelProps) {
   const safeTailoringSessionUrl = tailoringSession ? safeExternalUrl(tailoringSession.session_url) : null;
+  const safeTailoringSkillUrl = tailoringSession ? safeExternalUrl(tailoringSession.skill_url) : null;
 
   return (
     <section className="mt-4 rounded-lg border border-app-rule bg-app-surface p-5 shadow-sm">
@@ -75,7 +76,7 @@ export default function GeneratedCvPanel({
               {tailoringStarting ? "Preparing LLM tailoring…" : "LLM Tailoring"}
             </button>
           </div>
-          <p className="mt-3 text-xs text-app-ink-3">Your installed coding agent composes a fresh CV locally from the full Library and profile. It may reorganize sections when it explains and cites the decision; you remain the final reviewer. The current CV remains unchanged as optional source evidence.</p>
+          <p className="mt-3 text-xs text-app-ink-3">Your coding agent composes a fresh CV locally from the full Library and profile. It may reorganize sections when it explains and cites the decision; you remain the final reviewer. The current CV remains unchanged as optional source evidence.</p>
           {tailoringSession && (
             <div className="mt-4 rounded-md bg-app-canvas px-3 py-3" role="status">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -91,7 +92,7 @@ export default function GeneratedCvPanel({
                   </button>
                 )}
               </div>
-              <p className="mt-3 text-xs text-app-ink-2">Copy this prompt and paste it into Codex, Claude Code, or OpenCode with the Aergia tailoring skill installed.</p>
+              <p className="mt-3 text-xs text-app-ink-2">Copy this prompt and paste it into Codex, Claude Code, or OpenCode. If the skill is not installed, the prompt gives your agent the official bundle and tells it to ask before installing.</p>
               <textarea
                 aria-label="Aergia tailoring prompt"
                 readOnly
@@ -106,6 +107,9 @@ export default function GeneratedCvPanel({
                 </button>
                 {safeTailoringSessionUrl && <a href={safeTailoringSessionUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-app-primary hover:underline">
                   Open session link <ExternalLink className="h-3.5 w-3.5" />
+                </a>}
+                {safeTailoringSkillUrl && <a href={safeTailoringSkillUrl} className="inline-flex items-center gap-1 text-xs font-medium text-app-primary hover:underline" download>
+                  Install tailoring skill <Download className="h-3.5 w-3.5" />
                 </a>}
               </div>
               {tailoringStatus?.result && (

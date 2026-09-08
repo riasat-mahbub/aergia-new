@@ -191,6 +191,15 @@ curl -fsS -D "$dashboard_headers" -o /dev/null "$WEB_URL/dashboard"
 grep -q '^location: /login' "$dashboard_headers"
 curl -fsS "$WEB_URL/api/v1/auth/registration-config" | grep -q 'turnstile_required'
 
+skill_headers="$TMP_DIR/tailoring-skill.headers"
+skill_archive="$TMP_DIR/aergia-tailor.zip"
+curl -fsS -D "$skill_headers" -o "$skill_archive" "$WEB_URL/api/v1/tailoring/skill.zip"
+grep -qi '^content-type: application/zip' "$skill_headers"
+grep -qi '^x-aergia-skill-protocol-version: 1' "$skill_headers"
+"$VENV/bin/python" -c \
+  'import sys, zipfile; archive = zipfile.ZipFile(sys.argv[1]); assert "aergia-tailor/SKILL.md" in archive.namelist(); assert "aergia-tailor/scripts/validate-patch.mjs" in archive.namelist()' \
+  "$skill_archive"
+
 cookie_jar="$TMP_DIR/cookies.txt"
 smoke_email="smoke-${BASHPID}@example.com"
 curl -fsS -c "$cookie_jar" -b "$cookie_jar" \

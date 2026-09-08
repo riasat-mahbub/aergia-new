@@ -73,7 +73,6 @@
     "protected_facts": {"type": "object"},
     "library": {
       "type": "array",
-      "maxItems": 100,
       "items": {
         "type": "object",
         "additionalProperties": false,

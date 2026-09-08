@@ -5,6 +5,7 @@ export interface TailoringSession {
   cv_id: string;
   code: string;
   session_url: string;
+  skill_url: string;
   prompt: string;
   status: "created";
   expires_at: string;

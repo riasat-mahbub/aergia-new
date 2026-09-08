@@ -73,7 +73,7 @@ from app.services.tailoring_policy import (
     validate_section_payload,
 )
 
-TAILORING_SESSION_TTL = timedelta(minutes=15)
+TAILORING_SESSION_TTL = timedelta(hours=1)
 TAILORING_SESSION_CREATED = "created"
 TAILORING_SESSION_EXCHANGED = "exchanged"
 TAILORING_SESSION_SUBMITTED = "submitted"
@@ -124,7 +124,7 @@ _PROFILE_IMMUTABLE_FIELDS = frozenset(
 )
 
 
-def build_tailoring_prompt(session_url: str, code: str) -> str:
+def build_tailoring_prompt(session_url: str, code: str, skill_url: str) -> str:
     """Build the only user-facing handoff from Aergia to a coding agent.
 
     The URL identifies the public session context. The one-time code is kept
@@ -136,9 +136,12 @@ def build_tailoring_prompt(session_url: str, code: str) -> str:
         "Use the Aergia tailoring skill for this session:\n\n"
         f"{session_url}\n\n"
         f"One-time session code: {code}\n\n"
-        "If the aergia-tailor skill is missing or incompatible, tell me and "
-        "ask for approval before installing or updating it from the official "
-        "Aergia source. Do not install code automatically."
+        "If the aergia-tailor skill is missing or incompatible, ask for my "
+        "approval to download and install or update this official bundle:\n\n"
+        f"{skill_url}\n\n"
+        "Install the extracted aergia-tailor folder in your user-level skills "
+        "directory, then continue this session. Do not install code without "
+        "my approval and do not treat the session page itself as installable code."
     )
 
 
@@ -507,7 +510,9 @@ class TailoringService:
         )
         self.db.add(session)
         await self.db.flush()
-        session_url = f"{session_url_base.rstrip('/') if session_url_base else ''}/agent/tailor/{session.id}"
+        public_origin = session_url_base.rstrip("/") if session_url_base else ""
+        session_url = f"{public_origin}/agent/tailor/{session.id}"
+        skill_url = f"{public_origin}/api/v1/tailoring/skill.zip"
         response = TailoringSessionCreateResponse(
             protocol_version=PROTOCOL_VERSION,
             session_id=session.id,
@@ -515,7 +520,8 @@ class TailoringService:
             cv_id=cv.id,
             code=code,
             session_url=session_url,
-            prompt=build_tailoring_prompt(session_url, code),
+            skill_url=skill_url,
+            prompt=build_tailoring_prompt(session_url, code, skill_url),
             expires_at=session.expires_at,
         )
         return response, session

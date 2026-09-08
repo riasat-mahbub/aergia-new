@@ -16,7 +16,7 @@ function parseArgs(argv) {
   const args = {};
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
-    if (argument === "--job" || argument === "--cv" || argument === "--library") {
+    if (["--job", "--cv", "--library", "--requirements"].includes(argument)) {
       const value = argv[index + 1];
       if (!value) throw new Error(`${argument} requires a file path`);
       args[argument.slice(2)] = value;
@@ -26,7 +26,7 @@ function parseArgs(argv) {
     if (argument === "--help" || argument === "-h") return { help: true };
     throw new Error(`Unknown option: ${argument}`);
   }
-  if (!args.job || !args.cv) throw new Error("Usage: jd-check.mjs --job job.json --cv cv.json [--library library.json]");
+  if (!args.job || !args.cv) throw new Error("Usage: jd-check.mjs --job job.json --cv cv.json [--library library.json] [--requirements requirements.json]");
   return args;
 }
 
@@ -66,22 +66,31 @@ function requirementSections(description) {
   });
 }
 
-export function checkJobDescription(job, cv, library = []) {
+export function checkJobDescription(job, cv, library = [], storedRequirements = []) {
   const description = typeof job?.description === "string" ? job.description : "";
   const resumeText = normalized(flattenEvidence(cv));
   const libraryText = normalized(flattenEvidence(library));
   const candidateText = requirementSections(description).join(" ");
   const sourceText = `${resumeText} ${libraryText}`;
-  const skills = KNOWN_SKILLS.filter((skill) => {
+  const discovered = KNOWN_SKILLS.filter((skill) => {
     const pattern = new RegExp(`(^|[^a-z0-9+#])${skill.replace(".", "\\.")}(?=$|[^a-z0-9+#])`, "i");
     return pattern.test(candidateText);
   });
-  const requirements = skills.map((skill) => {
-    const term = normalized(skill);
+  const candidates = Array.isArray(storedRequirements) && storedRequirements.length > 0
+    ? storedRequirements.map((requirement) => ({
+        id: requirement?.id,
+        requirement: requirement?.text ?? requirement?.requirement ?? requirement?.canonical ?? requirement?.normalized,
+        normalized: requirement?.canonical ?? requirement?.normalized ?? requirement?.text,
+        required: requirement?.required,
+        type: requirement?.type,
+      })).filter((requirement) => typeof requirement.requirement === "string" && requirement.requirement.trim())
+    : discovered.map((skill) => ({ requirement: skill, normalized: skill }));
+  const requirements = candidates.map((requirement) => {
+    const term = normalized(requirement.normalized);
     const existing = sourceText.includes(term);
     const supportedByResume = resumeText.includes(term);
     return {
-      requirement: skill,
+      ...requirement,
       normalized: term,
       existing,
       supportedByResume,
@@ -97,7 +106,7 @@ export function checkJobDescription(job, cv, library = []) {
 }
 
 function printHelp() {
-  console.log("Usage: jd-check.mjs --job job.json --cv cv.json [--library library.json]");
+  console.log("Usage: jd-check.mjs --job job.json --cv cv.json [--library library.json] [--requirements requirements.json]");
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -110,6 +119,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
         await readJson(args.job),
         await readJson(args.cv),
         args.library ? await readJson(args.library) : [],
+        args.requirements ? await readJson(args.requirements) : [],
       );
       console.log(JSON.stringify(result, null, 2));
     }

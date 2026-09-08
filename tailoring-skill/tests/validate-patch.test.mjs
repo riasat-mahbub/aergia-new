@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { validatePatch } from "../tools/validate-patch.mjs";
+import {
+  materializePatch,
+  validatePatch,
+} from "../skills/aergia-tailor/scripts/validate-patch.mjs";
 
 const evidence = {
   protocol_version: 1,
@@ -198,6 +201,60 @@ test("validates a prose rewrite of a newly added Library row", () => {
   };
 
   assert.deepEqual(validatePatch(patch, libraryEvidence), { valid: true, operation_count: 2 });
+  assert.deepEqual(
+    materializePatch(patch, libraryEvidence).sections[0].data,
+    [{ id: "tailored-entry-1", description: "Built dependable platform systems." }],
+  );
+});
+
+test("materializes removals and ordering for final fact inspection", () => {
+  const richEvidence = {
+    ...evidence,
+    supported_operations: ["remove_bullet", "reorder_entries"],
+    cv: {
+      id: "cv-1",
+      title: "Source",
+      sections: [{
+        id: "experience",
+        type: "experience",
+        data: [
+          {
+            id: "entry-1",
+            description: [{
+              id: "block-1",
+              type: "bullet_list",
+              items: [{ id: "item-1", text: "First" }, { id: "item-2", text: "Second" }],
+            }],
+          },
+          { id: "entry-2", description: "Another role" },
+        ],
+      }],
+    },
+  };
+  const patch = {
+    protocol_version: 1,
+    base_revision: 3,
+    base_hash: "a".repeat(64),
+    changes: [
+      {
+        operation: "remove_bullet",
+        section_id: "experience",
+        entry_id: "entry-1",
+        field: "description",
+        block_id: "block-1",
+        item_id: "item-1",
+      },
+      {
+        operation: "reorder_entries",
+        section_id: "experience",
+        entry_ids: ["entry-2", "entry-1"],
+      },
+    ],
+  };
+
+  const result = materializePatch(patch, richEvidence);
+  assert.deepEqual(result.sections[0].data.map((entry) => entry.id), ["entry-2", "entry-1"]);
+  assert.deepEqual(result.sections[0].data[1].description[0].items, [{ id: "item-2", text: "Second" }]);
 });
 
 test("validates auditable section creation, replacement, and ordering", () => {

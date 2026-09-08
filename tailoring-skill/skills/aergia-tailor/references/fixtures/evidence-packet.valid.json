@@ -76,6 +76,20 @@
     "profile": {"name": "Example User"},
     "entries": []
   },
-  "library": [],
+  "library": [
+    {
+      "id": "library-1",
+      "kind": "experience",
+      "content_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "payload": [
+        {
+          "id": "library-row-1",
+          "company": "Example Labs",
+          "position": "Engineer",
+          "description": "Built reliable API services."
+        }
+      ]
+    }
+  ],
   "requirements": []
 }
