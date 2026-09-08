@@ -23,6 +23,7 @@ from app.document_schema.models import (
     SectionInstance,
     SectionInstanceStyle,
     SectionPolicy,
+    SectionTypography,
     SubsectionStyle,
     TemplateManifest,
     TextStyle,
@@ -82,6 +83,8 @@ def build_section_style(
         layout = layout.model_copy(update={"date_style": DateStyle()})
     policy_dict = base.get("policy")
     explicit_policy = SectionPolicy.model_validate(policy_dict) if policy_dict else None
+    typography_dict = base.get("typography")
+    typography = SectionTypography.model_validate(typography_dict) if typography_dict else None
 
     # Resolve the default policy unless the instance declared one.
     if explicit_policy is None:
@@ -93,6 +96,7 @@ def build_section_style(
         text=text,
         subsection=subsection,
         layout=layout,
+        typography=typography,
         policy=explicit_policy,
     )
     return style, explicit_policy
@@ -211,6 +215,7 @@ def build_document(
             "policy": policy,
             "subsection": style.subsection,
             "layout": style.layout,
+            "typography": style.typography,
         })
         # Per-field appearance (bold/italic/color/font-size) lands on the
         # runs; the renderer reads TextRun.style.

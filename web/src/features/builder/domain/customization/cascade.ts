@@ -14,12 +14,14 @@
 import type {
   LayoutHints,
   SectionInstanceStyle,
+  SectionTypography,
   SubsectionStyle,
 } from "@/shared/cv/schema";
 import {
   defaultLayoutFor,
   defaultPolicyFor,
   defaultSubsectionFor,
+  defaultTypographyFor,
 } from "./styleDefaults";
 
 /** Layered subsections: type-default → instance override. */
@@ -38,7 +40,14 @@ export function effectiveLayout(
   return { ...defaultLayoutFor(instanceType), ...(override ?? {}) };
 }
 
-/** Layered section-instance style. The instance carries three axes; each
+export function effectiveTypography(
+  instanceType: string,
+  override: SectionTypography | null | undefined,
+): SectionTypography {
+  return { ...defaultTypographyFor(instanceType), ...(override ?? {}) };
+}
+
+/** Layered section-instance style. The instance carries local axes; each
  * axis layers over the type default. */
 export function effectiveStyle(
   instanceType: string,
@@ -49,6 +58,7 @@ export function effectiveStyle(
     text: s.text ?? {},
     subsection: effectiveSubsection(instanceType, s.subsection),
     layout: effectiveLayout(instanceType, s.layout),
+    typography: effectiveTypography(instanceType, s.typography),
     policy: { ...defaultPolicyFor(instanceType), ...(s.policy ?? {}) },
   };
 }
@@ -63,13 +73,13 @@ export function isOverridden<T>(effective: T, inherited: T): boolean {
  * Returns a new style object (does not mutate). The caller is
  * responsible for writing the result.
  *
- * The schema permits the three axis keys; the cast to
+ * The schema permits the local axis keys; the cast to
  * `SectionInstanceStyle` lives at the helper boundary because the
  * deletion needs an untyped map and the resulting object is the same
  * shape the schema accepts. */
 export function withoutOverride(
   style: SectionInstanceStyle | null | undefined,
-  axis: "subsection" | "layout" | "policy",
+  axis: "subsection" | "layout" | "typography" | "policy",
 ): SectionInstanceStyle {
   const s = style ?? {};
   const next: Record<string, unknown> = { ...s };

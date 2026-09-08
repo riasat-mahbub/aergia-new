@@ -15,10 +15,12 @@ from app.document_schema.models import (
     FieldBlock,
     Section,
     SectionPolicy,
+    SectionTypography,
     SubsectionStyle,
     TemplateManifest,
     TextStyle,
     TextRun,
+    TypographyRole,
     Zone,
     LayoutHints,
 )
@@ -607,6 +609,60 @@ def test_heading_divider_emits_border_bottom_and_padding():
     assert h2_m is not None
     assert 'margin:0 0 0' in h2_m.group(0)
     assert 'margin:0 0 2px' not in h2_m.group(0)
+
+
+def test_section_typography_and_spacing_use_independent_css_values():
+    manifest = TemplateManifest(name="M", zones=[Zone(id="main", styles={})], placement={"experience": "main"})
+    doc = Document(sections=[Section(
+        id="x",
+        type="experience",
+        title="Experience",
+        policy=SectionPolicy(show_title=True, heading_divider=True),
+        subsection=SubsectionStyle(spacing_after="spacious", entry_gap="comfortable", field_gap="8px"),
+        typography=SectionTypography(
+            heading=TypographyRole(font_size="xl"),
+            body=TypographyRole(font_size="large", line_height="relaxed", color="#123456"),
+        ),
+        entries=[Entry(id="e", fields=[
+            FieldBlock(key="position", group="header", runs=[TextRun(text="Dev")]),
+            FieldBlock(key="company", group="secondary", runs=[TextRun(text="Acme")]),
+        ]),
+    ])])
+    html = HTMLDocumentRenderer().render(resolve(doc, HTMLDocumentRenderer(), manifest, Customizations()))
+    assert "margin-bottom:40px" in html
+    assert "gap:24px" in html
+    assert "gap:8px" in html
+    assert "font-size:1.25rem" in html
+    assert "--section-body-size:1.125rem" in html
+    assert "--section-body-color:#123456" in html
+    assert "margin-bottom:40px;margin-bottom:var(--spacing-section" not in html
+
+
+def test_two_column_field_spacing_does_not_move_right_rail():
+    manifest = TemplateManifest(
+        name="M", zones=[Zone(id="main", styles={})], placement={"projects": "main"},
+    )
+    doc = Document(sections=[Section(
+        id="p",
+        type="projects",
+        title="Projects",
+        policy=SectionPolicy(entry_layout="two-column"),
+        subsection=SubsectionStyle(field_gap="comfortable"),
+        entries=[Entry(id="e", fields=[
+            FieldBlock(key="project", group="header", runs=[TextRun(text="Project")]),
+            FieldBlock(key="date", group="header", align="right", runs=[TextRun(text="2026")]),
+            FieldBlock(key="description", group="body", runs=[TextRun(text="Summary")]),
+            FieldBlock(key="link", group="secondary", align="right", runs=[TextRun(text="Open")]),
+        ])],
+    )])
+    html = HTMLDocumentRenderer().render(resolve(doc, HTMLDocumentRenderer(), manifest, Customizations()))
+    entry_m = re.search(r'<div class="entry entry-two-col"[^>]*>', html)
+    left_m = re.search(r'<div class="entry-left"[^>]*>', html)
+    right_m = re.search(r'<div class="entry-right"[^>]*>', html)
+    assert entry_m is not None and left_m is not None and right_m is not None
+    assert "column-gap:0" in entry_m.group(0)
+    assert "gap:24px" in left_m.group(0)
+    assert "gap:24px" in right_m.group(0)
 
 
 def test_two_column_entry_splits_date_and_link_into_right_column():

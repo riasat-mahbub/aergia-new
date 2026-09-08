@@ -37,6 +37,7 @@ from app.document_schema.models import (
     Section,
     SectionPolicy,
     SubsectionStyle,
+    TypographyRole,
     TextRun,
     TextStyle,
     is_color_ref,
@@ -60,12 +61,12 @@ _SPACING_TO_CSS: dict[str, str] = {
     "tight": "12px",
     "comfortable": "24px",
     "loose": "32px",
-    "spacious": "32px",
+    "spacious": "40px",
     "compact": "20px",
     "minimal": "0px",
 }
 _SAFE_SPACING = frozenset({
-    "0", "0px", "12px", "16px", "20px", "24px", "32px",
+    "0", "0px", "4px", "8px", "12px", "16px", "20px", "24px", "32px", "40px",
     "var(--spacing-section, 16px)", "var(--spacing-section, 24px)",
     "var(--spacing-subsection, 0px)", "var(--spacing-subsection, 16px)",
 })
@@ -490,14 +491,11 @@ def _render_entry(
     if entry_layout == "two-column":
         return _render_entry_two_column(entry, section_subsection, chip_keys)
 
-    # Stack entries use --spacing-subsection as the inter-field gap so
-    # the template's spacing token drives the visual rhythm. Minimal
-    # template maps it to 0px so adjacent fields sit flush; compact
-    # gives 12px; comfortable gives 16px. Old CVs that explicitly set
-    # ``spacing_after`` on a section still win, so users who widened
-    # the gap explicitly aren't overridden.
+    # Field rhythm is independent from the section's outside margin. The
+    # explicit ``field_gap`` control owns this value; when it is unset the
+    # template's inherited subsection rhythm remains the fallback.
     gap = _safe_spacing(
-        (section_subsection.spacing_after if section_subsection else None)
+        (section_subsection.field_gap if section_subsection and section_subsection.field_gap else None)
         or "var(--spacing-subsection, 0px)"
     ) or "0px"
 
@@ -570,7 +568,7 @@ def _render_entry_two_column(
     """
 
     gap = _safe_spacing(
-        (section_subsection.spacing_after if section_subsection else None)
+        (section_subsection.field_gap if section_subsection and section_subsection.field_gap else None)
         or "var(--spacing-subsection, 0px)"
     ) or "0px"
 
@@ -602,9 +600,12 @@ def _render_entry_two_column(
     ]
     right_html = "".join(right_parts)
 
-    entry_style = f"display:grid;grid-template-columns:5fr 1fr;column-gap:{gap};align-items:start"
+    # Keep the two-column rail anchored to the same x position regardless of
+    # the user's vertical field rhythm. The field gap belongs inside each
+    # column; it must not become a horizontal grid gap.
+    entry_style = "display:grid;grid-template-columns:5fr 1fr;column-gap:0;align-items:start"
     left_style = f"display:flex;flex-direction:column;gap:{gap}"
-    right_style = "display:flex;flex-direction:column;gap:0;align-items:flex-end"
+    right_style = f"display:flex;flex-direction:column;gap:{gap};align-items:flex-end"
     return (
         f'<div class="entry entry-two-col"{_style_attr(entry_style)}>'
         f'<div class="entry-left"{_style_attr(left_style)}>{left_html}</div>'
@@ -643,6 +644,7 @@ def _render_heading(section: Section, policy: SectionPolicy | None) -> str:
     if not show:
         return ""
     color = section.subsection.section_color if section.subsection and section.subsection.section_color else None
+    heading = section.typography.heading if section.typography else None
     has_divider = bool(policy and policy.heading_divider)
     # Without a divider we keep 2px below the text; with a divider the
     # ``border-bottom`` + ``padding-bottom`` already provide breathing
@@ -650,13 +652,20 @@ def _render_heading(section: Section, policy: SectionPolicy | None) -> str:
     # the title row (a visible ~7px gap on project / research entries).
     base_margin = "0 0 0" if has_divider else "0 0 2px"
     style_parts = [f"margin:{base_margin}", "font-size:1rem", "font-weight:700"]
-    safe_color = _safe_color(color)
+    if heading:
+        style_parts.extend(_typography_role_decls(heading))
+    safe_color = _safe_color(heading.color if heading and heading.color else color)
     if safe_color:
         style_parts.append(f"color:{safe_color}")
     if has_divider:
         # Legacy ``underline_section_titles`` flag: border-bottom under
         # the heading, padded so the rule does not crowd the text.
-        style_parts.append("border-bottom:1px solid var(--accent,#1f2937)")
+        divider_color = (
+            "var(--section-accent,var(--accent,#1f2937))"
+            if section.subsection and section.subsection.accent_color
+            else "var(--accent,#1f2937)"
+        )
+        style_parts.append(f"border-bottom:1px solid {divider_color}")
         style_parts.append("padding-bottom:4px")
     return f'<h2{_style_attr(";".join(style_parts))}>{h(section.title)}</h2>'
 
@@ -684,6 +693,48 @@ def _subsection_style_decl(section: Section) -> str:
         section_color = _safe_color(sub.section_color)
         if section_color:
             decls.append(f"color:{section_color}")
+    if sub.accent_color:
+        accent_color = _safe_color(sub.accent_color)
+        if accent_color:
+            decls.append(f"--section-accent:{accent_color}")
+            decls.append(f"--accent:{accent_color}")
+    return _format_inline_style(decls)
+
+
+def _typography_role_decls(role: TypographyRole) -> list[str]:
+    decls: list[str] = []
+    line_heights = {"tight": "1.2", "normal": "1.4", "relaxed": "1.7"}
+    if role.font_family:
+        family = _safe_font_family(role.font_family)
+        if family:
+            decls.append(f"font-family:{family}")
+    if role.font_size and role.font_size in _FONT_SIZE_TO_CSS:
+        decls.append(f"font-size:{_FONT_SIZE_TO_CSS[role.font_size]}")
+    if role.line_height:
+        decls.append(f"line-height:{line_heights[role.line_height]}")
+    if role.color:
+        color = _safe_color(role.color)
+        if color:
+            decls.append(f"color:{color}")
+    if role.bold is not None:
+        decls.append(f"font-weight:{700 if role.bold else 400}")
+    return decls
+
+
+def _typography_style_decl(section: Section) -> str:
+    body = section.typography.body if section.typography else None
+    if body is None:
+        return ""
+    decls = _typography_role_decls(body)
+    if body.font_size and body.font_size in _FONT_SIZE_TO_CSS:
+        # Field classes have intentional defaults in the document stylesheet.
+        # This variable lets a section-level body size replace those defaults
+        # without changing the default output for untouched sections.
+        decls.append(f"--section-body-size:{_FONT_SIZE_TO_CSS[body.font_size]}")
+    if body.color:
+        color = _safe_color(body.color)
+        if color:
+            decls.append(f"--section-body-color:{color}")
     return _format_inline_style(decls)
 
 
@@ -826,9 +877,20 @@ def _render_section(section: Section) -> str:
     layout_decl = _layout_style_decl(section)
     keep_first = _heading_keeps_with_first_decl(section)
     keep_entry = _keep_entry_together_decl(section)
-    wrapper_decl_parts = [d for d in (layout_decl, sub_decl) if d]
-    wrapper_decl_parts.append("margin-bottom:var(--spacing-section, 24px)")
+    typography_decl = _typography_style_decl(section)
+    wrapper_decl_parts = [d for d in (layout_decl, sub_decl, typography_decl) if d]
+    # A local "Below" value owns the section's bottom margin. Only add the
+    # template section rhythm when the section did not choose one; emitting
+    # both declarations lets the later default silently override the user's
+    # selection.
+    if not section.subsection or not _safe_spacing(section.subsection.spacing_after):
+        wrapper_decl_parts.append("margin-bottom:var(--spacing-section, 24px)")
     wrapper_style = _format_inline_style(wrapper_decl_parts)
+    body_size_attr = (
+        ' data-preview-body-size="true"'
+        if section.typography and section.typography.body and section.typography.body.font_size
+        else ""
+    )
     heading_html = _render_heading(section, policy)
 
     entries_html_parts: list[str] = []
@@ -860,11 +922,17 @@ def _render_section(section: Section) -> str:
                 entry_html = _merge_entry_break_before(entry_html, keep_entry)
             entries_html_parts.append(entry_html)
     entries_html = "".join(entries_html_parts)
+    entry_gap = _safe_spacing(
+        (section.subsection.entry_gap if section.subsection and section.subsection.entry_gap else None)
+        or "var(--spacing-subsection, 0px)"
+    ) or "0px"
+    entries_html = f'<div class="section-entries" style="display:flex;flex-direction:column;gap:{entry_gap}">{entries_html}</div>'
 
     return (
         f'<section id="{attr(section.id)}"'
         f' data-preview-section="true"'
         f' data-preview-section-id="{attr(section.id)}"'
+        f'{body_size_attr}'
         f' data-preview-break-before="{str(bool(layout.break_before)).lower()}"'
         f' data-preview-heading-keeps-with-first="{str(bool(layout.heading_keeps_with_first)).lower()}"'
         f'{_style_attr(wrapper_style)}>'
@@ -959,7 +1027,34 @@ def _render_document(model: RenderModel, support: RendererSupport) -> str:
       margin: 0 0.35em;
     }}
     .field-row {{ display:flex; flex-wrap:wrap; align-items:baseline; column-gap:0; row-gap:0; }}
-    .f-chip {{ display:inline-block; background:#eff6ff; padding:2px 6px; border-radius:4px; color:#1d4ed8; font-size:0.75rem; }}
+    .f-chip {{ display:inline-block; background:#eff6ff; padding:2px 6px; border-radius:4px; color:var(--section-body-color,#1d4ed8); font-size:0.75rem; }}
+    /* A section body size is opt-in. Keep the field grammar above unchanged
+       for untouched sections, then let the section-local control replace
+       every field default when it is set. */
+    section[data-preview-body-size] .f-name,
+    section[data-preview-body-size] .f-title,
+    section[data-preview-body-size] .f-company,
+    section[data-preview-body-size] .f-institution,
+    section[data-preview-body-size] .f-category,
+    section[data-preview-body-size] .f-venue,
+    section[data-preview-body-size] .f-issuer,
+    section[data-preview-body-size] .f-summary,
+    section[data-preview-body-size] .f-description,
+    section[data-preview-body-size] .f-contact,
+    section[data-preview-body-size] .f-contact-sep,
+    section[data-preview-body-size] .f-email,
+    section[data-preview-body-size] .f-phone,
+    section[data-preview-body-size] .f-location,
+    section[data-preview-body-size] .f-site,
+    section[data-preview-body-size] .f-date,
+    section[data-preview-body-size] .f-gpa,
+    section[data-preview-body-size] .f-link,
+    section[data-preview-body-size] .f-tech,
+    section[data-preview-body-size] .f-tag,
+    section[data-preview-body-size] .f-proficiency,
+    section[data-preview-body-size] .f-meta,
+    section[data-preview-body-size] .f-social,
+    section[data-preview-body-size] .f-chip {{ font-size:var(--section-body-size); }}
 {link_styles}    {print_styles}
   </style>
 {best_effort}

@@ -3,8 +3,8 @@
 The CV wire shape carries the new :class:`SectionInstance` list, so
 type-aware data validation lives in the new ``app.document_schema`` package.
 ``legacy_style`` round-trips through the builder, which normalises the
-legacy ``SectionStyle`` into the three-axis shape per the ADR mapping
-table.
+legacy ``SectionStyle`` into the section-local style shape per the ADR
+mapping table.
 """
 
 from __future__ import annotations

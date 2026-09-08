@@ -5,7 +5,7 @@ over HTTP, persists in the DB, or is consumed by the renderer is defined
 here. The legacy IR-based pipeline (raw ``dict``s, dataclasses) is replaced
 in one cutover.
 
-Three orthogonal axes for styling:
+Four orthogonal axes for styling:
 
 - :class:`TextStyle` — inline per-field appearance (bold, italic, color,
   font-size, link).
@@ -13,6 +13,8 @@ Three orthogonal axes for styling:
   (``text_align``, spacing, ``background_color``).
 - :class:`LayoutHints` — page flow and structural intent (``break_before``,
   ``keep_together``, ``orphans``/``widows``, ``font_family``, ``date_style``).
+- :class:`SectionTypography` — section-local heading and body font, size,
+  line-height, weight, and color defaults.
 
 :data:`SectionPolicy` is document semantics, not HTML-oriented. A future
 DOCX renderer would implement the same policy with DOCX constructs.
@@ -68,7 +70,7 @@ _HEX_LITERAL = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 _PALETTE_REF = re.compile(r"^palette\.[a-z][a-z0-9_-]*$")
 _SAFE_SPACING = frozenset({
     "none", "tight", "comfortable", "loose", "spacious",
-    "compact", "minimal", "0", "0px", "12px", "16px", "20px", "24px", "32px",
+    "compact", "minimal", "0", "0px", "4px", "8px", "12px", "16px", "20px", "24px", "32px", "40px",
     "var(--spacing-section, 16px)", "var(--spacing-section, 24px)",
     "var(--spacing-subsection, 0px)", "var(--spacing-subsection, 16px)",
 })
@@ -172,22 +174,49 @@ class SubsectionStyle(BaseModel):
     text_align: AlignmentToken | None = None
     spacing_before: str | None = None
     spacing_after: str | None = None
+    entry_gap: str | None = None
+    field_gap: str | None = None
     background_color: str | None = None
     section_color: str | None = None
+    accent_color: str | None = None
 
-    @field_validator("spacing_before", "spacing_after")
+    @field_validator("spacing_before", "spacing_after", "entry_gap", "field_gap")
     @classmethod
     def _check_spacing(cls, value: str | None) -> str | None:
         if value is not None and value not in _SAFE_SPACING:
             raise ValueError("spacing must use a supported spacing token or resolved length")
         return value
 
-    @field_validator("background_color", "section_color")
+    @field_validator("background_color", "section_color", "accent_color")
     @classmethod
     def _check_colors(cls, value: str | None) -> str | None:
         if value is not None and not is_color_ref(value):
             raise ValueError("color must be a hex literal or palette reference")
         return value
+
+
+class TypographyRole(BaseModel):
+    """Section-local typography defaults for a heading or body text."""
+
+    font_family: FontToken | None = None
+    font_size: FontSizeToken | None = None
+    line_height: Literal["tight", "normal", "relaxed"] | None = None
+    color: str | None = None
+    bold: bool | None = None
+
+    @field_validator("color")
+    @classmethod
+    def _check_color(cls, value: str | None) -> str | None:
+        if value is not None and not is_color_ref(value):
+            raise ValueError("color must be a hex literal or palette reference")
+        return value
+
+
+class SectionTypography(BaseModel):
+    """Independent typography defaults owned by one section instance."""
+
+    heading: TypographyRole | None = None
+    body: TypographyRole | None = None
 
 
 class LayoutHints(BaseModel):
@@ -271,7 +300,7 @@ class Entry(BaseModel):
 
 
 class Section(BaseModel):
-    """One section of the document. Carries the three-axis style."""
+    """One section of the document. Carries its resolved local style."""
 
     id: str = Field(max_length=128)
     type: str = Field(max_length=64)
@@ -281,6 +310,7 @@ class Section(BaseModel):
     fields: list[FieldBlock] = Field(default_factory=list, max_length=100)
     layout: LayoutHints | None = None
     subsection: SubsectionStyle | None = None
+    typography: SectionTypography | None = None
     policy: SectionPolicy | None = None
 
 class Document(BaseModel):
@@ -295,14 +325,14 @@ class Document(BaseModel):
 
 
 class SectionInstanceStyle(BaseModel):
-    """Three-axis style carried on a wire ``SectionInstance``.
+    """Section-local style carried on a wire ``SectionInstance``.
 
     The legacy ``SectionStyle`` keys (``font``, ``color``, ``weight``,
     ``text_align``, ``show_title``, ``layout``, ``field_styles``,
     ``date_style``, ``subsection_gap``, ``row_gap``) are accepted on
     inbound payloads during normalisation. The builder applies them as
     legacy-style overlays before producing the resolved three-axis shape;
-    the resolver cascades over the three axes. Extra keys are ignored by
+    the resolver cascades over the local axes. Extra keys are ignored by
     the renderer.
     """
 
@@ -311,6 +341,7 @@ class SectionInstanceStyle(BaseModel):
     text: dict[str, TextStyle] = Field(default_factory=dict, max_length=100)  # field_key -> TextStyle
     subsection: SubsectionStyle | None = None
     layout: LayoutHints | None = None
+    typography: SectionTypography | None = None
     policy: SectionPolicy | None = None
 
 

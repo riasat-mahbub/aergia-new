@@ -17,7 +17,7 @@
  * - Pressing Enter or blurring commits the value.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { ink, radius, ruleDefault } from "@/styles/tokens";
 
@@ -40,6 +40,13 @@ interface Props {
 export default function ColorChip({ value, onChange, showRevert, onRevert, label, testId }: Props) {
   const [draft, setDraft] = useState<string>(value ?? "");
   const valid = typeof value === "string" && HEX_RE.test(value);
+
+  useEffect(() => {
+    // Keep the text field in sync when the selected section or inherited
+    // template value changes while this control stays mounted.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync a controlled draft when the selected value changes
+    setDraft(value ?? "");
+  }, [value]);
 
   const commit = (next: string) => {
     setDraft(next);

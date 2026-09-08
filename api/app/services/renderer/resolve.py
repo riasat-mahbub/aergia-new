@@ -1,13 +1,12 @@
 """Resolver — Document + manifest + customizations + renderer capabilities → RenderModel.
 
-The Resolver is the only place where three layers of style meet:
+The Resolver is the only place where the style layers meet:
 
 1. **Per-instance style overrides** (``customizations.per_section[id]``)
    overlay onto the section's already-built three-axis style.
-2. **Template defaults** paint template-wide values onto each section
-   when the section didn't declare them.
-3. **User customizations** paint shared values onto every section only
-   when neither the template nor the section declared them.
+2. **User customizations** paint legacy shared values onto each section
+   when that section has no newer local value.
+3. **Template defaults** fill any remaining unset values.
 
 Then it:
 
@@ -32,6 +31,7 @@ from app.document_schema.models import (
     ResolvedZone,
     Section,
     SectionInstanceStyle,
+    SectionTypography,
     SubsectionStyle,
     TemplateManifest,
     Zone,
@@ -104,15 +104,33 @@ def _overlay_policy(base, override):
     return type(base).model_validate({**base_dict, **over_dict})
 
 
+def _overlay_typography(base: SectionTypography | None, override: SectionTypography | None) -> SectionTypography | None:
+    if override is None:
+        return base
+    base_dict = base.model_dump(exclude_none=True) if base else {}
+    over_dict = override.model_dump(exclude_none=True)
+    merged: dict[str, object] = {}
+    for role in ("heading", "body"):
+        role_values = {
+            **(base_dict.get(role) or {}),
+            **(over_dict.get(role) or {}),
+        }
+        if role_values:
+            merged[role] = role_values
+    return SectionTypography.model_validate(merged or {})
+
+
 def _apply_section_overlay(section: Section, override: SectionInstanceStyle) -> Section:
-    """Merge a per-instance user override onto a section's three-axis style."""
+    """Merge a per-instance user override onto a section's local style."""
 
     new_subsection = _overlay_subsection(section.subsection, override.subsection)
     new_layout = _overlay_layout(section.layout, override.layout)
+    new_typography = _overlay_typography(section.typography, override.typography)
     new_policy = _overlay_policy(section.policy, override.policy)
     section = section.model_copy(update={
         "subsection": new_subsection,
         "layout": new_layout,
+        "typography": new_typography,
         "policy": new_policy,
     })
     # Per-field text styles ride in the override's `text` dict and must land
@@ -151,15 +169,16 @@ def _apply_template_defaults(section: Section, manifest: TemplateManifest | None
 
 
 def _apply_user_customizations(section: Section, customizations: Customizations) -> Section:
-    """Paint user customizations onto each section where the template
-    didn't declare a value."""
+    """Paint legacy shared values without replacing new local typography."""
 
     layout_dict = section.layout.model_dump(exclude_none=True) if section.layout else {}
     sub_dict = section.subsection.model_dump(exclude_none=True) if section.subsection else {}
 
-    if customizations.body_font:
+    if customizations.body_font and not layout_dict.get("font_family"):
         layout_dict["font_family"] = FONT_TOKENS.get(customizations.body_font, customizations.body_font)
-    if customizations.accent_color:
+    # Older documents used ``section_color`` for the global accent. Keep that
+    # compatibility path, but a new section heading color is more specific.
+    if customizations.accent_color and not (section.typography and section.typography.body and section.typography.body.color):
         sub_dict["section_color"] = resolve_color(customizations.accent_color)
     if customizations.default_text_align and not sub_dict.get("text_align"):
         sub_dict["text_align"] = customizations.default_text_align
@@ -344,10 +363,11 @@ def resolve(
         override = customizations_model.per_section.get(section.id)
         if override is not None:
             section = _apply_section_overlay(section, override)
-        # 2. Template defaults.
-        section = _apply_template_defaults(section, manifest_model)
-        # 3. User customizations.
+        # 2. Legacy user values fill before the template so a saved document
+        # preference keeps its historical precedence over template globals.
         section = _apply_user_customizations(section, customizations_model)
+        # 3. Template defaults fill whatever remains unset.
+        section = _apply_template_defaults(section, manifest_model)
         # 4. Renderer capability gating.
         if support.feature_skills_inline is SupportLevel.NONE and section.type == "skills":
             if section.policy is not None and section.policy.skill_variant is not None:

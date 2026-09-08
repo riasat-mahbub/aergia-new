@@ -1,5 +1,5 @@
 // This file is generated. Do not edit by hand.
-// Source: api/app/document_schema/models.py (sha256:f15ac968f6aa5fb4)
+// Source: api/app/document_schema/models.py (sha256:81891e3a09bbf2f4)
 
 export interface CVLayout {
   "placement"?: Record<string, string>;
@@ -112,6 +112,7 @@ export interface Section {
   "subsection"?: (SubsectionStyle) | null;
   "title": string;
   "type": string;
+  "typography"?: (SectionTypography) | null;
 }
 
 export interface SectionInstance {
@@ -128,6 +129,7 @@ export interface SectionInstanceStyle {
   "policy"?: (SectionPolicy) | null;
   "subsection"?: (SubsectionStyle) | null;
   "text"?: Record<string, TextStyle>;
+  "typography"?: (SectionTypography) | null;
 }
 
 export interface SectionPolicy {
@@ -137,8 +139,16 @@ export interface SectionPolicy {
   "skill_variant"?: (("block" | "inline")) | null;
 }
 
+export interface SectionTypography {
+  "body"?: (TypographyRole) | null;
+  "heading"?: (TypographyRole) | null;
+}
+
 export interface SubsectionStyle {
+  "accent_color"?: (string) | null;
   "background_color"?: (string) | null;
+  "entry_gap"?: (string) | null;
+  "field_gap"?: (string) | null;
   "section_color"?: (string) | null;
   "spacing_after"?: (string) | null;
   "spacing_before"?: (string) | null;
@@ -183,6 +193,14 @@ export interface TextStyle {
   "link"?: (string) | null;
   "strike"?: boolean;
   "underline"?: boolean;
+}
+
+export interface TypographyRole {
+  "bold"?: (boolean) | null;
+  "color"?: (string) | null;
+  "font_family"?: (("sans-serif" | "serif" | "mono" | "display")) | null;
+  "font_size"?: (("xs" | "small" | "normal" | "large" | "xl")) | null;
+  "line_height"?: (("tight" | "normal" | "relaxed")) | null;
 }
 
 export interface Zone {
