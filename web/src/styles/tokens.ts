@@ -71,7 +71,16 @@ export const SECTION_SPACING_PX: Record<SectionSpacingToken, number> = {
   tight: 12,
   comfortable: 24,
   loose: 32,
-  spacious: 32,
+  spacious: 40,
+};
+
+export const LINE_HEIGHT_TOKENS = ["tight", "normal", "relaxed"] as const;
+export type LineHeightToken = (typeof LINE_HEIGHT_TOKENS)[number];
+
+export const LINE_HEIGHT_LABELS: Record<LineHeightToken, string> = {
+  tight: "Tight",
+  normal: "Normal",
+  relaxed: "Relaxed",
 };
 
 /** Per-element font size tokens — what the typography row offers.

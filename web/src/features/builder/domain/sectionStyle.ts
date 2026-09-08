@@ -8,6 +8,7 @@ export function sectionStyleHasValues(style: SectionInstanceStyle): boolean {
   return Boolean(
     (style.layout && Object.keys(style.layout).length > 0) ||
       (style.subsection && Object.keys(style.subsection).length > 0) ||
+      (style.typography && Object.keys(style.typography).length > 0) ||
       (style.policy && Object.keys(style.policy).length > 0) ||
       (style.text && Object.keys(style.text).length > 0),
   );

@@ -8,11 +8,12 @@ This package is the single source of truth for the document model. The
 TypeScript types in ``web/src/generated/schema.ts`` are derived from these
 models via ``api/scripts/codegen_schema.py``.
 
-Three orthogonal axes for styling (ADR-three-axis-style-model):
+Four orthogonal axes for styling:
 
 - :class:`TextStyle` — inline per-field appearance.
 - :class:`SubsectionStyle` — block-level appearance per section/entry.
 - :class:`LayoutHints` — page flow and structural intent.
+- :class:`SectionTypography` — section-local heading and body typography.
 
 :data:`DateStyle` is the format preset for dates and lives next to the rest of
 the AST.
@@ -34,12 +35,14 @@ from .models import (
     SectionInstance,
     SectionInstanceStyle,
     SectionPolicy,
+    SectionTypography,
     SubsectionStyle,
     TemplateDetail,
     TemplateListItem,
     TemplateManifest,
     TextRun,
     TextStyle,
+    TypographyRole,
     Zone,
     ZoneStyle,
 )
@@ -60,12 +63,14 @@ __all__ = [
     "SectionInstance",
     "SectionInstanceStyle",
     "SectionPolicy",
+    "SectionTypography",
     "SubsectionStyle",
     "TemplateDetail",
     "TemplateListItem",
     "TemplateManifest",
     "TextRun",
     "TextStyle",
+    "TypographyRole",
     "Zone",
     "ZoneStyle",
 ]

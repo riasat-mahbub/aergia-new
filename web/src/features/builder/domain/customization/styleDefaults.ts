@@ -23,6 +23,7 @@ import type {
   LayoutHints,
   SectionInstanceStyle,
   SectionPolicy,
+  SectionTypography,
   SubsectionStyle,
   TextStyle,
 } from "@/shared/cv/schema";
@@ -45,15 +46,27 @@ export const SECTION_POLICY_DEFAULTS: Record<string, SectionPolicy> = {
  * builders/_default_subsection — profile gets centered text alignment,
  * everything else starts empty. */
 export const SUBSECTION_DEFAULTS: Record<string, SubsectionStyle> = {
-  profile: { text_align: "center", spacing_before: null, spacing_after: null, background_color: null, section_color: null },
-  experience: { text_align: null, spacing_before: null, spacing_after: null, background_color: null, section_color: null },
-  education: { text_align: null, spacing_before: null, spacing_after: null, background_color: null, section_color: null },
-  skills: { text_align: null, spacing_before: null, spacing_after: null, background_color: null, section_color: null },
-  projects: { text_align: null, spacing_before: null, spacing_after: null, background_color: null, section_color: null },
-  languages: { text_align: null, spacing_before: null, spacing_after: null, background_color: null, section_color: null },
-  certifications: { text_align: null, spacing_before: null, spacing_after: null, background_color: null, section_color: null },
-  research: { text_align: null, spacing_before: null, spacing_after: null, background_color: null, section_color: null },
-  extras: { text_align: null, spacing_before: null, spacing_after: null, background_color: null, section_color: null },
+  profile: { text_align: "center", spacing_before: null, spacing_after: null, entry_gap: null, field_gap: null, background_color: null, section_color: null, accent_color: null },
+  experience: { text_align: null, spacing_before: null, spacing_after: null, entry_gap: null, field_gap: null, background_color: null, section_color: null, accent_color: null },
+  education: { text_align: null, spacing_before: null, spacing_after: null, entry_gap: null, field_gap: null, background_color: null, section_color: null, accent_color: null },
+  skills: { text_align: null, spacing_before: null, spacing_after: null, entry_gap: null, field_gap: null, background_color: null, section_color: null, accent_color: null },
+  projects: { text_align: null, spacing_before: null, spacing_after: null, entry_gap: null, field_gap: null, background_color: null, section_color: null, accent_color: null },
+  languages: { text_align: null, spacing_before: null, spacing_after: null, entry_gap: null, field_gap: null, background_color: null, section_color: null, accent_color: null },
+  certifications: { text_align: null, spacing_before: null, spacing_after: null, entry_gap: null, field_gap: null, background_color: null, section_color: null, accent_color: null },
+  research: { text_align: null, spacing_before: null, spacing_after: null, entry_gap: null, field_gap: null, background_color: null, section_color: null, accent_color: null },
+  extras: { text_align: null, spacing_before: null, spacing_after: null, entry_gap: null, field_gap: null, background_color: null, section_color: null, accent_color: null },
+};
+
+export const TYPOGRAPHY_DEFAULTS: Record<string, SectionTypography> = {
+  profile: { heading: null, body: null },
+  experience: { heading: null, body: null },
+  education: { heading: null, body: null },
+  skills: { heading: null, body: null },
+  projects: { heading: null, body: null },
+  languages: { heading: null, body: null },
+  certifications: { heading: null, body: null },
+  research: { heading: null, body: null },
+  extras: { heading: null, body: null },
 };
 
 /** Per-section-type layout defaults. Mirrors builders/_default_layout
@@ -93,20 +106,25 @@ export function defaultPolicyFor(sectionType: string): SectionPolicy {
 }
 
 export function defaultSubsectionFor(sectionType: string): SubsectionStyle {
-  return SUBSECTION_DEFAULTS[sectionType] ?? { text_align: null, spacing_before: null, spacing_after: null, background_color: null, section_color: null };
+  return SUBSECTION_DEFAULTS[sectionType] ?? { text_align: null, spacing_before: null, spacing_after: null, entry_gap: null, field_gap: null, background_color: null, section_color: null, accent_color: null };
+}
+
+export function defaultTypographyFor(sectionType: string): SectionTypography {
+  return TYPOGRAPHY_DEFAULTS[sectionType] ?? { heading: null, body: null };
 }
 
 export function defaultLayoutFor(sectionType: string): LayoutHints {
   return LAYOUT_DEFAULTS[sectionType] ?? { font_family: null, date_style: null, break_before: false, keep_together: true, heading_keeps_with_first: true, orphans: 2, widows: 2, chip_keys: null };
 }
 
-/** SectionInstanceStyle defaults — what every axis looks like when the
+/** SectionInstanceStyle defaults — what every local axis looks like when the
  * user has never touched the section. Used as the "no override"
  * baseline. */
 export function defaultStyleFor(sectionType: string): SectionInstanceStyle {
   return {
     text: {},
     subsection: defaultSubsectionFor(sectionType),
+    typography: defaultTypographyFor(sectionType),
     layout: defaultLayoutFor(sectionType),
     policy: defaultPolicyFor(sectionType),
   };

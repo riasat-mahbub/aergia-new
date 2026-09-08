@@ -42,9 +42,9 @@ export default function UserTemplateRenderer({ instances, customizations, manife
     // manifest-less object fails TemplateManifest validation. Pass
     // customizations through unchanged so the user's zone styles (width,
     // background, padding) and instance-keyed placement reach the resolver.
-    if (!customizations?.layout?.zones?.length) return;
-
-    const customizationsPayload = customizations;
+    // The resolver can fall back to manifest zones, so a CV without a saved
+    // layout must still render instead of leaving the preview blank.
+    const customizationsPayload = customizations ?? {};
     let cancelled = false;
     async function renderTemplate() {
       try {

@@ -147,17 +147,11 @@ export default function BuilderPage({ cvId, applicationId }: BuilderPageProps) {
     [markDirty]
   );
 
-  const handleUpdateCustomizations = useCallback(
-    (next: Record<string, unknown>) => {
-      markDirty();
-      setCustomizations(next);
-    },
-    [markDirty],
-  );
-
   const handleReset = useCallback(() => {
     markDirty();
-    setCustomizations({});
+    // The Customize tab resets section styles only. Keep the zone placement
+    // authored in the content/layout model intact.
+    setCustomizations((previous) => previous.layout ? { layout: previous.layout } : {});
     setInstances((prev) => resetDocument(prev));
   }, [markDirty]);
 
@@ -240,7 +234,6 @@ export default function BuilderPage({ cvId, applicationId }: BuilderPageProps) {
           onRenameInstance={handleRenameInstance}
           onReorderInstances={handleReorderInstances}
           onUpdateStyle={handleUpdateStyle}
-          onCustomizationsChange={handleUpdateCustomizations}
           onTemplateChange={() => handleTemplateChange(currentCV.template_id)}
           onReset={handleReset}
         />

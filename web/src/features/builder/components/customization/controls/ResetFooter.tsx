@@ -6,9 +6,9 @@
  * manifest (not `templateId.split("-")[1]` which produced "modern" for
  * generic-modern).
  *
- * Reset wipes every per-instance style AND every customization, then
+ * Reset wipes section-local style overrides and legacy style values, then
  * re-applies the template defaults. Destructive — opens a confirmation
- * modal before executing.
+ * modal before executing. Layout placement is preserved.
  */
 
 import { useState } from "react";
@@ -54,8 +54,8 @@ export default function ResetFooter({ templateName, onChangeTemplate, onReset, c
           disabled={!canReset}
           className="text-xs underline disabled:opacity-50"
           style={{ color: canReset ? danger : ink.ink4 }}
-          aria-label="Reset to template defaults"
-          title="Reset to template defaults"
+          aria-label="Reset section styles"
+          title="Reset section styles"
         >
           Reset
         </button>
@@ -73,13 +73,12 @@ export default function ResetFooter({ templateName, onChangeTemplate, onReset, c
       />
       <Modal open={confirmOpen} onClose={() => setConfirmOpen(false)}>
         <h2 className="mb-2 text-lg font-semibold" style={{ color: ink.ink }}>
-          Reset to template defaults?
+          Reset section styles?
         </h2>
         <p className="text-sm" style={{ color: ink.ink2 }}>
-          Every per-section style and every document-level customization
-          you have set will be removed. The template's default font,
-          colors, and spacing will be restored. Your content (text,
-          entries, order) is preserved.
+          Every section style override will be removed. The template's
+          default font, colors, and spacing will be restored. Your content,
+          entries, order, and layout placement are preserved.
         </p>
         <div className="mt-6 flex justify-end gap-2">
           <button

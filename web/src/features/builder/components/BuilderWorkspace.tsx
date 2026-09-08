@@ -21,7 +21,6 @@ interface BuilderWorkspaceProps {
   onRenameInstance: (sectionId: string, title: string) => void;
   onReorderInstances: (instances: SectionInstance[]) => void;
   onUpdateStyle: (sectionId: string, style: SectionInstanceStyle) => void;
-  onCustomizationsChange: (customizations: Record<string, unknown>) => void;
   onTemplateChange: () => void | Promise<void>;
   onReset: () => void;
 }
@@ -41,16 +40,15 @@ export default function BuilderWorkspace({
   onRenameInstance,
   onReorderInstances,
   onUpdateStyle,
-  onCustomizationsChange,
   onTemplateChange,
   onReset,
 }: BuilderWorkspaceProps) {
   return (
-    <div className="flex flex-1 overflow-hidden">
+    <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
       <motion.div
         initial={{ x: -20, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
-        className="flex w-1/2 flex-col overflow-hidden border-r bg-app-surface"
+        className="flex h-1/2 min-h-0 w-full flex-col overflow-hidden border-b bg-app-surface lg:h-auto lg:w-1/2 lg:border-b-0 lg:border-r"
       >
         <div className="flex border-b bg-app-canvas">
           <button
@@ -79,9 +77,11 @@ export default function BuilderWorkspace({
             <Inspector
               templateId={cv.template_id}
               templateName={templateManifest?.name ?? ""}
+              templateBodyFont={templateManifest?.manifest?.global_styles?.body_font ?? null}
+              templateHeadingFont={templateManifest?.manifest?.global_styles?.heading_font ?? null}
+              templateAccent={templateManifest?.manifest?.global_styles?.accent_color ?? null}
               instances={instances}
               onUpdateStyle={onUpdateStyle}
-              onCustomizationsChange={onCustomizationsChange}
               onTemplateChange={onTemplateChange}
               onReset={onReset}
               customizations={customizations}
@@ -105,7 +105,7 @@ export default function BuilderWorkspace({
         initial={{ x: 20, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
         transition={{ delay: 0.1 }}
-        className="w-1/2 overflow-y-auto bg-app-surface-muted p-6"
+        className="h-1/2 min-h-0 w-full overflow-y-auto bg-app-surface-muted p-6 lg:h-auto lg:w-1/2"
       >
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-app-ink-3">Preview</h2>
         <div className="w-full min-w-0">

@@ -10,7 +10,10 @@
  * This walks the actual instance data using the same field-key
  * vocabulary the backend builders use. Indexed keys (tag.0, tag.1) are
  * aggregated to their base (tag) so the user sees one row, not ten.
- * Rich-text fields are flagged so the typography group can hide.
+ * Rich-text fields are flagged so the typography group can hide. When a
+ * section has an entry, its complete vocabulary remains visible even when a
+ * field is currently empty; that keeps the section controls predictable as
+ * content is added later.
  */
 
 import type { SectionInstance } from "@/shared/cv/schema";
@@ -152,7 +155,7 @@ export function fieldsForInstance(instance: SectionInstance): FieldRow[] {
       const s = def.sample(e);
       if (s) { sample = s; break; }
     }
-    if (!sample) continue;
+    if (!sample && entries.length === 0) continue;
     rows.push({
       key: def.key,
       label: def.label,

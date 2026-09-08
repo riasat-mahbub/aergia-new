@@ -21,10 +21,12 @@ from app.document_schema.models import (
     ResolvedZone,
     Section,
     SectionPolicy,
+    SectionTypography,
     SubsectionStyle,
     TemplateManifest,
     TextRun,
     TextStyle,
+    TypographyRole,
     Zone,
     ZoneStyle,
 )
@@ -43,6 +45,26 @@ def test_section_round_trips_via_json():
     )
     payload = section.model_dump(mode="json")
     restored = Section.model_validate(payload)
+    assert restored == section
+
+
+def test_section_local_typography_and_spacing_round_trip():
+    section = Section(
+        id="s1",
+        type="experience",
+        title="Experience",
+        subsection=SubsectionStyle(
+            spacing_before="tight",
+            spacing_after="spacious",
+            entry_gap="comfortable",
+            field_gap="8px",
+        ),
+        typography=SectionTypography(
+            heading=TypographyRole(font_size="xl", font_family="serif"),
+            body=TypographyRole(font_size="small", line_height="relaxed", color="#123456"),
+        ),
+    )
+    restored = Section.model_validate(section.model_dump(mode="json"))
     assert restored == section
 
 
