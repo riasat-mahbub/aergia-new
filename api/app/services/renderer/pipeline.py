@@ -25,7 +25,8 @@ from app.services.renderer._pdf_runtime import html_to_pdf
 from app.services.renderer.base import DocumentRenderer
 from app.services.renderer.builders import build_document_from_sections
 from app.services.renderer.html import HTMLDocumentRenderer
-from app.services.renderer.resolve import resolve
+from app.services.renderer.resolution import resolve_validated
+from app.services.renderer.resolution.context import ResolutionContext
 
 
 @dataclass(frozen=True)
@@ -105,7 +106,12 @@ def resolve_source(
 
     target = renderer or HTMLDocumentRenderer()
     document = build_source_document(source)
-    return resolve(document, target, source.manifest, source.customizations)
+    context = ResolutionContext(
+        support=target.support,
+        manifest=source.manifest,
+        customizations=source.customizations,
+    )
+    return resolve_validated(document, context)
 
 
 def render_source_html(

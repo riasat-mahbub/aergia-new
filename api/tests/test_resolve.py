@@ -60,6 +60,18 @@ def _document():
     ])
 
 
+def _resolved_zone_styles(zone):
+    """Resolve a one-zone document so tests exercise the public resolver path."""
+
+    manifest = TemplateManifest(
+        name="M",
+        zones=[zone],
+        placement={"profile": zone.id},
+    )
+    document = Document(sections=[Section(id="p", type="profile", title="P", entries=[])])
+    return resolve(document, FakeRenderer(), manifest, Customizations()).zones[0].styles
+
+
 def test_resolve_accepts_fake_renderer():
     """The resolver consumes DocumentRenderer; any conforming object works."""
     model = resolve(_document(), FakeRenderer(), _manifest(), Customizations())
@@ -279,36 +291,28 @@ def test_support_full_preserves_layout_hints():
 
 def test_resolver_maps_width_tokens():
     """``narrow`` → 30%, ``half`` → 50%, ``full`` → 100%, ``auto`` → auto."""
-    from app.services.renderer.resolve import _resolve_zone_styles
-    from app.document_schema.models import Zone
     for token, expected in [("narrow", "30%"), ("half", "50%"), ("full", "100%"), ("auto", "auto")]:
         zone = Zone(id="z", styles={"width": token})
-        assert _resolve_zone_styles(zone)["width"] == expected
+        assert _resolved_zone_styles(zone)["width"] == expected
 
 
 def test_resolver_maps_padding_tokens():
     """``none`` → 0, ``tight`` → 12px, ``comfortable`` → 24px, ``loose`` → 32px."""
-    from app.services.renderer.resolve import _resolve_zone_styles
-    from app.document_schema.models import Zone
     for token, expected in [("none", "0"), ("tight", "12px"), ("comfortable", "24px"), ("loose", "32px")]:
         zone = Zone(id="z", styles={"padding": token})
-        assert _resolve_zone_styles(zone)["padding"] == expected
+        assert _resolved_zone_styles(zone)["padding"] == expected
 
 
 def test_resolver_maps_color_palette_reference():
     """A ``palette.<name>`` reference resolves through :data:`DEFAULT_PALETTE`."""
-    from app.services.renderer.resolve import _resolve_zone_styles
-    from app.document_schema.models import Zone
     zone = Zone(id="z", styles={"background": "palette.surface-2"})
-    assert _resolve_zone_styles(zone)["background-color"] == "#f8fafc"
+    assert _resolved_zone_styles(zone)["background-color"] == "#f8fafc"
 
 
 def test_resolver_falls_back_to_hex_literal():
     """A ``#RRGGBB`` literal is returned unchanged."""
-    from app.services.renderer.resolve import _resolve_zone_styles
-    from app.document_schema.models import Zone
     zone = Zone(id="z", styles={"background": "#aabbcc"})
-    assert _resolve_zone_styles(zone)["background-color"] == "#aabbcc"
+    assert _resolved_zone_styles(zone)["background-color"] == "#aabbcc"
 
 
 def test_resolve_uses_customizations_layout_over_manifest():
@@ -403,16 +407,24 @@ def test_entry_layout_cascades_from_section_policy_default():
 
 def test_entry_layout_overlay_from_per_instance_policy():
     """A per-instance SectionInstanceStyle.policy.entry_layout wins over
-    the resolved section policy via _overlay_policy."""
+    the resolved section policy through document resolution."""
     from app.document_schema.models import SectionInstanceStyle, SectionPolicy
-    from app.services.renderer.resolve import _overlay_policy
+
     base = SectionPolicy(entry_layout="two-column", show_title=True)
-    override = SectionInstanceStyle(policy=SectionPolicy(entry_layout="stack"))
-    merged = _overlay_policy(base, override.policy)
+    document = Document(sections=[Section(
+        id="p",
+        type="profile",
+        title="P",
+        policy=base,
+        entries=[],
+    )])
+    override = Customizations(
+        per_section={"p": SectionInstanceStyle(policy=SectionPolicy(entry_layout="stack"))}
+    )
+    merged = resolve(document, FakeRenderer(), None, override).sections["p"].policy
     assert merged.entry_layout == "stack"
     # show_title cascades too (regression)
     assert merged.show_title is True
     # No override: base preserved
-    no_override = SectionInstanceStyle()
-    merged_none = _overlay_policy(base, no_override.policy)
+    merged_none = resolve(document, FakeRenderer(), None, Customizations()).sections["p"].policy
     assert merged_none.entry_layout == "two-column"
