@@ -6,6 +6,7 @@ variables, escapes user-provided text, and respects the policy's
 
 from __future__ import annotations
 
+import hashlib
 import re
 
 from app.document_schema.models import (
@@ -74,6 +75,14 @@ def test_renders_doctype_and_body():
     assert "<body>" in html
     assert "</body>" in html
 
+
+def test_reference_model_html_output_is_stable():
+    """Keep the small reference document stable during renderer refactors."""
+
+    html = HTMLDocumentRenderer().render(_model()).encode("utf-8")
+    assert hashlib.sha256(html).hexdigest() == (
+        "dbdc6ad028b35e528b205f7fe25adca3baae0a8e657f9156937ff06bdb350abc"
+    )
 
 def test_renders_preview_page_flow_metadata_without_changing_document_structure():
     html = HTMLDocumentRenderer().render(_model())
