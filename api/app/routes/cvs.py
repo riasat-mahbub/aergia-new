@@ -7,12 +7,11 @@ from app.db.session import get_db
 from app.http_schemas.cv import CVApplicationSummary, CVCreate, CVUpdate, CVResponse, CVListItem
 from app.http_schemas.library import AddEntryToLibraryRequest, AddEntryToLibraryResponse, PromoteToLibraryResponse
 from app.services.cv import CVLinkedToApplicationError, CVService
-from app.services.cv import coerce_customizations
 from app.services.pdf import PDFService
 from app.services.relevance import REQUIREMENT_EXTRACTION_ERROR, RequirementExtractionError
 from app.services.quotas import QuotaExceededError
-from app.services.renderer import HTMLDocumentRenderer, build_document, resolve
 from app.routes.render import strip_anchor_hrefs
+from app.services.renderer.pipeline import prepare_render_source, render_source_html
 from app.core.deps import get_current_user
 from app.core.rate_limit import limiter
 from app.models.user import User
@@ -160,14 +159,8 @@ async def preview_cv(
         template_data = await service.get_template_data(cv.template_id)
         manifest = (template_data or {}).get("manifest", {})
 
-        from app.document_schema.models import TemplateManifest
-
-        manifest_model = TemplateManifest.model_validate(manifest)
-        document = build_document(cv, manifest_model)
-        customizations_model = coerce_customizations(cv.customizations)
-        renderer = HTMLDocumentRenderer()
-        model = resolve(document, renderer, manifest_model, customizations_model)
-        html = renderer.render(model)
+        source = prepare_render_source(cv.sections, manifest, cv.customizations)
+        html = render_source_html(source)
     except Exception as exc:  # noqa: BLE001
         logger.error("cv_preview_failed", extra={"exception_type": type(exc).__name__})
         raise HTTPException(

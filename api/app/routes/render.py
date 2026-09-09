@@ -28,16 +28,18 @@ from app.core.rate_limit import limiter
 from app.core.deps import get_current_user
 from app.document_schema.models import (
     Customizations,
-    Document,
     SectionInstance,
     TemplateManifest,
 )
 from app.document_schema.capabilities import capabilities_hash, renderer_capabilities
-from app.services.cv import coerce_customizations
-from app.services.renderer import build_document, resolve
-from app.services.renderer._pdf_runtime import html_to_pdf
 from app.services.renderer.html import HTMLDocumentRenderer
-from app.services.renderer.resolve import ManifestVersionError
+from app.services.renderer.pipeline import (
+    RenderSource,
+    build_source_document,
+    prepare_render_source,
+    render_source_html,
+    render_source_pdf,
+)
 
 
 router = APIRouter(prefix="/render")
@@ -66,26 +68,14 @@ class RenderRequest(BaseModel):
     preview: bool = False
 
 
-def _coerce_manifest(manifest: TemplateManifest | dict | None) -> TemplateManifest | None:
-    if manifest is None:
-        return None
-    if isinstance(manifest, TemplateManifest):
-        return manifest
-    return TemplateManifest.model_validate(manifest)
+def _build_source_from_request(request: RenderRequest) -> RenderSource:
+    """Normalize the request once for any of the three render outputs."""
 
-
-def _build_document_from_request(request: RenderRequest) -> tuple[Document, TemplateManifest | None, Customizations]:
-    manifest_model = _coerce_manifest(request.manifest)
-    customizations_model = coerce_customizations(request.customizations if not isinstance(request.customizations, Customizations) else None)
-
-    if isinstance(request.customizations, Customizations):
-        customizations_model = request.customizations
-
-    from types import SimpleNamespace
-
-    cv = SimpleNamespace(sections=[s.model_dump() for s in request.cv_sections])
-    document = build_document(cv, manifest_model)
-    return document, manifest_model, customizations_model
+    return prepare_render_source(
+        request.cv_sections,
+        request.manifest,
+        request.customizations,
+    )
 
 
 @router.post("/ast")
@@ -99,10 +89,7 @@ async def render_ast(
     """Build the AST without rendering."""
 
     try:
-        document, _, _ = _build_document_from_request(payload)
-    except ManifestVersionError as exc:
-        logger.error("render_ast_rejected", extra={"exception_type": type(exc).__name__})
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported template manifest") from exc
+        document = build_source_document(_build_source_from_request(payload))
     except Exception as exc:  # noqa: BLE001
         logger.error("render_ast_failed", extra={"exception_type": type(exc).__name__})
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid render request") from exc
@@ -120,15 +107,9 @@ async def render_html(
     """Render to HTML using the new pipeline."""
 
     try:
-        document, manifest, customizations = _build_document_from_request(payload)
-        renderer = HTMLDocumentRenderer()
-        model = resolve(document, renderer, manifest, customizations)
-        html = renderer.render(model)
+        html = render_source_html(_build_source_from_request(payload))
         if payload.preview:
             html = strip_anchor_hrefs(html)
-    except ManifestVersionError as exc:
-        logger.error("render_html_rejected", extra={"exception_type": type(exc).__name__})
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported template manifest") from exc
     except Exception as exc:  # noqa: BLE001
         logger.error("render_html_failed", extra={"exception_type": type(exc).__name__})
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unable to render document") from exc
@@ -146,14 +127,7 @@ async def render_pdf(
     """Render to PDF and return it base64-encoded."""
 
     try:
-        document, manifest, customizations = _build_document_from_request(payload)
-        renderer = HTMLDocumentRenderer()
-        model = resolve(document, renderer, manifest, customizations)
-        html = renderer.render(model)
-        pdf_bytes = await html_to_pdf(html)
-    except ManifestVersionError as exc:
-        logger.error("render_pdf_rejected", extra={"exception_type": type(exc).__name__})
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported template manifest") from exc
+        pdf_bytes = await render_source_pdf(_build_source_from_request(payload))
     except Exception as exc:  # noqa: BLE001
         logger.error("render_pdf_failed", extra={"exception_type": type(exc).__name__})
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Unable to export document") from exc

@@ -37,35 +37,29 @@ from app.document_schema.models import (
     Zone,
 )
 from app.services.renderer.base import DocumentRenderer
-from app.services.renderer.palette import DEFAULT_PALETTE, resolve_palette_ref
-from app.services.renderer.support import RendererSupport, SupportLevel
-from app.services.renderer.tokens import (
+from app.services.renderer.html_values import (
     FONT_TOKEN_VALUES as FONT_TOKENS,
+    LINK_STYLES,
     PADDING_TOKEN_VALUES as PADDING_TOKENS,
+    PLAIN_LINK_STYLES,
+    PRINT_STYLES,
     SPACING_TOKEN_VALUES as _SPACING_TOKENS,
     WIDTH_TOKEN_VALUES as WIDTH_TOKENS,
+    resolve_color_ref,
 )
-LINK_STYLES = "  a { color: var(--accent, #2563eb); text-decoration: underline; }\n"
-PLAIN_LINK_STYLES = "  a { color: inherit; text-decoration: none; }\n"
+from app.services.renderer.support import RendererSupport, SupportLevel
 
 _MANIFEST_VERSION_KEY = "manifest_version"
-PRINT_STYLES = """
-  @page { size: A4; margin: 24px 0 0 0; }
-  @media print {
-    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  }
-"""
 
 
 def resolve_color(value: str) -> str:
     """Resolve a color ref to a concrete color value.
 
     A hex literal is returned as-is. A palette reference is resolved
-    against :data:`DEFAULT_PALETTE`; unknown palette names fall back to
-    the literal string (the renderer will fail loudly downstream).
+    against the HTML target's default palette; unknown palette names fall
+    back to the literal string (the renderer will fail loudly downstream).
     """
-    return resolve_palette_ref(value, DEFAULT_PALETTE)
+    return resolve_color_ref(value)
 
 
 class ManifestVersionError(ValueError):
