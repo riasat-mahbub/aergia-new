@@ -89,6 +89,34 @@
       "type": "array",
       "maxItems": 100,
       "items": {"type": "object"}
+    },
+    "source_relevance": {
+      "type": "object",
+      "description": "Server-computed deterministic relevance for the linked source CV."
+    },
+    "target_relevance": {
+      "type": "object",
+      "description": "Server-computed deterministic relevance for the empty tailoring scaffold."
+    },
+    "capabilities": {
+      "type": "object",
+      "description": "Canonical renderer, document, style, limit, and tailoring descriptor.",
+      "additionalProperties": true
+    },
+    "capabilities_hash": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "rendered_source": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["format", "endpoint"],
+      "properties": {
+        "format": {"const": "pdf"},
+        "endpoint": {"type": "string", "minLength": 1, "maxLength": 256},
+        "sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "page_count": {"type": ["integer", "null"], "minimum": 0}
+      }
     }
   }
 }

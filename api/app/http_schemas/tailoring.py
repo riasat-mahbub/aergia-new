@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.core.safe_url import normalize_http_url, normalize_url
 from app.document_schema.models import SectionInstanceStyle, is_color_ref
+from app.http_schemas.application import AIRelevanceAssessment
 
 
 PROTOCOL_VERSION = 1
@@ -116,6 +117,55 @@ class TailoringSection(_StrictModel):
         return value
 
 
+class TailoringCandidateCV(_StrictModel):
+    """Complete document authored by a freeform tailoring agent.
+
+    The candidate is validated as a whole after the agent has made its
+    editorial decisions.  Unlike the legacy operation list, this shape lets
+    the agent freely compose sections, ordering, styles, and prose while the
+    server keeps the source CV immutable.
+    """
+
+    id: str | None = Field(default=None, min_length=1, max_length=128)
+    title: str = Field(min_length=1, max_length=255)
+    description: str | None = Field(default=None, max_length=500)
+    template_id: str | None = Field(default=None, min_length=1, max_length=100)
+    sections: list[TailoringSection] | dict = Field(max_length=32)
+    customizations: dict = Field(default_factory=dict, max_length=100)
+
+    @field_validator("title")
+    @classmethod
+    def trim_title(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("candidate title must not be blank")
+        return value
+
+
+class TailoringRenderArtifact(_StrictModel):
+    """A capability-scoped render that the local agent can download."""
+
+    format: Literal["pdf"] = "pdf"
+    endpoint: str = Field(min_length=1, max_length=256)
+    sha256: str | None = Field(default=None, min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+    page_count: int | None = Field(default=None, ge=0)
+
+
+class TailoringPreviewRequest(_StrictModel):
+    """A non-persistent candidate render request."""
+
+    candidate: TailoringCandidateCV
+
+
+class TailoringPreviewResponse(_StrictModel):
+    """Rendered candidate artifact returned to the scoped local agent."""
+
+    format: Literal["pdf"] = "pdf"
+    pdf_base64: str
+    page_count: int = Field(ge=0)
+    candidate_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+
+
 class TailoringLibraryEntry(_StrictModel):
     id: str
     kind: str
@@ -151,6 +201,19 @@ class TailoringEvidencePacket(_StrictModel):
     protected_facts: dict
     library: list[TailoringLibraryEntry]
     requirements: list[dict] = Field(max_length=100)
+    # Deterministic baselines give the local model context without making the
+    # server's lexical score the only relevance judgment. New agents can
+    # compare the source and empty-target baselines before returning
+    # ``ai_relevance`` in the patch.
+    source_relevance: dict = Field(default_factory=dict, max_length=100)
+    target_relevance: dict = Field(default_factory=dict, max_length=100)
+    # The descriptor is generated from the document schema and renderer. It
+    # replaces the skill's duplicated section/field/style/limit tables.
+    capabilities: dict = Field(default_factory=dict, max_length=100)
+    capabilities_hash: str | None = Field(
+        default=None, min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$"
+    )
+    rendered_source: TailoringRenderArtifact | None = None
 
 
 class TailoringEvidenceRef(_StrictModel):
@@ -462,6 +525,23 @@ class ReorderSectionsChange(_StrictModel):
         return normalized
 
 
+class ReplaceCandidateChange(_StrictModel):
+    """Submit a complete candidate document instead of individual edits."""
+
+    operation: Literal["replace_candidate"]
+    candidate: TailoringCandidateCV
+    reason: str = Field(default="Compose the strongest truthful candidate for the role.", max_length=2_000)
+    evidence: list[TailoringEvidenceRef] = Field(min_length=1, max_length=100)
+
+    @field_validator("reason")
+    @classmethod
+    def trim_reason(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("reason must not be blank")
+        return value
+
+
 class ReportGapChange(_StrictModel):
     operation: Literal["report_gap"]
     requirement_id: str | None = Field(default=None, min_length=1, max_length=128)
@@ -490,6 +570,7 @@ TailoringChange = Annotated[
     | ReplaceSectionChange
     | RemoveSectionChange
     | ReorderSectionsChange
+    | ReplaceCandidateChange
     | ReportGapChange,
     Field(discriminator="operation"),
 ]
@@ -500,6 +581,12 @@ class TailoringPatch(_StrictModel):
     base_revision: int = Field(ge=1)
     base_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
     changes: list[TailoringChange] = Field(min_length=1, max_length=50)
+    capabilities_hash: str | None = Field(
+        default=None, min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$"
+    )
+    # Optional so v1 agents can keep submitting deterministic patches. New
+    # freeform agents should send a per-requirement semantic assessment.
+    ai_relevance: AIRelevanceAssessment | None = None
 
 
 class TailoringProvenance(_StrictModel):
@@ -508,7 +595,7 @@ class TailoringProvenance(_StrictModel):
     entry_id: str | None = None
     field: str | None = None
     reason: str | None = None
-    evidence: list[TailoringEvidenceRef] = Field(default_factory=list, max_length=20)
+    evidence: list[TailoringEvidenceRef] = Field(default_factory=list, max_length=100)
 
 
 class TailoringSubmitResponse(_StrictModel):
@@ -524,6 +611,7 @@ class TailoringSubmitResponse(_StrictModel):
     provenance: list[TailoringProvenance]
     before_relevance: dict
     relevance: dict
+    ai_relevance: dict | None = None
 
 
 __all__ = [
@@ -537,18 +625,23 @@ __all__ = [
     "ReorderEntriesChange",
     "ReorderSectionsChange",
     "ReportGapChange",
+    "ReplaceCandidateChange",
     "ReplaceDescriptionChange",
     "ReplaceRichTextChange",
     "RewriteRichTextChange",
     "TailoringChange",
     "TailoringCodeExchange",
     "TailoringCV",
+    "TailoringCandidateCV",
     "TailoringEvidencePacket",
     "TailoringEvidenceRef",
     "TailoringExchangeResponse",
     "TailoringJob",
     "TailoringLibraryEntry",
+    "TailoringRenderArtifact",
     "TailoringPatch",
+    "TailoringPreviewRequest",
+    "TailoringPreviewResponse",
     "TailoringProvenance",
     "TailoringReportedGap",
     "TailoringRichTextBlock",

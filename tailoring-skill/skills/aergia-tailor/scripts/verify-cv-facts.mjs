@@ -140,6 +140,32 @@ function evidenceTextForChange(evidence, change, beforeCv, patch) {
 
 export function verifyFacts(before, after, evidence, patch) {
   const findings = [];
+  const candidateChange = (patch.changes ?? []).find((change) => change?.operation === "replace_candidate");
+  if (candidateChange) {
+    const beforeText = flattenText(before);
+    const afterText = flattenText(after);
+    const allowedText = (candidateChange.evidence ?? []).map((reference) => {
+      if (reference.source === "cv") {
+        const section = sectionById(evidence.cv, reference.section_id);
+        const source = section?.type === "profile"
+          ? section.data
+          : section?.data?.find((entry) => entry?.id === reference.entry_id);
+        return readField(source, reference.field_path);
+      }
+      if (reference.source === "library") {
+        const entry = (evidence.library ?? []).find((candidate) => candidate?.id === reference.library_entry_id);
+        const row = entry?.payload?.find((candidate) => candidate?.id === reference.source_row_id);
+        return readField(row, reference.field_path);
+      }
+      return [reference.title, reference.excerpt, reference.url];
+    }).map(flattenText).join(" ");
+    claimFindings(findings, beforeText, afterText, allowedText);
+    return {
+      status: findings.length === 0 ? "pass" : "fail",
+      findings,
+      inspected_sources: { current_cv: true, cited_library: citedLibraryIds(patch) },
+    };
+  }
   for (const change of patch.changes ?? []) {
     if (["create_section", "replace_section"].includes(change.operation)) {
       const sectionId = change.operation === "create_section" ? change.section?.id : change.section_id;

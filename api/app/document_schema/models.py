@@ -68,17 +68,19 @@ AlignmentToken = Literal["left", "right", "center", "justify"]
 # palettes; the schema carries the reference, not the color value.
 _HEX_LITERAL = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 _PALETTE_REF = re.compile(r"^palette\.[a-z][a-z0-9_-]*$")
-_SAFE_SPACING = frozenset({
+SAFE_SPACING_VALUES = (
     "none", "tight", "comfortable", "loose", "spacious",
     "compact", "minimal", "0", "0px", "4px", "8px", "12px", "16px", "20px", "24px", "32px", "40px",
     "var(--spacing-section, 16px)", "var(--spacing-section, 24px)",
     "var(--spacing-subsection, 0px)", "var(--spacing-subsection, 16px)",
-})
-_SAFE_FONT_FAMILIES = frozenset({
+)
+SAFE_FONT_FAMILY_VALUES = (
     "sans-serif", "serif", "mono", "display", "Inter", "Georgia", "Crimson",
     "system-ui", "Inter, system-ui, sans-serif", "Georgia, Crimson, serif",
     "ui-monospace, SFMono-Regular, Menlo, monospace",
-})
+)
+_SAFE_SPACING = frozenset(SAFE_SPACING_VALUES)
+_SAFE_FONT_FAMILIES = frozenset(SAFE_FONT_FAMILY_VALUES)
 
 
 def is_color_ref(value: object) -> bool:

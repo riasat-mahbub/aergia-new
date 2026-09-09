@@ -9,8 +9,9 @@ from zipfile import ZipFile
 import pytest
 from pydantic import ValidationError
 
+from app.document_schema.capabilities import capabilities_hash, renderer_capabilities
 from app.models.library import LibraryEntry
-from app.http_schemas.application import RequirementRelevanceResult
+from app.http_schemas.application import AIRelevanceAssessment, JobRequirement, RequirementRelevanceResult
 from app.http_schemas.tailoring import (
     ReportGapChange,
     TailoringCodeExchange,
@@ -35,6 +36,7 @@ from app.services.tailoring import (
 )
 from app.services.tailoring_policy import TailoringPolicyError, validate_document_delta
 from app.services.tailoring_skill import build_tailoring_skill_bundle
+from app.services.relevance import evaluate_ai_relevance
 
 
 _FIXTURES = (
@@ -66,6 +68,85 @@ def test_valid_evidence_fixture_matches_protocol():
     assert evidence.target_cv is not None
     assert evidence.target_cv.sections[0]["id"] == "target-profile"
     assert evidence.protected_facts["profile"]["name"] == "Example User"
+
+
+def test_renderer_capabilities_are_deterministic_and_cover_tailoring_contract():
+    capabilities = renderer_capabilities()
+
+    assert set(capabilities["document"]["section_types"]) >= {"profile", "experience", "extras"}
+    assert "styles" in capabilities["document"]
+    assert capabilities["document"]["limits"]["max_sections"] == 32
+    assert "replace_candidate" in capabilities["tailoring"]["operations"]
+    assert "replace_section" in capabilities["tailoring"]["operations"]
+    assert capabilities["tailoring"]["ai_relevance"]["coverage_score_guidance"]["strong"] == 0.75
+    assert capabilities_hash(capabilities) == capabilities_hash()
+
+
+def test_ai_relevance_is_validated_and_aggregated_by_requirement_weight():
+    requirements = [
+        JobRequirement(
+            id="req-python",
+            text="Python",
+            normalized="python",
+            type="hard_skill",
+            required=True,
+            weight=2,
+        ),
+        JobRequirement(
+            id="req-kafka",
+            text="Kafka",
+            normalized="kafka",
+            type="hard_skill",
+            required=False,
+            weight=1,
+        ),
+    ]
+    assessment = AIRelevanceAssessment.model_validate(
+        {
+            "rubric_version": "ai-relevance-v1",
+            "requirements": [
+                {
+                    "requirement_id": "req-python",
+                    "coverage": "strong",
+                    "score": 0.8,
+                    "confidence": 0.9,
+                    "evidence": [
+                        {
+                            "section_id": "candidate-profile",
+                            "field_path": "summary",
+                            "excerpt": "Python APIs",
+                        }
+                    ],
+                    "rationale": "The candidate directly describes Python API work.",
+                },
+                {
+                    "requirement_id": "req-kafka",
+                    "coverage": "absent",
+                    "score": 0,
+                    "confidence": 0.8,
+                    "rationale": "No candidate evidence.",
+                },
+            ]
+        }
+    )
+
+    result = evaluate_ai_relevance(
+        assessment,
+        requirements,
+        [
+            {
+                "id": "candidate-profile",
+                "type": "profile",
+                "title": "Profile",
+                "data": {"summary": "Python APIs"},
+            }
+        ],
+    )
+
+    assert result.score == 53
+    assert result.required_score == 80
+    assert result.preferred_score == 0
+    assert [item.requirement_id for item in result.requirements] == ["req-python", "req-kafka"]
 
 
 def test_invalid_tailoring_operation_fixture_is_rejected():

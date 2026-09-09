@@ -4,7 +4,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const OPERATIONS = new Set([
+const LEGACY_OPERATIONS = new Set([
   "replace_description",
   "replace_rich_text",
   "rewrite_rich_text",
@@ -20,11 +20,11 @@ const OPERATIONS = new Set([
   "report_gap",
 ]);
 
-const RENDERABLE_SECTION_TYPES = new Set([
+const LEGACY_RENDERABLE_SECTION_TYPES = new Set([
   "profile", "experience", "education", "skills", "projects", "languages", "certifications", "research", "extras",
 ]);
 
-const LIBRARY_KIND_TO_SECTION_TYPE = new Map([
+const LEGACY_LIBRARY_KIND_TO_SECTION_TYPE = new Map([
   ["experience", "experience"],
   ["education", "education"],
   ["skill", "skills"],
@@ -34,9 +34,67 @@ const LIBRARY_KIND_TO_SECTION_TYPE = new Map([
   ["research", "research"],
 ]);
 
-const PROFILE_IMMUTABLE_FIELDS = [
+const LEGACY_PROFILE_IMMUTABLE_FIELDS = [
   "name", "email", "email_link", "phone", "location", "site_text", "site_url", "photo_url", "social_links",
 ];
+
+function tailoringCapabilities(evidence) {
+  return evidence?.capabilities?.tailoring ?? {};
+}
+
+function renderableSectionTypes(evidence) {
+  const capabilities = tailoringCapabilities(evidence);
+  if (Array.isArray(capabilities.renderable_section_types)) {
+    return new Set(capabilities.renderable_section_types);
+  }
+  const documentTypes = evidence?.capabilities?.document?.section_types;
+  if (documentTypes && typeof documentTypes === "object") return new Set(Object.keys(documentTypes));
+  return new Set(LEGACY_RENDERABLE_SECTION_TYPES);
+}
+
+function operations(evidence) {
+  const advertised = evidence?.capabilities?.tailoring?.operations;
+  return new Set([
+    ...LEGACY_OPERATIONS,
+    ...(Array.isArray(advertised) ? advertised : []),
+  ]);
+}
+
+function libraryKindToSectionType(evidence) {
+  const advertised = tailoringCapabilities(evidence).library_kind_to_section_type;
+  return advertised && typeof advertised === "object"
+    ? new Map(Object.entries(advertised))
+    : LEGACY_LIBRARY_KIND_TO_SECTION_TYPE;
+}
+
+function profileImmutableFields(evidence) {
+  const advertised = tailoringCapabilities(evidence).protected_fields?.profile;
+  return Array.isArray(advertised) ? advertised : LEGACY_PROFILE_IMMUTABLE_FIELDS;
+}
+
+function documentLimits(evidence) {
+  return evidence?.capabilities?.document?.limits ?? {};
+}
+
+function validateNestedLimits(value, evidence) {
+  const limits = documentLimits(evidence);
+  if (typeof value === "string") {
+    const maxText = limits.max_field_text_length ?? 20000;
+    if (value.length > maxText) throw new Error("Section field text exceeds the renderer limit");
+    return;
+  }
+  if (Array.isArray(value)) {
+    const maxEntries = limits.max_section_entries ?? 100;
+    if (value.length > maxEntries) throw new Error("Section data contains too many entries");
+    value.forEach((child) => validateNestedLimits(child, evidence));
+    return;
+  }
+  if (value && typeof value === "object") {
+    const maxEntries = limits.max_section_entries ?? 100;
+    if (Object.keys(value).length > maxEntries) throw new Error("Section data contains too many fields");
+    Object.values(value).forEach((child) => validateNestedLimits(child, evidence));
+  }
+}
 
 function parseArgs(argv) {
   const args = {};
@@ -186,7 +244,10 @@ function validateEvidenceRefs(change, evidence, sections) {
 }
 
 function requireStructuralProof(change) {
-  if (typeof change.reason !== "string" || !change.reason.trim()) {
+  const reason = change.operation === "replace_candidate" && change.reason === undefined
+    ? "Compose the strongest truthful candidate for the role."
+    : change.reason;
+  if (typeof reason !== "string" || !reason.trim()) {
     throw new Error(`${change.operation} requires a non-empty reason`);
   }
   if (!Array.isArray(change.evidence) || change.evidence.length === 0) {
@@ -202,17 +263,20 @@ function stableJson(value) {
   return JSON.stringify(value);
 }
 
-function validateSectionPayload(section) {
+function validateSectionPayload(section, evidence = {}) {
   if (!section || typeof section !== "object") throw new Error("Structural changes require a section object");
   if (typeof section.id !== "string" || !section.id.trim()) throw new Error("Section ID is required");
-  if (typeof section.type !== "string" || !RENDERABLE_SECTION_TYPES.has(section.type)) {
+  if (section.id.length > (documentLimits(evidence).max_section_id_length ?? 128)) throw new Error("Section ID is too long");
+  if (typeof section.type !== "string" || !renderableSectionTypes(evidence).has(section.type)) {
     throw new Error(`Section type cannot be rendered: ${section.type}`);
   }
   if (typeof section.title !== "string" || !section.title.trim()) throw new Error("Section title is required");
+  if (section.title.length > (documentLimits(evidence).max_section_title_length ?? 255)) throw new Error("Section title is too long");
   if (section.enabled !== undefined && typeof section.enabled !== "boolean") throw new Error("Section enabled must be boolean");
   if (section.style !== undefined && section.style !== null && typeof section.style !== "object") {
     throw new Error("Section style must be an object or null");
   }
+  validateNestedLimits(section.data, evidence);
   if (section.type === "profile") {
     if (!section.data || typeof section.data !== "object" || Array.isArray(section.data)) {
       throw new Error("Profile sections require object data");
@@ -232,8 +296,8 @@ function validateSectionPayload(section) {
   }
 }
 
-function assertProfileIdentityUnchanged(before, after) {
-  for (const field of PROFILE_IMMUTABLE_FIELDS) {
+function assertProfileIdentityUnchanged(before, after, evidence = {}) {
+  for (const field of profileImmutableFields(evidence)) {
     if (stableJson(before.data?.[field]) !== stableJson(after.data?.[field])) {
       throw new Error(`Profile identity field cannot be changed: ${field}`);
     }
@@ -242,7 +306,7 @@ function assertProfileIdentityUnchanged(before, after) {
 
 function validateChange(change, evidence, sections, evidenceSections = sections) {
   if (!change || typeof change !== "object") throw new Error("Each change must be an object");
-  if (!OPERATIONS.has(change.operation)) throw new Error(`Unsupported operation: ${change.operation}`);
+  if (!operations(evidence).has(change.operation)) throw new Error(`Unsupported operation: ${change.operation}`);
   if (Array.isArray(evidence.supported_operations) && !evidence.supported_operations.includes(change.operation)) {
     throw new Error(`Operation is not advertised by the server: ${change.operation}`);
   }
@@ -257,9 +321,57 @@ function validateChange(change, evidence, sections, evidenceSections = sections)
     return;
   }
 
+  if (change.operation === "replace_candidate") {
+    requireStructuralProof(change);
+    if (!change.candidate || typeof change.candidate !== "object") {
+      throw new Error("replace_candidate requires a candidate document");
+    }
+    if (typeof change.candidate.title !== "string" || !change.candidate.title.trim()) {
+      throw new Error("Candidate title is required");
+    }
+    if (change.candidate.title.length > (documentLimits(evidence).max_section_title_length ?? 255)) {
+      throw new Error("Candidate title is too long");
+    }
+    if (change.candidate.description !== undefined
+      && change.candidate.description !== null
+      && (typeof change.candidate.description !== "string" || change.candidate.description.length > 500)) {
+      throw new Error("Candidate description is invalid");
+    }
+    if (change.candidate.template_id !== undefined
+      && change.candidate.template_id !== null
+      && (typeof change.candidate.template_id !== "string" || !change.candidate.template_id.trim() || change.candidate.template_id.length > 100)) {
+      throw new Error("Candidate template_id is invalid");
+    }
+    const candidateSections = Array.isArray(change.candidate.sections)
+      ? change.candidate.sections
+      : change.candidate.sections?.sections;
+    if (!Array.isArray(candidateSections) || candidateSections.length === 0) {
+      throw new Error("Candidate must contain a sections array");
+    }
+    const maxSections = documentLimits(evidence).max_sections ?? 32;
+    if (candidateSections.length > maxSections) throw new Error("Candidate contains too many sections");
+    checkUniqueIds(candidateSections.map((section) => section?.id), "Candidate section IDs");
+    if (change.candidate.customizations !== undefined
+      && (!change.candidate.customizations || typeof change.candidate.customizations !== "object" || Array.isArray(change.candidate.customizations))) {
+      throw new Error("Candidate customizations must be an object");
+    }
+    if (change.candidate.customizations && Object.keys(change.candidate.customizations).length > 100) {
+      throw new Error("Candidate customizations contain too many fields");
+    }
+    candidateSections.forEach((section) => validateSectionPayload(section, evidence));
+    const profiles = candidateSections.filter((section) => section?.type === "profile");
+    if (profiles.length !== 1 || profiles[0].enabled === false) {
+      throw new Error("Candidate must contain exactly one enabled profile section");
+    }
+    const sourceProfile = sections.find((section) => section?.type === "profile");
+    if (!sourceProfile) throw new Error("Evidence target has no profile section");
+    assertProfileIdentityUnchanged(sourceProfile, profiles[0], evidence);
+    return;
+  }
+
   if (change.operation === "create_section") {
     requireStructuralProof(change);
-    validateSectionPayload(change.section);
+    validateSectionPayload(change.section, evidence);
     if (change.section.type === "profile") throw new Error("A tailoring patch cannot create another profile section");
     if (sections.some((section) => section?.id === change.section.id)) {
       throw new Error(`Section ID is already in use: ${change.section.id}`);
@@ -270,14 +382,14 @@ function validateChange(change, evidence, sections, evidenceSections = sections)
   if (change.operation === "replace_section") {
     requireStructuralProof(change);
     const current = findSection(sections, change.section_id);
-    validateSectionPayload(change.section);
+    validateSectionPayload(change.section, evidence);
     if (change.section.id !== change.section_id) throw new Error("Replacement section ID must match section_id");
     if (current.type === "profile" || change.section.type === "profile") {
       if (current.type !== "profile" || change.section.type !== "profile") {
         throw new Error("The profile section cannot be replaced by another section type");
       }
       if ((change.section.enabled ?? true) !== true) throw new Error("The profile section must remain enabled");
-      assertProfileIdentityUnchanged(current, change.section);
+      assertProfileIdentityUnchanged(current, change.section, evidence);
     }
     return;
   }
@@ -331,7 +443,7 @@ function validateChange(change, evidence, sections, evidenceSections = sections)
     if (!change.source_row_id) throw new Error("Library additions require source_row_id");
     const sourceRow = source.payload?.find((row) => row?.id === change.source_row_id);
     if (!sourceRow) throw new Error(`Unknown Library source row ID: ${change.source_row_id}`);
-    if (LIBRARY_KIND_TO_SECTION_TYPE.get(source.kind) !== section.type) {
+    if (libraryKindToSectionType(evidence).get(source.kind) !== section.type) {
       throw new Error("Library source kind does not match the target section");
     }
     if (change.entry_id !== undefined && change.entry_id !== null && !String(change.entry_id).trim()) {
@@ -397,6 +509,13 @@ function applyStructuralChange(sections, change) {
 }
 
 function applyValidatedChange(sections, evidence, change) {
+  if (change.operation === "replace_candidate") {
+    const candidateSections = Array.isArray(change.candidate.sections)
+      ? change.candidate.sections
+      : change.candidate.sections?.sections;
+    sections.splice(0, sections.length, ...structuredClone(candidateSections));
+    return;
+  }
   applyStructuralChange(sections, change);
   if (change.operation === "add_library_entry") {
     appendLibraryAddition(sections, evidence, change);
@@ -448,10 +567,107 @@ function materializedDocument(evidence, sections) {
   return document;
 }
 
+function normalizeForAssessment(value) {
+  if (typeof value === "string") return value.toLowerCase().replace(/\s+/g, " ").trim();
+  if (Array.isArray(value)) return value.map(normalizeForAssessment).filter(Boolean).join(" ");
+  if (value && typeof value === "object") {
+    return Object.entries(value)
+      .filter(([key]) => !["id", "style", "link", "url"].includes(key))
+      .map(([, child]) => normalizeForAssessment(child))
+      .filter(Boolean)
+      .join(" ");
+  }
+  return "";
+}
+
+function validateAiRelevance(assessment, evidence, candidate) {
+  if (assessment === undefined || assessment === null) return;
+  if (!assessment || typeof assessment !== "object") throw new Error("ai_relevance must be an object");
+  if (assessment.rubric_version !== "ai-relevance-v1") throw new Error("Unsupported AI relevance rubric");
+  if (assessment.evaluation_mode !== undefined
+    && !["independent_pass", "same_agent_pass"].includes(assessment.evaluation_mode)) {
+    throw new Error("Unsupported AI relevance evaluation mode");
+  }
+  if (assessment.evaluator !== undefined
+    && assessment.evaluator !== null
+    && (typeof assessment.evaluator !== "string" || assessment.evaluator.length > 128)) {
+    throw new Error("AI relevance evaluator is invalid");
+  }
+  if (assessment.claimed_score !== undefined
+    && assessment.claimed_score !== null
+    && (!Number.isInteger(assessment.claimed_score) || assessment.claimed_score < 0 || assessment.claimed_score > 100)) {
+    throw new Error("AI relevance claimed_score is invalid");
+  }
+  if (!Array.isArray(assessment.requirements) || assessment.requirements.length === 0 || assessment.requirements.length > 100) {
+    throw new Error("ai_relevance.requirements must contain between 1 and 100 assessments");
+  }
+  const requirementIds = new Set((evidence.requirements ?? []).map((requirement) => requirement?.id));
+  const seen = new Set();
+  for (const item of assessment.requirements) {
+    if (!item || typeof item !== "object" || typeof item.requirement_id !== "string" || !requirementIds.has(item.requirement_id)) {
+      throw new Error(`Unknown AI relevance requirement ID: ${item?.requirement_id ?? ""}`);
+    }
+    if (seen.has(item.requirement_id)) throw new Error(`Duplicate AI relevance requirement ID: ${item.requirement_id}`);
+    seen.add(item.requirement_id);
+    if (!["absent", "weak", "partial", "strong", "excellent"].includes(item.coverage)) {
+      throw new Error(`Unsupported AI relevance coverage for ${item.requirement_id}`);
+    }
+    if (!Number.isFinite(item.score) || item.score < 0 || item.score > 1) throw new Error("AI relevance scores must be between 0 and 1");
+    if (!Number.isFinite(item.confidence) || item.confidence < 0 || item.confidence > 1) throw new Error("AI relevance confidence must be between 0 and 1");
+    if (typeof item.rationale !== "string" || !item.rationale.trim() || item.rationale.length > 2000) {
+      throw new Error(`AI relevance rationale for ${item.requirement_id} is invalid`);
+    }
+    if (item.evidence !== undefined && (!Array.isArray(item.evidence) || item.evidence.length > 10)) {
+      throw new Error(`AI relevance evidence for ${item.requirement_id} is invalid`);
+    }
+    if (item.score > 0 && (!Array.isArray(item.evidence) || item.evidence.length === 0)) {
+      throw new Error(`AI relevance score for ${item.requirement_id} requires candidate evidence`);
+    }
+    for (const reference of item.evidence ?? []) {
+      if (!reference || typeof reference !== "object"
+        || typeof reference.section_id !== "string"
+        || typeof reference.field_path !== "string"
+        || !isFieldPath(reference.field_path)
+        || typeof reference.excerpt !== "string"
+        || !reference.excerpt.trim()) {
+        throw new Error("AI relevance evidence requires section_id, field_path, and excerpt");
+      }
+      const section = sectionsFromDocument(candidate).find((candidateSection) => candidateSection?.id === reference?.section_id);
+      if (!section) throw new Error("AI relevance evidence section does not exist in the candidate");
+      if (section.type === "profile" && reference.entry_id !== undefined && reference.entry_id !== null) {
+        throw new Error("AI relevance profile evidence must omit entry_id");
+      }
+      const target = section.type === "profile"
+        ? section.data
+        : section.data?.find((entry) => entry?.id === reference?.entry_id);
+      if (section.type !== "profile" && (!reference.entry_id || !target)) {
+        throw new Error("AI relevance entry evidence requires entry_id");
+      }
+      const value = readField(target, reference?.field_path);
+      if (!value || typeof reference?.excerpt !== "string" || !normalizeForAssessment(value).includes(normalizeForAssessment(reference.excerpt))) {
+        throw new Error("AI relevance evidence excerpt does not match the candidate");
+      }
+    }
+  }
+}
+
+function sectionsFromDocument(document) {
+  const sections = Array.isArray(document?.sections)
+    ? document.sections
+    : Array.isArray(document?.sections?.sections)
+      ? document.sections.sections
+      : null;
+  if (!sections) throw new Error("Candidate does not contain a sections array");
+  return sections;
+}
+
 function validateAndMaterialize(patch, evidence) {
   if (patch?.protocol_version !== 1) throw new Error("Patch protocol_version must be 1");
   if (patch.base_revision !== evidence.base_revision || patch.base_hash !== evidence.base_hash) {
     throw new Error("Patch snapshot identity does not match the evidence packet");
+  }
+  if (patch.capabilities_hash && evidence.capabilities_hash && patch.capabilities_hash !== evidence.capabilities_hash) {
+    throw new Error("Patch capabilities hash does not match the evidence packet");
   }
   if (!Array.isArray(patch.changes) || patch.changes.length === 0 || patch.changes.length > 50) {
     throw new Error("Patch changes must contain between 1 and 50 operations");
@@ -459,11 +675,28 @@ function validateAndMaterialize(patch, evidence) {
   const sections = sectionsFromEvidence(evidence, true);
   const evidenceSections = sectionsFromEvidence(evidence);
   const workingSections = structuredClone(sections);
+  const candidateChanges = patch.changes.filter((change) => change?.operation === "replace_candidate");
+  if (candidateChanges.length > 1) throw new Error("A patch may contain at most one replace_candidate operation");
+  if (candidateChanges.length > 0 && patch.changes.some((change) => !["replace_candidate", "report_gap"].includes(change?.operation))) {
+    throw new Error("replace_candidate cannot be combined with field operations");
+  }
+  if (candidateChanges.length > 0 && evidence.capabilities_hash && patch.capabilities_hash !== evidence.capabilities_hash) {
+    throw new Error("A replace_candidate patch must include the evidence capabilities hash");
+  }
   patch.changes.forEach((change) => {
     validateChange(change, evidence, workingSections, evidenceSections);
     applyValidatedChange(workingSections, evidence, change);
   });
-  return materializedDocument(evidence, workingSections);
+  const materialized = materializedDocument(evidence, workingSections);
+  const candidateChange = candidateChanges[0];
+  if (candidateChange) {
+    const candidate = candidateChange.candidate;
+    for (const key of ["id", "title", "description", "template_id", "customizations"]) {
+      if (candidate[key] !== undefined) materialized[key] = structuredClone(candidate[key]);
+    }
+  }
+  validateAiRelevance(patch.ai_relevance, evidence, materialized);
+  return materialized;
 }
 
 export function validatePatch(patch, evidence) {

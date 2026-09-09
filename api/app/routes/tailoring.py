@@ -13,6 +13,8 @@ from app.http_schemas.tailoring import (
     TailoringEvidencePacket,
     TailoringExchangeResponse,
     TailoringPatch,
+    TailoringPreviewRequest,
+    TailoringPreviewResponse,
     TailoringSessionCreateResponse,
     TailoringSessionStatusResponse,
     TailoringSubmitResponse,
@@ -182,6 +184,45 @@ async def get_tailoring_evidence(
 ):
     try:
         return await TailoringService(db).evidence(capability)
+    except Exception as exc:  # noqa: BLE001
+        _raise_service_error(exc)
+
+
+@router.get(
+    "/tailoring/source-preview",
+    response_model=TailoringPreviewResponse,
+)
+@limiter.limit("5/minute")
+async def get_tailoring_source_preview(
+    request: Request,
+    response: Response,
+    capability: str | None = Header(default=None, alias="X-Aergia-Tailoring-Capability"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return a capability-scoped PDF of the unchanged source CV."""
+
+    try:
+        return await TailoringService(db).source_preview(capability)
+    except Exception as exc:  # noqa: BLE001
+        _raise_service_error(exc)
+
+
+@router.post(
+    "/tailoring/preview",
+    response_model=TailoringPreviewResponse,
+)
+@limiter.limit("10/minute")
+async def preview_tailoring_candidate(
+    request: Request,
+    response: Response,
+    payload: TailoringPreviewRequest,
+    capability: str | None = Header(default=None, alias="X-Aergia-Tailoring-Capability"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Render a freeform candidate without persisting it."""
+
+    try:
+        return await TailoringService(db).candidate_preview(capability, payload)
     except Exception as exc:  # noqa: BLE001
         _raise_service_error(exc)
 

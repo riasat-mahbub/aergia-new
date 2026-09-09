@@ -12,67 +12,19 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from app.document_schema.models import RichTextBlock
+from app.document_schema.capabilities import (
+    EDITABLE_RICH_TEXT_FIELDS,
+    ENTRY_SECTION_TYPES,
+    LIMITS,
+    LIBRARY_KIND_TO_SECTION_TYPE,
+    PROTECTED_FIELDS,
+    RENDERABLE_SECTION_TYPES,
+)
+from app.document_schema.models import RichTextBlock, SectionInstance
 
 
 class TailoringPolicyError(ValueError):
     """A patch attempts a field or structural mutation outside the policy."""
-
-
-EDITABLE_RICH_TEXT_FIELDS: dict[str, frozenset[str]] = {
-    "profile": frozenset({"summary"}),
-    "experience": frozenset({"description"}),
-    "education": frozenset({"summary"}),
-    "projects": frozenset({"description"}),
-    "research": frozenset({"description"}),
-}
-
-PROTECTED_FIELDS: dict[str, frozenset[str]] = {
-    "profile": frozenset(
-        {
-            "name",
-            "title",
-            "email",
-            "email_link",
-            "phone",
-            "location",
-            "site_text",
-            "site_url",
-            "photo_url",
-            "social_links",
-        }
-    ),
-    "experience": frozenset(
-        {"id", "company", "position", "start_date", "end_date", "current", "location"}
-    ),
-    "education": frozenset(
-        {"id", "institution", "degree", "start_date", "end_date", "current", "gpa"}
-    ),
-    "skills": frozenset({"id", "category", "items"}),
-    "projects": frozenset(
-        {"id", "name", "url", "link_text", "start_date", "end_date", "tech_stack"}
-    ),
-    "languages": frozenset({"id", "language", "proficiency"}),
-    "certifications": frozenset({"id", "name", "issuer", "date", "credential_url", "link_text"}),
-    "research": frozenset(
-        {"id", "title", "paper_url", "paper_link_text", "publication_date", "publication_value"}
-    ),
-    # Extras are user-defined and have no safe schema-level fact boundary yet.
-    "extras": frozenset({"*"}),
-}
-
-LIBRARY_KIND_TO_SECTION_TYPE: dict[str, str] = {
-    "experience": "experience",
-    "education": "education",
-    "skill": "skills",
-    "project": "projects",
-    "language": "languages",
-    "certification": "certifications",
-    "research": "research",
-}
-
-ENTRY_SECTION_TYPES = frozenset(LIBRARY_KIND_TO_SECTION_TYPE.values())
-RENDERABLE_SECTION_TYPES = frozenset({"profile", "extras", *ENTRY_SECTION_TYPES})
 
 
 def editable_rich_text_fields(section_type: str) -> frozenset[str]:
@@ -92,13 +44,28 @@ def validate_section_payload(section: Mapping[str, Any]) -> None:
     IDs, and the generic ``extras`` row shape are accepted.
     """
 
+    try:
+        SectionInstance.model_validate(section)
+    except ValidationError as exc:
+        raise TailoringPolicyError("Section payload does not match the renderer wire schema") from exc
+
     section_type = section.get("type")
     if section_type not in RENDERABLE_SECTION_TYPES:
         raise TailoringPolicyError(f"Section type {section_type!r} cannot be rendered")
-    if not isinstance(section.get("id"), str) or not section["id"].strip():
+    if (
+        not isinstance(section.get("id"), str)
+        or not section["id"].strip()
+        or len(section["id"]) > LIMITS["max_section_id_length"]
+    ):
         raise TailoringPolicyError("Tailoring sections require a non-empty ID")
-    if not isinstance(section.get("title"), str) or not section["title"].strip():
+    if (
+        not isinstance(section.get("title"), str)
+        or not section["title"].strip()
+        or len(section["title"]) > LIMITS["max_section_title_length"]
+    ):
         raise TailoringPolicyError("Tailoring sections require a non-empty title")
+
+    _validate_nested_limits(section.get("data"))
 
     data = section.get("data")
     if section_type == "profile":
@@ -133,6 +100,26 @@ def validate_section_payload(section: Mapping[str, Any]) -> None:
                 raise TailoringPolicyError("Extras fields require non-empty labels")
             if "value" not in field:
                 raise TailoringPolicyError("Extras fields require a value")
+
+
+def _validate_nested_limits(value: Any) -> None:
+    """Apply renderer wire limits to the otherwise generic data payload."""
+
+    if isinstance(value, str):
+        if len(value) > LIMITS["max_field_text_length"]:
+            raise TailoringPolicyError("Section field text exceeds the renderer limit")
+        return
+    if isinstance(value, list):
+        if len(value) > LIMITS["max_section_entries"]:
+            raise TailoringPolicyError("Section data contains too many entries")
+        for child in value:
+            _validate_nested_limits(child)
+        return
+    if isinstance(value, dict):
+        if len(value) > LIMITS["max_section_entries"]:
+            raise TailoringPolicyError("Section data contains too many fields")
+        for child in value.values():
+            _validate_nested_limits(child)
 
 
 def _validate_rich_text_fields(row: Mapping[str, Any]) -> None:

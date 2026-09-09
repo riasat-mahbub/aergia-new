@@ -32,3 +32,10 @@ export function relevanceScoreFromSnapshot(value: Record<string, unknown> | null
   const score = value?.score;
   return typeof score === "number" ? score : null;
 }
+
+export function aiRelevanceScoreFromSnapshot(value: Record<string, unknown> | null | undefined): number | null {
+  const nested = value?.ai_relevance;
+  if (!nested || typeof nested !== "object") return null;
+  const score = (nested as Record<string, unknown>).score;
+  return typeof score === "number" ? score : null;
+}

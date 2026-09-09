@@ -9,8 +9,9 @@ metadata:
 # Aergia tailoring
 
 Use this skill to produce the strongest truthful CV for the job in an Aergia
-tailoring session. You choose the content, emphasis, ordering, and section
-structure. Aergia validates the result and the user remains the final reviewer.
+tailoring session. You choose the content, emphasis, ordering, section
+structure, styles, and layout. Aergia validates the result and the user
+remains the final reviewer.
 
 ## Non-negotiable boundaries
 
@@ -22,7 +23,8 @@ structure. Aergia validates the result and the user remains the final reviewer.
 - Keep the scoped capability in memory only. Do not place it in a file, patch,
   command argument, log, or user-facing response.
 - Do not modify the downloaded evidence or reusable Library records. The only
-  submitted artifact is a validated tailoring patch.
+  submitted artifact is a validated tailoring patch or a complete candidate
+  document wrapped in the `replace_candidate` operation.
 
 ## Connect to the session
 
@@ -49,7 +51,23 @@ Read the complete job description and evidence before deciding what to do.
 Optimize for relevance, clarity, credibility, and a concise human-readable
 document—not for keyword stuffing or preserving the source layout.
 
-You have broad discretion within `supported_operations`:
+The evidence packet's `capabilities` object is authoritative for section types,
+fields, style tokens, and limits. Do not recreate those lists in your own
+instructions or scripts. The server remains the final validator.
+
+The packet also includes `source_relevance` and `target_relevance`: these are
+deterministic baselines for the linked CV and the empty scaffold. Use them to
+spot what the composition improves, then provide the semantic per-requirement
+`ai_relevance` assessment described below.
+
+For maximum editorial freedom, prefer one `replace_candidate` operation. It
+may replace the complete target document, including section ordering, section
+selection, supported styles, and prose. The candidate must contain exactly one
+enabled profile section and preserve its protected identity fields. Cite the
+source CV or Library rows used by the candidate in the operation's `evidence`
+array. You may add `report_gap` operations alongside the candidate.
+
+The legacy operation set remains valid when a small patch is clearer:
 
 - select any relevant Library rows, including ones omitted by an earlier
   deterministic generator;
@@ -60,11 +78,10 @@ You have broad discretion within `supported_operations`:
   title, row set, or section style is better;
 - report genuine evidence gaps instead of papering over them.
 
-Prefer the smallest clear patch, but use structural operations whenever they
-produce a materially better CV. The fresh target is a scaffold, not a layout
-prescription. Preserve the server-owned profile identity fields, use stable
-IDs rather than array indexes, and include a specific reason plus evidence for
-each structural decision.
+Prefer the complete candidate for broad restructuring and the legacy operations
+for a narrowly scoped repair. The fresh target is a scaffold, not a layout
+prescription. Preserve server-owned profile identity fields and use stable IDs
+for sections, entries, and rich-text blocks.
 
 An `add_library_entry` may provide a new `entry_id`; later prose operations in
 the same patch can then target that copied row. If the ID is omitted, treat the
@@ -77,7 +94,7 @@ and public context. A web citation may support contextual prose, but it never
 proves the candidate's personal history or qualifications; those must be
 supported by CV or Library evidence.
 
-## Validate and submit
+## Validate, render, and submit
 
 The helpers bundled with this skill are relative to this file:
 
@@ -88,15 +105,30 @@ The helpers bundled with this skill are relative to this file:
   rather than relying on its small fallback vocabulary.
 - `scripts/session.mjs` owns the scoped connection from exchange through final
   submission so the capability is never persisted or printed.
-- `scripts/validate-patch.mjs` validates the snapshot and operations. Pass
-  `--output` to materialize the patched target CV for final inspection.
+- `scripts/validate-patch.mjs` validates the snapshot and either the legacy
+  operations or a `replace_candidate` document. Pass `--output` to materialize
+  the candidate for inspection.
 - `scripts/verify-cv-facts.mjs` flags unsupported numeric, technology, URL,
   employer, and title claims in the materialized CV.
 - `references/tailoring-patch.schema.json` and
   `references/evidence-packet.schema.json` document protocol v1.
 
-Use the server-provided `base_revision`, `base_hash`, and operation list. Run
-the patch validator, inspect the materialized CV, and run the fact checker.
+Use the server-provided `base_revision`, `base_hash`, `capabilities_hash`, and
+operation list. Run the patch validator, inspect the materialized CV, and run
+the fact checker. If you want visual feedback, write the valid patch first and
+create the empty `output/RENDER` marker. The helper renders a capability-scoped
+PDF to `output/candidate-preview.pdf`; inspect it and revise the candidate as
+needed. The unchanged source render is available at `source/source-cv.pdf`
+when the renderer is available.
+
+After the final visual pass, include an `ai_relevance` assessment in the patch.
+Score every stored requirement using `ai-relevance-v1`, cite the exact fields
+visible in the candidate, and explain partial or absent evidence. Use the
+capability descriptor's coverage guidance as a calibration (absent 0, weak
+0.25, partial 0.5, strong 0.75, excellent 1.0), adjusting within that range
+only when the evidence warrants it. The server validates the IDs and citations
+and computes the weighted aggregate; do not invent an overall percentage.
+
 Repair validation failures until the patch is valid or the session expires.
 Never submit a partial or known-invalid patch.
 

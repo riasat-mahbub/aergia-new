@@ -46,6 +46,7 @@ from .models import (
     Zone,
     ZoneStyle,
 )
+from .capabilities import capabilities_hash, renderer_capabilities
 
 __all__ = [
     "CVRow",
@@ -73,4 +74,6 @@ __all__ = [
     "TypographyRole",
     "Zone",
     "ZoneStyle",
+    "capabilities_hash",
+    "renderer_capabilities",
 ]

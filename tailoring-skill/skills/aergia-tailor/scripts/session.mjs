@@ -10,6 +10,7 @@ import { materializePatch, validatePatch } from "./validate-patch.mjs";
 import { verifyFacts } from "./verify-cv-facts.mjs";
 
 const SUBMIT_MARKER = "SUBMIT";
+const RENDER_MARKER = "RENDER";
 
 function parseArgs(argv) {
   const args = {};
@@ -84,6 +85,19 @@ async function writeProtectedJson(path, value) {
   await chmod(path, 0o400);
 }
 
+async function writeProtectedBinary(path, base64) {
+  await writeFile(path, Buffer.from(base64, "base64"), { flag: "wx", mode: 0o600 });
+  await chmod(path, 0o400);
+}
+
+async function replaceProtectedBinary(path, base64) {
+  // Preview files are intentionally read-only between iterations. Re-open a
+  // prior preview only after temporarily restoring owner-write permission.
+  await chmod(path, 0o600).catch(() => undefined);
+  await writeFile(path, Buffer.from(base64, "base64"), { mode: 0o600 });
+  await chmod(path, 0o400);
+}
+
 async function prepareWorkspace(workspace, evidence) {
   const source = resolve(workspace, "source");
   const output = resolve(workspace, "output");
@@ -97,6 +111,10 @@ async function prepareWorkspace(workspace, evidence) {
     writeProtectedJson(resolve(source, "library.json"), evidence.library ?? []),
     writeProtectedJson(resolve(source, "protected-facts.json"), evidence.protected_facts ?? {}),
     writeProtectedJson(resolve(source, "requirements.json"), evidence.requirements ?? []),
+    writeProtectedJson(resolve(source, "source-relevance.json"), evidence.source_relevance ?? {}),
+    writeProtectedJson(resolve(source, "target-relevance.json"), evidence.target_relevance ?? {}),
+    writeProtectedJson(resolve(source, "capabilities.json"), evidence.capabilities ?? {}),
+    writeProtectedJson(resolve(source, "rendered-source.json"), evidence.rendered_source ?? {}),
   ]);
   return { source, output };
 }
@@ -114,12 +132,30 @@ function wait(milliseconds) {
   return new Promise((accept) => setTimeout(accept, milliseconds));
 }
 
-async function validatedPatch(paths, evidence) {
+async function renderCandidate(paths, origin, capability, candidate) {
+  const preview = await requestJson(`${origin}/api/v1/tailoring/preview`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Aergia-Tailoring-Capability": capability,
+    },
+    body: JSON.stringify({ candidate }),
+  });
+  await replaceProtectedBinary(resolve(paths.output, "candidate-preview.pdf"), preview.pdf_base64);
+  await writeFile(
+    resolve(paths.output, "candidate-preview.json"),
+    `${JSON.stringify({ format: preview.format, page_count: preview.page_count, candidate_hash: preview.candidate_hash }, null, 2)}\n`,
+    { encoding: "utf8", mode: 0o600 },
+  );
+}
+
+async function validatedPatch(paths, evidence, origin, capability) {
   const markerPath = resolve(paths.output, SUBMIT_MARKER);
+  const renderMarkerPath = resolve(paths.output, RENDER_MARKER);
   const patchPath = resolve(paths.output, "tailoring-patch.json");
   const previewPath = resolve(paths.output, "tailored-cv.json");
   while (Date.now() < Date.parse(evidence.expires_at)) {
-    if (!(await exists(markerPath))) {
+    if (!(await exists(markerPath)) && !(await exists(renderMarkerPath))) {
       await wait(750);
       continue;
     }
@@ -131,12 +167,19 @@ async function validatedPatch(paths, evidence) {
       if (facts.status !== "pass") {
         throw new Error(facts.findings.map((finding) => finding.message).join("; "));
       }
+      if (await exists(renderMarkerPath)) {
+        await renderCandidate(paths, origin, capability, tailored);
+        await unlink(renderMarkerPath).catch(() => undefined);
+        process.stderr.write(`Candidate rendered to ${resolve(paths.output, "candidate-preview.pdf")}\n`);
+        continue;
+      }
       await writeFile(previewPath, `${JSON.stringify(tailored, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
       return patch;
     } catch (error) {
       await unlink(markerPath).catch(() => undefined);
+      await unlink(renderMarkerPath).catch(() => undefined);
       process.stderr.write(`Patch rejected locally: ${error instanceof Error ? error.message : "validation failed"}\n`);
-      process.stderr.write(`Repair ${patchPath}, inspect the evidence again, then recreate ${markerPath}.\n`);
+      process.stderr.write(`Repair ${patchPath}, inspect the evidence again, then recreate ${markerPath} or ${renderMarkerPath}.\n`);
     }
   }
   throw new Error("The tailoring session expired before a valid patch was ready");
@@ -163,9 +206,24 @@ export async function runSession(sessionUrl, workspace, options = {}) {
   if (evidence.protocol_version !== 1) throw new Error("The evidence protocol is incompatible with this skill");
 
   const paths = await prepareWorkspace(workspace, evidence);
+  if (evidence.rendered_source?.endpoint) {
+    try {
+      const sourcePreview = await requestJson(`${origin}${evidence.rendered_source.endpoint}`, {
+        headers: { "X-Aergia-Tailoring-Capability": capability },
+      });
+      await writeProtectedBinary(resolve(paths.source, "source-cv.pdf"), sourcePreview.pdf_base64);
+      await writeFile(
+        resolve(paths.source, "source-cv-render.json"),
+        `${JSON.stringify({ format: sourcePreview.format, page_count: sourcePreview.page_count, candidate_hash: sourcePreview.candidate_hash }, null, 2)}\n`,
+        { encoding: "utf8", mode: 0o600 },
+      );
+    } catch (error) {
+      process.stderr.write(`Source PDF preview unavailable: ${error instanceof Error ? error.message : "render failed"}\n`);
+    }
+  }
   process.stdout.write(`Evidence ready in ${paths.source}\n`);
-  process.stdout.write(`Write ${resolve(paths.output, "tailoring-patch.json")}, then create ${resolve(paths.output, SUBMIT_MARKER)} to validate and submit.\n`);
-  const patch = await validatedPatch(paths, evidence);
+  process.stdout.write(`Write ${resolve(paths.output, "tailoring-patch.json")}, create ${resolve(paths.output, "RENDER")} to preview, then create ${resolve(paths.output, SUBMIT_MARKER)} to validate and submit.\n`);
+  const patch = await validatedPatch(paths, evidence, origin, capability);
   const result = await requestJson(`${origin}/api/v1/tailoring/submit`, {
     method: "POST",
     headers: {

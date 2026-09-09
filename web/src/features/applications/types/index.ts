@@ -92,6 +92,35 @@ export interface RequirementRelevanceResult {
   total_requirements: number;
   requirements: RequirementMatch[];
   algorithm_version: string;
+  ai_relevance?: AIRelevanceResult | null;
+}
+
+export interface AIRelevanceEvidence {
+  section_id: string;
+  entry_id?: string | null;
+  field_path: string;
+  excerpt: string;
+}
+
+export interface AIRequirementMatch {
+  requirement_id: string;
+  coverage: "absent" | "weak" | "partial" | "strong" | "excellent";
+  score: number;
+  confidence: number;
+  evidence: AIRelevanceEvidence[];
+  rationale: string;
+}
+
+export interface AIRelevanceResult {
+  status: "evaluated";
+  score: number;
+  required_score?: number | null;
+  preferred_score?: number | null;
+  confidence?: number | null;
+  requirements: AIRequirementMatch[];
+  rubric_version: string;
+  evaluation_mode: "independent_pass" | "same_agent_pass";
+  evaluator?: string | null;
 }
 
 export type RelevanceAnalysis = RelevanceResult | RequirementRelevanceResult;

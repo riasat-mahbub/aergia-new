@@ -379,3 +379,102 @@ test("requires proof for broad structural changes and rejects unknown section ty
     /cannot be rendered/,
   );
 });
+
+test("materializes a freeform candidate from the advertised capabilities", () => {
+  const candidateEvidence = {
+    ...evidence,
+    capabilities_hash: "b".repeat(64),
+    capabilities: {
+      document: { limits: { max_sections: 32 }, section_types: { profile: {}, experience: {} } },
+      tailoring: {
+        operations: ["replace_candidate"],
+        renderable_section_types: ["profile", "experience"],
+        protected_fields: { profile: ["name", "email"] },
+      },
+    },
+    supported_operations: ["replace_candidate", "report_gap"],
+    target_cv: {
+      id: "target",
+      title: "Fresh",
+      sections: [{
+        id: "target-profile",
+        type: "profile",
+        title: "Profile",
+        enabled: true,
+        data: { name: "Example User", email: "user@example.com", summary: "" },
+      }],
+    },
+    requirements: [{ id: "req-python", text: "Python" }],
+  };
+  const patch = {
+    protocol_version: 1,
+    base_revision: 3,
+    base_hash: "a".repeat(64),
+    capabilities_hash: "b".repeat(64),
+    changes: [{
+      operation: "replace_candidate",
+      candidate: {
+        title: "Platform CV",
+        sections: [{
+          id: "candidate-profile",
+          type: "profile",
+          title: "Profile",
+          enabled: true,
+          data: { name: "Example User", email: "user@example.com", summary: "Platform engineer" },
+        }],
+      },
+      evidence: [{ source: "cv", section_id: "experience", entry_id: "entry-1", field_path: "*" }],
+    }],
+  };
+
+  assert.deepEqual(validatePatch(patch, candidateEvidence), { valid: true, operation_count: 1 });
+  assert.equal(materializePatch(patch, candidateEvidence).title, "Platform CV");
+  assert.equal(materializePatch(patch, candidateEvidence).sections[0].data.summary, "Platform engineer");
+});
+
+test("validates AI relevance assessments against candidate evidence", () => {
+  const aiEvidence = {
+    ...evidence,
+    requirements: [{ id: "req-python", text: "Python" }],
+    capabilities_hash: "c".repeat(64),
+    capabilities: {
+      tailoring: {
+        operations: ["replace_candidate"],
+        renderable_section_types: ["profile"],
+        protected_fields: { profile: ["name"] },
+      },
+    },
+    supported_operations: ["replace_candidate"],
+    target_cv: {
+      id: "target",
+      title: "Fresh",
+      sections: [{ id: "target-profile", type: "profile", enabled: true, title: "Profile", data: { name: "Example User" } }],
+    },
+  };
+  const patch = {
+    protocol_version: 1,
+    base_revision: 3,
+    base_hash: "a".repeat(64),
+    capabilities_hash: "c".repeat(64),
+    changes: [{
+      operation: "replace_candidate",
+      candidate: {
+        title: "Platform CV",
+        sections: [{ id: "candidate-profile", type: "profile", enabled: true, title: "Profile", data: { name: "Example User", summary: "Python APIs" } }],
+      },
+      evidence: [{ source: "cv", section_id: "experience", entry_id: "entry-1", field_path: "*" }],
+    }],
+    ai_relevance: {
+      rubric_version: "ai-relevance-v1",
+      requirements: [{
+        requirement_id: "req-python",
+        coverage: "strong",
+        score: 0.8,
+        confidence: 0.9,
+        evidence: [{ section_id: "candidate-profile", field_path: "summary", excerpt: "Python APIs" }],
+        rationale: "Directly demonstrated.",
+      }],
+    },
+  };
+  assert.deepEqual(validatePatch(patch, aiEvidence), { valid: true, operation_count: 1 });
+});

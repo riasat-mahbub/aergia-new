@@ -40,4 +40,6 @@ submission creates a new CV and leaves the linked source CV untouched.
 The protocol supports targeted prose edits as well as complete section
 creation, replacement, removal, and ordering. This freedom remains bounded by
 renderer compatibility, immutable profile identity, evidence-backed candidate
-facts, and auditable reasons/citations for structural decisions.
+facts, and auditable reasons/citations for structural decisions. Evidence also
+contains deterministic source/target relevance baselines; the local model may
+return a separate per-requirement semantic relevance assessment.
