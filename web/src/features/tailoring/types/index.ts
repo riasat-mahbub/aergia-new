@@ -34,6 +34,7 @@ export interface TailoringSessionResult {
   provenance: Array<Record<string, unknown>>;
   before_relevance: Record<string, unknown>;
   relevance: Record<string, unknown>;
+  ai_relevance?: Record<string, unknown> | null;
 }
 
 export interface TailoringSessionStatusResponse {

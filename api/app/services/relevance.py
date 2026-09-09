@@ -20,7 +20,12 @@ from difflib import SequenceMatcher
 from datetime import date, datetime
 from math import log2
 
+from app.document_schema.capabilities import LIBRARY_KIND_TO_SECTION_TYPE
 from app.http_schemas.application import (
+    AIRelevanceAssessment,
+    AIRelevanceEvidence,
+    AIRelevanceResult,
+    AIRequirementMatch,
     ExtractedKeyword,
     JobRequirement,
     MatchEvidence,
@@ -44,6 +49,7 @@ MAX_REQUIREMENTS = 40
 ENTRY_RELEVANCE_THRESHOLD = 0.35
 MAX_FIT_PASSES = 64
 REQUIREMENT_COVERAGE_THRESHOLD = 0.65
+AI_RELEVANCE_ALGORITHM_VERSION = "ai-relevance-v1"
 MIN_SELECTION_GAIN = 0.03
 COMPLEMENTARY_EVIDENCE_BONUS = 0.18
 MAX_COMPLEMENTARY_SECTIONS = {
@@ -223,16 +229,6 @@ class _LibraryRow:
     fields: tuple[LibraryField, ...]
     order: int
 
-
-LIBRARY_KIND_TO_SECTION_TYPE: dict[str, str] = {
-    "experience": "experience",
-    "education": "education",
-    "skill": "skills",
-    "project": "projects",
-    "certification": "certifications",
-    "language": "languages",
-    "research": "research",
-}
 
 # These are evidence affinities, not a section hierarchy. They describe which
 # sections can naturally prove a requirement. A strong match in a lower-affinity
@@ -1747,6 +1743,162 @@ def evaluate_requirement_relevance(
     )
 
 
+def _candidate_evidence_value(
+    sections: Sequence[object] | Mapping[str, object],
+    evidence: AIRelevanceEvidence,
+) -> str:
+    """Resolve an AI citation against the candidate document.
+
+    AI citations are intentionally limited to the submitted candidate. The
+    source CV and Library remain the provenance inputs used while composing;
+    the assessment must explain what the reader can actually see in the final
+    document.
+    """
+
+    raw_sections: object = sections
+    if isinstance(sections, Mapping):
+        raw_sections = sections.get("sections", [])
+    if not isinstance(raw_sections, Sequence) or isinstance(raw_sections, (str, bytes)):
+        return ""
+    section = next(
+        (item for item in raw_sections if isinstance(item, Mapping) and item.get("id") == evidence.section_id),
+        None,
+    )
+    if not isinstance(section, Mapping):
+        return ""
+    data = section.get("data")
+    if section.get("type") == "profile":
+        target: object = data if evidence.entry_id is None else None
+    elif isinstance(data, list):
+        target = next(
+            (item for item in data if isinstance(item, Mapping) and item.get("id") == evidence.entry_id),
+            None,
+        )
+    else:
+        target = None
+    if not isinstance(target, Mapping):
+        return ""
+    value: object = target
+    if evidence.field_path != "*":
+        for component in evidence.field_path.split("."):
+            if not isinstance(value, Mapping) or component not in value:
+                return ""
+            value = value[component]
+    return _flatten_value(value)
+
+
+def _flatten_value(value: object) -> str:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, Mapping):
+        return " ".join(
+            _flatten_value(child)
+            for key, child in value.items()
+            if key not in {"id", "style", "link", "url"}
+        )
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        return " ".join(_flatten_value(child) for child in value)
+    return ""
+
+
+def evaluate_ai_relevance(
+    assessment: AIRelevanceAssessment,
+    requirements: Iterable[JobRequirement | Mapping[str, object] | str],
+    candidate_sections: Sequence[object] | Mapping[str, object] | None = None,
+) -> AIRelevanceResult:
+    """Validate and aggregate an agent-provided semantic relevance review.
+
+    The model owns the per-requirement judgment. Aergia owns requirement
+    identity, citation validation, weighting, and aggregate arithmetic. This
+    keeps an AI score explainable and prevents a model from submitting an
+    arbitrary overall percentage.
+    """
+
+    extracted = _coerce_requirements(requirements)
+    by_id = {requirement.id: requirement for requirement in extracted}
+    seen: set[str] = set()
+    for item in assessment.requirements:
+        if item.requirement_id not in by_id:
+            raise ValueError(f"Unknown AI relevance requirement ID: {item.requirement_id}")
+        if item.requirement_id in seen:
+            raise ValueError(f"Duplicate AI relevance requirement ID: {item.requirement_id}")
+        seen.add(item.requirement_id)
+        if item.score > 0 and not item.evidence:
+            raise ValueError(f"AI relevance score for {item.requirement_id} requires candidate evidence")
+        for evidence in item.evidence:
+            evidence_value = _candidate_evidence_value(candidate_sections or [], evidence)
+            if not evidence_value:
+                raise ValueError(
+                    f"AI relevance evidence does not resolve in candidate: {evidence.section_id}.{evidence.field_path}"
+                )
+            if normalize_text(evidence.excerpt) not in normalize_text(evidence_value):
+                raise ValueError(
+                    f"AI relevance evidence excerpt does not match candidate: {evidence.section_id}.{evidence.field_path}"
+                )
+
+    # Missing assessments are explicit zeroes rather than an opportunity to
+    # inflate the denominator by omitting difficult requirements.
+    normalized: list[AIRequirementMatch] = []
+    for requirement in extracted:
+        item = next((candidate for candidate in assessment.requirements if candidate.requirement_id == requirement.id), None)
+        if item is None:
+            normalized.append(
+                AIRequirementMatch(
+                    requirement_id=requirement.id,
+                    coverage="absent",
+                    score=0.0,
+                    confidence=0.0,
+                    evidence=[],
+                    rationale="The AI did not provide an assessment for this requirement.",
+                )
+            )
+        else:
+            normalized.append(
+                AIRequirementMatch(
+                    requirement_id=item.requirement_id,
+                    coverage=item.coverage,
+                    score=round(item.score, 4),
+                    confidence=round(item.confidence, 4),
+                    evidence=list(item.evidence),
+                    rationale=item.rationale,
+                )
+            )
+
+    def weighted_score(predicate) -> int | None:
+        selected = [
+            (requirement, item)
+            for requirement, item in zip(extracted, normalized, strict=True)
+            if predicate(requirement)
+        ]
+        denominator = sum(requirement.weight for requirement, _ in selected)
+        if not denominator:
+            return None
+        return round(100 * sum(requirement.weight * item.score for requirement, item in selected) / denominator)
+
+    total_weight = sum(requirement.weight for requirement in extracted)
+    score = round(
+        100
+        * sum(requirement.weight * item.score for requirement, item in zip(extracted, normalized, strict=True))
+        / total_weight
+    ) if total_weight else 0
+    confidence = (
+        sum(requirement.weight * item.confidence for requirement, item in zip(extracted, normalized, strict=True))
+        / total_weight
+        if total_weight
+        else None
+    )
+    return AIRelevanceResult(
+        score=score,
+        required_score=weighted_score(lambda requirement: requirement.required),
+        preferred_score=weighted_score(lambda requirement: not requirement.required),
+        confidence=round(confidence, 4) if confidence is not None else None,
+        requirements=normalized,
+        rubric_version=assessment.rubric_version,
+        evaluation_mode=assessment.evaluation_mode,
+        evaluator=assessment.evaluator,
+    )
+
+
 def _section_affinity(requirement: JobRequirement, section_type: str) -> float:
     """Return how naturally a section proves one requirement family."""
 
@@ -2063,6 +2215,7 @@ __all__ = [
     "MAX_REQUIREMENTS",
     "REQUIREMENT_EXTRACTION_ERROR",
     "REQUIREMENT_ALGORITHM_VERSION",
+    "AI_RELEVANCE_ALGORITHM_VERSION",
     "REQUIREMENT_COVERAGE_THRESHOLD",
     "RequirementExtractionError",
     "ScoredLibraryRow",
@@ -2070,6 +2223,7 @@ __all__ = [
     "calculate_relevance",
     "calculate_requirement_relevance",
     "evaluate_requirement_relevance",
+    "evaluate_ai_relevance",
     "extract_job_requirements",
     "extract_requirements",
     "extract_requirements_v2",

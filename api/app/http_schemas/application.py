@@ -6,7 +6,7 @@ from datetime import date, datetime
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.safe_url import normalize_http_url
 
@@ -110,6 +110,91 @@ class RequirementMatch(BaseModel):
     tailoring_feedback: list[str] = Field(default_factory=list)
 
 
+class AIRelevanceEvidence(BaseModel):
+    """A location in the submitted candidate supporting an AI assessment."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    section_id: str = Field(min_length=1, max_length=128)
+    entry_id: str | None = Field(default=None, min_length=1, max_length=128)
+    field_path: str = Field(
+        min_length=1,
+        max_length=128,
+        pattern=r"^(?:\*|[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*)$",
+    )
+    excerpt: str = Field(min_length=1, max_length=2_000)
+
+    @field_validator("excerpt")
+    @classmethod
+    def trim_excerpt(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("AI relevance evidence excerpt must not be blank")
+        return value
+
+
+class AIRequirementAssessment(BaseModel):
+    """One model-assigned requirement score.
+
+    The model supplies the semantic judgment and citations. The server does
+    the weighted aggregation after validating requirement IDs and locations.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    requirement_id: str = Field(min_length=1, max_length=128)
+    coverage: Literal["absent", "weak", "partial", "strong", "excellent"]
+    score: float = Field(ge=0.0, le=1.0)
+    confidence: float = Field(ge=0.0, le=1.0)
+    evidence: list[AIRelevanceEvidence] = Field(default_factory=list, max_length=10)
+    rationale: str = Field(min_length=1, max_length=2_000)
+
+    @field_validator("rationale")
+    @classmethod
+    def trim_rationale(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("AI relevance rationale must not be blank")
+        return value
+
+
+class AIRelevanceAssessment(BaseModel):
+    """Untrusted, per-requirement assessment returned by the local agent."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    rubric_version: Literal["ai-relevance-v1"]
+    requirements: list[AIRequirementAssessment] = Field(min_length=1, max_length=100)
+    evaluation_mode: Literal["independent_pass", "same_agent_pass"] = "same_agent_pass"
+    evaluator: str | None = Field(default=None, max_length=128)
+    claimed_score: int | None = Field(default=None, ge=0, le=100)
+
+
+class AIRequirementMatch(BaseModel):
+    """Validated AI assessment attached to one persisted requirement."""
+
+    requirement_id: str
+    coverage: Literal["absent", "weak", "partial", "strong", "excellent"]
+    score: float = Field(ge=0.0, le=1.0)
+    confidence: float = Field(ge=0.0, le=1.0)
+    evidence: list[AIRelevanceEvidence] = Field(default_factory=list)
+    rationale: str
+
+
+class AIRelevanceResult(BaseModel):
+    """Server-calculated aggregate of the model's per-requirement scores."""
+
+    status: Literal["evaluated"] = "evaluated"
+    score: int = Field(ge=0, le=100)
+    required_score: int | None = Field(default=None, ge=0, le=100)
+    preferred_score: int | None = Field(default=None, ge=0, le=100)
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    requirements: list[AIRequirementMatch] = Field(default_factory=list)
+    rubric_version: str
+    evaluation_mode: Literal["independent_pass", "same_agent_pass"]
+    evaluator: str | None = None
+
+
 class RequirementRelevanceResult(BaseModel):
     """Weighted requirement coverage for a generated or manually edited CV."""
 
@@ -125,6 +210,10 @@ class RequirementRelevanceResult(BaseModel):
     total_requirements: int = 0
     requirements: list[RequirementMatch] = Field(default_factory=list)
     algorithm_version: str
+    # Optional so historic deterministic snapshots remain readable. When a
+    # tailoring agent supplies an assessment, the server stores its validated
+    # result alongside the deterministic matcher output.
+    ai_relevance: AIRelevanceResult | None = None
 
 
 class ApplicationStatus(str, Enum):
@@ -289,6 +378,11 @@ __all__ = [
     "ApplicationStatusHistoryResponse",
     "ApplicationStatus",
     "ApplicationUpdate",
+    "AIRelevanceAssessment",
+    "AIRelevanceEvidence",
+    "AIRelevanceResult",
+    "AIRequirementAssessment",
+    "AIRequirementMatch",
     "CVQualityIssue",
     "CVQualityResult",
     "ExtractedKeyword",

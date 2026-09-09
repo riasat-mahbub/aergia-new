@@ -9,6 +9,7 @@ import type {
   TailoringSessionStatusResponse,
 } from "@/features/tailoring";
 import {
+  aiRelevanceScoreFromSnapshot,
   isQualityResult,
   relevanceScoreFromSnapshot,
 } from "../../domain/detail/applicationDetail";
@@ -118,6 +119,9 @@ export default function GeneratedCvPanel({
                   <p className="mt-1">
                     Relevance: {relevanceScoreFromSnapshot(tailoringStatus.result.before_relevance) ?? "—"}% → {relevanceScoreFromSnapshot(tailoringStatus.result.relevance) ?? "—"}%
                   </p>
+                  {aiRelevanceScoreFromSnapshot(tailoringStatus.result.relevance) !== null && (
+                    <p className="mt-1">AI fit assessment: {aiRelevanceScoreFromSnapshot(tailoringStatus.result.relevance)}%</p>
+                  )}
                   {tailoringStatus.result.gaps.length > 0 && <p className="mt-1">Remaining gaps: {tailoringStatus.result.gaps.map((gap) => gap.requirement).join(", ")}</p>}
                 </div>
               )}
@@ -129,6 +133,9 @@ export default function GeneratedCvPanel({
               <p className="mt-1">
                 Relevance: {relevanceScoreFromSnapshot(tailoringResult.before_relevance) ?? "—"}% → {relevanceScoreFromSnapshot(tailoringResult.relevance) ?? "—"}%
               </p>
+              {aiRelevanceScoreFromSnapshot(tailoringResult.relevance) !== null && (
+                <p className="mt-1">AI fit assessment: {aiRelevanceScoreFromSnapshot(tailoringResult.relevance)}%</p>
+              )}
               {tailoringResult.gaps.length > 0 && <p className="mt-1">Remaining gaps: {tailoringResult.gaps.map((gap) => gap.requirement).join(", ")}</p>}
               <p className="mt-1 text-app-ink-3">Requirement feedback is available in the linked CV&apos;s relevance details.</p>
             </div>

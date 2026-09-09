@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import base64
 import copy
 import hashlib
 import json
 import re
 import secrets
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from typing import Any
 
 from pydantic import ValidationError
@@ -22,9 +24,10 @@ from app.models.library import Library, LibraryEntry
 from app.models.tailoring_session import TailoringSession
 from app.models.user import User
 from app.document_schema.models import SectionInstance
+from app.document_schema.capabilities import LIMITS, TAILORING_OPERATIONS, capabilities_hash, renderer_capabilities
 from app.http_schemas.application import JobRequirement, RequirementRelevanceResult
 from app.http_schemas.cv import CVCreate
-from app.services.cv import CVService
+from app.services.cv import CVService, coerce_customizations
 from app.http_schemas.tailoring import (
     AddLibraryEntryChange,
     CreateSectionChange,
@@ -35,6 +38,7 @@ from app.http_schemas.tailoring import (
     ReorderBulletsChange,
     ReorderEntriesChange,
     ReorderSectionsChange,
+    ReplaceCandidateChange,
     ReportGapChange,
     ReplaceDescriptionChange,
     ReplaceRichTextChange,
@@ -47,15 +51,24 @@ from app.http_schemas.tailoring import (
     TailoringJob,
     TailoringLibraryEntry,
     TailoringPatch,
+    TailoringPreviewRequest,
+    TailoringPreviewResponse,
     TailoringProvenance,
     TailoringReportedGap,
+    TailoringRenderArtifact,
     TailoringSessionCreateResponse,
     TailoringSessionStatusResponse,
     TailoringSubmitResponse,
 )
 from app.services.profile import ProfileService
+from app.services.pdf import PDFService, pdf_page_count
 from app.services.quality import evaluate_cv_quality
-from app.services.relevance import REQUIREMENT_ALGORITHM_VERSION, evaluate_requirement_relevance
+from app.services.renderer.html import HTMLDocumentRenderer
+from app.services.relevance import (
+    REQUIREMENT_ALGORITHM_VERSION,
+    evaluate_ai_relevance,
+    evaluate_requirement_relevance,
+)
 from app.services.rich_text import normalize_rich_text_ids
 from app.services.tailoring_facts import (
     TailoringFactError,
@@ -82,21 +95,7 @@ TAILORING_SESSION_CANCELLED = "cancelled"
 TAILORING_SESSION_STALE = "stale"
 TAILORING_SESSION_EXPIRED = "expired"
 
-TAILORING_SUPPORTED_OPERATIONS = (
-    "replace_description",
-    "replace_rich_text",
-    "rewrite_rich_text",
-    "remove_bullet",
-    "reorder_bullets",
-    "remove_entry",
-    "reorder_entries",
-    "add_library_entry",
-    "create_section",
-    "replace_section",
-    "remove_section",
-    "reorder_sections",
-    "report_gap",
-)
+TAILORING_SUPPORTED_OPERATIONS = TAILORING_OPERATIONS
 
 _FRESH_SECTION_ORDER: tuple[tuple[str, str], ...] = (
     ("profile", "Profile"),
@@ -108,21 +107,6 @@ _FRESH_SECTION_ORDER: tuple[tuple[str, str], ...] = (
     ("projects", "Projects"),
     ("research", "Research"),
 )
-
-_PROFILE_IMMUTABLE_FIELDS = frozenset(
-    {
-        "name",
-        "email",
-        "email_link",
-        "phone",
-        "location",
-        "site_text",
-        "site_url",
-        "photo_url",
-        "social_links",
-    }
-)
-
 
 def build_tailoring_prompt(session_url: str, code: str, skill_url: str) -> str:
     """Build the only user-facing handoff from Aergia to a coding agent.
@@ -393,6 +377,43 @@ def _sections_from_payload(payload: Any) -> list[dict[str, Any]]:
     if not all(isinstance(section, dict) for section in sections):
         raise TailoringPatchError("CV sections contain an invalid entry")
     return sections
+
+
+def _candidate_sections(candidate: Any) -> list[dict[str, Any]]:
+    """Convert a freeform candidate's typed sections into wire dictionaries."""
+
+    payload = getattr(candidate, "sections", None)
+    if isinstance(payload, list):
+        sections = [
+            item.model_dump(mode="json", exclude_none=False) if hasattr(item, "model_dump") else copy.deepcopy(item)
+            for item in payload
+        ]
+    else:
+        sections = _sections_from_payload(payload)
+    if not all(isinstance(section, dict) for section in sections):
+        raise TailoringPatchError("Candidate sections contain an invalid entry")
+    return sections
+
+
+def _selected_library_sources(evidence: Iterable[TailoringEvidenceRef]) -> list[dict[str, str | None]]:
+    """Keep persisted Library provenance compact and deterministic."""
+
+    selected: list[dict[str, str | None]] = []
+    seen: set[tuple[str | None, str | None]] = set()
+    for reference in evidence:
+        if reference.source != "library":
+            continue
+        key = (reference.library_entry_id, reference.source_row_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        selected.append(
+            {
+                "library_entry_id": reference.library_entry_id,
+                "source_row_id": reference.source_row_id,
+            }
+        )
+    return selected
 
 
 def _stored_requirements(application: Application) -> list[JobRequirement]:
@@ -729,6 +750,8 @@ class TailoringService:
         profile = await ProfileService(self.db).get_profile(user)
         profile_payload = profile.model_dump(mode="json", exclude_none=True, exclude={"photo_url"})
         target_sections = fresh_tailoring_sections(session.id, profile_payload)
+        source_relevance = evaluate_requirement_relevance(requirements, cv.sections or [], profile=profile)
+        target_relevance = evaluate_requirement_relevance(requirements, target_sections, profile=profile)
 
         library = [
             TailoringLibraryEntry(
@@ -740,6 +763,7 @@ class TailoringService:
             for entry in library_entries
         ]
 
+        capabilities = renderer_capabilities(HTMLDocumentRenderer.support)
         return TailoringEvidencePacket(
             protocol_version=PROTOCOL_VERSION,
             session_id=session.id,
@@ -774,6 +798,85 @@ class TailoringService:
             ),
             library=library,
             requirements=[requirement.model_dump(mode="json") for requirement in requirements],
+            source_relevance=source_relevance.model_dump(mode="json"),
+            target_relevance=target_relevance.model_dump(mode="json"),
+            capabilities=capabilities,
+            capabilities_hash=capabilities_hash(capabilities),
+            rendered_source=TailoringRenderArtifact(
+                endpoint="/api/v1/tailoring/source-preview",
+            ),
+        )
+
+    async def source_preview(self, capability: str | None) -> TailoringPreviewResponse:
+        """Render the unchanged source CV for a vision-capable agent."""
+
+        session = await self._session_for_capability(capability)
+        application, cv = await self._target_for_session(session)
+        requirements = _stored_requirements(application)
+        library_entries = await self._library_entries(session.user_id)
+        await self._assert_snapshot_is_current(session, application, cv, requirements, library_entries)
+        pdf_bytes = await PDFService(self.db).render_payload(
+            cv.template_id,
+            copy.deepcopy(cv.sections or []),
+            copy.deepcopy(cv.customizations or {}),
+        )
+        return TailoringPreviewResponse(
+            pdf_base64=base64.b64encode(pdf_bytes).decode("ascii"),
+            page_count=pdf_page_count(pdf_bytes),
+            candidate_hash=cv_snapshot_hash(cv),
+        )
+
+    async def candidate_preview(
+        self,
+        capability: str | None,
+        request: TailoringPreviewRequest,
+    ) -> TailoringPreviewResponse:
+        """Render a candidate without creating or mutating a persistent CV."""
+
+        session = await self._session_for_capability(capability)
+        application, cv = await self._target_for_session(session)
+        requirements = _stored_requirements(application)
+        library_entries = await self._library_entries(session.user_id)
+        await self._assert_snapshot_is_current(session, application, cv, requirements, library_entries)
+
+        # Preview input is intentionally independent of the submit operation:
+        # it has no provenance requirement because it is never persisted.
+        candidate_change = SimpleNamespace(candidate=request.candidate)
+        user = await self.db.get(User, session.user_id)
+        if user is None:
+            raise TailoringUnauthorizedError("Invalid tailoring session owner")
+        profile = await ProfileService(self.db).get_profile(user)
+        profile_payload = profile.model_dump(mode="json", exclude_none=True, exclude={"photo_url"})
+        target_sections = fresh_tailoring_sections(session.id, profile_payload)
+        sections = self._apply_candidate(target_sections, candidate_change)
+        candidate_template = request.candidate.template_id or cv.template_id
+        if candidate_template != cv.template_id:
+            raise TailoringPatchError("Candidate template selection is not enabled for this session")
+        customizations = request.candidate.customizations or _fresh_customizations(
+            cv.customizations or {},
+            _sections_from_payload(cv.sections or []),
+            sections,
+        )
+        try:
+            customizations_model = coerce_customizations(customizations)
+        except (TypeError, ValueError, ValidationError) as exc:
+            raise TailoringPatchError("Candidate customizations are invalid") from exc
+        # Build the document through the same renderer pipeline used by export.
+        pdf_bytes = await PDFService(self.db).render_payload(
+            candidate_template,
+            sections,
+            customizations_model.model_dump(mode="json", exclude_none=True),
+        )
+        return TailoringPreviewResponse(
+            pdf_base64=base64.b64encode(pdf_bytes).decode("ascii"),
+            page_count=pdf_page_count(pdf_bytes),
+            candidate_hash=_content_hash(
+                {
+                    "template_id": candidate_template,
+                    "sections": sections,
+                    "customizations": customizations_model.model_dump(mode="json", exclude_none=True),
+                }
+            ),
         )
 
     @staticmethod
@@ -842,6 +945,47 @@ class TailoringService:
                 raise TailoringPatchError(f"Unknown requirement ID: {change.requirement_id}")
 
     @classmethod
+    def _apply_candidate(
+        cls,
+        raw_sections: Any,
+        change: ReplaceCandidateChange,
+    ) -> list[dict[str, Any]]:
+        """Validate a complete freeform candidate against the fresh target."""
+
+        candidate_sections, _ = normalize_rich_text_ids(_candidate_sections(change.candidate))
+        if len(candidate_sections) > LIMITS["max_sections"]:
+            raise TailoringPatchError("Candidate contains too many sections")
+        section_ids = [str(section.get("id")) for section in candidate_sections]
+        if len(set(section_ids)) != len(section_ids):
+            raise TailoringPatchError("Candidate section IDs must be unique")
+        for section in candidate_sections:
+            try:
+                SectionInstance.model_validate(section)
+            except ValidationError as exc:
+                raise TailoringPatchError("Candidate contains an invalid section") from exc
+            try:
+                validate_section_payload(section)
+            except TailoringPolicyError as exc:
+                raise TailoringPatchError(str(exc)) from exc
+
+        profiles = [section for section in candidate_sections if section.get("type") == "profile"]
+        if len(profiles) != 1:
+            raise TailoringPatchError("A candidate must contain exactly one profile section")
+        profile = profiles[0]
+        if profile.get("enabled") is not True:
+            raise TailoringPatchError("The profile section must remain enabled")
+
+        target_sections = _sections_from_payload(raw_sections)
+        target_profile = next(
+            (section for section in target_sections if section.get("type") == "profile"),
+            None,
+        )
+        if target_profile is None:
+            raise TailoringPatchError("The fresh tailoring target has no profile section")
+        cls._assert_profile_identity_unchanged(target_profile, profile)
+        return candidate_sections
+
+    @classmethod
     def _apply_patch(
         cls,
         raw_sections: Any,
@@ -856,6 +1000,26 @@ class TailoringService:
         gaps: list[TailoringReportedGap] = []
         replaced_targets: set[tuple[str, str]] = set()
         library_rows = library_rows or {}
+
+        candidate_changes = [
+            change for change in patch.changes if isinstance(change, ReplaceCandidateChange)
+        ]
+        if candidate_changes:
+            if len(candidate_changes) != 1:
+                raise TailoringPatchError("A patch may contain at most one replace_candidate operation")
+            if any(
+                not isinstance(change, (ReplaceCandidateChange, ReportGapChange))
+                for change in patch.changes
+            ):
+                raise TailoringPatchError("replace_candidate cannot be combined with field operations")
+            updated_sections = cls._apply_candidate(updated_sections, candidate_changes[0])
+            applied_operations.append("replace_candidate")
+            for change in patch.changes:
+                if isinstance(change, ReportGapChange):
+                    gaps.append(TailoringReportedGap(requirement=change.requirement, reason=change.reason))
+                    applied_operations.append(change.operation)
+            cls._validate_sections(updated_sections)
+            return updated_sections, applied_operations, gaps
 
         try:
             for change in patch.changes:
@@ -930,7 +1094,7 @@ class TailoringService:
         after_data = after.get("data")
         if not isinstance(before_data, Mapping) or not isinstance(after_data, Mapping):
             raise TailoringPatchError("Profile replacement requires object data")
-        for field in _PROFILE_IMMUTABLE_FIELDS:
+        for field in protected_fields("profile"):
             if before_data.get(field) != after_data.get(field):
                 raise TailoringPatchError(f"Profile identity field {field!r} cannot be changed")
 
@@ -1263,6 +1427,13 @@ class TailoringService:
         await self._assert_snapshot_is_current(session, application, cv, requirements, library_entries)
         if patch.base_revision != session.base_cv_revision or patch.base_hash != session.base_cv_hash:
             raise TailoringStaleError("The patch was created from a different CV snapshot; start a new session")
+        contains_candidate = any(isinstance(change, ReplaceCandidateChange) for change in patch.changes)
+        if contains_candidate and not patch.capabilities_hash:
+            raise TailoringPatchError("A replace_candidate patch must include the evidence capabilities hash")
+        if patch.capabilities_hash:
+            capabilities = renderer_capabilities(HTMLDocumentRenderer.support)
+            if patch.capabilities_hash != capabilities_hash(capabilities):
+                raise TailoringStaleError("The renderer capabilities changed; start a new tailoring session")
 
         source_sections = copy.deepcopy(cv.sections or [])
         source_section_list = _sections_from_payload(source_sections)
@@ -1281,24 +1452,65 @@ class TailoringService:
         before_relevance = copy.deepcopy(application.relevance or {})
         updated_sections, applied_operations, gaps = self._apply_patch(target_sections, patch, library_rows)
         try:
-            validate_tailoring_section_facts(
-                target_section_list,
-                _sections_from_payload(updated_sections),
-                list(patch.changes),
-                library_entries,
-                evidence_sections=source_section_list,
+            candidate_change = next(
+                (
+                    change
+                    for change in patch.changes
+                    if isinstance(change, ReplaceCandidateChange)
+                ),
+                None,
             )
-            validate_tailoring_facts(
-                target_section_list,
-                _sections_from_payload(updated_sections),
-                list(patch.changes),
-                library_entries,
-                evidence_sections=source_section_list,
-            )
+            if candidate_change is not None:
+                # Reuse the structural fact guard for each complete section.
+                # A candidate's single evidence set authorizes its newly
+                # composed rows and profile prose; profile identity is checked
+                # separately by _apply_candidate.
+                candidate_fact_changes = [
+                    SimpleNamespace(
+                        operation="replace_section",
+                        section_id=section.get("id"),
+                        section=section,
+                        evidence=list(candidate_change.evidence),
+                    )
+                    for section in _sections_from_payload(updated_sections)
+                ]
+                validate_tailoring_section_facts(
+                    target_section_list,
+                    _sections_from_payload(updated_sections),
+                    candidate_fact_changes,
+                    library_entries,
+                    evidence_sections=source_section_list,
+                )
+            else:
+                validate_tailoring_section_facts(
+                    target_section_list,
+                    _sections_from_payload(updated_sections),
+                    list(patch.changes),
+                    library_entries,
+                    evidence_sections=source_section_list,
+                )
+                validate_tailoring_facts(
+                    target_section_list,
+                    _sections_from_payload(updated_sections),
+                    list(patch.changes),
+                    library_entries,
+                    evidence_sections=source_section_list,
+                )
         except TailoringFactError as exc:
             raise TailoringPatchError(str(exc)) from exc
         relevance = evaluate_requirement_relevance(requirements, updated_sections, profile=profile)
         self._attach_tailoring_feedback(relevance, list(patch.changes))
+        ai_relevance = None
+        if patch.ai_relevance is not None:
+            try:
+                ai_relevance = evaluate_ai_relevance(
+                    patch.ai_relevance,
+                    requirements,
+                    updated_sections,
+                )
+            except ValueError as exc:
+                raise TailoringPatchError(str(exc)) from exc
+            relevance.ai_relevance = ai_relevance
 
         # The photo is profile-owned and intentionally omitted from the agent
         # evidence. Restore it server-side in the persisted result without
@@ -1320,24 +1532,58 @@ class TailoringService:
         source_cv_title = cv.title
         source_template_id = cv.template_id
         source_customizations = copy.deepcopy(cv.customizations or {})
-        target_customizations = _fresh_customizations(
-            source_customizations,
-            source_section_list,
-            target_section_list,
+        candidate_change = next(
+            (change for change in patch.changes if isinstance(change, ReplaceCandidateChange)),
+            None,
         )
-        tailored_title = _bounded_label(f"{source_cv_title} — Tailored", 255)
-        tailored_description = _bounded_label(
-            f"Freshly composed for {application.role} at {application.company}",
-            500,
-        )
-        selected_sources = [
-            {
-                "library_entry_id": change.library_entry_id,
-                "source_row_id": change.source_row_id,
-            }
-            for change in patch.changes
-            if isinstance(change, AddLibraryEntryChange)
-        ]
+        if candidate_change is not None:
+            candidate = candidate_change.candidate
+            if candidate.template_id and candidate.template_id != source_template_id:
+                raise TailoringPatchError("Candidate template selection is not enabled for this session")
+            tailored_title = candidate.title
+            tailored_description = candidate.description or _bounded_label(
+                f"Freshly composed for {application.role} at {application.company}",
+                500,
+            )
+            target_customizations = candidate.customizations or _fresh_customizations(
+                source_customizations,
+                source_section_list,
+                _sections_from_payload(updated_sections),
+            )
+            try:
+                target_customizations = coerce_customizations(target_customizations).model_dump(
+                    mode="json",
+                    exclude_none=True,
+                )
+            except (TypeError, ValueError, ValidationError) as exc:
+                raise TailoringPatchError("Candidate customizations are invalid") from exc
+            selected_sources = _selected_library_sources(candidate_change.evidence)
+        else:
+            target_customizations = _fresh_customizations(
+                source_customizations,
+                source_section_list,
+                target_section_list,
+            )
+            try:
+                target_customizations = coerce_customizations(target_customizations).model_dump(
+                    mode="json",
+                    exclude_none=True,
+                )
+            except (TypeError, ValueError, ValidationError) as exc:
+                raise TailoringPatchError("CV customizations are invalid") from exc
+            tailored_title = _bounded_label(f"{source_cv_title} — Tailored", 255)
+            tailored_description = _bounded_label(
+                f"Freshly composed for {application.role} at {application.company}",
+                500,
+            )
+            selected_sources = [
+                {
+                    "library_entry_id": change.library_entry_id,
+                    "source_row_id": change.source_row_id,
+                }
+                for change in patch.changes
+                if isinstance(change, AddLibraryEntryChange)
+            ]
 
         # CVService reserves a new CV slot and inserts the result. It may roll
         # back the read transaction opened by the evidence queries, so all
@@ -1432,6 +1678,7 @@ class TailoringService:
             provenance=provenance,
             before_relevance=before_relevance,
             relevance=relevance.model_dump(mode="json"),
+            ai_relevance=ai_relevance.model_dump(mode="json") if ai_relevance is not None else None,
         )
         session.status = TAILORING_SESSION_APPLIED
         session.result = response.model_dump(mode="json")

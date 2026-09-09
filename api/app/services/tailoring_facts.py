@@ -412,6 +412,15 @@ def validate_tailoring_section_facts(
         if after is None:
             raise TailoringFactError("Structural section target is missing from the resulting CV")
         before = before_by_id.get(str(target_id))
+        # A complete freeform candidate may intentionally assign a new stable
+        # ID to the profile section.  Its server-owned identity is still the
+        # same profile, so compare prose against the existing profile by type
+        # rather than treating every immutable contact field as newly invented.
+        if before is None and after.get("type") == "profile":
+            before = next(
+                (section for section in before_sections if section.get("type") == "profile"),
+                None,
+            )
         before_text = _section_claim_text(before)
         after_text = _section_claim_text(after)
         allowed = _reference_text(change, evidence_sections, library_by_id)

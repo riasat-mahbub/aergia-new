@@ -32,6 +32,7 @@ from app.document_schema.models import (
     SectionInstance,
     TemplateManifest,
 )
+from app.document_schema.capabilities import capabilities_hash, renderer_capabilities
 from app.services.cv import coerce_customizations
 from app.services.renderer import build_document, resolve
 from app.services.renderer._pdf_runtime import html_to_pdf
@@ -166,10 +167,15 @@ async def render_support(
     """Return the HTMLDocumentRenderer's :class:`RendererSupport` as JSON."""
 
     support = HTMLDocumentRenderer.support
-    return {
+    payload = {
         field: level.value
         for field, level in vars(support).items()
     }
+    # Keep the legacy flat feature flags for the editor while exposing the
+    # canonical authoring descriptor consumed by tailoring agents.
+    payload["capabilities"] = renderer_capabilities(support)
+    payload["capabilities_hash"] = capabilities_hash(payload["capabilities"])
+    return payload
 
 
 __all__ = ["router", "strip_anchor_hrefs"]

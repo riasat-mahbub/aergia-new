@@ -15,6 +15,9 @@ export default function ApplicationRelevancePanel({ application, relevance }: Ap
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-wide text-app-ink-3">Relevance</h2>
             <p className="mt-2 text-3xl font-semibold text-app-ink" title={RELEVANCE_TOOLTIP}>{relevance ? `${relevance.score}%` : "—"}</p>
+            {relevance && "ai_relevance" in relevance && relevance.ai_relevance && (
+              <p className="mt-1 text-sm text-app-primary">AI fit: {relevance.ai_relevance.score}%</p>
+            )}
           </div>
           {application.fits_one_page !== null && <span className={application.fits_one_page ? "text-sm text-app-primary" : "text-sm text-app-warning"}>{application.fits_one_page ? "One-page fit" : "Could not fit one page without rewriting content"}</span>}
         </div>
