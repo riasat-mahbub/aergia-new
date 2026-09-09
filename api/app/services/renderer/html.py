@@ -17,8 +17,9 @@ The renderer emits a ``<!-- best-effort: <feature> -->`` HTML comment for
 each ``BEST_EFFORT`` feature it uses, so debugging the live preview and
 the PDF is straightforward.
 
-CSS knowledge lives in this module (the renderer is the source of CSS
-knowledge — the manifest only carries values).
+Markup and layout knowledge live in this module. HTML target values and
+safety checks are centralized in :mod:`app.services.renderer.html_values`;
+the manifest only carries renderer-neutral values.
 """
 
 from __future__ import annotations
@@ -40,42 +41,20 @@ from app.document_schema.models import (
     TypographyRole,
     TextRun,
     TextStyle,
-    is_color_ref,
 )
-from app.services.renderer.palette import resolve_palette_ref
-from app.services.renderer.resolve import LINK_STYLES, PLAIN_LINK_STYLES, PRINT_STYLES
+from app.services.renderer.html_values import (
+    FONT_SIZE_VALUES as _FONT_SIZE_TO_CSS,
+    LINK_STYLES,
+    PLAIN_LINK_STYLES,
+    PRINT_STYLES,
+    safe_color as _safe_color,
+    safe_font_family as _safe_font_family,
+    safe_spacing as _safe_spacing,
+)
 from app.services.renderer.support import RendererSupport, SupportLevel
 from app.services.renderer.base import DocumentRenderer
 
 
-_FONT_SIZE_TO_CSS: dict[str, str] = {
-    "xs": "0.75rem",
-    "small": "0.875rem",
-    "normal": "1rem",
-    "large": "1.125rem",
-    "xl": "1.25rem",
-}
-
-_SPACING_TO_CSS: dict[str, str] = {
-    "none": "0",
-    "tight": "12px",
-    "comfortable": "24px",
-    "loose": "32px",
-    "spacious": "40px",
-    "compact": "20px",
-    "minimal": "0px",
-}
-_SAFE_SPACING = frozenset({
-    "0", "0px", "4px", "8px", "12px", "16px", "20px", "24px", "32px", "40px",
-    "var(--spacing-section, 16px)", "var(--spacing-section, 24px)",
-    "var(--spacing-subsection, 0px)", "var(--spacing-subsection, 16px)",
-})
-_SAFE_FONT_FAMILIES = frozenset({
-    "Inter", "Georgia", "Crimson", "system-ui", "sans-serif", "serif",
-    "Inter, system-ui, sans-serif", "Georgia, Crimson, serif",
-    "system-ui, sans-serif",
-    "ui-monospace, SFMono-Regular, Menlo, monospace",
-})
 _STYLE_UNSAFE_CHARS = re.compile(r"[\x00-\x1f\x7f\"'<>]")
 _CSS_VAR_NAMES = frozenset({
     "--spacing-section", "--spacing-subsection", "--body-font", "--heading-font", "--accent",
@@ -126,35 +105,6 @@ def attr(text: object) -> str:
     if text is None:
         return ""
     return _stdlib_html.escape(str(text), quote=True)
-
-
-def _safe_color(value: object) -> str:
-    if not is_color_ref(value):
-        return ""
-    resolved = resolve_palette_ref(str(value))
-    return resolved if re.fullmatch(r"#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?", resolved) else ""
-
-
-def _safe_spacing(value: object) -> str:
-    if not isinstance(value, str):
-        return ""
-    if value in _SPACING_TO_CSS:
-        return _SPACING_TO_CSS[value]
-    if value in _SAFE_SPACING:
-        return value
-    if re.fullmatch(r"(?:0|[1-9][0-9]?)px", value):
-        return value
-    return ""
-
-
-def _safe_font_family(value: object) -> str:
-    if not isinstance(value, str):
-        return ""
-    if value == "mono":
-        return "ui-monospace, SFMono-Regular, Menlo, monospace"
-    if value == "display":
-        return "Inter, system-ui, sans-serif"
-    return value if value in _SAFE_FONT_FAMILIES else ""
 
 
 def _style_attr(style: str | None) -> str:

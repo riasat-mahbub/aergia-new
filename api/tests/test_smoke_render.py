@@ -13,9 +13,8 @@ from types import SimpleNamespace
 import pytest
 
 from app.document_schema.models import Customizations, TemplateManifest
-from app.services.renderer import HTMLDocumentRenderer, build_document, resolve
+from app.services.renderer import prepare_render_source, render_source_pdf
 from app.services.pdf import pdf_page_count
-from app.services.renderer._pdf_runtime import html_to_pdf
 
 
 def _cv():
@@ -87,10 +86,8 @@ def _manifest():
 
 @pytest.mark.asyncio
 async def test_full_pipeline_emits_a_real_pdf():
-    document = build_document(_cv(), _manifest())
-    model = resolve(document, HTMLDocumentRenderer(), _manifest(), Customizations())
-    html = HTMLDocumentRenderer().render(model)
-    pdf_bytes = await html_to_pdf(html)
+    source = prepare_render_source(_cv().sections, _manifest(), Customizations())
+    pdf_bytes = await render_source_pdf(source)
     assert pdf_bytes[:4] == b"%PDF"
     assert pdf_page_count(pdf_bytes) == 1
     assert len(pdf_bytes) > 1000  # Sanity: a real PDF is bigger than a stub.

@@ -15,6 +15,8 @@ three-axis style onto the section.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 from app.document_schema.models import (
     DateStyle,
     Document,
@@ -185,51 +187,83 @@ def build_document(
 ) -> Document:
     """Build a :class:`Document` AST from a CV's wire ``SectionInstance`` list.
 
-    ``cv`` is a SQLAlchemy ``CV`` row; we only read ``cv.sections`` and
-    ``cv.customizations`` to keep the builder dependency-light. ``manifest``
-    is optional — when omitted, policy defaults from ``SECTION_POLICIES``
-    still apply.
+    ``cv`` is a SQLAlchemy ``CV`` row; only ``cv.sections`` is read so the
+    builder stays independent of persistence and customization storage.
+    ``manifest`` is optional — when omitted, policy defaults from
+    ``SECTION_POLICIES`` still apply.
     """
 
     raw_sections = cv.sections if isinstance(cv.sections, list) else []
+    return build_document_from_sections(raw_sections, manifest)
 
-    sections: list[Section] = []
-    for raw in raw_sections:
-        if not isinstance(raw, dict):
+
+def build_document_from_sections(
+    section_values: Iterable[SectionInstance | dict],
+    manifest: TemplateManifest | None = None,
+) -> Document:
+    """Build a :class:`Document` from validated or wire section values.
+
+    This is the builder's direct collection boundary. The legacy
+    :func:`build_document` wrapper remains for callers holding a CV-like
+    object, while the canonical pipeline can pass its validated
+    ``SectionInstance`` tuple without manufacturing a namespace.
+    """
+
+    built_sections: list[Section] = []
+    for raw in section_values:
+        instance = _coerce_section_instance(raw)
+        if instance is None or not instance.enabled:
             continue
+        built_sections.append(_build_section(instance, manifest))
+
+    return Document(sections=built_sections)
+
+
+def _coerce_section_instance(raw: object) -> SectionInstance | None:
+    """Normalize one wire value, preserving the old non-dict skip rule."""
+
+    if isinstance(raw, SectionInstance):
+        return raw
+    if isinstance(raw, dict):
         # Re-validate through the new SectionInstance shape; this catches
         # legacy rows that don't match the new wire format.
-        instance = SectionInstance.model_validate(raw)
-        if not instance.enabled:
-            continue
-        builder = BUILDERS.get(instance.type)
-        if builder is None:
-            raise ValueError(f"Unknown section type: '{instance.type}'")
-        style, policy = build_section_style(
-            instance_type=instance.type,
-            instance_style=instance.style,
-            manifest=manifest,
-        )
-        section = builder(instance, style.layout)
-        section = section.model_copy(update={
-            "policy": policy,
-            "subsection": style.subsection,
-            "layout": style.layout,
-            "typography": style.typography,
-        })
-        # Per-field appearance (bold/italic/color/font-size) lands on the
-        # runs; the renderer reads TextRun.style.
-        if instance.style is not None:
-            section = apply_field_text_styles(section, instance.style.text)
-        sections.append(section)
+        return SectionInstance.model_validate(raw)
+    return None
 
-    return Document(sections=sections)
+
+def _build_section(
+    instance: SectionInstance,
+    manifest: TemplateManifest | None,
+) -> Section:
+    """Dispatch one enabled instance and attach its normalized style."""
+
+    builder = BUILDERS.get(instance.type)
+    if builder is None:
+        raise ValueError(f"Unknown section type: '{instance.type}'")
+    style, policy = build_section_style(
+        instance_type=instance.type,
+        instance_style=instance.style,
+        manifest=manifest,
+    )
+    section = builder(instance, style.layout)
+    section = section.model_copy(update={
+        "policy": policy,
+        "subsection": style.subsection,
+        "layout": style.layout,
+        "typography": style.typography,
+    })
+    # Per-field appearance (bold/italic/color/font-size) lands on the runs;
+    # the renderer reads TextRun.style.
+    if instance.style is not None:
+        section = apply_field_text_styles(section, instance.style.text)
+    return section
 
 
 __all__ = [
     "BUILDERS",
     "apply_field_text_styles",
     "build_document",
+    "build_document_from_sections",
     "build_section_style",
     "build_profile",
     "build_experience",

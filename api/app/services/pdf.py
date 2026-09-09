@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import pypdfium2 as pdfium
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.document_schema.models import TemplateManifest
-from app.services.cv import CVService, coerce_customizations
-from app.services.renderer import HTMLDocumentRenderer, build_document, resolve
-from app.services.renderer._pdf_runtime import html_to_pdf
+from app.services.cv import CVService
+from app.services.renderer.pipeline import (
+    prepare_render_source,
+    render_html_pdf,
+    render_source_html,
+)
 
 
 class PDFUnavailableError(RuntimeError):
@@ -36,14 +37,10 @@ class PDFService:
             raise ValueError("Template has no manifest")
 
         manifest = TemplateManifest.model_validate(manifest_dict)
-        customizations_model = coerce_customizations(customizations)
-        payload = SimpleNamespace(sections=sections, customizations=customizations)
-        document = build_document(payload, manifest)
-        renderer = HTMLDocumentRenderer()
-        model = resolve(document, renderer, manifest, customizations_model)
-        html = renderer.render(model)
+        source = prepare_render_source(sections, manifest, customizations)
+        html = render_source_html(source)
         try:
-            return await html_to_pdf(html)
+            return await render_html_pdf(html)
         except Exception as exc:
             raise PDFUnavailableError("PDF rendering is unavailable") from exc
 
