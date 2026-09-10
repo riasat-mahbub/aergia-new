@@ -316,6 +316,37 @@ def test_build_section_style_preserves_explicit_manifest_heading_divider_overrid
     assert policy.heading_divider is False
 
 
+def test_build_section_style_merges_project_layout_defaults_with_partial_override():
+    """A project layout override must not discard the default tech chips."""
+    from app.document_schema.models import LayoutHints, SectionInstanceStyle
+    from app.services.renderer.builders import build_section_style
+
+    style, _ = build_section_style(
+        instance_type="projects",
+        instance_style=SectionInstanceStyle(layout=LayoutHints(break_before=True)),
+        manifest=None,
+    )
+
+    assert style.layout is not None
+    assert style.layout.break_before is True
+    assert style.layout.chip_keys == ["tech"]
+
+
+def test_build_section_style_preserves_explicit_project_chip_opt_out():
+    """An explicit empty chip list remains an intentional opt-out."""
+    from app.document_schema.models import LayoutHints, SectionInstanceStyle
+    from app.services.renderer.builders import build_section_style
+
+    style, _ = build_section_style(
+        instance_type="projects",
+        instance_style=SectionInstanceStyle(layout=LayoutHints(chip_keys=[])),
+        manifest=None,
+    )
+
+    assert style.layout is not None
+    assert style.layout.chip_keys == []
+
+
 def test_build_document_applies_manifest_policy_overrides():
     """``build_document`` must apply the manifest's ``policy_overrides``.
 

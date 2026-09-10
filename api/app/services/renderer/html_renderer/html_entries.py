@@ -149,6 +149,35 @@ def _render_paired_row(body_field, date_field, chip_keys=None) -> str:
     return f'<div class="field-row paired"{_style_attr(style)}>{body_html}{date_html}</div>'
 
 
+def _render_field_sequence(
+    fields: list[FieldBlock],
+    chip_keys: list[str] | None = None,
+) -> str:
+    """Render fields while grouping consecutive chip fields into one row.
+
+    The AST keeps repeated values as separate ``FieldBlock`` nodes. Grouping
+    happens only at this HTML boundary, preserving that schema and the source
+    order while giving chip fields a wrapping flex context in both stack and
+    two-column entry layouts.
+    """
+
+    parts: list[str] = []
+    index = 0
+    while index < len(fields):
+        field = fields[index]
+        if chip_keys and field.key in chip_keys:
+            chips: list[FieldBlock] = []
+            while index < len(fields) and fields[index].key in chip_keys:
+                chips.append(fields[index])
+                index += 1
+            chip_html = "".join(_render_field_block(chip, chip_keys=chip_keys) for chip in chips)
+            parts.append(f'<div class="f-chip-group">{chip_html}</div>')
+            continue
+        parts.append(_render_field_block(field, chip_keys=chip_keys))
+        index += 1
+    return "".join(parts)
+
+
 def _render_entry(
     entry: Entry,
     section_subsection: SubsectionStyle | None,
@@ -249,18 +278,10 @@ def _render_entry_two_column(
     right_fields: list[FieldBlock] = [f for f in entry.fields if f.key in _RIGHT_COLUMN_KEYS]
     left_fields: list[FieldBlock] = [f for f in entry.fields if f.key not in _RIGHT_COLUMN_KEYS]
 
-    # Left column: stack fields vertically. Each field's width is
-    # constrained by the grid column itself (5/6 of the entry width),
-    # so we don't need an extra max-width cap here — the grid does the
-    # work. Chip fields (e.g. tech_stack pills) are inline spans and
-    # take only as much width as their content.
-    def left_extra_style(f: FieldBlock) -> str | None:
-        if chip_keys and f.key in chip_keys:
-            return None
-        return None
-
-    left_parts = [_render_field_block(f, extra_style=left_extra_style(f), chip_keys=chip_keys) for f in left_fields]
-    left_html = "".join(left_parts)
+    # Left column: stack fields vertically. Chip fields are kept together as
+    # one wrapping group so the parent column's gap separates the stack from
+    # the preceding field, rather than separating every individual chip.
+    left_html = _render_field_sequence(left_fields, chip_keys)
 
     # Right column: a single right-justified block of date + link.
     # No rail logic, no row grouping — just two stacked field blocks,
@@ -302,7 +323,7 @@ def _render_field_row(
             for f in fields
         )
         return f'<div class="field-row"{_style_attr(base_style)}>{inner}</div>'
-    inner = "".join(_render_field_block(f, chip_keys=chip_keys) for f in fields)
+    inner = _render_field_sequence(fields, chip_keys)
     return f'<div class="field-row"{_style_attr(base_style + ";justify-content:" + justify)}>{inner}</div>'
 
 

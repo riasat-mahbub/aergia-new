@@ -81,7 +81,7 @@ def test_reference_model_html_output_is_stable():
 
     html = HTMLDocumentRenderer().render(_model()).encode("utf-8")
     assert hashlib.sha256(html).hexdigest() == (
-        "dbdc6ad028b35e528b205f7fe25adca3baae0a8e657f9156937ff06bdb350abc"
+        "8d78351697fa73a642a1b2f506d4c7b7cef002c735b241722d9dd0c77d53c69f"
     )
 
 def test_renders_preview_page_flow_metadata_without_changing_document_structure():
@@ -567,6 +567,85 @@ def test_chip_keys_render_field_as_inline_pill():
     html = HTMLDocumentRenderer().render(model)
     assert '<span class="f-chip">Python</span>' in html
     assert ".f-chip {" in html
+
+
+def test_projects_default_tech_stack_renders_as_one_wrapping_chip_group():
+    """The project default groups repeated tech fields inside a wrapping row."""
+    manifest = TemplateManifest(
+        name="M", zones=[Zone(id="main", styles={})], placement={"projects": "main"},
+    )
+    cv = _cv([{
+        "id": "p",
+        "type": "projects",
+        "title": "Projects",
+        "enabled": True,
+        "data": [{
+            "id": "e",
+            "name": "Aergia",
+            "description": "CV builder",
+            "tech_stack": ["Python", "FastAPI", "React"],
+        }],
+    }])
+
+    html = HTMLDocumentRenderer().render(_resolve(cv, manifest))
+    left_match = re.search(r'<div class="entry-left"[^>]*>(.+?)<div class="entry-right"', html, re.S)
+
+    assert left_match is not None
+    left_html = left_match.group(1)
+    assert left_html.count('<div class="f-chip-group">') == 1
+    assert left_html.count('<span class="f-chip">') == 3
+    assert left_html.index("f-description") < left_html.index("f-chip-group")
+    assert ".f-chip-group {" in html
+    assert "border-radius:9999px" in html
+
+
+def test_projects_partial_layout_override_keeps_tech_chip_group():
+    """Unrelated project layout settings must preserve the chip default."""
+    manifest = TemplateManifest(
+        name="M", zones=[Zone(id="main", styles={})], placement={"projects": "main"},
+    )
+    cv = _cv([{
+        "id": "p",
+        "type": "projects",
+        "title": "Projects",
+        "enabled": True,
+        "style": {"layout": {"break_before": True}},
+        "data": [{
+            "id": "e",
+            "name": "Aergia",
+            "tech_stack": ["Python", "FastAPI"],
+        }],
+    }])
+
+    html = HTMLDocumentRenderer().render(_resolve(cv, manifest))
+
+    assert html.count('<span class="f-chip">') == 2
+    assert '<div class="f-chip-group">' in html
+    assert 'data-preview-break-before="true"' in html
+
+
+def test_stack_layout_groups_chip_fields_for_horizontal_wrapping():
+    """The chip grouping also works when a project opts into stack layout."""
+    manifest = TemplateManifest(
+        name="M", zones=[Zone(id="main", styles={})], placement={"projects": "main"},
+    )
+    doc = Document(sections=[Section(
+        id="p",
+        type="projects",
+        title="Projects",
+        policy=SectionPolicy(entry_layout="stack"),
+        layout=LayoutHints(chip_keys=["tech"]),
+        entries=[Entry(id="e", fields=[
+            FieldBlock(key="project", group="header", runs=[TextRun(text="Aergia")]),
+            FieldBlock(key="tech", group="body", runs=[TextRun(text="Python")]),
+            FieldBlock(key="tech", group="body", runs=[TextRun(text="FastAPI")]),
+        ])],
+    )])
+
+    html = HTMLDocumentRenderer().render(resolve(doc, HTMLDocumentRenderer(), manifest, Customizations()))
+
+    assert html.count('<span class="f-chip">') == 2
+    assert '<div class="f-chip-group">' in html
 
 
 def test_skills_inline_renders_category_and_tags_on_one_line():

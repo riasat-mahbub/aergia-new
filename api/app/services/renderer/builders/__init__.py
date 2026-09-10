@@ -76,8 +76,8 @@ def build_section_style(
     text: dict[str, TextStyle] = dict(base.get("text") or {})
     subsection_dict = base.get("subsection") or {}
     subsection = SubsectionStyle.model_validate(subsection_dict) if subsection_dict else _default_subsection(instance_type)
-    layout_dict = base.get("layout") or {}
-    layout = LayoutHints.model_validate(layout_dict) if layout_dict else _default_layout(instance_type)
+    layout_override = instance_style.layout if instance_style else None
+    layout = _merge_layout_defaults(instance_type, layout_override)
     # Date-bearing builders format their fields before the resolver runs, so
     # the default must be present on the layout at builder time as well as in
     # the final resolved model.
@@ -118,13 +118,32 @@ def _default_subsection(instance_type: str) -> SubsectionStyle:
 
 
 def _default_layout(instance_type: str) -> LayoutHints:
-    """Type-level page-flow defaults, applied only when the instance
-    declares no layout of its own. Sets per-type ``chip_keys`` so the
-    renderer can branch on field keys without knowing the section type."""
+    """Return type-level layout defaults.
+
+    These defaults seed an instance layout before its explicitly supplied
+    values are overlaid. ``chip_keys`` therefore remains available when a
+    project changes only an unrelated layout setting such as date formatting
+    or page-break behavior.
+    """
 
     if instance_type == "projects":
         return LayoutHints(chip_keys=["tech"])
     return LayoutHints()
+
+
+def _merge_layout_defaults(instance_type: str, override: LayoutHints | None) -> LayoutHints:
+    """Overlay explicit layout values on the section-type defaults.
+
+    ``LayoutHints`` is validated before this function is called, so
+    ``model_dump(exclude_unset=True)`` preserves the distinction between a
+    field that was omitted and an explicit value such as ``chip_keys=[]`` or
+    ``chip_keys=None``. The latter remains an intentional opt-out.
+    """
+
+    defaults = _default_layout(instance_type).model_dump(exclude_none=True)
+    if override is not None:
+        defaults.update(override.model_dump(exclude_unset=True))
+    return LayoutHints.model_validate(defaults)
 
 
 def apply_field_text_styles(section: Section, text_styles: dict[str, TextStyle]) -> Section:
