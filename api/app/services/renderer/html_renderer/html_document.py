@@ -148,7 +148,9 @@ def _render_document(model: RenderModel, support: RendererSupport) -> str:
       margin: 0 0.35em;
     }}
     .field-row {{ display:flex; flex-wrap:wrap; align-items:baseline; column-gap:0; row-gap:0; }}
-    .f-chip {{ display:inline-block; background:#eff6ff; padding:2px 6px; border-radius:4px; color:var(--section-body-color,#1d4ed8); font-size:0.75rem; }}
+    .f-chip-group {{ display:flex; flex-wrap:wrap; align-items:center; gap:0.25rem; width:100%; min-width:0; max-width:100%; }}
+    .f-chip-link {{ display:inline-flex; text-decoration:none; color:inherit; max-width:100%; min-width:0; }}
+    .f-chip {{ display:inline-flex; align-items:center; box-sizing:border-box; max-width:100%; min-width:0; background:#eff6ff; padding:2px 8px; border-radius:9999px; color:var(--section-body-color,#1d4ed8); font-size:0.75rem; line-height:1.2; overflow-wrap:anywhere; }}
     /* A section body size is opt-in. Keep the field grammar above unchanged
        for untouched sections, then let the section-local control replace
        every field default when it is set. */
