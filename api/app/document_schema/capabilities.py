@@ -25,6 +25,7 @@ from typing import Any
 
 from app.document_schema.models import (
     AlignmentToken,
+    Customizations,
     FontSizeToken,
     FontToken,
     SAFE_FONT_FAMILY_VALUES,
@@ -129,24 +130,11 @@ LIBRARY_KIND_TO_SECTION_TYPE: dict[str, str] = {
     "research": "research",
 }
 
-# The server advertises the complete protocol operation set in the same
-# descriptor used by the skill.  Keeping it here avoids a second capability
-# table in the tailoring service.
+# Protocol v2 has one write operation: submit a complete candidate.  Keeping
+# the descriptor explicit lets clients discover the boundary without
+# reintroducing a patch-operation table.
 TAILORING_OPERATIONS: tuple[str, ...] = (
-    "replace_description",
-    "replace_rich_text",
-    "rewrite_rich_text",
-    "remove_bullet",
-    "reorder_bullets",
-    "remove_entry",
-    "reorder_entries",
-    "add_library_entry",
-    "create_section",
-    "replace_section",
-    "remove_section",
-    "reorder_sections",
-    "replace_candidate",
-    "report_gap",
+    "generate_candidate",
 )
 
 # The builder registry is the renderer's authoritative dispatch set.  The
@@ -265,6 +253,8 @@ STYLE_CAPABILITIES: dict[str, Any] = {
             "heading_font": list(FontToken.__args__),
             "default_text_align": list(AlignmentToken.__args__),
             "spacing": ["none", "compact", "comfortable", "minimal"],
+            "flags": "boolean_map",
+            "layout": "cv_layout",
         }
     },
 }
@@ -318,7 +308,7 @@ def renderer_capabilities(support: RendererSupport | None = None) -> dict[str, A
         if section_type in SECTION_FIELDS
     }
     descriptor: dict[str, Any] = {
-        "version": 1,
+        "version": 2,
         "renderer": {
             "id": "html",
             "features": {field: level.value for field, level in vars(support).items()},
@@ -326,12 +316,15 @@ def renderer_capabilities(support: RendererSupport | None = None) -> dict[str, A
         "document": {
             "section_types": section_types,
             "styles": STYLE_CAPABILITIES,
+            "customizations": Customizations.model_json_schema(),
             "limits": LIMITS,
             # The generated schema carries the exact Pydantic constraints;
             # consumers should use this rather than reimplementing limits.
             "wire_schema": SectionInstance.model_json_schema(),
         },
         "tailoring": {
+            "protocol_version": 2,
+            "mode": "complete_candidate",
             "renderable_section_types": sorted(RENDERABLE_SECTION_TYPES),
             "entry_section_types": sorted(ENTRY_SECTION_TYPES),
             "library_kind_to_section_type": dict(LIBRARY_KIND_TO_SECTION_TYPE),
@@ -342,19 +335,10 @@ def renderer_capabilities(support: RendererSupport | None = None) -> dict[str, A
                 section_type: sorted(fields) for section_type, fields in EDITABLE_RICH_TEXT_FIELDS.items()
             },
             "operations": list(TAILORING_OPERATIONS),
-            "ai_relevance": {
-                "rubric_version": "ai-relevance-v1",
-                "score_range": [0.0, 1.0],
-                "coverage_levels": ["absent", "weak", "partial", "strong", "excellent"],
-                "coverage_score_guidance": {
-                    "absent": 0.0,
-                    "weak": 0.25,
-                    "partial": 0.5,
-                    "strong": 0.75,
-                    "excellent": 1.0,
-                },
-                "requires_requirement_ids": True,
-                "requires_evidence_for_positive_scores": True,
+            "protected_profile_fields": sorted(PROTECTED_FIELDS["profile"]),
+            "review": {
+                "agent_can": ["read_context", "preview_candidate", "submit_candidate"],
+                "owner_only": ["accept_draft", "reject_draft"],
             },
         },
     }

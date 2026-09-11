@@ -29,4 +29,9 @@ class CV(Base):
     )
 
     user = relationship("User", back_populates="cvs")
-    tailoring_sessions = relationship("TailoringSession", back_populates="cv", cascade="all, delete-orphan")
+    tailoring_sessions = relationship(
+        "TailoringSession",
+        foreign_keys="TailoringSession.cv_id",
+        back_populates="cv",
+        cascade="all, delete-orphan",
+    )

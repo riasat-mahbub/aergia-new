@@ -13,8 +13,8 @@ class TailoringSession(Base):
     """One narrowly scoped local-agent tailoring task.
 
     The exchange code and capability are never persisted in plaintext. A
-    session is intentionally tied to the exact application/CV pair selected
-    by the authenticated browser request.
+    session snapshots an optional source CV and produces an unlinked draft;
+    the application link changes only after the owner accepts that draft.
     """
 
     __tablename__ = "tailoring_sessions"
@@ -26,8 +26,13 @@ class TailoringSession(Base):
     application_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("applications.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    cv_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("cvs.id", ondelete="CASCADE"), nullable=False, index=True
+    # The source document is optional: protocol v2 can compose a CV from the
+    # profile, Library, and job without an existing CV.
+    cv_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("cvs.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    draft_cv_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("cvs.id", ondelete="SET NULL"), nullable=True, index=True
     )
     code_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     capability_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
@@ -35,6 +40,8 @@ class TailoringSession(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     exchanged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    context_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Snapshot identity captured when the one-time code is created. Legacy
     # Phase 1 rows may be null; the widened protocol refuses to submit them so
     # they cannot bypass stale-write protection.
@@ -65,11 +72,13 @@ class TailoringSession(Base):
 
     user = relationship("User", back_populates="tailoring_sessions")
     application = relationship("Application", back_populates="tailoring_sessions")
-    cv = relationship("CV", back_populates="tailoring_sessions")
+    cv = relationship("CV", foreign_keys=[cv_id], back_populates="tailoring_sessions")
+    draft_cv = relationship("CV", foreign_keys=[draft_cv_id])
 
     __table_args__ = (
         Index("ix_tailoring_sessions_user_status", "user_id", "status"),
         Index("ix_tailoring_sessions_expires_at", "expires_at"),
+        Index("ix_tailoring_sessions_draft_cv_id", "draft_cv_id"),
     )
 
 
