@@ -706,7 +706,7 @@ def test_section_typography_and_spacing_use_independent_css_values():
         type="experience",
         title="Experience",
         policy=SectionPolicy(show_title=True, heading_divider=True),
-        subsection=SubsectionStyle(spacing_after="spacious", entry_gap="comfortable", field_gap="8px"),
+        subsection=SubsectionStyle(spacing_after="spacious", entry_gap="comfortable", field_gap="tight"),
         typography=SectionTypography(
             heading=TypographyRole(font_size="xl"),
             body=TypographyRole(font_size="large", line_height="relaxed", color="#123456"),
@@ -719,7 +719,7 @@ def test_section_typography_and_spacing_use_independent_css_values():
     html = HTMLDocumentRenderer().render(resolve(doc, HTMLDocumentRenderer(), manifest, Customizations()))
     assert "margin-bottom:40px" in html
     assert "gap:24px" in html
-    assert "gap:8px" in html
+    assert "gap:12px" in html
     assert "font-size:1.25rem" in html
     assert "--section-body-size:1.125rem" in html
     assert "--section-body-color:#123456" in html

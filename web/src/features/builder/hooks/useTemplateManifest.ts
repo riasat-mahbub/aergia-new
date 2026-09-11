@@ -2,8 +2,7 @@ import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } 
 import * as templatesApi from "@/features/templates";
 import { updateCV } from "@/features/cvs";
 import type { UserTemplate } from "@/features/templates";
-import type { SectionInstance } from "@/shared/cv/schema";
-import type { LayoutConfig } from "@/shared/cv/placement";
+import type { CVLayout, Customizations, SectionInstance } from "@/shared/cv/schema";
 import { getFirstZoneId } from "@/shared/cv/placement";
 
 interface UseTemplateManifestOptions {
@@ -11,9 +10,9 @@ interface UseTemplateManifestOptions {
   templateId: string | undefined;
   isLoaded: boolean;
   instances: SectionInstance[];
-  customizations: Record<string, unknown>;
+  customizations: Customizations;
   setInstances: Dispatch<SetStateAction<SectionInstance[]>>;
-  setCustomizations: Dispatch<SetStateAction<Record<string, unknown>>>;
+  setCustomizations: Dispatch<SetStateAction<Customizations>>;
   setIsSaving: (saving: boolean) => void;
   loadCV: (id: string) => Promise<void>;
 }
@@ -58,16 +57,17 @@ export function useTemplateManifest({
         const cleanInstances = instances.map((instance) => ({ ...instance, style: undefined }));
         setInstances(cleanInstances);
 
-        let nextCustomizations: Record<string, unknown>;
+        let nextCustomizations: Customizations;
         try {
           const template = await templatesApi.fetchTemplate(newTemplateId);
           const zones = template.manifest?.zones;
           const placement = template.manifest?.placement;
           if (Array.isArray(zones) && zones.length > 0 && placement) {
-            const newLayout: LayoutConfig = { zones, placement: {} };
+            const placementById: Record<string, string> = {};
+            const newLayout: CVLayout = { zones, placement: placementById };
             const firstZoneId = getFirstZoneId(newLayout);
             for (const instance of cleanInstances) {
-              if (firstZoneId) newLayout.placement[instance.id] = firstZoneId;
+              if (firstZoneId) placementById[instance.id] = firstZoneId;
             }
             nextCustomizations = { ...customizations, layout: newLayout };
           } else {

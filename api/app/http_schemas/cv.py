@@ -1,10 +1,9 @@
 """CV wire schema — request / response models for the CV endpoints.
 
-The CV wire shape carries the new :class:`SectionInstance` list, so
-type-aware data validation lives in the new ``app.document_schema`` package.
-``legacy_style`` round-trips through the builder, which normalises the
-legacy ``SectionStyle`` into the section-local style shape per the ADR
-mapping table.
+The CV wire shape carries the canonical :class:`SectionInstance` list, so
+type-aware data validation lives in the ``app.document_schema`` package.
+Style data is written in the four-axis shape; older persisted rows are
+converted by the one-time style-data migration before they reach this model.
 """
 
 from __future__ import annotations

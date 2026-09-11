@@ -7,6 +7,7 @@
  */
 
 import type {
+  CVLayout,
   Customizations,
   DateStyle,
   Document,
@@ -36,21 +37,14 @@ import type {
   ZoneStyle,
 } from "../../generated/schema";
 
-/**
- * The wire style accepts legacy keys while older persisted documents are
- * normalized by the backend. Keep that compatibility at this type boundary;
- * new code should use the generated four-axis fields.
- */
-export type SectionInstanceStyle = GeneratedSectionInstanceStyle & {
-  [key: string]: unknown;
-};
+/** Canonical generated style shape used by the editor and API. */
+export type SectionInstanceStyle = GeneratedSectionInstanceStyle;
 
-/** Generated section instance with the compatibility style boundary applied. */
-export type SectionInstance = Omit<GeneratedSectionInstance, "style"> & {
-  style?: SectionInstanceStyle | null;
-};
+/** Canonical generated section instance. */
+export type SectionInstance = GeneratedSectionInstance;
 
 export type {
+  CVLayout,
   Customizations,
   DateStyle,
   Document,

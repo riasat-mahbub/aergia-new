@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useBlocker } from "@tanstack/react-router";
-import type { SectionInstance } from "@/shared/cv/schema";
+import type { Customizations, SectionInstance } from "@/shared/cv/schema";
 
 export interface BuilderSaveData {
   sections: SectionInstance[];
-  customizations: Record<string, unknown>;
+  customizations: Customizations;
 }
 
 interface UseUnsavedChangesOptions {

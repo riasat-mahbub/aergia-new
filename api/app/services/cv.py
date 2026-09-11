@@ -16,13 +16,15 @@ from app.services.relevance import (
 from app.services.quotas import QuotaResource, QuotaService
 from app.services.rich_text import normalize_rich_text_ids
 
-def coerce_customizations(raw: dict | None) -> Customizations:
-    """Validate raw DB customizations against the canonical Customizations
-    model. The legacy ``{colors, fonts, spacing, flags}`` shape is no longer
-    written; old rows in the DB will surface as a validation error if read.
+def coerce_customizations(raw: dict | Customizations | None) -> Customizations:
+    """Validate customizations at the service boundary.
+
+    Persisted rows are migrated before the application starts using them, so
+    this function deliberately accepts only the canonical model shape.
     """
-    raw = raw or {}
-    return Customizations.model_validate(raw)
+    if isinstance(raw, Customizations):
+        return raw
+    return Customizations.model_validate(raw or {})
 
 
 class CVLinkedToApplicationError(ValueError):
@@ -72,34 +74,38 @@ class CVService:
         return result.scalar_one_or_none()
 
     async def get_template_data(self, template_id: str) -> dict | None:
-        """Get template manifest and default customizations."""
+        """Get the canonical template manifest."""
         template = await self.db.get(Template, template_id)
         if not template:
             return None
-        return {
-            "default_customizations": template.default_customizations,
-            "manifest": template.manifest,
-        }
+        return {"manifest": template.manifest}
 
     async def create_cv(self, user_id: str, data: CVCreate) -> CV:
         raw_sections = data.sections if isinstance(data.sections, list) else []
-        sections = [s.model_dump() if hasattr(s, "model_dump") else s for s in raw_sections]
+        sections = [
+            s.model_dump(mode="json", exclude_none=True) if hasattr(s, "model_dump") else s
+            for s in raw_sections
+        ]
         sections, _ = normalize_rich_text_ids(sections)
-        customizations = (
-            data.customizations.model_dump(exclude_none=True)
-            if data.customizations is not None and hasattr(data.customizations, "model_dump")
-            else (data.customizations or {})
-        )
+        customizations = coerce_customizations(data.customizations).model_dump(exclude_none=True)
         await QuotaService(self.db).reserve(user_id, QuotaResource.CV)
 
         # A new CV inherits the template's zone layout so the editor opens
-        # with zones and every section is assignable. The frontend migrates
-        # the type-keyed placement to instance ids on load.
+        # with zones and every section is assignable. Template placement is
+        # type-keyed; persisted per-CV placement is instance-keyed.
         if not customizations.get("layout"):
             template_data = await self.get_template_data(data.template_id)
             manifest = (template_data or {}).get("manifest") or {}
             zones = manifest.get("zones") or []
-            placement = manifest.get("placement") or {}
+            placement_by_type = manifest.get("placement") or {}
+            placement = {
+                section["id"]: placement_by_type[section["type"]]
+                for section in sections
+                if isinstance(section, dict)
+                and isinstance(section.get("id"), str)
+                and isinstance(section.get("type"), str)
+                and isinstance(placement_by_type.get(section["type"]), str)
+            }
             if zones:
                 customizations["layout"] = {"zones": zones, "placement": placement}
 
@@ -128,10 +134,14 @@ class CVService:
         if "sections" in update_data:
             if isinstance(update_data["sections"], list):
                 update_data["sections"] = [
-                    s.model_dump() if hasattr(s, "model_dump") else s
+                    s.model_dump(mode="json", exclude_none=True) if hasattr(s, "model_dump") else s
                     for s in update_data["sections"]
                 ]
             update_data["sections"], _ = normalize_rich_text_ids(update_data["sections"])
+        if "customizations" in update_data:
+            update_data["customizations"] = coerce_customizations(update_data["customizations"]).model_dump(
+                exclude_none=True,
+            )
         for key, value in update_data.items():
             setattr(cv, key, value)
         cv.revision = (cv.revision or 1) + 1
@@ -193,7 +203,7 @@ class CVService:
         description = original.description
         template_id = original.template_id
         sections, _ = normalize_rich_text_ids(original.sections)
-        customizations = original.customizations
+        customizations = coerce_customizations(original.customizations).model_dump(exclude_none=True)
         await QuotaService(self.db).reserve(user_id, QuotaResource.CV)
         new_cv = CV(
             user_id=user_id,

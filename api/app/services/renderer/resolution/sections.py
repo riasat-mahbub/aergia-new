@@ -122,7 +122,7 @@ def _apply_template_defaults(section: Section, manifest: TemplateManifest | None
 
 
 def _apply_user_customizations(section: Section, customizations: Customizations) -> Section:
-    """Fill unset section values from legacy shared user customizations."""
+    """Fill unset section values from canonical shared user customizations."""
 
     layout_dict = section.layout.model_dump(exclude_none=True) if section.layout else {}
     sub_dict = section.subsection.model_dump(exclude_none=True) if section.subsection else {}

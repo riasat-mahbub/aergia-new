@@ -14,7 +14,6 @@ class Template(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     preview_image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    default_customizations: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     manifest: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     assets: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

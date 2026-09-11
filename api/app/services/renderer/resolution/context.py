@@ -24,7 +24,7 @@ class ResolutionContext:
 def _coerce_manifest(
     manifest: TemplateManifest | dict | None,
 ) -> TemplateManifest | None:
-    """Validate the supported manifest shape at the compatibility boundary."""
+    """Validate the supported manifest shape at the public boundary."""
 
     if manifest is None:
         return None
@@ -43,7 +43,7 @@ def _coerce_manifest(
 def _coerce_customizations(
     customizations: Customizations | dict | None,
 ) -> Customizations:
-    """Validate optional wire customizations at the compatibility boundary."""
+    """Validate optional wire customizations at the public boundary."""
 
     if customizations is None:
         return Customizations()

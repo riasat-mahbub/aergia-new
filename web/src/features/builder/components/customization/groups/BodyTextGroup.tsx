@@ -2,7 +2,7 @@ import type { TypographyRole } from "@/shared/cv/schema";
 import { FONT_SIZE_LABELS, FONT_SIZE_TOKENS, LINE_HEIGHT_LABELS, LINE_HEIGHT_TOKENS, ruleDefault } from "@/styles/tokens";
 import ColorChip from "../controls/ColorChip";
 import { FontSelect, Group, Row } from "./Controls";
-import { cleanStyle, fontTokenFromLegacyValue, updateAxis } from "./stylePatches";
+import { cleanStyle } from "./stylePatches";
 import type { SectionStyleGroupProps } from "./types";
 
 export default function BodyTextGroup({
@@ -13,9 +13,7 @@ export default function BodyTextGroup({
   onChange,
 }: SectionStyleGroupProps) {
   const bodyColor = style.typography?.body?.color ?? style.subsection?.section_color ?? null;
-  const rawBodyFont = rawStyle.typography?.body?.font_family
-    ?? fontTokenFromLegacyValue(rawStyle.layout?.font_family)
-    ?? "";
+  const rawBodyFont = rawStyle.typography?.body?.font_family ?? "";
 
   return (
     <Group title="Body text">
@@ -24,13 +22,12 @@ export default function BodyTextGroup({
           value={rawBodyFont}
           inherited={inheritedBodyFont}
           onChange={(next) => {
-            const nextStyle = updateAxis(rawStyle, "layout", { font_family: null });
-            const typography = { ...(nextStyle.typography ?? {}) };
+            const typography = { ...(rawStyle.typography ?? {}) };
             const body = { ...(typography.body ?? {}) };
             if (next) body.font_family = next as TypographyRole["font_family"];
             else delete body.font_family;
             typography.body = body;
-            onChange(cleanStyle({ ...nextStyle, typography }));
+            onChange(cleanStyle({ ...rawStyle, typography }));
           }}
           ariaLabel="Body font"
         />

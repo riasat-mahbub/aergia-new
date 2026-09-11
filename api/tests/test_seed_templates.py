@@ -129,16 +129,13 @@ def test_seed_manifests_use_constrained_vocabulary():
 
 
 @pytest.mark.asyncio
-async def test_seed_does_not_persist_default_customizations(client):
-    """The seed no longer populates the legacy ``default_customizations``
-    column. The editor reads the manifest directly."""
-    from app.models.template import Template
-    from app.db.session import async_session
-    async with async_session() as session:
-        for tpl_id in (MODERN_ID, CLASSIC_ID, MINIMAL_ID):
-            tpl = await session.get(Template, tpl_id)
-            assert tpl is not None
-            assert tpl.default_customizations is None, (
-                f"{tpl_id} has a populated default_customizations; "
-                f"the seed should leave it null"
-            )
+async def test_template_storage_drops_default_customizations(client):
+    """The schema no longer carries the obsolete template defaults column."""
+    from sqlalchemy import inspect
+    from app.db.session import engine
+
+    async with engine.connect() as connection:
+        columns = await connection.run_sync(
+            lambda sync_connection: {column["name"] for column in inspect(sync_connection).get_columns("templates")}
+        )
+    assert "default_customizations" not in columns

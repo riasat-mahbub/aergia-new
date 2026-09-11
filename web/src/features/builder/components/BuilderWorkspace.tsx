@@ -1,7 +1,7 @@
 import { motion } from "motion/react";
 import type { CVDetail } from "@/features/cvs";
 import type { UserTemplate } from "@/features/templates";
-import type { SectionInstance, SectionInstanceStyle } from "@/shared/cv/schema";
+import type { Customizations, SectionInstance, SectionInstanceStyle } from "@/shared/cv/schema";
 import ContentSectionList from "./ContentSectionList";
 import Inspector from "./customization/Inspector";
 import UserTemplateRenderer from "./preview/UserTemplateRenderer";
@@ -10,7 +10,7 @@ interface BuilderWorkspaceProps {
   cv: CVDetail;
   cvId: string;
   instances: SectionInstance[];
-  customizations: Record<string, unknown>;
+  customizations: Customizations;
   templateManifest: UserTemplate | null;
   activeTab: "content" | "customize";
   onTabChange: (tab: "content" | "customize") => void;

@@ -1,7 +1,7 @@
 import type { Customizations, SectionInstance } from "@/shared/cv/schema";
 
 export type CVSections = SectionInstance[];
-export type CVCustomizations = Customizations & Record<string, unknown>;
+export type CVCustomizations = Customizations;
 
 export interface CVApplicationSummary {
   id: string;

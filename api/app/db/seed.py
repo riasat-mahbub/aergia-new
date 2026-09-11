@@ -17,8 +17,7 @@ that match the design intent (modern = two-column with a narrow sidebar,
 classic = single column with compact spacing, minimal = single column
 with minimal spacing).
 
-The seed writes ``manifest`` only. The legacy ``default_customizations``
-column is no longer populated; the editor reads the manifest directly.
+The seed writes ``manifest`` only; the editor reads the manifest directly.
 """
 
 from __future__ import annotations
@@ -171,5 +170,4 @@ async def seed_templates(db: AsyncSession) -> None:
             ))
         else:
             existing.manifest = manifest.model_dump()
-            existing.default_customizations = None
     await db.commit()
