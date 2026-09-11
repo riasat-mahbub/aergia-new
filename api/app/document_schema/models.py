@@ -534,10 +534,10 @@ class RenderModel(BaseModel):
 class Customizations(BaseModel):
     """User-level overrides on the cascade (canonical v2 shape).
 
-    The four canonical fields are written by the per-CV customizations
-    editor. ``accent_color`` is a color ref (hex literal or palette
-    reference). The model is closed; old ``colors``/``fonts`` buckets are
-    handled only by the one-time data migration.
+    Document-wide appearance and layout values are written by the per-CV
+    customization editor. Section-local style belongs only on
+    ``SectionInstance.style``. ``accent_color`` is a color ref (hex literal
+    or palette reference). The model is closed.
     """
 
     accent_color: str | None = None
@@ -546,7 +546,6 @@ class Customizations(BaseModel):
     default_text_align: AlignmentToken | None = None
     spacing: Literal["none", "compact", "comfortable", "minimal"] | None = None
     flags: dict[str, bool] = Field(default_factory=dict, max_length=32)
-    per_section: dict[str, SectionInstanceStyle] = Field(default_factory=dict, max_length=64)
     layout: CVLayout | None = None
 
     model_config = {"extra": "forbid"}

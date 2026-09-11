@@ -282,6 +282,28 @@ def test_build_section_style_uses_per_instance_policy_over_type_default():
     assert style_without.policy.skill_variant == "block"
 
 
+def test_build_document_applies_complete_section_instance_style():
+    cv = _cv([{
+        "id": "p",
+        "type": "profile",
+        "title": "Profile",
+        "enabled": True,
+        "data": {"name": "Ada"},
+        "style": {
+            "text": {"name": {"italic": True, "color": "#00ff00"}},
+            "subsection": {"text_align": "right"},
+            "policy": {"show_title": False},
+        },
+    }])
+
+    section = build_document(cv).sections[0]
+    name_run = section.entries[0].fields[0].runs[0]
+    assert section.subsection.text_align == "right"
+    assert section.policy.show_title is False
+    assert name_run.style.italic is True
+    assert name_run.style.color == "#00ff00"
+
+
 def test_build_section_style_uses_manifest_override_when_no_instance_policy():
     """Without an instance policy, build_section_style applies the manifest override."""
     from app.services.renderer.builders import build_section_style

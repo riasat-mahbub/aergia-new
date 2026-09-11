@@ -1,5 +1,5 @@
 // This file is generated. Do not edit by hand.
-// Source: api/app/document_schema/models.py (sha256:c03ecade177ece15)
+// Source: api/app/document_schema/models.py (sha256:a6a9e027f978f5c0)
 
 export interface CVLayout {
   "placement"?: Record<string, string>;
@@ -17,7 +17,6 @@ export interface Customizations {
   "flags"?: Record<string, boolean>;
   "heading_font"?: (("sans-serif" | "serif" | "mono" | "display")) | null;
   "layout"?: (CVLayout) | null;
-  "per_section"?: Record<string, SectionInstanceStyle>;
   "spacing"?: (("none" | "compact" | "comfortable" | "minimal")) | null;
 }
 

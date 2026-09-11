@@ -8,13 +8,9 @@ from app.document_schema.models import (
     Customizations,
     LayoutHints,
     Section,
-    SectionInstanceStyle,
-    SectionPolicy,
-    SectionTypography,
     SubsectionStyle,
     TemplateManifest,
 )
-from app.services.renderer.builders import apply_field_text_styles
 from app.services.renderer.html_values import (
     FONT_TOKEN_VALUES as FONT_TOKENS,
     resolve_color_ref,
@@ -29,71 +25,6 @@ def _default_date_style() -> dict[str, str]:
     """Return the professional default date style."""
 
     return {"key": "Month YYYY", "range_sep": " – "}
-
-
-def _overlay_subsection(
-    base: SubsectionStyle | None,
-    override: SubsectionStyle | None,
-) -> SubsectionStyle:
-    if override is None:
-        return base or SubsectionStyle()
-    base_dict = base.model_dump(exclude_none=True) if base else {}
-    over_dict = override.model_dump(exclude_none=True)
-    return SubsectionStyle.model_validate({**base_dict, **over_dict})
-
-
-def _overlay_layout(base: LayoutHints | None, override: LayoutHints | None) -> LayoutHints:
-    if override is None:
-        return base or LayoutHints()
-    base_dict = base.model_dump(exclude_none=True) if base else {}
-    over_dict = override.model_dump(exclude_none=True)
-    return LayoutHints.model_validate({**base_dict, **over_dict})
-
-
-def _overlay_policy(
-    base: SectionPolicy | None,
-    override: SectionPolicy | None,
-) -> SectionPolicy | None:
-    if override is None:
-        return base
-    if base is None:
-        return override
-    base_dict = base.model_dump(exclude_none=True)
-    over_dict = override.model_dump(exclude_none=True)
-    return type(base).model_validate({**base_dict, **over_dict})
-
-
-def _overlay_typography(
-    base: SectionTypography | None,
-    override: SectionTypography | None,
-) -> SectionTypography | None:
-    if override is None:
-        return base
-    base_dict = base.model_dump(exclude_none=True) if base else {}
-    over_dict = override.model_dump(exclude_none=True)
-    merged: dict[str, object] = {}
-    for role in ("heading", "body"):
-        role_values = {
-            **(base_dict.get(role) or {}),
-            **(over_dict.get(role) or {}),
-        }
-        if role_values:
-            merged[role] = role_values
-    return SectionTypography.model_validate(merged or {})
-
-
-def _apply_section_overlay(section: Section, override: SectionInstanceStyle) -> Section:
-    """Merge a per-instance override onto a section's local style."""
-
-    section = section.model_copy(update={
-        "subsection": _overlay_subsection(section.subsection, override.subsection),
-        "layout": _overlay_layout(section.layout, override.layout),
-        "typography": _overlay_typography(section.typography, override.typography),
-        "policy": _overlay_policy(section.policy, override.policy),
-    })
-    if override.text:
-        section = apply_field_text_styles(section, override.text)
-    return section
 
 
 def _apply_template_defaults(section: Section, manifest: TemplateManifest | None) -> Section:
@@ -176,10 +107,6 @@ def resolve_section(section: Section, context: ResolutionContext) -> Section:
         section = section.model_copy(update={
             "policy": resolve_policy(section.type, context.manifest),
         })
-
-    override = context.customizations.per_section.get(section.id)
-    if override is not None:
-        section = _apply_section_overlay(section, override)
 
     section = _apply_user_customizations(section, context.customizations)
     section = _apply_template_defaults(section, context.manifest)
