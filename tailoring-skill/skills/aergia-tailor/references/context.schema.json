@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aergia.local/contracts/tailoring-context-v2.schema.json",
+  "title": "Aergia tailoring context protocol v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol_version", "session_id", "application_id", "context_hash", "job", "profile", "library", "requirements", "templates", "selected_template_id", "selected_template_manifest", "capabilities", "capabilities_hash"],
+  "properties": {
+    "protocol_version": {"const": 2},
+    "session_id": {"type": "string"},
+    "application_id": {"type": "string"},
+    "source_cv_id": {"type": ["string", "null"]},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "context_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "job": {"type": "object"},
+    "profile": {"type": "object"},
+    "previous_cv": {"type": ["object", "null"]},
+    "library": {"type": "array"},
+    "requirements": {"type": "array"},
+    "templates": {"type": "array"},
+    "selected_template_id": {"type": "string"},
+    "selected_template_manifest": {"type": "object"},
+    "capabilities": {"type": "object"},
+    "capabilities_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "effective_appearance": {"type": "object"},
+    "rendered_source": {"type": ["object", "null"]}
+  }
+}

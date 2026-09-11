@@ -6,9 +6,9 @@ import { constants as fsConstants } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { materializePatch, validatePatch } from "./validate-patch.mjs";
-import { verifyFacts } from "./verify-cv-facts.mjs";
+import { materializeCandidate, validateCandidate } from "./validate-candidate.mjs";
 
+const PROTOCOL_VERSION = 2;
 const SUBMIT_MARKER = "SUBMIT";
 const RENDER_MARKER = "RENDER";
 
@@ -21,14 +21,13 @@ function parseArgs(argv) {
       if (!value) throw new Error(`${argument} requires a value`);
       args[argument.slice(2)] = value;
       index += 1;
-      continue;
+    } else if (argument === "--help" || argument === "-h") {
+      return { help: true };
+    } else {
+      throw new Error(`Unknown option: ${argument}`);
     }
-    if (argument === "--help" || argument === "-h") return { help: true };
-    throw new Error(`Unknown option: ${argument}`);
   }
-  if (!args.session || !args.workspace) {
-    throw new Error("Usage: session.mjs --session URL --workspace PATH");
-  }
+  if (!args.session || !args.workspace) throw new Error("Usage: session.mjs --session URL --workspace PATH");
   return args;
 }
 
@@ -60,7 +59,7 @@ async function requestJson(url, options = {}) {
       const body = await response.json();
       if (typeof body?.detail === "string") detail = body.detail;
     } catch {
-      // Do not echo arbitrary response bodies from a server supplied by text.
+      // Never echo an arbitrary response body supplied by a remote server.
     }
     throw new Error(detail);
   }
@@ -91,30 +90,27 @@ async function writeProtectedBinary(path, base64) {
 }
 
 async function replaceProtectedBinary(path, base64) {
-  // Preview files are intentionally read-only between iterations. Re-open a
-  // prior preview only after temporarily restoring owner-write permission.
   await chmod(path, 0o600).catch(() => undefined);
   await writeFile(path, Buffer.from(base64, "base64"), { mode: 0o600 });
   await chmod(path, 0o400);
 }
 
-async function prepareWorkspace(workspace, evidence) {
+async function prepareWorkspace(workspace, context) {
   const source = resolve(workspace, "source");
   const output = resolve(workspace, "output");
   await mkdir(source, { recursive: true, mode: 0o700 });
   await mkdir(output, { recursive: true, mode: 0o700 });
+  const previous = context.previous_cv ?? {};
   await Promise.all([
-    writeProtectedJson(resolve(source, "evidence.json"), evidence),
-    writeProtectedJson(resolve(source, "job.json"), evidence.job),
-    writeProtectedJson(resolve(source, "cv.json"), evidence.cv),
-    writeProtectedJson(resolve(source, "target-cv.json"), evidence.target_cv ?? evidence.cv),
-    writeProtectedJson(resolve(source, "library.json"), evidence.library ?? []),
-    writeProtectedJson(resolve(source, "protected-facts.json"), evidence.protected_facts ?? {}),
-    writeProtectedJson(resolve(source, "requirements.json"), evidence.requirements ?? []),
-    writeProtectedJson(resolve(source, "source-relevance.json"), evidence.source_relevance ?? {}),
-    writeProtectedJson(resolve(source, "target-relevance.json"), evidence.target_relevance ?? {}),
-    writeProtectedJson(resolve(source, "capabilities.json"), evidence.capabilities ?? {}),
-    writeProtectedJson(resolve(source, "rendered-source.json"), evidence.rendered_source ?? {}),
+    writeProtectedJson(resolve(source, "context.json"), context),
+    writeProtectedJson(resolve(source, "job.json"), context.job),
+    writeProtectedJson(resolve(source, "profile.json"), context.profile),
+    writeProtectedJson(resolve(source, "previous-cv.json"), previous),
+    writeProtectedJson(resolve(source, "library.json"), context.library ?? []),
+    writeProtectedJson(resolve(source, "requirements.json"), context.requirements ?? []),
+    writeProtectedJson(resolve(source, "templates.json"), context.templates ?? []),
+    writeProtectedJson(resolve(source, "capabilities.json"), context.capabilities ?? {}),
+    writeProtectedJson(resolve(source, "effective-appearance.json"), context.effective_appearance ?? {}),
   ]);
   return { source, output };
 }
@@ -132,14 +128,14 @@ function wait(milliseconds) {
   return new Promise((accept) => setTimeout(accept, milliseconds));
 }
 
-async function renderCandidate(paths, origin, capability, candidate) {
+async function renderCandidate(paths, origin, capability, context, candidate) {
   const preview = await requestJson(`${origin}/api/v1/tailoring/preview`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-Aergia-Tailoring-Capability": capability,
     },
-    body: JSON.stringify({ candidate }),
+    body: JSON.stringify({ context_hash: context.context_hash, candidate }),
   });
   await replaceProtectedBinary(resolve(paths.output, "candidate-preview.pdf"), preview.pdf_base64);
   await writeFile(
@@ -149,40 +145,35 @@ async function renderCandidate(paths, origin, capability, candidate) {
   );
 }
 
-async function validatedPatch(paths, evidence, origin, capability) {
-  const markerPath = resolve(paths.output, SUBMIT_MARKER);
-  const renderMarkerPath = resolve(paths.output, RENDER_MARKER);
-  const patchPath = resolve(paths.output, "tailoring-patch.json");
-  const previewPath = resolve(paths.output, "tailored-cv.json");
-  while (Date.now() < Date.parse(evidence.expires_at)) {
-    if (!(await exists(markerPath)) && !(await exists(renderMarkerPath))) {
+async function waitForCandidate(paths, context, origin, capability) {
+  const submitPath = resolve(paths.output, SUBMIT_MARKER);
+  const renderPath = resolve(paths.output, RENDER_MARKER);
+  const candidatePath = resolve(paths.output, "candidate.json");
+  while (Date.now() < Date.parse(context.expires_at)) {
+    if (!(await exists(submitPath)) && !(await exists(renderPath))) {
       await wait(750);
       continue;
     }
     try {
-      const patch = JSON.parse(await readFile(patchPath, "utf8"));
-      validatePatch(patch, evidence);
-      const tailored = materializePatch(patch, evidence);
-      const facts = verifyFacts(evidence.target_cv ?? evidence.cv, tailored, evidence, patch);
-      if (facts.status !== "pass") {
-        throw new Error(facts.findings.map((finding) => finding.message).join("; "));
-      }
-      if (await exists(renderMarkerPath)) {
-        await renderCandidate(paths, origin, capability, tailored);
-        await unlink(renderMarkerPath).catch(() => undefined);
+      const candidate = JSON.parse(await readFile(candidatePath, "utf8"));
+      validateCandidate(candidate, context);
+      const normalized = materializeCandidate(candidate);
+      if (await exists(renderPath)) {
+        await renderCandidate(paths, origin, capability, context, normalized);
+        await unlink(renderPath).catch(() => undefined);
         process.stderr.write(`Candidate rendered to ${resolve(paths.output, "candidate-preview.pdf")}\n`);
         continue;
       }
-      await writeFile(previewPath, `${JSON.stringify(tailored, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
-      return patch;
+      await writeFile(resolve(paths.output, "normalized-candidate.json"), `${JSON.stringify(normalized, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+      return normalized;
     } catch (error) {
-      await unlink(markerPath).catch(() => undefined);
-      await unlink(renderMarkerPath).catch(() => undefined);
-      process.stderr.write(`Patch rejected locally: ${error instanceof Error ? error.message : "validation failed"}\n`);
-      process.stderr.write(`Repair ${patchPath}, inspect the evidence again, then recreate ${markerPath} or ${renderMarkerPath}.\n`);
+      await unlink(submitPath).catch(() => undefined);
+      await unlink(renderPath).catch(() => undefined);
+      process.stderr.write(`Candidate rejected locally or by preview: ${error instanceof Error ? error.message : "validation failed"}\n`);
+      process.stderr.write(`Repair ${candidatePath}, then recreate ${submitPath} or ${renderPath}.\n`);
     }
   }
-  throw new Error("The tailoring session expired before a valid patch was ready");
+  throw new Error("The tailoring session expired before a valid candidate was ready");
 }
 
 export async function runSession(sessionUrl, workspace, options = {}) {
@@ -191,24 +182,22 @@ export async function runSession(sessionUrl, workspace, options = {}) {
   const exchange = await requestJson(`${origin}/api/v1/tailoring/exchange`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ protocol_version: 1, code }),
+    body: JSON.stringify({ protocol_version: PROTOCOL_VERSION, code }),
   });
-  if (exchange.protocol_version !== 1 || typeof exchange.capability !== "string") {
+  if (exchange.protocol_version !== PROTOCOL_VERSION || typeof exchange.capability !== "string") {
     throw new Error("The server returned an incompatible tailoring protocol");
   }
-
-  // This value never leaves the process. The helper intentionally performs
-  // evidence retrieval and final submission in one lifetime.
+  // This value never leaves the process.
   const capability = exchange.capability;
-  const evidence = await requestJson(`${origin}/api/v1/tailoring/evidence`, {
+  const context = await requestJson(`${origin}/api/v1/tailoring/context`, {
     headers: { "X-Aergia-Tailoring-Capability": capability },
   });
-  if (evidence.protocol_version !== 1) throw new Error("The evidence protocol is incompatible with this skill");
+  if (context.protocol_version !== PROTOCOL_VERSION) throw new Error("The tailoring context is incompatible with this skill");
 
-  const paths = await prepareWorkspace(workspace, evidence);
-  if (evidence.rendered_source?.endpoint) {
+  const paths = await prepareWorkspace(workspace, context);
+  if (context.rendered_source?.endpoint) {
     try {
-      const sourcePreview = await requestJson(`${origin}${evidence.rendered_source.endpoint}`, {
+      const sourcePreview = await requestJson(`${origin}${context.rendered_source.endpoint}`, {
         headers: { "X-Aergia-Tailoring-Capability": capability },
       });
       await writeProtectedBinary(resolve(paths.source, "source-cv.pdf"), sourcePreview.pdf_base64);
@@ -221,16 +210,16 @@ export async function runSession(sessionUrl, workspace, options = {}) {
       process.stderr.write(`Source PDF preview unavailable: ${error instanceof Error ? error.message : "render failed"}\n`);
     }
   }
-  process.stdout.write(`Evidence ready in ${paths.source}\n`);
-  process.stdout.write(`Write ${resolve(paths.output, "tailoring-patch.json")}, create ${resolve(paths.output, "RENDER")} to preview, then create ${resolve(paths.output, SUBMIT_MARKER)} to validate and submit.\n`);
-  const patch = await validatedPatch(paths, evidence, origin, capability);
+  process.stdout.write(`Context ready in ${paths.source}\n`);
+  process.stdout.write(`Write ${resolve(paths.output, "candidate.json")}, create ${resolve(paths.output, "RENDER")} to preview, then create ${resolve(paths.output, SUBMIT_MARKER)} to submit.\n`);
+  const candidate = await waitForCandidate(paths, context, origin, capability);
   const result = await requestJson(`${origin}/api/v1/tailoring/submit`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-Aergia-Tailoring-Capability": capability,
     },
-    body: JSON.stringify(patch),
+    body: JSON.stringify({ context_hash: context.context_hash, candidate }),
   });
   await writeFile(resolve(paths.output, "result.json"), `${JSON.stringify(result, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
   process.stdout.write(`${JSON.stringify(result)}\n`);
@@ -245,11 +234,8 @@ function printHelp() {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const args = parseArgs(process.argv.slice(2));
-    if (args.help) {
-      printHelp();
-    } else {
-      await runSession(args.session, args.workspace);
-    }
+    if (args.help) printHelp();
+    else await runSession(args.session, args.workspace);
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : "Tailoring session failed"}\n`);
     process.exitCode = 1;
