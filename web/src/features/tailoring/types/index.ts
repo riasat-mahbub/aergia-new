@@ -1,8 +1,9 @@
 export interface TailoringSession {
-  protocol_version: 1;
+  protocol_version: 2;
   session_id: string;
   application_id: string;
-  cv_id: string;
+  source_cv_id: string | null;
+  cv_id: string | null;
   code: string;
   session_url: string;
   skill_url: string;
@@ -14,41 +15,50 @@ export interface TailoringSession {
 export type TailoringSessionStatus =
   | "created"
   | "exchanged"
-  | "submitted"
-  | "applied"
+  | "draft_ready"
+  | "accepted"
+  | "rejected"
   | "failed"
   | "expired"
   | "cancelled"
   | "stale";
 
+export interface TailoringCandidate {
+  id?: string | null;
+  title: string;
+  description?: string | null;
+  template_id: string;
+  sections: Array<Record<string, unknown>>;
+  customizations: Record<string, unknown>;
+}
+
 export interface TailoringSessionResult {
-  protocol_version: 1;
+  protocol_version: 2;
   session_id: string;
   application_id: string;
-  source_cv_id?: string;
-  cv_id: string;
-  base_revision: number;
-  new_revision: number;
-  applied_operations: string[];
-  gaps: Array<{ requirement: string; reason: string }>;
-  provenance: Array<Record<string, unknown>>;
-  before_relevance: Record<string, unknown>;
+  status: "draft_ready";
+  source_cv_id: string | null;
+  draft_cv_id: string;
+  candidate_hash: string;
+  candidate?: TailoringCandidate;
   relevance: Record<string, unknown>;
-  ai_relevance?: Record<string, unknown> | null;
+  warnings: string[];
 }
 
 export interface TailoringSessionStatusResponse {
-  protocol_version: 1;
+  protocol_version: 2;
   session_id: string;
   application_id: string;
-  cv_id: string;
+  source_cv_id: string | null;
+  draft_cv_id: string | null;
+  cv_id: string | null;
   status: TailoringSessionStatus;
   expires_at: string;
   created_at: string;
   exchanged_at: string | null;
   submitted_at: string | null;
+  reviewed_at: string | null;
   updated_at: string;
   attempts: number;
-  reported_gaps: Array<{ requirement: string; reason: string }>;
   result: TailoringSessionResult | null;
 }

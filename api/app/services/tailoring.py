@@ -863,6 +863,9 @@ class TailoringService:
         # Compare-and-swap protects a CV selected after the agent began.
         source_condition = Application.cv_id.is_(None) if session.cv_id is None else Application.cv_id == session.cv_id
         now = _utcnow()
+        requirements = _requirements_from_application(application)
+        relevance = evaluate_requirement_relevance(requirements, draft.sections or [])
+        quality = evaluate_cv_quality(draft.sections or [])
         result = await self.db.execute(
             update(Application)
             .where(Application.id == application.id, Application.user_id == user_id, source_condition)
@@ -870,8 +873,8 @@ class TailoringService:
                 cv_id=draft.id,
                 generation_status="ready",
                 generation_error=None,
-                relevance=(session.result or {}).get("relevance", {}),
-                quality=evaluate_cv_quality(draft.sections or []).model_dump(mode="json"),
+                relevance=relevance.model_dump(mode="json"),
+                quality=quality.model_dump(mode="json"),
                 fits_one_page=None,
                 extracted_keywords=[],
                 algorithm_version=REQUIREMENT_ALGORITHM_VERSION,
@@ -885,6 +888,8 @@ class TailoringService:
             await self.db.flush()
             raise TailoringConflictError("The application changed; review this draft against the current CV")
         session.status = TAILORING_SESSION_ACCEPTED
+        if isinstance(session.result, dict):
+            session.result = {**session.result, "relevance": relevance.model_dump(mode="json")}
         session.reviewed_at = now
         session.updated_at = now
         await self.db.flush()
@@ -896,7 +901,7 @@ class TailoringService:
             source_cv_id=session.cv_id,
             draft_cv_id=draft.id,
             cv_id=draft.id,
-            relevance=(session.result or {}).get("relevance"),
+            relevance=relevance.model_dump(mode="json"),
         )
 
     async def reject_draft(self, session_id: str, user_id: str) -> TailoringReviewResponse:
