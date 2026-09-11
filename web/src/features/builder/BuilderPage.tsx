@@ -167,6 +167,14 @@ export default function BuilderPage({ cvId, applicationId }: BuilderPageProps) {
     [handleSave, hasUnsavedChanges]
   );
 
+  const handleBack = useCallback(() => {
+    if (applicationId) {
+      navigate({ to: "/applications/$id", params: { id: applicationId } });
+      return;
+    }
+    navigate({ to: "/cvs" });
+  }, [applicationId, navigate]);
+
   useEffect(() => {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
@@ -214,7 +222,7 @@ export default function BuilderPage({ cvId, applicationId }: BuilderPageProps) {
           isSaving={isSaving}
           lastSaved={lastSaved}
           showSavedFeedback={showSavedFeedback}
-          onBack={() => navigate({ to: "/cvs" })}
+          onBack={handleBack}
           onOpenRelevance={() => setRelevanceDrawerOpen(true)}
           onSave={handleSave}
           formatLastSaved={formatLastSaved}
