@@ -483,6 +483,28 @@ class TailoringService:
                 await self.db.flush()
         return self._status_response(session)
 
+    async def latest_session_status(
+        self, application_id: str, user_id: str
+    ) -> TailoringSessionStatusResponse:
+        """Return the newest owner-visible draft session for an application."""
+
+        application = await self._owned_application(application_id, user_id)
+        if application is None:
+            raise TailoringNotFoundError("Application not found")
+        result = await self.db.execute(
+            select(TailoringSession)
+            .where(
+                TailoringSession.application_id == application_id,
+                TailoringSession.user_id == user_id,
+            )
+            .order_by(TailoringSession.created_at.desc())
+            .limit(1)
+        )
+        session = result.scalar_one_or_none()
+        if session is None:
+            raise TailoringSessionNotFoundError("Tailoring session not found")
+        return await self.session_status(session.id, user_id)
+
     async def cancel_session(self, session_id: str, user_id: str) -> TailoringSessionStatusResponse:
         session = await self._owned_session(session_id, user_id)
         if session.status == TAILORING_SESSION_EXPIRED:

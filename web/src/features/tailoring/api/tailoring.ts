@@ -14,6 +14,11 @@ export async function getTailoringSessionStatus(sessionId: string): Promise<Tail
   return data;
 }
 
+export async function getLatestTailoringSession(applicationId: string): Promise<TailoringSessionStatusResponse> {
+  const { data } = await client.get(`/applications/${applicationId}/tailoring-sessions/latest`);
+  return data;
+}
+
 export async function cancelTailoringSession(sessionId: string): Promise<TailoringSessionStatusResponse> {
   const { data } = await client.post(`/tailoring/sessions/${sessionId}/cancel`);
   return data;

@@ -4,6 +4,7 @@ import {
   acceptTailoringDraft,
   cancelTailoringSession,
   createTailoringSession,
+  getLatestTailoringSession,
   getTailoringSessionStatus,
   rejectTailoringDraft,
 } from "../api/tailoring";
@@ -34,6 +35,34 @@ export function useTailoringSession({
   const [tailoringResult, setTailoringResult] = useState<TailoringSessionResult | null>(null);
   const [promptCopied, setPromptCopied] = useState(false);
   const lastTailoringToast = useRef<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getLatestTailoringSession(applicationId).then((status) => {
+      if (cancelled || !status) return;
+      setTailoringStatus(status);
+      setTailoringResult(status.result);
+      // A status endpoint intentionally never returns the one-time code. A
+      // placeholder session lets the application page retain draft review
+      // actions after the user navigates away and comes back.
+      setTailoringSession({
+        protocol_version: 2,
+        session_id: status.session_id,
+        application_id: status.application_id,
+        source_cv_id: status.source_cv_id,
+        cv_id: status.cv_id,
+        code: "",
+        session_url: "",
+        skill_url: "",
+        prompt: "This tailoring session is already in progress or awaiting your review.",
+        status: "created",
+        expires_at: status.expires_at,
+      });
+    }).catch(() => {
+      // A new application normally has no tailoring session yet.
+    });
+    return () => { cancelled = true; };
+  }, [applicationId]);
 
   useEffect(() => {
     if (!tailoringSession || isTerminalTailoringStatus(tailoringStatus?.status)) return;

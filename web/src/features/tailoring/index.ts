@@ -1,4 +1,4 @@
-export { acceptTailoringDraft, cancelTailoringSession, createTailoringSession, getTailoringSessionStatus, rejectTailoringDraft } from "./api/tailoring";
+export { acceptTailoringDraft, cancelTailoringSession, createTailoringSession, getLatestTailoringSession, getTailoringSessionStatus, rejectTailoringDraft } from "./api/tailoring";
 export { isTerminalTailoringStatus, sessionStatusLabel, terminalTailoringToast } from "./domain/tailoringPresentation";
 export { useTailoringSession } from "./hooks/useTailoringSession";
 export { default as TailoringSessionPage } from "./pages/TailoringSessionPage";
