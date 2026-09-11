@@ -10,21 +10,21 @@ from app.db.session import get_db
 from app.models.user import User
 from app.http_schemas.tailoring import (
     TailoringCodeExchange,
-    TailoringEvidencePacket,
+    TailoringContextResponse,
     TailoringExchangeResponse,
-    TailoringPatch,
     TailoringPreviewRequest,
     TailoringPreviewResponse,
+    TailoringReviewResponse,
     TailoringSessionCreateResponse,
     TailoringSessionStatusResponse,
+    TailoringSubmitRequest,
     TailoringSubmitResponse,
 )
 from app.services.tailoring import (
-    StoredRequirementsUnavailableError,
     TailoringConflictError,
     TailoringExpiredError,
     TailoringNotFoundError,
-    TailoringPatchError,
+    TailoringCandidateError,
     TailoringSessionNotFoundError,
     TailoringStaleError,
     TailoringService,
@@ -56,7 +56,7 @@ async def download_tailoring_skill(request: Request):
             "Content-Disposition": 'attachment; filename="aergia-tailor.zip"',
             "Cache-Control": "public, max-age=300",
             "ETag": f'"sha256-{bundle.sha256}"',
-            "X-Aergia-Skill-Protocol-Version": "1",
+            "X-Aergia-Skill-Protocol-Version": "2",
         },
     )
 
@@ -72,15 +72,13 @@ def _raise_service_error(exc: Exception) -> None:
         if exc.resource is QuotaResource.CV:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="CV limit reached") from exc
         raise
-    if isinstance(exc, StoredRequirementsUnavailableError):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     if isinstance(exc, TailoringExpiredError):
         raise HTTPException(status_code=status.HTTP_410_GONE, detail="Tailoring session expired") from exc
     if isinstance(exc, TailoringConflictError):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     if isinstance(exc, TailoringStaleError):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    if isinstance(exc, TailoringPatchError):
+    if isinstance(exc, TailoringCandidateError):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     if isinstance(exc, TailoringUnauthorizedError):
         raise HTTPException(
@@ -171,19 +169,16 @@ async def exchange_tailoring_code(
         _raise_service_error(exc)
 
 
-@router.get(
-    "/tailoring/evidence",
-    response_model=TailoringEvidencePacket,
-)
+@router.get("/tailoring/context", response_model=TailoringContextResponse)
 @limiter.limit("30/minute")
-async def get_tailoring_evidence(
+async def get_tailoring_context(
     request: Request,
     response: Response,
     capability: str | None = Header(default=None, alias="X-Aergia-Tailoring-Capability"),
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        return await TailoringService(db).evidence(capability)
+        return await TailoringService(db).context(capability)
     except Exception as exc:  # noqa: BLE001
         _raise_service_error(exc)
 
@@ -232,15 +227,51 @@ async def preview_tailoring_candidate(
     response_model=TailoringSubmitResponse,
 )
 @limiter.limit("5/minute")
-async def submit_tailoring_patch(
+async def submit_tailoring_candidate(
     request: Request,
     response: Response,
-    patch: TailoringPatch,
+    payload: TailoringSubmitRequest,
     capability: str | None = Header(default=None, alias="X-Aergia-Tailoring-Capability"),
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        return await TailoringService(db).submit(capability, patch)
+        return await TailoringService(db).submit(capability, payload)
+    except Exception as exc:  # noqa: BLE001
+        _raise_service_error(exc)
+
+
+@router.post(
+    "/tailoring/sessions/{session_id}/accept",
+    response_model=TailoringReviewResponse,
+)
+@limiter.limit("10/minute")
+async def accept_tailoring_draft(
+    request: Request,
+    response: Response,
+    session_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await TailoringService(db).accept_draft(session_id, current_user.id)
+    except Exception as exc:  # noqa: BLE001
+        _raise_service_error(exc)
+
+
+@router.post(
+    "/tailoring/sessions/{session_id}/reject",
+    response_model=TailoringReviewResponse,
+)
+@limiter.limit("10/minute")
+async def reject_tailoring_draft(
+    request: Request,
+    response: Response,
+    session_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await TailoringService(db).reject_draft(session_id, current_user.id)
     except Exception as exc:  # noqa: BLE001
         _raise_service_error(exc)
 
