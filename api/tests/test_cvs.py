@@ -14,10 +14,16 @@ CUSTOMIZATIONS_PAYLOAD = {
         "placement": {"sec_profile": "sidebar"},
     },
     "flags": {"default_link_style": True},
-    "per_section": {
-        "sec_profile": {"text": {"name": {"bold": True}}},
-    },
 }
+
+CUSTOMIZED_SECTIONS = [{
+    "id": "sec_profile",
+    "type": "profile",
+    "title": "Profile",
+    "enabled": True,
+    "data": {"name": "Ada"},
+    "style": {"text": {"name": {"bold": True}}},
+}]
 
 
 @pytest.fixture
@@ -96,7 +102,7 @@ async def test_cv_creation_installs_template_zones(client, auth_headers):
 async def test_cv_creation_accepts_populated_customizations(client, auth_headers):
     response = await client.post(
         "/api/v1/cvs",
-        json={"title": "Customized CV", "customizations": CUSTOMIZATIONS_PAYLOAD},
+        json={"title": "Customized CV", "sections": CUSTOMIZED_SECTIONS, "customizations": CUSTOMIZATIONS_PAYLOAD},
         headers=auth_headers,
     )
 
@@ -104,7 +110,7 @@ async def test_cv_creation_accepts_populated_customizations(client, auth_headers
     customizations = response.json()["customizations"]
     assert customizations["layout"]["placement"] == {"sec_profile": "sidebar"}
     assert customizations["flags"] == {"default_link_style": True}
-    assert customizations["per_section"]["sec_profile"]["text"]["name"]["bold"] is True
+    assert response.json()["sections"][0]["style"]["text"]["name"]["bold"] is True
 
 
 @pytest.mark.asyncio
@@ -114,7 +120,7 @@ async def test_cv_update_accepts_populated_customizations(client, auth_headers):
 
     response = await client.patch(
         f"/api/v1/cvs/{created.json()['id']}",
-        json={"customizations": CUSTOMIZATIONS_PAYLOAD},
+        json={"sections": CUSTOMIZED_SECTIONS, "customizations": CUSTOMIZATIONS_PAYLOAD},
         headers=auth_headers,
     )
 
@@ -122,7 +128,7 @@ async def test_cv_update_accepts_populated_customizations(client, auth_headers):
     customizations = response.json()["customizations"]
     assert customizations["layout"]["placement"] == {"sec_profile": "sidebar"}
     assert customizations["flags"] == {"default_link_style": True}
-    assert customizations["per_section"]["sec_profile"]["text"]["name"]["bold"] is True
+    assert response.json()["sections"][0]["style"]["text"]["name"]["bold"] is True
 
 
 @pytest.mark.asyncio

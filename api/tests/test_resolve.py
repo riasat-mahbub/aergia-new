@@ -187,14 +187,13 @@ def test_manifest_v1_raises_manifest_version_error():
     assert "version" in str(exc.value).lower() or "manifest" in str(exc.value).lower()
 
 
-def test_per_section_style_overlay_paints_onto_section():
+def test_section_instance_style_is_resolved_without_document_override_bucket():
     doc = Document(sections=[
         Section(id="p", type="profile", title="P", enabled=True,
-                subsection={"text_align": "left"},
+                subsection={"text_align": "right"},
                 entries=[Entry(id="e1", fields=[FieldBlock(key="name", runs=[TextRun(text="Ada")])])])
     ])
-    custom = Customizations(per_section={"p": {"subsection": {"text_align": "right"}}})
-    model = resolve(doc, HTMLDocumentRenderer(), _manifest(), custom)
+    model = resolve(doc, HTMLDocumentRenderer(), _manifest(), Customizations())
     assert model.sections["p"].subsection.text_align == "right"
 
 
@@ -358,23 +357,6 @@ def test_resolve_placement_matches_instance_id_before_type():
     assert by_zone["main"] == ["x", "sk"]
 
 
-def test_per_section_text_overlay_applies_to_runs():
-    """``customizations.per_section[id].text[field]`` must land on the
-    section's runs, mirroring the per-instance field-style path."""
-    from app.document_schema.models import Customizations
-
-    doc = Document(sections=[
-        Section(id="p", type="profile", title="P", enabled=True,
-                entries=[Entry(id="e1", fields=[FieldBlock(key="name", runs=[TextRun(text="Ada")])])]),
-    ])
-    custom = Customizations(per_section={"p": {"text": {"name": {"italic": True, "color": "#00ff00"}}}})
-    model = resolve(doc, FakeRenderer(), None, custom)
-    run = model.sections["p"].entries[0].fields[0].runs[0]
-    assert run.style is not None
-    assert run.style.italic is True
-    assert run.style.color == "#00ff00"
-
-
 def test_entry_layout_cascades_from_manifest_override():
     """A manifest's policy_overrides.by_type[type].entry_layout wins over
     the SECTION_POLICIES default."""
@@ -403,28 +385,3 @@ def test_entry_layout_cascades_from_section_policy_default():
     assert resolve_policy("certifications", manifest).entry_layout == "two-column"
     assert resolve_policy("experience", manifest).entry_layout == "stack"
     assert resolve_policy("education", manifest).entry_layout == "stack"
-
-
-def test_entry_layout_overlay_from_per_instance_policy():
-    """A per-instance SectionInstanceStyle.policy.entry_layout wins over
-    the resolved section policy through document resolution."""
-    from app.document_schema.models import SectionInstanceStyle, SectionPolicy
-
-    base = SectionPolicy(entry_layout="two-column", show_title=True)
-    document = Document(sections=[Section(
-        id="p",
-        type="profile",
-        title="P",
-        policy=base,
-        entries=[],
-    )])
-    override = Customizations(
-        per_section={"p": SectionInstanceStyle(policy=SectionPolicy(entry_layout="stack"))}
-    )
-    merged = resolve(document, FakeRenderer(), None, override).sections["p"].policy
-    assert merged.entry_layout == "stack"
-    # show_title cascades too (regression)
-    assert merged.show_title is True
-    # No override: base preserved
-    merged_none = resolve(document, FakeRenderer(), None, Customizations()).sections["p"].policy
-    assert merged_none.entry_layout == "two-column"

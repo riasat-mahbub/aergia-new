@@ -279,9 +279,6 @@ def _fresh_customizations(
     """
 
     customizations = copy.deepcopy(source_customizations) if isinstance(source_customizations, dict) else {}
-    # Per-section styling is part of the source document's content shell, not
-    # the fresh composition. Keep document-level choices only.
-    customizations["per_section"] = {}
     layout = customizations.get("layout")
     if not isinstance(layout, dict):
         return customizations

@@ -92,7 +92,7 @@ def test_customizations_all_fields_optional():
     assert c.default_text_align is None
     assert c.spacing is None
     assert c.flags == {}
-    assert c.per_section == {}
+    assert c.layout is None
 
 
 def test_layout_defaults_spacing_default_is_none():
@@ -157,6 +157,14 @@ def test_customizations_rejects_legacy_top_level_fonts():
     from pydantic import ValidationError
     with pytest.raises(ValidationError):
         Customizations.model_validate({"fonts": {"body": "Inter"}})
+
+
+def test_customizations_rejects_section_local_style_bucket():
+    import pytest
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        Customizations.model_validate({"per_section": {"section-1": {"subsection": {"spacing_after": "tight"}}}})
 
 def test_customizations_accepts_canonical_shape():
     c = Customizations.model_validate({"accent_color": "#aabbcc", "body_font": "sans-serif"})
