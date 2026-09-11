@@ -1,6 +1,5 @@
 import TokenPicker from "../controls/TokenPicker";
 import { Group } from "./Controls";
-import { spacingTokenToSpacingToken } from "./stylePatches";
 import type { SectionStyleGroupProps } from "./types";
 
 export default function SpacingGroup({ instance, style, updateSubsection }: SectionStyleGroupProps) {
@@ -8,27 +7,27 @@ export default function SpacingGroup({ instance, style, updateSubsection }: Sect
     <Group title="Spacing">
       <TokenPicker
         label="Above"
-        value={spacingTokenToSpacingToken(style.subsection?.spacing_before)}
+        value={style.subsection?.spacing_before ?? null}
         onChange={(tok) => updateSubsection({ spacing_before: tok })}
         testId={`spacing-above-${instance.id}`}
       />
       <TokenPicker
         label="Below"
-        value={spacingTokenToSpacingToken(style.subsection?.spacing_after)}
+        value={style.subsection?.spacing_after ?? null}
         onChange={(tok) => updateSubsection({ spacing_after: tok })}
         testId={`spacing-below-${instance.id}`}
       />
       {instance.type !== "profile" && (
         <TokenPicker
           label="Between entries"
-          value={spacingTokenToSpacingToken(style.subsection?.entry_gap)}
+          value={style.subsection?.entry_gap ?? null}
           onChange={(tok) => updateSubsection({ entry_gap: tok })}
           testId={`spacing-entries-${instance.id}`}
         />
       )}
       <TokenPicker
         label="Between fields"
-        value={spacingTokenToSpacingToken(style.subsection?.field_gap)}
+        value={style.subsection?.field_gap ?? null}
         onChange={(tok) => updateSubsection({ field_gap: tok })}
         testId={`spacing-fields-${instance.id}`}
       />

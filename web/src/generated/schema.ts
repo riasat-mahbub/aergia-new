@@ -1,5 +1,5 @@
 // This file is generated. Do not edit by hand.
-// Source: api/app/document_schema/models.py (sha256:559d9da121f74ed3)
+// Source: api/app/document_schema/models.py (sha256:c03ecade177ece15)
 
 export interface CVLayout {
   "placement"?: Record<string, string>;
@@ -147,11 +147,11 @@ export interface SectionTypography {
 export interface SubsectionStyle {
   "accent_color"?: (string) | null;
   "background_color"?: (string) | null;
-  "entry_gap"?: (string) | null;
-  "field_gap"?: (string) | null;
+  "entry_gap"?: (("none" | "tight" | "comfortable" | "loose" | "spacious")) | null;
+  "field_gap"?: (("none" | "tight" | "comfortable" | "loose" | "spacious")) | null;
   "section_color"?: (string) | null;
-  "spacing_after"?: (string) | null;
-  "spacing_before"?: (string) | null;
+  "spacing_after"?: (("none" | "tight" | "comfortable" | "loose" | "spacious")) | null;
+  "spacing_before"?: (("none" | "tight" | "comfortable" | "loose" | "spacious")) | null;
   "text_align"?: (("left" | "right" | "center" | "justify")) | null;
 }
 

@@ -89,6 +89,7 @@ async def test_cv_creation_installs_template_zones(client, auth_headers):
     assert layout.get("zones"), "new CV must install the template's zones into customizations.layout"
     assert layout.get("placement"), "new CV must install the template's placement"
     assert {z["id"] for z in layout["zones"]} == {"main"}
+    assert layout["placement"] == {"sec_profile": "main"}
 
 
 @pytest.mark.asyncio

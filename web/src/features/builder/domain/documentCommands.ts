@@ -1,6 +1,6 @@
-import type { SectionInstance, SectionInstanceStyle } from "@/shared/cv/schema";
+import type { CVLayout, Customizations, SectionInstance, SectionInstanceStyle } from "@/shared/cv/schema";
 import { createDefaultInstance } from "@/shared/cv/sectionCatalog";
-import { getFirstZoneId, type LayoutConfig } from "@/shared/cv/placement";
+import { getFirstZoneId } from "@/shared/cv/placement";
 import { sectionStyleHasValues } from "./sectionStyle";
 
 export function toggleInstance(instances: SectionInstance[], sectionId: string): SectionInstance[] {
@@ -52,19 +52,19 @@ export function resetDocument(instances: SectionInstance[]): SectionInstance[] {
 export interface AddedSectionDocument {
   instance: SectionInstance;
   instances: SectionInstance[];
-  customizations: Record<string, unknown>;
+  customizations: Customizations;
 }
 
 export function addSection(
   instances: SectionInstance[],
-  customizations: Record<string, unknown>,
+  customizations: Customizations,
   type: string,
   zoneId?: string,
 ): AddedSectionDocument {
   const instance = createDefaultInstance(type);
-  const existingLayout = customizations.layout as LayoutConfig | undefined;
+  const existingLayout = customizations.layout;
   const hasValidLayout = Boolean(existingLayout?.zones?.length);
-  const baseLayout: LayoutConfig = hasValidLayout
+  const baseLayout: CVLayout = hasValidLayout
     ? existingLayout!
     : { zones: [], placement: {} };
   const targetZoneId = zoneId ?? getFirstZoneId(baseLayout);

@@ -1,15 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import type { SectionInstance, TemplateManifest } from "@/shared/cv/schema";
+import type { Customizations, SectionInstance, TemplateManifest } from "@/shared/cv/schema";
 import { renderHtml } from "../../api/render";
 import { applyPreviewPagination } from "./pagePagination";
 import { A4_PAGE_GEOMETRY, PAGE_HEIGHT_PX, PAGE_WIDTH_PX, scaleForAvailableWidth } from "./pageGeometry";
 
 interface Props {
   instances: SectionInstance[];
-  customizations?: {
-    layout?: { zones?: unknown[]; placement?: Record<string, string> };
-    [key: string]: unknown;
-  };
+  customizations?: Customizations;
   manifest?: TemplateManifest;
 }
 
@@ -36,14 +33,9 @@ export default function UserTemplateRenderer({ instances, customizations, manife
   }, []);
 
   useEffect(() => {
-    // The CV layout rides in `customizations.layout` (the canonical wire
-    // shape the resolver merges over the manifest). Do NOT inject a legacy
-    // `layout_config` key into the manifest — the v2 schema ignores it and a
-    // manifest-less object fails TemplateManifest validation. Pass
-    // customizations through unchanged so the user's zone styles (width,
-    // background, padding) and instance-keyed placement reach the resolver.
-    // The resolver can fall back to manifest zones, so a CV without a saved
-    // layout must still render instead of leaving the preview blank.
+    // The CV layout rides in `customizations.layout` and is passed through
+    // unchanged so instance-keyed placement reaches the resolver. The
+    // resolver can fall back to manifest zones when no CV layout is saved.
     const customizationsPayload = customizations ?? {};
     let cancelled = false;
     async function renderTemplate() {

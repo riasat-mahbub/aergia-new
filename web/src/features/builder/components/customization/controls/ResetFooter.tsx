@@ -6,7 +6,7 @@
  * manifest (not `templateId.split("-")[1]` which produced "modern" for
  * generic-modern).
  *
- * Reset wipes section-local style overrides and legacy style values, then
+ * Reset wipes section-local and document-level style overrides, then
  * re-applies the template defaults. Destructive — opens a confirmation
  * modal before executing. Layout placement is preserved.
  */

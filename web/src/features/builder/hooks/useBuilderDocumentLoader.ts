@@ -1,7 +1,5 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
-import type { SectionInstance } from "@/shared/cv/schema";
-import type { LayoutConfig } from "@/shared/cv/placement";
-import { migratePlacement } from "@/shared/cv/placement";
+import type { Customizations, SectionInstance } from "@/shared/cv/schema";
 import { useBuilderDocumentStore } from "../state/builderDocumentStore";
 
 interface UseBuilderDocumentLoaderOptions {
@@ -11,19 +9,19 @@ interface UseBuilderDocumentLoaderOptions {
 
 export interface BuilderDocumentDraft {
   instances: SectionInstance[];
-  customizations: Record<string, unknown>;
+  customizations: Customizations;
   setInstances: Dispatch<SetStateAction<SectionInstance[]>>;
-  setCustomizations: Dispatch<SetStateAction<Record<string, unknown>>>;
+  setCustomizations: Dispatch<SetStateAction<Customizations>>;
   isLoaded: boolean;
   showLoading: boolean;
   retry: () => void;
 }
 
-/** Loads one route document and normalizes legacy placement before editing starts. */
+/** Loads one route document; the API already returns canonical placement. */
 export function useBuilderDocumentLoader({ id, loadCV }: UseBuilderDocumentLoaderOptions): BuilderDocumentDraft {
   const [showLoading, setShowLoading] = useState(true);
   const [instances, setInstances] = useState<SectionInstance[]>([]);
-  const [customizations, setCustomizations] = useState<Record<string, unknown>>({});
+  const [customizations, setCustomizations] = useState<Customizations>({});
   const [isLoaded, setIsLoaded] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -46,14 +44,8 @@ export function useBuilderDocumentLoader({ id, loadCV }: UseBuilderDocumentLoade
       if (!currentCV?.sections) return;
 
       const nextInstances = currentCV.sections;
-      const rawCustomizations = currentCV.customizations || {};
-      const layout = rawCustomizations.layout as LayoutConfig | undefined;
-      const nextCustomizations = layout?.placement
-        ? { ...rawCustomizations, layout: migratePlacement(layout, nextInstances) }
-        : rawCustomizations;
-
       setInstances(nextInstances);
-      setCustomizations(nextCustomizations);
+      setCustomizations(currentCV.customizations || {});
       setIsLoaded(true);
     })();
 

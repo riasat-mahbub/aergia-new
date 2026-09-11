@@ -3,12 +3,11 @@
  *
  * The panel has no editable document-style controls. Each section owns its
  * own heading, typography, spacing, layout, and field overrides. Empty
- * controls inherit the template (or a legacy saved document value), so an
- * existing CV remains readable without reintroducing a global editor.
+ * controls inherit the template or the canonical document-level value.
  */
 
 import { useEffect, useState } from "react";
-import type { SectionInstance, SectionInstanceStyle } from "@/shared/cv/schema";
+import type { Customizations, SectionInstance, SectionInstanceStyle } from "@/shared/cv/schema";
 import { SECTION_LABELS } from "@/shared/cv/sectionCatalog";
 import { ink, ruleDefault, accent } from "@/styles/tokens";
 import { sectionStyleHasValues } from "../../domain/sectionStyle";
@@ -26,8 +25,8 @@ interface Props {
   onUpdateStyle: (id: string, style: SectionInstanceStyle) => void;
   onTemplateChange: () => void | Promise<void>;
   onReset: () => void;
-  /** Legacy document values are read only and used as the inherited value. */
-  customizations: Record<string, unknown>;
+  /** Canonical document-level values are read only and used as inherited values. */
+  customizations: Customizations;
 }
 
 export default function Inspector({
@@ -59,14 +58,14 @@ export default function Inspector({
   const inheritedHeadingFont = stringValue(customizations.heading_font) ?? templateHeadingFont ?? null;
   const inheritedAccent = stringValue(customizations.accent_color) ?? templateAccent ?? null;
   const displayedTemplateName = templateName || templateIdShort(templateId);
-  const hasLegacyStyle = [
-    "body_font",
-    "heading_font",
-    "accent_color",
-    "default_text_align",
-    "spacing",
-  ].some((key) => customizations[key] !== undefined && customizations[key] !== null);
-  const canReset = hasLegacyStyle || instances.some((instance) => instance.style && sectionStyleHasValues(instance.style));
+  const hasDocumentStyleOverrides = [
+    customizations.body_font,
+    customizations.heading_font,
+    customizations.accent_color,
+    customizations.default_text_align,
+    customizations.spacing,
+  ].some((value) => value !== undefined && value !== null);
+  const canReset = hasDocumentStyleOverrides || instances.some((instance) => instance.style && sectionStyleHasValues(instance.style));
 
   return (
     <div data-testid="inspector">

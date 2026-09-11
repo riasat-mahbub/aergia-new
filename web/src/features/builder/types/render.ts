@@ -1,4 +1,4 @@
-import type { SectionInstance, TemplateManifest } from "@/shared/cv/schema";
+import type { Customizations, SectionInstance, TemplateManifest } from "@/shared/cv/schema";
 
 export type SupportLevelValue = "FULL" | "BEST_EFFORT" | "NONE";
 
@@ -17,7 +17,7 @@ export interface SupportMap {
 export interface RenderHtmlRequest {
   manifest: TemplateManifest | null;
   cv_sections: SectionInstance[];
-  customizations: Record<string, unknown>;
+  customizations: Customizations;
   preview: boolean;
 }
 

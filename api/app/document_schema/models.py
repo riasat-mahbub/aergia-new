@@ -68,18 +68,11 @@ AlignmentToken = Literal["left", "right", "center", "justify"]
 # palettes; the schema carries the reference, not the color value.
 _HEX_LITERAL = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 _PALETTE_REF = re.compile(r"^palette\.[a-z][a-z0-9_-]*$")
-SAFE_SPACING_VALUES = (
-    "none", "tight", "comfortable", "loose", "spacious",
-    "compact", "minimal", "0", "0px", "4px", "8px", "12px", "16px", "20px", "24px", "32px", "40px",
-    "var(--spacing-section, 16px)", "var(--spacing-section, 24px)",
-    "var(--spacing-subsection, 0px)", "var(--spacing-subsection, 16px)",
-)
 SAFE_FONT_FAMILY_VALUES = (
     "sans-serif", "serif", "mono", "display", "Inter", "Georgia", "Crimson",
     "system-ui", "Inter, system-ui, sans-serif", "Georgia, Crimson, serif",
     "ui-monospace, SFMono-Regular, Menlo, monospace",
 )
-_SAFE_SPACING = frozenset(SAFE_SPACING_VALUES)
 _SAFE_FONT_FAMILIES = frozenset(SAFE_FONT_FAMILY_VALUES)
 
 
@@ -106,7 +99,7 @@ class DateStyle(BaseModel):
     key: str = Field(default="Month YYYY", max_length=32, alias="key")
     range_sep: str = Field(default=" \u2013 ", max_length=16, alias="rangeSep")
 
-    model_config = {"extra": "ignore", "populate_by_name": True}
+    model_config = {"extra": "forbid", "populate_by_name": True}
 
 
 # ---------------------------------------------------------------------------
@@ -124,6 +117,8 @@ class TextStyle(BaseModel):
     color: str | None = None
     link: str | None = None
     font_size: FontSizeToken | None = None
+
+    model_config = {"extra": "forbid"}
 
     @field_validator("color")
     @classmethod
@@ -169,25 +164,20 @@ class RichTextBlock(BaseModel):
 class SubsectionStyle(BaseModel):
     """Block-level appearance per section/entry.
 
-    ``section_color`` is the legacy ``SectionStyle.color`` cascade target —
-    the per-section accent color used by the heading and other wrappers.
+    ``section_color`` is the per-section accent color used by the heading and
+    other wrappers.
     """
 
     text_align: AlignmentToken | None = None
-    spacing_before: str | None = None
-    spacing_after: str | None = None
-    entry_gap: str | None = None
-    field_gap: str | None = None
+    spacing_before: SpacingToken | None = None
+    spacing_after: SpacingToken | None = None
+    entry_gap: SpacingToken | None = None
+    field_gap: SpacingToken | None = None
     background_color: str | None = None
     section_color: str | None = None
     accent_color: str | None = None
 
-    @field_validator("spacing_before", "spacing_after", "entry_gap", "field_gap")
-    @classmethod
-    def _check_spacing(cls, value: str | None) -> str | None:
-        if value is not None and value not in _SAFE_SPACING:
-            raise ValueError("spacing must use a supported spacing token or resolved length")
-        return value
+    model_config = {"extra": "forbid"}
 
     @field_validator("background_color", "section_color", "accent_color")
     @classmethod
@@ -206,6 +196,8 @@ class TypographyRole(BaseModel):
     color: str | None = None
     bold: bool | None = None
 
+    model_config = {"extra": "forbid"}
+
     @field_validator("color")
     @classmethod
     def _check_color(cls, value: str | None) -> str | None:
@@ -219,6 +211,8 @@ class SectionTypography(BaseModel):
 
     heading: TypographyRole | None = None
     body: TypographyRole | None = None
+
+    model_config = {"extra": "forbid"}
 
 
 class LayoutHints(BaseModel):
@@ -246,6 +240,8 @@ class LayoutHints(BaseModel):
     # is renderer-key-agnostic: it reads only this list.
     chip_keys: list[str] | None = Field(default=None, max_length=32)
 
+    model_config = {"extra": "forbid"}
+
     @field_validator("font_family")
     @classmethod
     def _check_font_family(cls, value: str | None) -> str | None:
@@ -262,6 +258,10 @@ class SectionPolicy(BaseModel):
     heading_divider: bool = True
     skill_variant: Literal["block", "inline"] | None = None
     entry_layout: Literal["stack", "two-column"] = "stack"
+
+    model_config = {"extra": "forbid"}
+
+
 # ---------------------------------------------------------------------------
 # AST nodes
 # ---------------------------------------------------------------------------
@@ -329,16 +329,11 @@ class Document(BaseModel):
 class SectionInstanceStyle(BaseModel):
     """Section-local style carried on a wire ``SectionInstance``.
 
-    The legacy ``SectionStyle`` keys (``font``, ``color``, ``weight``,
-    ``text_align``, ``show_title``, ``layout``, ``field_styles``,
-    ``date_style``, ``subsection_gap``, ``row_gap``) are accepted on
-    inbound payloads during normalisation. The builder applies them as
-    legacy-style overlays before producing the resolved three-axis shape;
-    the resolver cascades over the local axes. Extra keys are ignored by
-    the renderer.
+    Only the canonical style axes are accepted. Legacy rows must be converted
+    before they are read by the app.
     """
 
-    model_config = {"extra": "ignore"}
+    model_config = {"extra": "forbid"}
 
     text: dict[str, TextStyle] = Field(default_factory=dict, max_length=100)  # field_key -> TextStyle
     subsection: SubsectionStyle | None = None
@@ -361,6 +356,8 @@ class SectionInstance(BaseModel):
     enabled: bool = True
     data: list | dict = Field(default_factory=dict, max_length=100)
     style: SectionInstanceStyle | None = None
+
+    model_config = {"extra": "forbid"}
 
     @model_validator(mode="after")
     def _check_data_size(self):
@@ -389,11 +386,15 @@ class LayoutDefaults(BaseModel):
 
     spacing: Literal["none", "compact", "comfortable", "minimal"] = "none"
 
+    model_config = {"extra": "forbid"}
+
 
 class PolicyOverrides(BaseModel):
     """Per-type policy overrides layered over the default ``SECTION_POLICIES``."""
 
     by_type: dict[str, SectionPolicy] = Field(default_factory=dict, max_length=32)
+
+    model_config = {"extra": "forbid"}
 
 
 class GlobalStyles(BaseModel):
@@ -458,18 +459,22 @@ class Zone(BaseModel):
     label: str | None = Field(default=None, max_length=255)
     styles: ZoneStyle = Field(default_factory=ZoneStyle)
 
+    model_config = {"extra": "forbid"}
+
 
 class CVLayout(BaseModel):
     """Per-CV zone layout written by the editor's layout authoring.
 
     Carries the same shape as the manifest's zones/placement but is a per-CV
     override: the resolver renders these zones when present, falling back to
-    the template manifest. ``placement`` is keyed by section instance id
-    (the editor's convention); the resolver also accepts section-type keys
-    (the manifest convention)."""
+    the template manifest. ``placement`` is always keyed by section instance
+    id. Template manifests retain their separate type-keyed placement map.
+    """
 
     zones: list[Zone] = Field(default_factory=list, max_length=8)
     placement: dict[str, str] = Field(default_factory=dict, max_length=64)
+
+    model_config = {"extra": "forbid"}
 
 
 class TemplateManifest(BaseModel):
@@ -493,6 +498,8 @@ class TemplateManifest(BaseModel):
     layout_defaults: LayoutDefaults = Field(default_factory=LayoutDefaults)
     policy_overrides: PolicyOverrides = Field(default_factory=PolicyOverrides)
     global_styles: GlobalStyles = Field(default_factory=GlobalStyles)
+
+    model_config = {"extra": "forbid"}
 
 
 # ---------------------------------------------------------------------------
@@ -529,8 +536,8 @@ class Customizations(BaseModel):
 
     The four canonical fields are written by the per-CV customizations
     editor. ``accent_color`` is a color ref (hex literal or palette
-    reference). The legacy ``{colors, fonts, spacing, flags}`` top-level
-    keys are rejected at the boundary via ``_reject_legacy`` below.
+    reference). The model is closed; old ``colors``/``fonts`` buckets are
+    handled only by the one-time data migration.
     """
 
     accent_color: str | None = None
@@ -542,18 +549,7 @@ class Customizations(BaseModel):
     per_section: dict[str, SectionInstanceStyle] = Field(default_factory=dict, max_length=64)
     layout: CVLayout | None = None
 
-    @model_validator(mode="before")
-    @classmethod
-    def _reject_legacy(cls, data):
-        if not isinstance(data, dict):
-            return data
-        legacy = {"colors", "fonts"} & set(data.keys())
-        if legacy:
-            raise ValueError(
-                f"Legacy customizations shape rejected ({sorted(legacy)}). "
-                f"Use accent_color / body_font / heading_font instead."
-            )
-        return data
+    model_config = {"extra": "forbid"}
 
     @model_validator(mode="after")
     def _check_accent_color_ref(self):

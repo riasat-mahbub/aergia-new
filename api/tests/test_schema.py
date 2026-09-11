@@ -57,7 +57,7 @@ def test_section_local_typography_and_spacing_round_trip():
             spacing_before="tight",
             spacing_after="spacious",
             entry_gap="comfortable",
-            field_gap="8px",
+            field_gap="tight",
         ),
         typography=SectionTypography(
             heading=TypographyRole(font_size="xl", font_family="serif"),

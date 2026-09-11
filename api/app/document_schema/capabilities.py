@@ -28,7 +28,7 @@ from app.document_schema.models import (
     FontSizeToken,
     FontToken,
     SAFE_FONT_FAMILY_VALUES,
-    SAFE_SPACING_VALUES,
+    SpacingToken,
     SectionInstance,
 )
 from app.services.renderer.builders import BUILDERS
@@ -215,10 +215,10 @@ STYLE_CAPABILITIES: dict[str, Any] = {
     "subsection": {
         "fields": {
             "text_align": list(AlignmentToken.__args__),
-            "spacing_before": {"type": "spacing_ref", "values": list(SAFE_SPACING_VALUES)},
-            "spacing_after": {"type": "spacing_ref", "values": list(SAFE_SPACING_VALUES)},
-            "entry_gap": {"type": "spacing_ref", "values": list(SAFE_SPACING_VALUES)},
-            "field_gap": {"type": "spacing_ref", "values": list(SAFE_SPACING_VALUES)},
+            "spacing_before": {"type": "spacing_token", "values": list(SpacingToken.__args__)},
+            "spacing_after": {"type": "spacing_token", "values": list(SpacingToken.__args__)},
+            "entry_gap": {"type": "spacing_token", "values": list(SpacingToken.__args__)},
+            "field_gap": {"type": "spacing_token", "values": list(SpacingToken.__args__)},
             "background_color": "color_ref",
             "section_color": "color_ref",
             "accent_color": "color_ref",

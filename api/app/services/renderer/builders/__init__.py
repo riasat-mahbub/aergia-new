@@ -239,13 +239,12 @@ def build_document_from_sections(
 
 
 def _coerce_section_instance(raw: object) -> SectionInstance | None:
-    """Normalize one wire value, preserving the old non-dict skip rule."""
+    """Validate one wire value, preserving the non-dict skip rule."""
 
     if isinstance(raw, SectionInstance):
         return raw
     if isinstance(raw, dict):
-        # Re-validate through the new SectionInstance shape; this catches
-        # legacy rows that don't match the new wire format.
+        # Re-validate through the canonical SectionInstance shape.
         return SectionInstance.model_validate(raw)
     return None
 

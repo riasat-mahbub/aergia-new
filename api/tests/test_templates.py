@@ -43,7 +43,7 @@ async def test_get_template_returns_manifest_only(client):
     assert resp.status_code == 200
     data = resp.json()
     assert "is_user_template" not in data
-    assert data.get("default_customizations") is None
+    assert "default_customizations" not in data
     assert data["manifest"]["manifest_version"] == 2
 
 
