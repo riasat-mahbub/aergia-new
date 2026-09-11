@@ -52,7 +52,10 @@ REQUEST_BODY_LIMITS = {
     "/api/v1/render/pdf": 2 * 1024 * 1024,
     "/api/v1/cvs/import/pdf": 16 * 1024 * 1024,
     "/api/v1/assets": 6 * 1024 * 1024,
-    "/api/v1/tailoring/submit": 512 * 1024,
+    # Complete candidates include all sections plus mutable customization
+    # data; keep a bounded but useful envelope for whole-document generation.
+    "/api/v1/tailoring/submit": 2 * 1024 * 1024,
+    "/api/v1/tailoring/preview": 2 * 1024 * 1024,
 }
 
 _SENSITIVE_VALIDATION_FIELDS = frozenset({

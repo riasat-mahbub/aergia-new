@@ -117,6 +117,24 @@ async def create_tailoring_session(
 
 
 @router.get(
+    "/applications/{application_id}/tailoring-sessions/latest",
+    response_model=TailoringSessionStatusResponse,
+)
+@limiter.limit("30/minute")
+async def get_latest_tailoring_session(
+    request: Request,
+    response: Response,
+    application_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await TailoringService(db).latest_session_status(application_id, current_user.id)
+    except Exception as exc:  # noqa: BLE001
+        _raise_service_error(exc)
+
+
+@router.get(
     "/tailoring/sessions/{session_id}",
     response_model=TailoringSessionStatusResponse,
 )
