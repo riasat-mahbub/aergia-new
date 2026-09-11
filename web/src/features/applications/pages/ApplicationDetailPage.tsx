@@ -57,6 +57,8 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
     startTailoring,
     copyPrompt,
     cancelTailoring,
+    acceptDraft,
+    rejectDraft,
   } = useTailoringSession({ applicationId: application?.id ?? id, fetchApplication: fetch, addToast });
 
   useEffect(() => {
@@ -188,6 +190,8 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
         onStartTailoring={startTailoring}
         onCopyPrompt={copyPrompt}
         onCancelTailoring={cancelTailoring}
+        onAcceptDraft={acceptDraft}
+        onRejectDraft={rejectDraft}
       />
 
       <ApplicationStatusHistory application={application} />

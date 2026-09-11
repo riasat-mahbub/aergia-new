@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Toast } from "@/shared/state/uiStore";
 import {
+  acceptTailoringDraft,
   cancelTailoringSession,
   createTailoringSession,
   getTailoringSessionStatus,
+  rejectTailoringDraft,
 } from "../api/tailoring";
 import type {
   TailoringSession,
@@ -42,17 +44,14 @@ export function useTailoringSession({
         const status = await getTailoringSessionStatus(tailoringSession.session_id);
         if (cancelled) return;
         setTailoringStatus(status);
+        if (status.result) setTailoringResult(status.result);
         const toast = terminalTailoringToast(status.status);
         const toastKey = `${tailoringSession.session_id}:${status.status}`;
         if (toast && lastTailoringToast.current !== toastKey) {
           lastTailoringToast.current = toastKey;
           addToast(toast.message, toast.type);
         }
-        if (status.status === "applied") {
-          setTailoringResult(status.result);
-          // The prompt is no longer actionable once the server has applied
-          // the patch. Keep the result summary visible below the actions.
-          setTailoringSession(null);
+        if (status.status === "accepted") {
           await fetchApplication(tailoringSession.application_id);
         }
       } catch {
@@ -120,6 +119,30 @@ export function useTailoringSession({
     }
   }, [addToast, tailoringSession]);
 
+  const acceptDraft = useCallback(async () => {
+    if (!tailoringSession) return;
+    try {
+      const status = await acceptTailoringDraft(tailoringSession.session_id);
+      setTailoringStatus(status);
+      await fetchApplication(tailoringSession.application_id);
+      addToast("Tailored CV accepted and linked to this application", "success");
+    } catch {
+      addToast("The tailored draft could not be accepted; the application may have changed", "error");
+    }
+  }, [addToast, fetchApplication, tailoringSession]);
+
+  const rejectDraft = useCallback(async () => {
+    if (!tailoringSession) return;
+    try {
+      const status = await rejectTailoringDraft(tailoringSession.session_id);
+      setTailoringStatus(status);
+      setTailoringResult(status.result);
+      addToast("Tailored draft rejected", "info");
+    } catch {
+      addToast("Unable to reject the tailored draft", "error");
+    }
+  }, [addToast, tailoringSession]);
+
   return {
     tailoringSession,
     tailoringStarting,
@@ -129,5 +152,7 @@ export function useTailoringSession({
     startTailoring,
     copyPrompt,
     cancelTailoring,
+    acceptDraft,
+    rejectDraft,
   };
 }
