@@ -154,11 +154,6 @@ class TailoringContextResponse(_StrictModel):
     rendered_source: TailoringRenderArtifact | None = None
 
 
-# Import alias for callers that used the pre-cutover endpoint name. The
-# runtime route is /tailoring/context and only protocol v2 parses here.
-TailoringEvidencePacket = TailoringContextResponse
-
-
 class TailoringCandidateCV(_StrictModel):
     """The only document write value accepted by protocol v2."""
 
@@ -234,7 +229,6 @@ __all__ = [
     "TailoringCodeExchange",
     "TailoringContextResponse",
     "TailoringCV",
-    "TailoringEvidencePacket",
     "TailoringExchangeResponse",
     "TailoringJob",
     "TailoringLibraryEntry",
