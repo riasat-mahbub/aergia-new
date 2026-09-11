@@ -64,7 +64,7 @@ from app.services.relevance import (
     extract_requirements,
 )
 from app.services.rich_text import normalize_rich_text_ids
-from app.services.tailoring_policy import TailoringPolicyError, validate_section_payload
+from app.services.tailoring_validation import CandidateValidationError, validate_section_payload
 
 
 TAILORING_SESSION_TTL = timedelta(hours=1)
@@ -194,11 +194,6 @@ class TailoringUnavailableError(ValueError):
 
 class TailoringCandidateError(ValueError):
     """A complete candidate is structurally or mechanically invalid."""
-
-
-# Kept as a clear error alias for route clients that used the old name. The
-# old patch model and operations are no longer imported or accepted.
-TailoringPatchError = TailoringCandidateError
 
 
 def fresh_tailoring_sections(session_id: str, profile: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -715,7 +710,7 @@ class TailoringService:
             try:
                 validate_section_payload(section)
                 SectionInstance.model_validate(section)
-            except (TailoringPolicyError, ValidationError) as exc:
+            except (CandidateValidationError, ValidationError) as exc:
                 raise TailoringCandidateError(str(exc)) from exc
         sections = cls._inject_profile_identity(sections, parts["profile"])
         try:
@@ -949,7 +944,6 @@ __all__ = [
     "TailoringConflictError",
     "TailoringExpiredError",
     "TailoringNotFoundError",
-    "TailoringPatchError",
     "TailoringService",
     "TailoringSessionNotFoundError",
     "TailoringStaleError",
