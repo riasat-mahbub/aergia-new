@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aergia.local/contracts/tailoring-candidate-v2.schema.json",
+  "title": "Aergia complete tailoring candidate protocol v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["title", "template_id", "sections", "customizations"],
+  "properties": {
+    "id": {"type": ["string", "null"], "maxLength": 128},
+    "title": {"type": "string", "minLength": 1, "maxLength": 255},
+    "description": {"type": ["string", "null"], "maxLength": 500},
+    "template_id": {"type": "string", "minLength": 1, "maxLength": 100},
+    "sections": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {"$ref": "#/$defs/section"}
+    },
+    "customizations": {"$ref": "#/$defs/customizations"}
+  },
+  "$defs": {
+    "section": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "title", "enabled", "data"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1, "maxLength": 128},
+        "type": {"type": "string", "minLength": 1, "maxLength": 64},
+        "title": {"type": "string", "minLength": 1, "maxLength": 255},
+        "enabled": {"type": "boolean"},
+        "data": {"type": ["object", "array"]},
+        "style": {"type": ["object", "null"]}
+      }
+    },
+    "customizations": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "accent_color": {"type": ["string", "null"]},
+        "body_font": {"type": ["string", "null"]},
+        "heading_font": {"type": ["string", "null"]},
+        "default_text_align": {"type": ["string", "null"]},
+        "spacing": {"type": ["string", "null"]},
+        "flags": {"type": "object", "additionalProperties": {"type": "boolean"}},
+        "layout": {"type": ["object", "null"]}
+      }
+    }
+  }
+}

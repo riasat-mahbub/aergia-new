@@ -1,0 +1,14 @@
+{
+  "title": "Platform Engineer — Example Labs",
+  "template_id": "generic-minimal",
+  "sections": [
+    {
+      "id": "profile",
+      "type": "profile",
+      "title": "Profile",
+      "enabled": true,
+      "data": {"name": "Ada Lovelace", "summary": "Platform engineer"}
+    }
+  ],
+  "customizations": {"accent_color": "#111827", "spacing": "compact"}
+}
