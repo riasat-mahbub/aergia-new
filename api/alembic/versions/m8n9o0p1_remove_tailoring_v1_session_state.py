@@ -73,8 +73,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Reintroducing patch-only state would not make v1 sessions replay-safe.
-    pass
+    # Reintroducing patch-only state would not make v1 sessions replay-safe;
+    # refusing downgrade avoids claiming an old schema over missing data.
+    raise RuntimeError("This tailoring cutover is irreversible; restore a database backup to roll back")
 
 
 __all__ = ["compact_tailoring_session_table"]

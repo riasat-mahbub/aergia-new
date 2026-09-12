@@ -6,6 +6,7 @@ import runpy
 import sqlalchemy as sa
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
+import pytest
 
 
 _MIGRATION = runpy.run_path(
@@ -17,6 +18,7 @@ _MIGRATION = runpy.run_path(
     )
 )
 compact_tailoring_session_table = _MIGRATION["compact_tailoring_session_table"]
+downgrade = _MIGRATION["downgrade"]
 
 
 def test_cleanup_drops_patch_columns_and_preserves_reviewable_draft_state():
@@ -80,3 +82,8 @@ def test_cleanup_drops_patch_columns_and_preserves_reviewable_draft_state():
         assert row.status == "draft_ready"
         assert row.draft_cv_id == "draft"
         assert row.result == '{"candidate_hash":"kept"}'
+
+
+def test_cutover_downgrade_requires_restoring_a_database_backup():
+    with pytest.raises(RuntimeError, match="restore a database backup"):
+        downgrade()
