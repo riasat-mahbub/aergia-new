@@ -18,7 +18,12 @@ from app.http_schemas.tailoring import (
     TailoringSubmitRequest,
 )
 from app.models.tailoring_session import TailoringSession
-from app.services.tailoring import TailoringConflictError, TailoringService, fresh_tailoring_sections
+from app.services.tailoring import (
+    TailoringConflictError,
+    TailoringService,
+    _application_context_snapshot,
+    fresh_tailoring_sections,
+)
 
 
 def _candidate() -> TailoringCandidateCV:
@@ -198,3 +203,18 @@ def test_expired_agent_draft_still_blocks_a_second_session_until_reviewed():
 
     with pytest.raises(TailoringConflictError, match="Finish or cancel"):
         asyncio.run(TailoringService(_DB()).create_session("application", "user"))
+
+
+def test_application_cv_link_is_part_of_the_context_freshness_snapshot():
+    app_before = SimpleNamespace(
+        id="application",
+        cv_id="source-cv",
+        company="Example",
+        role="Engineer",
+        job_url=None,
+        job_description="Build APIs",
+    )
+    app_after = SimpleNamespace(**{**vars(app_before), "cv_id": "new-cv"})
+
+    assert _application_context_snapshot(app_before)["linked_cv_id"] == "source-cv"
+    assert _application_context_snapshot(app_before) != _application_context_snapshot(app_after)

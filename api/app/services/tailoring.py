@@ -229,6 +229,17 @@ def _profile_payload(profile: Any) -> dict[str, Any]:
     return profile.model_dump(mode="json", exclude_none=True, exclude={"photo_url"})
 
 
+def _application_context_snapshot(application: Application) -> dict[str, Any]:
+    return {
+        "id": application.id,
+        "linked_cv_id": application.cv_id,
+        "company": application.company,
+        "role": application.role,
+        "job_url": application.job_url,
+        "description": application.job_description,
+    }
+
+
 def _requirements_from_application(application: Application) -> list[JobRequirement]:
     """Read the persisted snapshot, with deterministic extraction for older apps."""
 
@@ -343,13 +354,7 @@ class TailoringService:
             except (ValidationError, ValueError, KeyError):
                 effective = {"template_id": source_cv.template_id, "unavailable": True}
         context_basis = {
-            "application": {
-                "id": application.id,
-                "company": application.company,
-                "role": application.role,
-                "job_url": application.job_url,
-                "description": application.job_description,
-            },
+            "application": _application_context_snapshot(application),
             "profile": profile_data,
             "source_cv": cv_snapshot_hash(source_cv),
             "library": {entry.id: library_entry_content_hash(entry) for entry in libraries},
