@@ -381,12 +381,37 @@ class TailoringService:
         application = await self._owned_application(application_id, user_id)
         if application is None:
             raise TailoringNotFoundError("Application not found")
+        existing_result = await self.db.execute(
+            select(TailoringSession).where(
+                TailoringSession.application_id == application_id,
+                TailoringSession.user_id == user_id,
+                TailoringSession.status.in_(
+                    (TAILORING_SESSION_CREATED, TAILORING_SESSION_EXCHANGED, TAILORING_SESSION_DRAFT_READY)
+                ),
+            )
+        )
+        now = _utcnow()
+        expired_sessions: list[TailoringSession] = []
+        for existing in existing_result.scalars().all():
+            if (
+                existing.status in {TAILORING_SESSION_CREATED, TAILORING_SESSION_EXCHANGED}
+                and _as_utc(existing.expires_at) <= now
+            ):
+                existing.status = TAILORING_SESSION_EXPIRED
+                existing.capability_hash = None
+                existing.updated_at = now
+                expired_sessions.append(existing)
+                continue
+            raise TailoringConflictError(
+                "Finish or cancel the existing tailoring session before starting another"
+            )
+        if expired_sessions:
+            await self.db.flush()
         # Validate the owner, profile, and template availability before
         # issuing a capability. A source CV is intentionally optional.
         user = await self.db.get(User, user_id)
         if user is None:
             raise TailoringNotFoundError("User not found")
-        now = _utcnow()
         code = secrets.token_urlsafe(32)
         session = TailoringSession(
             user_id=user_id,

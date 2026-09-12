@@ -50,6 +50,8 @@ export default function GeneratedCvPanel({
   const safeTailoringSkillUrl = tailoringSession ? safeExternalUrl(tailoringSession.skill_url) : null;
   const result = tailoringStatus?.result ?? tailoringResult;
   const draftReady = tailoringStatus?.status === "draft_ready" && result?.draft_cv_id;
+  const activeSessionStatus = tailoringStatus?.status ?? tailoringSession?.status;
+  const tailoringBlocksNewSession = activeSessionStatus === "created" || activeSessionStatus === "exchanged" || activeSessionStatus === "draft_ready";
 
   return (
     <section className="mt-4 rounded-lg border border-app-rule bg-app-surface p-5 shadow-sm">
@@ -78,8 +80,8 @@ export default function GeneratedCvPanel({
       )}
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <button type="button" onClick={onStartTailoring} disabled={tailoringStarting} className="inline-flex items-center gap-1 rounded-md border border-app-primary-soft px-3 py-2 text-sm font-medium text-app-primary hover:bg-app-primary-soft disabled:opacity-50">
-          {tailoringStarting ? "Preparing LLM tailoring…" : "LLM Tailoring"}
+        <button type="button" onClick={onStartTailoring} disabled={tailoringStarting || tailoringBlocksNewSession} className="inline-flex items-center gap-1 rounded-md border border-app-primary-soft px-3 py-2 text-sm font-medium text-app-primary hover:bg-app-primary-soft disabled:opacity-50">
+          {tailoringStarting ? "Preparing LLM tailoring…" : tailoringBlocksNewSession ? "Finish current tailoring first" : "LLM Tailoring"}
         </button>
         {!application.cv_id && application.generation_status !== "pending" && <button type="button" onClick={onRetry} disabled={retrying} className="inline-flex items-center gap-1 rounded-md border border-app-rule-strong px-3 py-2 text-sm font-medium text-app-ink-2 hover:bg-app-surface-muted disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${retrying ? "animate-spin" : ""}`} /> {retrying ? "Generating…" : "Generate standard CV"}</button>}
       </div>
