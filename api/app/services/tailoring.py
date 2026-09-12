@@ -433,17 +433,6 @@ class TailoringService:
         return session
 
     @staticmethod
-    def _session_is_terminal(session: TailoringSession) -> bool:
-        return session.status in {
-            TAILORING_SESSION_ACCEPTED,
-            TAILORING_SESSION_REJECTED,
-            TAILORING_SESSION_FAILED,
-            TAILORING_SESSION_CANCELLED,
-            TAILORING_SESSION_STALE,
-            TAILORING_SESSION_EXPIRED,
-        }
-
-    @staticmethod
     def _status_response(session: TailoringSession) -> TailoringSessionStatusResponse:
         return TailoringSessionStatusResponse(
             protocol_version=PROTOCOL_VERSION,
@@ -466,7 +455,10 @@ class TailoringService:
     async def session_status(self, session_id: str, user_id: str) -> TailoringSessionStatusResponse:
         session = await self._owned_session(session_id, user_id)
         now = _utcnow()
-        if _as_utc(session.expires_at) <= now and not self._session_is_terminal(session):
+        if (
+            session.status in {TAILORING_SESSION_CREATED, TAILORING_SESSION_EXCHANGED}
+            and _as_utc(session.expires_at) <= now
+        ):
             session.status = TAILORING_SESSION_EXPIRED
             session.updated_at = now
             await self.db.flush()
@@ -532,13 +524,13 @@ class TailoringService:
         session = result.scalar_one_or_none()
         if session is None:
             raise TailoringUnauthorizedError("Invalid tailoring code")
+        if session.status != TAILORING_SESSION_CREATED:
+            raise TailoringConflictError("Tailoring code has already been exchanged")
         if _as_utc(session.expires_at) <= _utcnow():
             session.status = TAILORING_SESSION_EXPIRED
             session.updated_at = _utcnow()
             await self.db.flush()
             raise TailoringExpiredError("Tailoring session expired")
-        if session.status != TAILORING_SESSION_CREATED:
-            raise TailoringConflictError("Tailoring code has already been exchanged")
         capability = secrets.token_urlsafe(32)
         now = _utcnow()
         result = await self.db.execute(
@@ -573,13 +565,13 @@ class TailoringService:
         session = result.scalar_one_or_none()
         if session is None:
             raise TailoringUnauthorizedError("Invalid tailoring capability")
+        if session.status != TAILORING_SESSION_EXCHANGED:
+            raise TailoringConflictError("Tailoring capability is no longer active")
         if _as_utc(session.expires_at) <= _utcnow():
             session.status = TAILORING_SESSION_EXPIRED
             session.updated_at = _utcnow()
             await self.db.flush()
             raise TailoringExpiredError("Tailoring session expired")
-        if session.status != TAILORING_SESSION_EXCHANGED:
-            raise TailoringConflictError("Tailoring capability is no longer active")
         return session
 
     async def _current_context(self, session: TailoringSession) -> dict[str, Any]:
@@ -654,11 +646,6 @@ class TailoringService:
             rendered_source=TailoringRenderArtifact(endpoint="/api/v1/tailoring/source-preview") if source_cv else None,
         )
 
-    async def evidence(self, capability: str | None) -> TailoringContextResponse:
-        """Compatibility method for callers that used GET /tailoring/evidence."""
-
-        return await self.context(capability)
-
     async def source_preview(self, capability: str | None) -> TailoringPreviewResponse:
         session = await self._session_for_capability(capability)
         parts = await self._current_context(session)
@@ -707,7 +694,7 @@ class TailoringService:
         ):
             if key in profile_data:
                 data[key] = copy.deepcopy(profile_data[key])
-            elif key == "photo_url":
+            else:
                 data.pop(key, None)
         return sections
 
@@ -834,6 +821,7 @@ class TailoringService:
             "candidate": candidate,
             "relevance": relevance.model_dump(mode="json"),
             "warnings": warnings,
+            "review_notes": request.review_notes,
         }
         update_result = await self.db.execute(
             update(TailoringSession)
@@ -867,6 +855,7 @@ class TailoringService:
             candidate=TailoringCandidateCV.model_validate(candidate),
             relevance=relevance.model_dump(mode="json"),
             warnings=warnings,
+            review_notes=request.review_notes,
         )
 
     async def accept_draft(self, session_id: str, user_id: str) -> TailoringReviewResponse:

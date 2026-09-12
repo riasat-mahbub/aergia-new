@@ -124,6 +124,26 @@ async function exists(path) {
   }
 }
 
+async function readReviewNotes(output) {
+  let source;
+  try {
+    source = await readFile(resolve(output, "review-notes.json"), "utf8");
+  } catch (error) {
+    if (error?.code === "ENOENT") return [];
+    throw error;
+  }
+  const notes = JSON.parse(source);
+  if (!Array.isArray(notes) || notes.length > 20) {
+    throw new Error("review-notes.json must be an array of at most 20 strings");
+  }
+  return notes.map((note) => {
+    if (typeof note !== "string" || !note.trim() || note.trim().length > 1_000) {
+      throw new Error("Each review note must be a non-empty string of at most 1000 characters");
+    }
+    return note.trim();
+  });
+}
+
 function wait(milliseconds) {
   return new Promise((accept) => setTimeout(accept, milliseconds));
 }
@@ -157,6 +177,7 @@ async function waitForCandidate(paths, context, origin, capability) {
     try {
       const candidate = JSON.parse(await readFile(candidatePath, "utf8"));
       validateCandidate(candidate, context);
+      const reviewNotes = await readReviewNotes(paths.output);
       const normalized = materializeCandidate(candidate);
       if (await exists(renderPath)) {
         await renderCandidate(paths, origin, capability, context, normalized);
@@ -165,7 +186,7 @@ async function waitForCandidate(paths, context, origin, capability) {
         continue;
       }
       await writeFile(resolve(paths.output, "normalized-candidate.json"), `${JSON.stringify(normalized, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
-      return normalized;
+      return { candidate: normalized, reviewNotes };
     } catch (error) {
       await unlink(submitPath).catch(() => undefined);
       await unlink(renderPath).catch(() => undefined);
@@ -212,14 +233,14 @@ export async function runSession(sessionUrl, workspace, options = {}) {
   }
   process.stdout.write(`Context ready in ${paths.source}\n`);
   process.stdout.write(`Write ${resolve(paths.output, "candidate.json")}, create ${resolve(paths.output, "RENDER")} to preview, then create ${resolve(paths.output, SUBMIT_MARKER)} to submit.\n`);
-  const candidate = await waitForCandidate(paths, context, origin, capability);
+  const { candidate, reviewNotes } = await waitForCandidate(paths, context, origin, capability);
   const result = await requestJson(`${origin}/api/v1/tailoring/submit`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-Aergia-Tailoring-Capability": capability,
     },
-    body: JSON.stringify({ context_hash: context.context_hash, candidate }),
+    body: JSON.stringify({ context_hash: context.context_hash, candidate, review_notes: reviewNotes }),
   });
   await writeFile(resolve(paths.output, "result.json"), `${JSON.stringify(result, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
   process.stdout.write(`${JSON.stringify(result)}\n`);

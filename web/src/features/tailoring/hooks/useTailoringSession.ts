@@ -151,8 +151,10 @@ export function useTailoringSession({
   const acceptDraft = useCallback(async () => {
     if (!tailoringSession) return;
     try {
-      const status = await acceptTailoringDraft(tailoringSession.session_id);
-      setTailoringStatus(status);
+      await acceptTailoringDraft(tailoringSession.session_id);
+      const currentStatus = await getTailoringSessionStatus(tailoringSession.session_id);
+      setTailoringStatus(currentStatus);
+      setTailoringResult(currentStatus.result);
       await fetchApplication(tailoringSession.application_id);
       addToast("Tailored CV accepted and linked to this application", "success");
     } catch {
@@ -163,9 +165,10 @@ export function useTailoringSession({
   const rejectDraft = useCallback(async () => {
     if (!tailoringSession) return;
     try {
-      const status = await rejectTailoringDraft(tailoringSession.session_id);
-      setTailoringStatus(status);
-      setTailoringResult(status.result);
+      await rejectTailoringDraft(tailoringSession.session_id);
+      const currentStatus = await getTailoringSessionStatus(tailoringSession.session_id);
+      setTailoringStatus(currentStatus);
+      setTailoringResult(currentStatus.result);
       addToast("Tailored draft rejected", "info");
     } catch {
       addToast("Unable to reject the tailored draft", "error");

@@ -1,6 +1,8 @@
 """Pure protocol-v2 contract tests (no database or browser runtime)."""
 
-from datetime import datetime, timezone
+import asyncio
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
@@ -15,6 +17,7 @@ from app.http_schemas.tailoring import (
     TailoringSessionStatusResponse,
     TailoringSubmitRequest,
 )
+from app.models.tailoring_session import TailoringSession
 from app.services.tailoring import TailoringService, fresh_tailoring_sections
 
 
@@ -54,6 +57,10 @@ def test_protocol_v2_is_complete_candidate_only():
         TailoringCodeExchange.model_validate({"protocol_version": 1, "code": "x" * 16})
     with pytest.raises(ValidationError):
         TailoringSubmitRequest.model_validate({"context_hash": "a" * 64, "changes": []})
+    with pytest.raises(ValidationError):
+        TailoringSubmitRequest.model_validate(
+            {"context_hash": "a" * 64, "candidate": _candidate(), "review_notes": ["x" * 1_001]}
+        )
 
 
 def test_context_and_status_contracts_are_v2_and_do_not_expose_capabilities():
@@ -62,6 +69,9 @@ def test_context_and_status_contracts_are_v2_and_do_not_expose_capabilities():
     assert capabilities["tailoring"]["mode"] == "complete_candidate"
     assert capabilities["tailoring"]["operations"] == ["generate_candidate"]
     assert "customizations" in capabilities["document"]
+    assert capabilities["tailoring"]["candidate_content"] == "editable_except_server_owned_profile_identity"
+    assert capabilities["document"]["section_types"]["experience"]["fields"]["company"]["editable"] is True
+    assert capabilities["document"]["section_types"]["profile"]["fields"]["email"]["server_owned"] is True
     context = TailoringContextResponse.model_validate(
         {
             "protocol_version": 2,
@@ -100,8 +110,11 @@ def test_context_and_status_contracts_are_v2_and_do_not_expose_capabilities():
 
 
 def test_candidate_normalization_injects_server_owned_profile_identity():
-    profile = UserProfile(name="Ada Lovelace", email="ada@example.com", phone="555-0100")
+    profile = UserProfile(name="Ada Lovelace", email="ada@example.com")
     candidate = _candidate()
+    candidate.sections[0].data["phone"] = "555-0100"
+    candidate.sections[0].data["social_links"] = [{"label": "LinkedIn", "url": "https://example.test/fake"}]
+    candidate.sections[0].data["photo_url"] = "https://example.test/fake.png"
     parts = {
         "manifest_by_id": {"minimal": {"manifest_version": 2}},
         "profile": profile,
@@ -109,6 +122,9 @@ def test_candidate_normalization_injects_server_owned_profile_identity():
     normalized, sections = TailoringService._normalize_candidate(candidate, parts)
     assert normalized["sections"][0]["data"]["name"] == "Ada Lovelace"
     assert normalized["sections"][0]["data"]["email"] == "ada@example.com"
+    assert "phone" not in normalized["sections"][0]["data"]
+    assert normalized["sections"][0]["data"]["social_links"] == []
+    assert "photo_url" not in normalized["sections"][0]["data"]
     assert sections[0]["style"]["subsection"]["text_align"] == "left"
 
 
@@ -117,3 +133,32 @@ def test_no_source_scaffold_has_profile_and_empty_entry_sections():
     assert sections[0]["enabled"] is True
     assert sections[0]["data"]["name"] == "Ada"
     assert all(section["data"] == [] for section in sections[1:])
+
+
+def test_ready_draft_remains_reviewable_after_agent_capability_expiry():
+    now = datetime.now(timezone.utc)
+    session = TailoringSession(
+        id="session",
+        user_id="user",
+        application_id="application",
+        cv_id=None,
+        draft_cv_id="draft",
+        code_hash="code-hash",
+        status="draft_ready",
+        expires_at=now - timedelta(minutes=1),
+        created_at=now - timedelta(hours=2),
+        updated_at=now,
+        attempts=1,
+        result={"draft_cv_id": "draft"},
+    )
+
+    class _DB:
+        async def execute(self, _query):
+            return SimpleNamespace(scalar_one_or_none=lambda: session)
+
+        async def flush(self):
+            raise AssertionError("A ready draft must not be expired with its capability")
+
+    status = asyncio.run(TailoringService(_DB()).session_status("session", "user"))
+    assert status.status == "draft_ready"
+    assert status.draft_cv_id == "draft"

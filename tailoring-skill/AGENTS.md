@@ -25,7 +25,8 @@ describes local skill assets only.
 - Do not invent facts, metrics, employers, dates, technologies, URLs, or
   other claims. Reasonable supported inferences are surfaced for user review.
 - Do not edit downloaded source evidence or reusable Library rows. The only
-  protocol output is the complete candidate file.
+  CV write is the complete candidate file; optional `review-notes.json` is
+  separate user-facing commentary, not CV content.
 - Use the server-provided protocol version and context. The server owns
   mechanical validation and the user owns final review.
 - Keep the returned tailoring capability in memory only; never write it to

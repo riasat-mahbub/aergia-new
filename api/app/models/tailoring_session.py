@@ -42,21 +42,7 @@ class TailoringSession(Base):
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     context_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    # Snapshot identity captured when the one-time code is created. Legacy
-    # Phase 1 rows may be null; the widened protocol refuses to submit them so
-    # they cannot bypass stale-write protection.
-    base_cv_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    base_cv_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    base_requirements_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    base_profile_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    # Maps Library entry IDs to the content digest seen by the agent. Keeping
-    # hashes rather than source content prevents the session row becoming a
-    # database synchronization mechanism while still making evidence scopes
-    # replay-safe.
-    library_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict, server_default="{}")
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
-    reported_gaps: Mapped[list] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
-    provenance: Mapped[list] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
     # A sanitized copy of the successful submission result for the browser's
     # status poll. It never contains the exchange code or capability.
     result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
@@ -78,7 +64,6 @@ class TailoringSession(Base):
     __table_args__ = (
         Index("ix_tailoring_sessions_user_status", "user_id", "status"),
         Index("ix_tailoring_sessions_expires_at", "expires_at"),
-        Index("ix_tailoring_sessions_draft_cv_id", "draft_cv_id"),
     )
 
 

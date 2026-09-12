@@ -90,7 +90,7 @@ export default function GeneratedCvPanel({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-app-ink">Use your coding agent</p>
-              <p className="mt-1 text-xs text-app-ink-3">{sessionStatusLabel(tailoringStatus?.status ?? tailoringSession.status)} · expires {new Date(tailoringSession.expires_at).toLocaleTimeString()}</p>
+              <p className="mt-1 text-xs text-app-ink-3">{sessionStatusLabel(tailoringStatus?.status ?? tailoringSession.status)}{tailoringStatus?.status === "draft_ready" ? " · ready for review" : ` · agent access expires ${new Date(tailoringSession.expires_at).toLocaleTimeString()}`}</p>
             </div>
             {!isTerminalTailoringStatus(tailoringStatus?.status) && <button type="button" onClick={onCancelTailoring} className="inline-flex items-center gap-1 text-xs font-medium text-app-danger hover:underline"><XCircle className="h-3.5 w-3.5" /> Cancel</button>}
           </div>
@@ -107,7 +107,8 @@ export default function GeneratedCvPanel({
             <div className="mt-3 border-t border-app-rule-soft pt-3 text-xs text-app-ink-2">
               <p className="font-medium text-app-ink">Draft ready for your review</p>
               <p className="mt-1">Relevance: {relevanceScoreFromSnapshot(result.relevance) ?? "—"}%</p>
-              {result.warnings.length > 0 && <p className="mt-1">Review notes: {result.warnings.join(" ")}</p>}
+              {result.warnings.length > 0 && <p className="mt-1">Document checks: {result.warnings.join(" ")}</p>}
+              {(result.review_notes ?? []).length > 0 && <div className="mt-2"><p className="font-medium">Agent notes</p><ul className="mt-1 list-disc pl-4">{result.review_notes?.map((note, index) => <li key={`${index}-${note.slice(0, 32)}`}>{note}</li>)}</ul></div>}
               <div className="mt-3 flex flex-wrap gap-2">
                 <Link to="/builder/$id" params={{ id: result.draft_cv_id }} search={{ application: application.id }} className="inline-flex items-center gap-1 rounded-md bg-app-primary px-3 py-2 text-xs font-medium text-white hover:bg-app-primary-hover"><Pencil className="h-3.5 w-3.5" /> Open/Edit draft</Link>
                 <button type="button" onClick={onAcceptDraft} className="inline-flex items-center gap-1 rounded-md border border-app-primary-soft px-3 py-2 text-xs font-medium text-app-primary hover:bg-app-primary-soft"><Check className="h-3.5 w-3.5" /> Accept draft</button>
