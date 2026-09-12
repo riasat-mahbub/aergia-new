@@ -18,7 +18,7 @@ from app.http_schemas.tailoring import (
     TailoringSubmitRequest,
 )
 from app.models.tailoring_session import TailoringSession
-from app.services.tailoring import TailoringService, fresh_tailoring_sections
+from app.services.tailoring import TailoringConflictError, TailoringService, fresh_tailoring_sections
 
 
 def _candidate() -> TailoringCandidateCV:
@@ -162,3 +162,39 @@ def test_ready_draft_remains_reviewable_after_agent_capability_expiry():
     status = asyncio.run(TailoringService(_DB()).session_status("session", "user"))
     assert status.status == "draft_ready"
     assert status.draft_cv_id == "draft"
+
+
+def test_expired_agent_draft_still_blocks_a_second_session_until_reviewed():
+    now = datetime.now(timezone.utc)
+    existing = TailoringSession(
+        id="session",
+        user_id="user",
+        application_id="application",
+        code_hash="code-hash",
+        status="draft_ready",
+        expires_at=now - timedelta(minutes=1),
+        created_at=now - timedelta(hours=2),
+        updated_at=now,
+    )
+    application = SimpleNamespace(id="application")
+
+    class _Result:
+        def __init__(self, *, scalar=None, rows=None):
+            self.scalar = scalar
+            self.rows = rows or []
+
+        def scalar_one_or_none(self):
+            return self.scalar
+
+        def scalars(self):
+            return SimpleNamespace(all=lambda: self.rows)
+
+    class _DB:
+        calls = 0
+
+        async def execute(self, _query):
+            self.calls += 1
+            return _Result(scalar=application) if self.calls == 1 else _Result(rows=[existing])
+
+    with pytest.raises(TailoringConflictError, match="Finish or cancel"):
+        asyncio.run(TailoringService(_DB()).create_session("application", "user"))
