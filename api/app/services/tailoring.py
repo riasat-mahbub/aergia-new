@@ -806,6 +806,10 @@ class TailoringService:
         candidate, sections = self._normalize_candidate(request.candidate, parts)
         application: Application = parts["application"]
         source_cv: CV | None = parts["source_cv"]
+        # Quota reservation starts a SQLite write transaction by rolling back
+        # the read transaction used to build the context. Capture scalar IDs
+        # before that rollback expires the loaded ORM objects.
+        application_id = application.id
         # Render before persistence: the saved document and the preview use
         # exactly the same pipeline and malformed templates cannot become
         # drafts.
@@ -843,7 +847,7 @@ class TailoringService:
         result_payload = {
             "protocol_version": PROTOCOL_VERSION,
             "session_id": session.id,
-            "application_id": application.id,
+            "application_id": application_id,
             "status": TAILORING_SESSION_DRAFT_READY,
             "source_cv_id": source_cv_id,
             "draft_cv_id": new_cv.id,
@@ -877,7 +881,7 @@ class TailoringService:
         return TailoringSubmitResponse(
             protocol_version=PROTOCOL_VERSION,
             session_id=session.id,
-            application_id=application.id,
+            application_id=application_id,
             status=TAILORING_SESSION_DRAFT_READY,
             source_cv_id=source_cv_id,
             draft_cv_id=new_cv.id,

@@ -37,7 +37,6 @@ SEED_TEMPLATES = [
         "description": "Two-column layout with a narrow sidebar and a wide main column.",
         "manifest": {
             "manifest_version": 2,
-            "id": "generic-modern",
             "name": "Modern",
             "description": "Two-column layout with a narrow sidebar and a wide main column.",
             "zones": [
@@ -84,7 +83,6 @@ SEED_TEMPLATES = [
         "description": "Single-column layout with serif fonts and compact spacing.",
         "manifest": {
             "manifest_version": 2,
-            "id": "generic-classic",
             "name": "Classic",
             "description": "Single-column layout with serif fonts and compact spacing.",
             "zones": [
@@ -122,7 +120,6 @@ SEED_TEMPLATES = [
         "description": "Single-column layout with minimal spacing and neutral palette.",
         "manifest": {
             "manifest_version": 2,
-            "id": "generic-minimal",
             "name": "Minimal",
             "description": "Single-column layout with minimal spacing and neutral palette.",
             "zones": [

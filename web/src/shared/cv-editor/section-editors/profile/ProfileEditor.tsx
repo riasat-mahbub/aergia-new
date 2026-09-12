@@ -1,14 +1,13 @@
 import { Plus, Trash2 } from "lucide-react";
 import { SOCIAL_ICON_OPTIONS } from "./socialIcons";
 import type { ProfileData, SocialLink } from "@/shared/cv/sectionData";
-
+import RichTextEditor from "@/shared/cv-editor/section-editors/rich-text/RichTextEditor";
 
 interface Props {
   data: ProfileData;
   onChange: (data: ProfileData) => void;
 }
 export default function ProfileEditor({ data, onChange }: Props) {
-
   const update = (key: keyof ProfileData, value: string) => {
     onChange({ ...data, [key]: value });
   };
@@ -166,12 +165,13 @@ export default function ProfileEditor({ data, onChange }: Props) {
 
       <div>
         <label className="block text-xs font-medium text-app-ink-2">Summary</label>
-        <textarea
-          value={data.summary || ""}
-          onChange={(e) => update("summary", e.target.value)}
-          rows={3}
-          className={inputCls}
-        />
+        <div className="mt-1">
+          <RichTextEditor
+            value={data.summary ?? ""}
+            onChange={(summary) => onChange({ ...data, summary })}
+            placeholder="Write a concise professional summary…"
+          />
+        </div>
       </div>
 
       <div>

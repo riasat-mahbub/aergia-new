@@ -4,6 +4,9 @@ import { renderHtml } from "../../api/render";
 import { applyPreviewPagination } from "./pagePagination";
 import { A4_PAGE_GEOMETRY, PAGE_HEIGHT_PX, PAGE_WIDTH_PX, scaleForAvailableWidth } from "./pageGeometry";
 
+const PREVIEW_DEBOUNCE_MS = 400;
+const PREVIEW_MIN_INTERVAL_MS = 3_000;
+
 interface Props {
   instances: SectionInstance[];
   customizations?: Customizations;
@@ -18,6 +21,7 @@ export default function UserTemplateRenderer({ instances, customizations, manife
   const [iframeHeight, setIframeHeight] = useState<number>(A4_PAGE_GEOMETRY.pageHeightPx);
   const [pageCount, setPageCount] = useState(1);
   const [scale, setScale] = useState(1);
+  const lastPreviewRequestAtRef = useRef(0);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -38,7 +42,13 @@ export default function UserTemplateRenderer({ instances, customizations, manife
     // resolver can fall back to manifest zones when no CV layout is saved.
     const customizationsPayload = customizations ?? {};
     let cancelled = false;
+    let timer: number | undefined;
+    let activeController: AbortController | null = null;
     async function renderTemplate() {
+      if (cancelled) return;
+      lastPreviewRequestAtRef.current = Date.now();
+      const controller = new AbortController();
+      activeController = controller;
       try {
         setError(null);
         const response = await renderHtml({
@@ -46,16 +56,36 @@ export default function UserTemplateRenderer({ instances, customizations, manife
           cv_sections: instances,
           customizations: customizationsPayload,
           preview: true,
-        });
-        if (!cancelled) setHtml(response.html);
+        }, controller.signal);
+        if (!cancelled && !controller.signal.aborted) setHtml(response.html);
       } catch {
-        if (cancelled) return;
+        if (cancelled || controller.signal.aborted) return;
         setError("Failed to render template");
         setHtml("");
+      } finally {
+        if (activeController === controller) activeController = null;
       }
     }
-    renderTemplate();
-    return () => { cancelled = true; };
+
+    const runWhenAllowed = () => {
+      const waitForRateLimit = PREVIEW_MIN_INTERVAL_MS - (Date.now() - lastPreviewRequestAtRef.current);
+      if (waitForRateLimit > 0) {
+        timer = window.setTimeout(runWhenAllowed, waitForRateLimit);
+        return;
+      }
+      void renderTemplate();
+    };
+    const waitForRateLimit = Math.max(
+      0,
+      PREVIEW_MIN_INTERVAL_MS - (Date.now() - lastPreviewRequestAtRef.current),
+    );
+    timer = window.setTimeout(runWhenAllowed, Math.max(PREVIEW_DEBOUNCE_MS, waitForRateLimit));
+
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+      activeController?.abort();
+    };
   }, [manifest, instances, customizations]);
 
   useEffect(() => {

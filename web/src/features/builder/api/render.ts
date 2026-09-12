@@ -6,7 +6,7 @@ export async function fetchRendererSupport(): Promise<SupportMap> {
   return data as SupportMap;
 }
 
-export async function renderHtml(request: RenderHtmlRequest): Promise<RenderHtmlResponse> {
-  const { data } = await client.post("/render/html", request);
+export async function renderHtml(request: RenderHtmlRequest, signal?: AbortSignal): Promise<RenderHtmlResponse> {
+  const { data } = await client.post("/render/html", request, { signal });
   return data as RenderHtmlResponse;
 }

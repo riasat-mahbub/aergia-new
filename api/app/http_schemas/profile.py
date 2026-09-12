@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.safe_url import normalize_http_url
+from app.document_schema.models import RichTextBlock
 
 
 class ProfileSocialLink(BaseModel):
@@ -33,7 +36,11 @@ class UserProfile(BaseModel):
     location: str | None = Field(default=None, max_length=255)
     site_text: str | None = Field(default=None, max_length=255)
     site_url: str | None = Field(default=None, max_length=2048)
-    summary: str | None = Field(default=None, max_length=20_000)
+    summary: (
+        Annotated[str, Field(max_length=20_000)]
+        | Annotated[list[RichTextBlock], Field(max_length=100)]
+        | None
+    ) = None
     photo_url: str | None = Field(default=None, max_length=2048)
     email_link: bool = True
     social_links: list[ProfileSocialLink] = Field(default_factory=list, max_length=32)
