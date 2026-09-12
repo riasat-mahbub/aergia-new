@@ -19,8 +19,8 @@ class CV(Base):
     customizations: Mapped[dict] = mapped_column(JSON, default=dict)
     sections: Mapped[dict] = mapped_column(JSON, nullable=False)
     extra_metadata: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
-    # Monotonic optimistic-concurrency token for server-side patching. It is
-    # incremented by every CV write, including non-content editor changes.
+    # Monotonic optimistic-concurrency token for CV writes, including
+    # non-content editor changes.
     revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
@@ -33,5 +33,4 @@ class CV(Base):
         "TailoringSession",
         foreign_keys="TailoringSession.cv_id",
         back_populates="cv",
-        cascade="all, delete-orphan",
     )

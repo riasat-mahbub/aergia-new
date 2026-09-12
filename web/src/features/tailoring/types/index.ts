@@ -43,6 +43,7 @@ export interface TailoringSessionResult {
   candidate?: TailoringCandidate;
   relevance: Record<string, unknown>;
   warnings: string[];
+  review_notes?: string[];
 }
 
 export interface TailoringSessionStatusResponse {
@@ -61,4 +62,15 @@ export interface TailoringSessionStatusResponse {
   updated_at: string;
   attempts: number;
   result: TailoringSessionResult | null;
+}
+
+export interface TailoringReviewResponse {
+  protocol_version: 2;
+  session_id: string;
+  application_id: string;
+  status: "accepted" | "rejected";
+  source_cv_id: string | null;
+  draft_cv_id: string | null;
+  cv_id: string | null;
+  relevance: Record<string, unknown> | null;
 }

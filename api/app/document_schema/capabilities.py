@@ -34,13 +34,11 @@ from app.document_schema.models import (
 )
 from app.services.renderer.builders import BUILDERS
 from app.services.renderer.support import RendererSupport
-from app.services.rich_text import RICH_TEXT_FIELDS_BY_SECTION
 
 
-# These names are the fields consumed by the renderer builders.  Keeping the
-# table here makes the tailoring policy and the evidence packet share one
-# source, while the actual field constraints remain generated from the
-# Pydantic wire schema below.
+# These names describe the fields consumed by renderer builders. The
+# candidate wire schema supplies mechanical constraints; complete-candidate
+# tailoring may edit any field except server-owned profile identity.
 SECTION_FIELDS: dict[str, dict[str, str]] = {
     "profile": {
         "name": "string",
@@ -153,38 +151,20 @@ if RENDERABLE_SECTION_TYPES != frozenset(SECTION_FIELDS):
         f"(missing={missing!r}, stale={stale!r})"
     )
 
-# Structured identity facts may be copied only when the source evidence is
-# cited.  Prose fields are deliberately absent; they can be rewritten as
-# truthful paraphrases by a candidate author.
-PROTECTED_FIELDS: dict[str, frozenset[str]] = {
-    "profile": frozenset(
-        {
-            "name",
-            "title",
-            "email",
-            "email_link",
-            "phone",
-            "location",
-            "site_text",
-            "site_url",
-            "photo_url",
-            "social_links",
-        }
-    ),
-    "experience": frozenset({"id", "company", "position", "start_date", "end_date", "current", "location"}),
-    "education": frozenset({"id", "institution", "degree", "start_date", "end_date", "current", "gpa"}),
-    "skills": frozenset({"id", "category", "items"}),
-    "projects": frozenset({"id", "name", "url", "link_text", "start_date", "end_date", "tech_stack"}),
-    "languages": frozenset({"id", "language", "proficiency"}),
-    "certifications": frozenset({"id", "name", "issuer", "date", "credential_url", "link_text"}),
-    "research": frozenset({"id", "title", "paper_url", "paper_link_text", "publication_date", "publication_value"}),
-    # Extras are user-defined; their values still pass the generic fact guard.
-    "extras": frozenset({"*"}),
-}
-
-# Reuse the normalizer's allowlist so a newly supported rich-text field cannot
-# silently diverge from tailoring's editable-field policy.
-EDITABLE_RICH_TEXT_FIELDS = RICH_TEXT_FIELDS_BY_SECTION
+SERVER_OWNED_PROFILE_FIELDS = frozenset(
+    {
+        "name",
+        "title",
+        "email",
+        "email_link",
+        "phone",
+        "location",
+        "site_text",
+        "site_url",
+        "photo_url",
+        "social_links",
+    }
+)
 
 
 STYLE_CAPABILITIES: dict[str, Any] = {
@@ -278,15 +258,13 @@ LIMITS: dict[str, int] = {
 
 def _section_descriptor(section_type: str) -> dict[str, Any]:
     fields = SECTION_FIELDS[section_type]
-    protected = PROTECTED_FIELDS.get(section_type, frozenset({"*"}))
-    editable = EDITABLE_RICH_TEXT_FIELDS.get(section_type, frozenset())
     return {
         "data_shape": "object" if section_type == "profile" else "entries",
         "fields": {
             name: {
                 "type": field_type,
-                "protected": name in protected or "*" in protected,
-                "editable": name in editable,
+                "server_owned": section_type == "profile" and name in SERVER_OWNED_PROFILE_FIELDS,
+                "editable": not (section_type == "profile" and name in SERVER_OWNED_PROFILE_FIELDS),
             }
             for name, field_type in fields.items()
         },
@@ -328,14 +306,9 @@ def renderer_capabilities(support: RendererSupport | None = None) -> dict[str, A
             "renderable_section_types": sorted(RENDERABLE_SECTION_TYPES),
             "entry_section_types": sorted(ENTRY_SECTION_TYPES),
             "library_kind_to_section_type": dict(LIBRARY_KIND_TO_SECTION_TYPE),
-            "protected_fields": {
-                section_type: sorted(fields) for section_type, fields in PROTECTED_FIELDS.items()
-            },
-            "editable_rich_text_fields": {
-                section_type: sorted(fields) for section_type, fields in EDITABLE_RICH_TEXT_FIELDS.items()
-            },
+            "candidate_content": "editable_except_server_owned_profile_identity",
             "operations": list(TAILORING_OPERATIONS),
-            "protected_profile_fields": sorted(PROTECTED_FIELDS["profile"]),
+            "server_owned_profile_fields": sorted(SERVER_OWNED_PROFILE_FIELDS),
             "review": {
                 "agent_can": ["read_context", "preview_candidate", "submit_candidate"],
                 "owner_only": ["accept_draft", "reject_draft"],
@@ -354,12 +327,11 @@ def capabilities_hash(capabilities: Mapping[str, Any] | None = None) -> str:
 
 
 __all__ = [
-    "EDITABLE_RICH_TEXT_FIELDS",
     "ENTRY_SECTION_TYPES",
     "LIBRARY_KIND_TO_SECTION_TYPE",
     "LIMITS",
-    "PROTECTED_FIELDS",
     "RENDERABLE_SECTION_TYPES",
+    "SERVER_OWNED_PROFILE_FIELDS",
     "SECTION_FIELDS",
     "STYLE_CAPABILITIES",
     "TAILORING_OPERATIONS",

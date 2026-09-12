@@ -196,6 +196,8 @@ class TailoringSubmitRequest(_StrictModel):
         normalized = [value.strip() for value in values]
         if any(not value for value in normalized):
             raise ValueError("review notes must not be blank")
+        if any(len(value) > 1_000 for value in normalized):
+            raise ValueError("review notes must not exceed 1000 characters each")
         return normalized
 
 
@@ -210,6 +212,7 @@ class TailoringSubmitResponse(_StrictModel):
     candidate: TailoringCandidateCV
     relevance: dict
     warnings: list[str] = Field(default_factory=list, max_length=50)
+    review_notes: list[str] = Field(default_factory=list, max_length=20)
 
 
 class TailoringReviewResponse(_StrictModel):

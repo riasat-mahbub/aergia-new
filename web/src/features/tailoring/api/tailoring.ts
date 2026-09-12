@@ -1,5 +1,6 @@
 import client from "@/shared/api/client";
 import type {
+  TailoringReviewResponse,
   TailoringSession,
   TailoringSessionStatusResponse,
 } from "../types";
@@ -24,12 +25,12 @@ export async function cancelTailoringSession(sessionId: string): Promise<Tailori
   return data;
 }
 
-export async function acceptTailoringDraft(sessionId: string): Promise<TailoringSessionStatusResponse> {
+export async function acceptTailoringDraft(sessionId: string): Promise<TailoringReviewResponse> {
   const { data } = await client.post(`/tailoring/sessions/${sessionId}/accept`);
   return data;
 }
 
-export async function rejectTailoringDraft(sessionId: string): Promise<TailoringSessionStatusResponse> {
+export async function rejectTailoringDraft(sessionId: string): Promise<TailoringReviewResponse> {
   const { data } = await client.post(`/tailoring/sessions/${sessionId}/reject`);
   return data;
 }
