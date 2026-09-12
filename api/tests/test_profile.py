@@ -89,6 +89,52 @@ async def test_profile_data_is_isolated_between_users(client):
     assert other.json()["name"] is None
     assert other.json()["email"] == second_email
 
+
+@pytest.mark.asyncio
+async def test_profile_accepts_rich_text_summary(client):
+    email = f"profile-rich-summary-{uuid4().hex}@example.com"
+    token = await _register_and_login(client, email)
+    headers = {"Authorization": f"Bearer {token}"}
+    summary = [
+        {
+            "type": "paragraph",
+            "items": [
+                {"text": "Builds "},
+                {"text": "reliable systems", "style": {"bold": True}},
+            ],
+        },
+        {
+            "type": "bullet_list",
+            "items": [{"text": "Leads cross-functional teams"}],
+        },
+    ]
+
+    response = await client.put(
+        "/api/v1/profile",
+        headers=headers,
+        json={
+            "name": "Ada Lovelace",
+            "title": "Platform Engineer",
+            "email": email,
+            "phone": None,
+            "location": None,
+            "site_text": None,
+            "site_url": None,
+            "summary": summary,
+            "photo_url": None,
+            "email_link": True,
+            "social_links": [],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["summary"] == summary
+
+    async with async_session() as session:
+        user = (await session.execute(select(User).where(User.email == email))).scalar_one()
+        assert user.profile_data["summary"] == summary
+
+
 @pytest.mark.asyncio
 async def test_malformed_stored_profile_surfaces_validation_error(client):
     email = f"profile-malformed-{uuid4().hex}@example.com"

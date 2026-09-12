@@ -11,7 +11,7 @@ cascades three-axis style and the renderer emits HTML.
 
 from __future__ import annotations
 from app.document_schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextRun, TextStyle
-from ._utils import normalize_url_scheme
+from ._utils import normalize_url_scheme, rich_text_to_field_block
 
 def build_profile(instance: SectionInstance, resolved_layout: LayoutHints | None = None) -> Section:
     data = instance.data if isinstance(instance.data, dict) else {}
@@ -62,8 +62,9 @@ def build_profile(instance: SectionInstance, resolved_layout: LayoutHints | None
             )
         )
 
-    if data.get("summary"):
-        fields.append(FieldBlock(key="summary", group="summary", runs=[TextRun(text=str(data["summary"]))]))
+    summary = rich_text_to_field_block("summary", data.get("summary"), group="summary")
+    if summary is not None:
+        fields.append(summary)
 
     entry = Entry(id=f"{instance.id}__main", fields=fields)
     return Section(

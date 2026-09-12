@@ -43,6 +43,36 @@ def test_profile_emits_name_title_summary_and_social_fields():
     assert fields[0].runs[0].text == "Ada"
 
 
+def test_profile_preserves_rich_text_summary_formatting():
+    cv = _cv([{
+        "id": "s1",
+        "type": "profile",
+        "title": "Profile",
+        "enabled": True,
+        "data": {
+            "name": "Ada",
+            "summary": [{
+                "type": "paragraph",
+                "items": [
+                    {"text": "Builds "},
+                    {"text": "reliable systems", "style": {"bold": True}},
+                ],
+            }],
+        },
+    }])
+
+    summary = next(
+        field
+        for field in build_document(cv).sections[0].entries[0].fields
+        if field.key == "summary"
+    )
+
+    assert summary.rich_text is True
+    assert summary.blocks is not None
+    assert summary.blocks[0].items[1].text == "reliable systems"
+    assert summary.blocks[0].items[1].style.bold is True
+
+
 def test_profile_social_run_carries_url_for_clickable_icon():
     """Each social link's TextRun must carry the URL on ``style.link`` so the
     renderer can wrap the icon and the label in a single ``<a href>``. Without
