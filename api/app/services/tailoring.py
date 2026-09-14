@@ -853,8 +853,8 @@ class TailoringService:
         )
         source_cv_id = source_cv.id if source_cv else None
         candidate_hash = self._candidate_hash(candidate)
-        # The service reserves a quota slot and creates an ordinary unlinked
-        # CV. It does not touch application.cv_id.
+        # The service reserves a quota slot and creates an application-owned
+        # candidate. It does not change application.cv_id until owner review.
         new_cv = await CVService(self.db).create_cv(
             session.user_id,
             CVCreate(
@@ -870,6 +870,7 @@ class TailoringService:
                     "review_notes": request.review_notes,
                 },
             ),
+            application_id=application_id,
         )
         await self.db.refresh(session)
         now = _utcnow()
@@ -927,7 +928,7 @@ class TailoringService:
             raise TailoringConflictError("Tailoring draft is not ready for acceptance")
         application = await self._owned_application(session.application_id, user_id)
         draft = await self._owned_cv(session.draft_cv_id, user_id)
-        if application is None or draft is None:
+        if application is None or draft is None or draft.application_id != application.id:
             raise TailoringConflictError("Tailoring draft is no longer available")
         # Compare-and-swap protects a CV selected after the agent began.
         source_condition = Application.cv_id.is_(None) if session.cv_id is None else Application.cv_id == session.cv_id

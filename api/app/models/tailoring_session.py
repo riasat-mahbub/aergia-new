@@ -13,8 +13,9 @@ class TailoringSession(Base):
     """One narrowly scoped local-agent tailoring task.
 
     The exchange code and capability are never persisted in plaintext. A
-    session snapshots an optional source CV and produces an unlinked draft;
-    the application link changes only after the owner accepts that draft.
+    session snapshots an optional source CV and produces an application-owned
+    candidate; the application's current CV changes only after the owner
+    accepts that candidate.
     """
 
     __tablename__ = "tailoring_sessions"

@@ -13,6 +13,12 @@ class CV(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    application_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("applications.id", ondelete="SET NULL", name="fk_cvs_application_id_applications"),
+        nullable=True,
+        index=True,
+    )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
     template_id: Mapped[str] = mapped_column(String(100), nullable=False)

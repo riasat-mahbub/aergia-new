@@ -28,7 +28,7 @@ def test_tailoring_skill_bundle_contains_v2_candidate_workflow():
 
 
 @pytest.mark.asyncio
-async def test_tailoring_submit_creates_an_unlinked_review_draft(client, monkeypatch):
+async def test_tailoring_submit_creates_owned_review_draft_without_promoting_it(client, monkeypatch):
     email = f"tailoring-{uuid4().hex}@example.com"
     password = "testpass123"
     registered = await client.post("/api/v1/auth/register", json={"email": email, "password": password})
@@ -121,3 +121,15 @@ async def test_tailoring_submit_creates_an_unlinked_review_draft(client, monkeyp
     assert submitted.json()["warnings"] == preview.json()["warnings"]
     unchanged_application = await client.get(f"/api/v1/applications/{application_id}", headers=headers)
     assert unchanged_application.json()["cv_id"] is None
+    listed_cvs = await client.get("/api/v1/cvs", headers=headers)
+    draft_item = next(item for item in listed_cvs.json() if item["id"] == submitted.json()["draft_cv_id"])
+    assert draft_item["application"]["id"] == application_id
+
+    accepted = await client.post(
+        f"/api/v1/tailoring/sessions/{created.json()['session_id']}/accept",
+        headers=headers,
+    )
+    assert accepted.status_code == 200
+    assert accepted.json()["cv_id"] == submitted.json()["draft_cv_id"]
+    accepted_application = await client.get(f"/api/v1/applications/{application_id}", headers=headers)
+    assert accepted_application.json()["cv_id"] == submitted.json()["draft_cv_id"]
