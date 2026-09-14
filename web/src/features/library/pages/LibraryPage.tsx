@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Plus, Archive } from "lucide-react";
 import { LIBRARY_KIND_LABELS, LIBRARY_KINDS } from "@/features/library/domain/catalog";
-import type { LibraryEntry } from "@/features/library/types";
+import type { LibraryEntry, LibraryEntryKind } from "@/features/library/types";
 import { useLibraryStore } from "@/features/library/state/libraryStore";
 import { useProfileStore } from "@/features/profile";
 import { useToastStore } from "@/shared/state/uiStore";
@@ -31,6 +31,7 @@ export default function LibraryPage({ initialKind }: LibraryPageProps) {
   const addToast = useToastStore((s) => s.addToast);
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [createKind, setCreateKind] = useState<LibraryEntryKind | undefined>();
   const [editTarget, setEditTarget] = useState<LibraryEntry | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<LibraryEntry | null>(null);
   const buckets = selectByKind(entries);
@@ -38,7 +39,13 @@ export default function LibraryPage({ initialKind }: LibraryPageProps) {
   const isEmpty = entries.length === 0;
   const closeEntryModal = () => {
     setCreateOpen(false);
+    setCreateKind(undefined);
     setEditTarget(null);
+  };
+
+  const openCreateModal = (kind?: LibraryEntryKind) => {
+    setCreateKind(kind);
+    setCreateOpen(true);
   };
 
   useEffect(() => {
@@ -66,7 +73,7 @@ export default function LibraryPage({ initialKind }: LibraryPageProps) {
           </div>
           <button
             type="button"
-            onClick={() => setCreateOpen(true)}
+            onClick={() => openCreateModal()}
             className="inline-flex items-center gap-1 rounded-md border border-lib-rule bg-lib-surface px-3 py-2 text-sm font-medium text-lib-ink hover:bg-lib-surface-2"
           >
             <Plus className="h-4 w-4" />
@@ -107,7 +114,7 @@ export default function LibraryPage({ initialKind }: LibraryPageProps) {
               </a>
               <button
                 type="button"
-                onClick={() => setCreateOpen(true)}
+                onClick={() => openCreateModal()}
                 className="inline-flex items-center rounded-md bg-lib-accent px-4 py-2 text-sm font-medium text-lib-accent-ink hover:bg-lib-accent-hover"
               >
                 + Add entry
@@ -121,11 +128,12 @@ export default function LibraryPage({ initialKind }: LibraryPageProps) {
                 onEditEntry={(entry) => {
                   setEditTarget(entry);
                   setCreateOpen(false);
+                  setCreateKind(undefined);
                 }}
                 key={kind}
                 kind={kind}
                 entries={buckets[kind]}
-                onAdd={() => setCreateOpen(true)}
+                onAdd={openCreateModal}
                 onDeleteEntry={(entry) => setDeleteTarget(entry)}
                 highlighted={initialKind === kind}
               />
@@ -148,6 +156,7 @@ export default function LibraryPage({ initialKind }: LibraryPageProps) {
       <LibraryCreateModal
         open={createOpen || !!editTarget}
         onClose={closeEntryModal}
+        initialKind={createKind}
         entry={editTarget}
         onSaved={(entry) => {
           addToast(`${editTarget ? "Updated" : "Added to"} ${LIBRARY_KIND_LABELS[entry.kind]}`, "success");

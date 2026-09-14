@@ -6,7 +6,7 @@ import LibraryEntryCard from "@/features/library/components/LibraryEntryCard";
 interface LibraryKindGroupProps {
   kind: LibraryEntryKind;
   entries: LibraryEntry[];
-  onAdd?: () => void;
+  onAdd?: (kind: LibraryEntryKind) => void;
   onEditEntry?: (entry: LibraryEntry) => void;
   onDeleteEntry?: (entry: LibraryEntry) => void;
   onPickEntry?: (entry: LibraryEntry) => void;
@@ -42,7 +42,7 @@ export default function LibraryKindGroup({
         {onAdd && (
           <button
             type="button"
-            onClick={onAdd}
+            onClick={() => onAdd(kind)}
             className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-lib-accent hover:bg-lib-accent-soft"
           >
             <Plus className="h-3.5 w-3.5" />
