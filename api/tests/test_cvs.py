@@ -6,6 +6,7 @@ import pytest
 
 from app.db.session import async_session
 from app.models.application import Application
+from app.models.cv import CV
 
 
 CUSTOMIZATIONS_PAYLOAD = {
@@ -178,6 +179,13 @@ async def test_cv_list_includes_owned_application_summary_and_keeps_copies_unlin
     )
     assert linked.status_code == 201
     linked_id = linked.json()["id"]
+    replaced = await client.post(
+        "/api/v1/cvs",
+        json={"title": "Replaced application CV"},
+        headers=auth_headers,
+    )
+    assert replaced.status_code == 201
+    replaced_id = replaced.json()["id"]
     application = await client.post(
         "/api/v1/applications",
         json={"company": "Example Labs", "role": "Platform Engineer", "job_description": "Python"},
@@ -188,8 +196,14 @@ async def test_cv_list_includes_owned_application_summary_and_keeps_copies_unlin
 
     async with async_session() as session:
         application_row = await session.get(Application, application_id)
+        linked_row = await session.get(CV, linked_id)
+        replaced_row = await session.get(CV, replaced_id)
         assert application_row is not None
+        assert linked_row is not None
+        assert replaced_row is not None
         application_row.cv_id = linked_id
+        linked_row.application_id = application_id
+        replaced_row.application_id = application_id
         await session.commit()
 
     copied = await client.post(f"/api/v1/cvs/{linked_id}/copy", headers=auth_headers)
@@ -209,6 +223,7 @@ async def test_cv_list_includes_owned_application_summary_and_keeps_copies_unlin
         "generation_status": "pending",
         "applied_at": None,
     }
+    assert by_id[replaced_id]["application"] == by_id[linked_id]["application"]
     assert by_id[copied.json()["id"]]["application"] is None
 
 
@@ -229,8 +244,10 @@ async def test_cv_list_does_not_expose_another_users_application_summary(client,
 
     async with async_session() as session:
         application_row = await session.get(Application, foreign_application.json()["id"])
+        owner_cv_row = await session.get(CV, owner_cv.json()["id"])
         assert application_row is not None
-        application_row.cv_id = owner_cv.json()["id"]
+        assert owner_cv_row is not None
+        owner_cv_row.application_id = application_row.id
         await session.commit()
 
     listed = await client.get("/api/v1/cvs", headers=auth_headers)

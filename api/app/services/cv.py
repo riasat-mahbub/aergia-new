@@ -42,10 +42,11 @@ class CVService:
         return list(result.scalars().all())
 
     async def list_cv_summaries(self, user_id: str) -> list[tuple[CV, Application | None]]:
-        """Return the user's CVs with their latest owned application relation.
+        """Return the user's CVs with their owning application, if any.
 
-        The relation is deliberately queried by both ``user_id`` and ``cv_id``.
-        CV metadata is user-editable JSON and must not be used as provenance.
+        The relationship is deliberately queried by both owners and the CV's
+        relational ``application_id``. CV metadata is user-editable JSON and
+        must not be used as provenance.
         """
         cvs = await self.list_cvs(user_id)
         if not cvs:
@@ -53,19 +54,17 @@ class CVService:
 
         cv_ids = [cv.id for cv in cvs]
         result = await self.db.execute(
-            select(Application)
+            select(CV.id, Application)
+            .join(Application, Application.id == CV.application_id)
             .where(
+                CV.id.in_(cv_ids),
+                CV.user_id == user_id,
                 Application.user_id == user_id,
-                Application.cv_id.in_(cv_ids),
             )
-            .order_by(Application.updated_at.desc(), Application.created_at.desc())
         )
-        latest_by_cv: dict[str, Application] = {}
-        for application in result.scalars().all():
-            if application.cv_id is not None and application.cv_id not in latest_by_cv:
-                latest_by_cv[application.cv_id] = application
+        application_by_cv = {cv_id: application for cv_id, application in result.all()}
 
-        return [(cv, latest_by_cv.get(cv.id)) for cv in cvs]
+        return [(cv, application_by_cv.get(cv.id)) for cv in cvs]
 
     async def get_cv(self, cv_id: str, user_id: str) -> CV | None:
         result = await self.db.execute(
@@ -80,7 +79,13 @@ class CVService:
             return None
         return {"manifest": template.manifest}
 
-    async def create_cv(self, user_id: str, data: CVCreate) -> CV:
+    async def create_cv(
+        self,
+        user_id: str,
+        data: CVCreate,
+        *,
+        application_id: str | None = None,
+    ) -> CV:
         raw_sections = data.sections if isinstance(data.sections, list) else []
         sections = [
             s.model_dump(mode="json", exclude_none=True) if hasattr(s, "model_dump") else s
@@ -88,6 +93,17 @@ class CVService:
         ]
         sections, _ = normalize_rich_text_ids(sections)
         customizations = coerce_customizations(data.customizations).model_dump(exclude_none=True)
+
+        if application_id is not None:
+            owned_application = await self.db.execute(
+                select(Application.id).where(
+                    Application.id == application_id,
+                    Application.user_id == user_id,
+                )
+            )
+            if owned_application.scalar_one_or_none() is None:
+                raise LookupError("Application not found")
+
         await QuotaService(self.db).reserve(user_id, QuotaResource.CV)
 
         # A new CV inherits the template's zone layout so the editor opens
@@ -111,6 +127,7 @@ class CVService:
 
         cv = CV(
             user_id=user_id,
+            application_id=application_id,
             title=data.title,
             description=data.description,
             template_id=data.template_id,

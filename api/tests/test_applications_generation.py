@@ -7,6 +7,8 @@ import pytest
 from app.services import application as application_service_module
 from app.services import pdf as pdf_service_module
 from app.services.pdf import PDFUnavailableError
+from app.db.session import async_session
+from app.models.cv import CV
 
 
 async def _auth_headers(client, prefix: str) -> dict[str, str]:
@@ -103,6 +105,9 @@ async def test_generation_creates_ordered_editable_cv_with_fresh_copies(client, 
     assert cv["extra_metadata"]["application_id"] == application_id
     assert cv["extra_metadata"]["generated_by"] == "gliner2.5-small-v1"
     assert cv["extra_metadata"]["extracted_requirements"]
+    listed_cvs = await client.get("/api/v1/cvs", headers=headers)
+    listed_cv = next(item for item in listed_cvs.json() if item["id"] == body["cv_id"])
+    assert listed_cv["application"]["id"] == application_id
     assert len({section["id"] for section in cv["sections"]}) == len(cv["sections"])
     row_ids = [row["id"] for section in cv["sections"] if isinstance(section["data"], list) for row in section["data"]]
     assert len(row_ids) == len(set(row_ids))
@@ -151,6 +156,13 @@ async def test_failed_generation_is_retryable_and_linked_cv_blocks_delete(client
     assert blocked.json()["detail"] == "CV is linked to an application"
 
     assert (await client.delete(f"/api/v1/applications/{application_id}", headers=headers)).status_code == 204
+    async with async_session() as session:
+        detached_row = await session.get(CV, cv_id)
+        assert detached_row is not None
+        assert detached_row.application_id is None
+    after_application_delete = await client.get("/api/v1/cvs", headers=headers)
+    detached_cv = next(item for item in after_application_delete.json() if item["id"] == cv_id)
+    assert detached_cv["application"] is None
     assert (await client.delete(f"/api/v1/cvs/{cv_id}", headers=headers)).status_code == 204
 
 

@@ -42,7 +42,9 @@ class Application(Base):
     )
 
     user = relationship("User", back_populates="applications")
-    cv = relationship("CV")
+    # An application may own many generated/draft CVs, but cv_id remains the
+    # single current CV selected for the application.
+    cv = relationship("CV", foreign_keys=[cv_id])
     tailoring_sessions = relationship("TailoringSession", back_populates="application", cascade="all, delete-orphan")
     status_history = relationship(
         "ApplicationStatusHistory",

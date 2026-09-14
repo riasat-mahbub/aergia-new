@@ -8,11 +8,12 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.application import Application, ApplicationStatusHistory
+from app.models.cv import CV
 from app.models.user import User
 from app.http_schemas.application import (
     ApplicationCreate,
@@ -183,6 +184,13 @@ class ApplicationService:
         application = await self.get_application(application_id, user_id)
         if application is None:
             return False
+        # SQLite foreign-key enforcement is disabled on the app's connections;
+        # explicitly detach owned CVs so deletion cannot leave dangling links.
+        await self.db.execute(
+            update(CV)
+            .where(CV.application_id == application.id, CV.user_id == user_id)
+            .values(application_id=None)
+        )
         await self.db.delete(application)
         await self.db.flush()
         await QuotaService(self.db).release(user_id, QuotaResource.APPLICATION)
@@ -267,6 +275,7 @@ class ApplicationService:
                     customizations={"spacing": "none"},
                     extra_metadata=extra_metadata,
                 ),
+                application_id=application_id_value,
             )
             application = await self.get_application(application_id_value, user_id)
             if application is None:
