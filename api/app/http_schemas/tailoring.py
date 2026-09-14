@@ -183,10 +183,13 @@ class TailoringPreviewResponse(_StrictModel):
     pdf_base64: str
     page_count: int = Field(ge=0)
     candidate_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+    relevance: dict | None = None
+    warnings: list[str] = Field(default_factory=list, max_length=50)
 
 
 class TailoringSubmitRequest(_StrictModel):
     context_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+    expected_candidate_hash: str | None = Field(default=None, min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
     candidate: TailoringCandidateCV
     review_notes: list[str] = Field(default_factory=list, max_length=20)
 

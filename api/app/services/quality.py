@@ -122,7 +122,7 @@ def evaluate_cv_quality(
             CVQualityIssue(
                 code="page_overflow",
                 severity="warning",
-                message=f"This CV renders to {page_count} pages; trim content to keep it to one page.",
+                message=f"This CV renders to {page_count} pages; review its length for the target role and seniority.",
             )
         )
 

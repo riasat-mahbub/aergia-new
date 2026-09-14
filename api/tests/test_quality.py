@@ -14,6 +14,9 @@ def test_quality_checks_find_missing_contact_empty_sections_bad_links_and_overfl
     assert result.status == "warning"
     assert {issue.code for issue in result.issues} == {"missing_contact", "empty_section", "invalid_link", "page_overflow"}
     assert all(issue.severity == "warning" for issue in result.issues)
+    assert next(issue.message for issue in result.issues if issue.code == "page_overflow") == (
+        "This CV renders to 2 pages; review its length for the target role and seniority."
+    )
 
 
 def test_quality_requires_a_profile_name():

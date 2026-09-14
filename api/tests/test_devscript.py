@@ -65,6 +65,20 @@ def test_uvicorn_launch_declares_options_as_array():
     )
 
 
+def test_frontend_waits_for_api_readiness():
+    """Start the SSR frontend only after FastAPI and its database are ready."""
+    text = DEV_SH.read_text()
+    readiness_check = text.find('opener.open("http://127.0.0.1:8000/readyz"')
+    frontend_start = text.find('echo "=== Starting Frontend on :5173 ==="')
+    assert readiness_check >= 0, "dev.sh must poll FastAPI's database-aware /readyz endpoint"
+    assert frontend_start > readiness_check, (
+        "the frontend must start after /readyz succeeds because SSR resolves sessions through FastAPI"
+    )
+    assert "did not become ready within 60 seconds" in text, (
+        "dev.sh must stop clearly instead of launching a frontend against an unavailable API"
+    )
+
+
 SMOKE_SECTION_MARKERS = (
     "--smoke",
     "SMOKE=true",

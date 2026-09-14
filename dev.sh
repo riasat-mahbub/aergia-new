@@ -120,6 +120,36 @@ UVICORN_OPTS+=(--forwarded-allow-ips "$FORWARDED_ALLOW_IPS")
 uvicorn app.main:app "${UVICORN_OPTS[@]}" &
 API_PID=$!
 
+# TanStack Start resolves the user's session during SSR, so the frontend must
+# not accept requests until FastAPI has completed startup and can reach its DB.
+echo "=== Waiting for API readiness on :8000 ==="
+if ! python3 - <<'PY'
+import sys
+import time
+from urllib.error import URLError
+from urllib.request import ProxyHandler, build_opener
+
+deadline = time.monotonic() + 60
+opener = build_opener(ProxyHandler({}))
+while time.monotonic() < deadline:
+    try:
+        with opener.open("http://127.0.0.1:8000/readyz", timeout=1) as response:
+            if response.status == 200:
+                print("API is ready.")
+                sys.exit(0)
+    except (OSError, URLError, TimeoutError):
+        pass
+    time.sleep(0.5)
+
+sys.exit(1)
+PY
+then
+    echo "ERROR: API on :8000 did not become ready within 60 seconds" >&2
+    kill "$API_PID" 2>/dev/null || true
+    wait "$API_PID" 2>/dev/null || true
+    exit 1
+fi
+
 # ── 5. Start the frontend ────────────────────────────────────────
 WEB_PID=""
 if [ "$BUILD" = false ] && [ "$PROD" = false ]; then
