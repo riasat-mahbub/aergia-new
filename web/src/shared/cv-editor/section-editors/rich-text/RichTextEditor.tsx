@@ -13,7 +13,9 @@ import { TOGGLE_LINK_COMMAND } from "@lexical/link";
 import { LinkPlugin } from "@lexical/react/LexicalLinkPlugin";
 import { AutoLinkPlugin } from "@lexical/react/LexicalAutoLinkPlugin";
 import {
+  BLUR_COMMAND,
   $getSelection,
+  $setSelection,
   COMMAND_PRIORITY_HIGH,
   FORMAT_TEXT_COMMAND,
   INDENT_CONTENT_COMMAND,
@@ -138,6 +140,7 @@ function EditorInner({
 
   return (
     <>
+      <ClearSelectionOnBlurPlugin />
       <RichTextToolbar editor={editor} />
       <div className="min-h-[4.5rem] px-2 py-1 text-sm">
         <RichTextPlugin
@@ -161,10 +164,39 @@ function EditorInner({
       <PasteCleanupPlugin />
       <LinkPlugin validateUrl={(url) => Boolean(safeLinkUrl(url))} />
       <AutoLinkPlugin matchers={safeAutoLinkMatchers} excludeParents={[$isListItemNode]} />
-      <OnChangePlugin onChange={handleChange} />
+      <OnChangePlugin ignoreSelectionChange onChange={handleChange} />
       <InitPlugin value={value} />
     </>
   );
+}
+
+/**
+ * Lexical retains its last DOM selection after its contenteditable loses focus.
+ * A later document selectionchange (for example while typing in a nearby
+ * input) can make Lexical restore that old selection and steal focus back.
+ * Keep the selection when focus moves to this editor's toolbar, but clear it
+ * when focus leaves the rich-text control entirely.
+ */
+function ClearSelectionOnBlurPlugin() {
+  const [editor] = useLexicalComposerContext();
+
+  useEffect(() => editor.registerCommand(
+    BLUR_COMMAND,
+    (event) => {
+      const rootElement = editor.getRootElement();
+      const editorContainer = rootElement?.closest(".rich-text-editor");
+      const nextTarget = event.relatedTarget;
+      if (nextTarget instanceof Node && editorContainer?.contains(nextTarget)) {
+        return false;
+      }
+
+      editor.update(() => $setSelection(null));
+      return false;
+    },
+    COMMAND_PRIORITY_HIGH,
+  ), [editor]);
+
+  return null;
 }
 
 /** Keeps inline formatting on a flat list item as one logical run. */
