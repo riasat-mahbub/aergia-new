@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -33,9 +34,61 @@ export function validateCandidate(candidate, context) {
 }
 
 export function materializeCandidate(candidate) {
-  // Do not merge source values or rewrite claims locally. The server owns
-  // identity injection and canonical normalization.
-  return JSON.parse(JSON.stringify(candidate));
+  // Do not merge source values or rewrite claims locally. Stable structural
+  // rich-text IDs make preview and submit normalization identical.
+  const normalized = JSON.parse(JSON.stringify(candidate));
+  const fieldsBySection = {
+    profile: ["summary"],
+    experience: ["description"],
+    education: ["summary"],
+    projects: ["description"],
+    research: ["description"],
+  };
+
+  function validId(value) {
+    return typeof value === "string" && Boolean(value.trim()) && value.length <= 128;
+  }
+
+  function stableId(prefix, path, used) {
+    for (let salt = 0; ; salt += 1) {
+      const digest = createHash("sha256").update(prefix + "\u0000" + path + "\u0000" + salt).digest("hex").slice(0, 32);
+      const id = prefix + "_" + digest;
+      if (!used.has(id)) return id;
+    }
+  }
+
+  for (const section of normalized.sections) {
+    const fields = fieldsBySection[section?.type] ?? [];
+    const rows = Array.isArray(section?.data)
+      ? section.data.map((row, index) => [index, row]).filter(([, row]) => row && typeof row === "object" && !Array.isArray(row))
+      : section?.data && typeof section.data === "object"
+        ? [[0, section.data]]
+        : [];
+    for (const [rowIndex, row] of rows) {
+      for (const field of fields) {
+        const blocks = row[field];
+        if (!Array.isArray(blocks)) continue;
+        const blockIds = new Set();
+        blocks.forEach((block, blockIndex) => {
+          if (!block || typeof block !== "object" || Array.isArray(block)) return;
+          if (!validId(block.id) || blockIds.has(block.id)) {
+            block.id = stableId("rtb", [section.id, rowIndex, field, blockIndex].join("/"), blockIds);
+          }
+          blockIds.add(block.id);
+          if (!Array.isArray(block.items)) return;
+          const itemIds = new Set();
+          block.items.forEach((item, itemIndex) => {
+            if (!item || typeof item !== "object" || Array.isArray(item)) return;
+            if (!validId(item.id) || itemIds.has(item.id)) {
+              item.id = stableId("rti", [section.id, rowIndex, field, blockIndex, itemIndex].join("/"), itemIds);
+            }
+            itemIds.add(item.id);
+          });
+        });
+      }
+    }
+  }
+  return normalized;
 }
 
 async function readJson(path) {

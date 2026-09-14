@@ -14,6 +14,7 @@ from app.http_schemas.tailoring import (
     TailoringCandidateCV,
     TailoringCodeExchange,
     TailoringContextResponse,
+    TailoringPreviewResponse,
     TailoringSessionStatusResponse,
     TailoringSubmitRequest,
 )
@@ -66,6 +67,30 @@ def test_protocol_v2_is_complete_candidate_only():
         TailoringSubmitRequest.model_validate(
             {"context_hash": "a" * 64, "candidate": _candidate(), "review_notes": ["x" * 1_001]}
         )
+
+
+def test_preview_feedback_and_expected_candidate_hash_are_part_of_the_tailoring_contract():
+    preview = TailoringPreviewResponse.model_validate(
+        {
+            "format": "pdf",
+            "pdf_base64": "cGRm",
+            "page_count": 1,
+            "candidate_hash": "b" * 64,
+            "relevance": {"status": "evaluated", "score": 90},
+            "warnings": ["Review length for the target role."],
+        }
+    )
+    request = TailoringSubmitRequest.model_validate(
+        {
+            "context_hash": "a" * 64,
+            "expected_candidate_hash": preview.candidate_hash,
+            "candidate": _candidate(),
+        }
+    )
+
+    assert preview.relevance["score"] == 90
+    assert preview.warnings == ["Review length for the target role."]
+    assert request.expected_candidate_hash == preview.candidate_hash
 
 
 def test_context_and_status_contracts_are_v2_and_do_not_expose_capabilities():

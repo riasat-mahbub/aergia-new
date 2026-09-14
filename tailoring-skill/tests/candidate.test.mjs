@@ -39,3 +39,24 @@ test("requires exactly one enabled profile section", () => {
   assert.throws(() => validateCandidate({ ...candidate, sections: [] }, context), /sections/);
   assert.throws(() => validateCandidate({ ...candidate, sections: [{ ...candidate.sections[0], enabled: false }] }, context), /profile/);
 });
+
+test("materialization gives new rich-text blocks stable IDs without changing claims", () => {
+  const raw = {
+    ...candidate,
+    sections: [{
+      ...candidate.sections[0],
+      data: {
+        ...candidate.sections[0].data,
+        summary: [{ type: "bullet_list", items: [{ text: "Built a platform" }] }],
+      },
+    }],
+  };
+
+  const first = materializeCandidate(raw);
+  const second = materializeCandidate(raw);
+  assert.deepEqual(first, second);
+  assert.equal(first.sections[0].data.summary[0].id, second.sections[0].data.summary[0].id);
+  assert.equal(first.sections[0].data.summary[0].items[0].id, second.sections[0].data.summary[0].items[0].id);
+  assert.equal(first.sections[0].data.summary[0].items[0].text, "Built a platform");
+  assert.equal(raw.sections[0].data.summary[0].id, undefined);
+});

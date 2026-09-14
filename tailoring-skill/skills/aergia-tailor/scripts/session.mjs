@@ -1,16 +1,19 @@
 #!/usr/bin/env node
 
 import { createInterface } from "node:readline/promises";
+import { createHash } from "node:crypto";
 import { access, chmod, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { materializeCandidate, validateCandidate } from "./validate-candidate.mjs";
+import { evaluateCritique, MAX_CRITIQUE_PASSES } from "./validate-critique.mjs";
 
 const PROTOCOL_VERSION = 2;
 const SUBMIT_MARKER = "SUBMIT";
 const RENDER_MARKER = "RENDER";
+const CRITIQUE_MARKER = "CRITIQUE";
 
 function parseArgs(argv) {
   const args = {};
@@ -95,6 +98,22 @@ async function replaceProtectedBinary(path, base64) {
   await chmod(path, 0o400);
 }
 
+async function replaceProtectedJson(path, value) {
+  await chmod(path, 0o600).catch(() => undefined);
+  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+  await chmod(path, 0o400);
+}
+
+function sortJson(value) {
+  if (Array.isArray(value)) return value.map(sortJson);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, sortJson(value[key])]));
+}
+
+export function candidateInputHash(candidate) {
+  return createHash("sha256").update(JSON.stringify(sortJson(candidate))).digest("hex");
+}
+
 async function prepareWorkspace(workspace, context) {
   const source = resolve(workspace, "source");
   const output = resolve(workspace, "output");
@@ -148,7 +167,8 @@ function wait(milliseconds) {
   return new Promise((accept) => setTimeout(accept, milliseconds));
 }
 
-async function renderCandidate(paths, origin, capability, context, candidate) {
+async function renderCandidate(paths, origin, capability, context, candidate, passNumber) {
+  const candidateInputDigest = candidateInputHash(candidate);
   const preview = await requestJson(`${origin}/api/v1/tailoring/preview`, {
     method: "POST",
     headers: {
@@ -158,40 +178,286 @@ async function renderCandidate(paths, origin, capability, context, candidate) {
     body: JSON.stringify({ context_hash: context.context_hash, candidate }),
   });
   await replaceProtectedBinary(resolve(paths.output, "candidate-preview.pdf"), preview.pdf_base64);
-  await writeFile(
-    resolve(paths.output, "candidate-preview.json"),
-    `${JSON.stringify({ format: preview.format, page_count: preview.page_count, candidate_hash: preview.candidate_hash }, null, 2)}\n`,
-    { encoding: "utf8", mode: 0o600 },
-  );
+  const details = {
+    format: preview.format,
+    page_count: preview.page_count,
+    candidate_hash: preview.candidate_hash,
+    candidate_input_hash: candidateInputDigest,
+    pass_number: passNumber,
+    relevance: preview.relevance ?? null,
+    warnings: Array.isArray(preview.warnings) ? preview.warnings : [],
+  };
+  await replaceProtectedJson(resolve(paths.output, "candidate-preview.json"), details);
+  return {
+    candidate,
+    candidateInputHash: candidateInputDigest,
+    candidateHash: preview.candidate_hash,
+    passNumber,
+    pdfBase64: preview.pdf_base64,
+    preview: details,
+  };
+}
+
+async function writeSessionStatus(paths, state) {
+  await replaceProtectedJson(resolve(paths.output, "critique-status.json"), state);
+}
+
+async function writeCritiqueResult(paths, result) {
+  await replaceProtectedJson(resolve(paths.output, "critique-result.json"), result);
+}
+
+async function appendReviewNote(notes, note) {
+  const boundedNote = note.slice(0, 1_000);
+  return [...notes.slice(0, 19), boundedNote];
+}
+
+function isBetterAttempt(current, best) {
+  if (!best) return true;
+  if (current.evaluation.passed !== best.evaluation.passed) return current.evaluation.passed;
+  if (current.evaluation.score !== best.evaluation.score) return current.evaluation.score > best.evaluation.score;
+  if (current.evaluation.critical_count !== best.evaluation.critical_count) {
+    return current.evaluation.critical_count < best.evaluation.critical_count;
+  }
+  return current.evaluation.finding_count < best.evaluation.finding_count;
+}
+
+function fallbackReviewNote(best, passCount, stopReason) {
+  const unresolved = [
+    ...best.evaluation.findings
+      .filter((finding) => finding.severity === "critical" || finding.severity === "important")
+      .map((finding) => finding.severity + ": " + finding.problem),
+    ...best.evaluation.requirement_review
+      .filter((review) => review.status === "supported_but_missing")
+      .map((review) => review.rationale),
+  ];
+  const reason = stopReason === "repeated_candidate" ? "the writer repeated a previously critiqued candidate" :
+    stopReason === "stalled" ? "two revisions produced less than two points of improvement" :
+      "the five-pass limit was reached";
+  const remaining = unresolved.length > 0 ? unresolved.join("; ") : "the readiness score remained below threshold";
+  return (`Critique gate not passed after ${passCount} critique pass(es): best candidate scored ${best.evaluation.score}/100 (threshold ${best.evaluation.threshold}); ${reason}. Please review remaining findings: ${remaining}`).slice(0, 1_000);
 }
 
 async function waitForCandidate(paths, context, origin, capability) {
   const submitPath = resolve(paths.output, SUBMIT_MARKER);
   const renderPath = resolve(paths.output, RENDER_MARKER);
+  const critiquePath = resolve(paths.output, CRITIQUE_MARKER);
   const candidatePath = resolve(paths.output, "candidate.json");
+  const critiqueFilePath = resolve(paths.output, "critique.json");
+  const requirements = Array.isArray(context.requirements) ? context.requirements : [];
+  const critiqueHistory = [];
+  const seenCandidateHashes = new Set();
+  const scores = [];
+  let latestRender = null;
+  let latestEvaluation = null;
+  let bestAttempt = null;
+  let passCount = 0;
+  let fallbackReady = false;
+  let stopReason = null;
+
+  await writeSessionStatus(paths, { state: "awaiting_candidate", pass_number: 0, max_passes: MAX_CRITIQUE_PASSES });
   while (Date.now() < Date.parse(context.expires_at)) {
-    if (!(await exists(submitPath)) && !(await exists(renderPath))) {
-      await wait(750);
-      continue;
-    }
-    try {
-      const candidate = JSON.parse(await readFile(candidatePath, "utf8"));
-      validateCandidate(candidate, context);
-      const reviewNotes = await readReviewNotes(paths.output);
-      const normalized = materializeCandidate(candidate);
-      if (await exists(renderPath)) {
-        await renderCandidate(paths, origin, capability, context, normalized);
-        await unlink(renderPath).catch(() => undefined);
-        process.stderr.write(`Candidate rendered to ${resolve(paths.output, "candidate-preview.pdf")}\n`);
+    if (await exists(renderPath)) {
+      await unlink(renderPath).catch(() => undefined);
+      if (fallbackReady && (stopReason === "repeated_candidate" || stopReason === "stalled")) {
+        await writeSessionStatus(paths, {
+          state: "fallback_available",
+          pass_number: passCount,
+          max_passes: MAX_CRITIQUE_PASSES,
+          best_score: bestAttempt?.evaluation.score ?? null,
+          stop_reason: stopReason,
+        });
+        process.stderr.write(`Critique has stopped (${stopReason}). SUBMIT will use the best reviewed candidate.\n`);
         continue;
       }
-      await writeFile(resolve(paths.output, "normalized-candidate.json"), `${JSON.stringify(normalized, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
-      return { candidate: normalized, reviewNotes };
-    } catch (error) {
-      await unlink(submitPath).catch(() => undefined);
-      await unlink(renderPath).catch(() => undefined);
-      process.stderr.write(`Candidate rejected locally or by preview: ${error instanceof Error ? error.message : "validation failed"}\n`);
-      process.stderr.write(`Repair ${candidatePath}, then recreate ${submitPath} or ${renderPath}.\n`);
+      if (passCount >= MAX_CRITIQUE_PASSES) {
+        fallbackReady = Boolean(bestAttempt);
+        stopReason = "max_passes";
+        await writeSessionStatus(paths, {
+          state: fallbackReady ? "fallback_available" : "best_candidate_passed",
+          pass_number: passCount,
+          max_passes: MAX_CRITIQUE_PASSES,
+          best_score: bestAttempt?.evaluation.score ?? null,
+        });
+        process.stderr.write("The five-critique-pass limit has been reached. Inspect best-candidate.json; the helper will allow a fallback submit of that reviewed candidate.\n");
+        continue;
+      }
+      await unlink(critiquePath).catch(() => undefined);
+      await unlink(critiqueFilePath).catch(() => undefined);
+      await unlink(resolve(paths.output, "critique-result.json")).catch(() => undefined);
+      try {
+        const raw = JSON.parse(await readFile(candidatePath, "utf8"));
+        validateCandidate(raw, context);
+        const candidate = materializeCandidate(raw);
+        await replaceProtectedJson(resolve(paths.output, "normalized-candidate.json"), candidate);
+        const passNumber = passCount + 1;
+        const rendered = await renderCandidate(paths, origin, capability, context, candidate, passNumber);
+        latestRender = rendered;
+        latestEvaluation = null;
+        passCount = passNumber;
+        await writeSessionStatus(paths, {
+          state: "awaiting_critique",
+          pass_number: passNumber,
+          max_passes: MAX_CRITIQUE_PASSES,
+          candidate_hash: rendered.candidateHash,
+        });
+        process.stderr.write(`Candidate rendered for critique pass ${passNumber}/${MAX_CRITIQUE_PASSES}. Read candidate-preview.pdf and candidate-preview.json, then write critique.json and create CRITIQUE.\n`);
+      } catch (error) {
+        await unlink(submitPath).catch(() => undefined);
+        await writeSessionStatus(paths, { state: "candidate_or_preview_error", pass_number: passCount, error: error instanceof Error ? error.message : "validation failed" });
+        process.stderr.write(`Candidate rejected locally or by preview: ${error instanceof Error ? error.message : "validation failed"}\n`);
+        process.stderr.write(`Repair ${candidatePath}, then create ${renderPath} to try again.\n`);
+      }
+      continue;
+    }
+
+    if (await exists(critiquePath)) {
+      await unlink(critiquePath).catch(() => undefined);
+      try {
+        if (!latestRender) throw new Error("Render a candidate before submitting its critique");
+        const rawCandidate = JSON.parse(await readFile(candidatePath, "utf8"));
+        validateCandidate(rawCandidate, context);
+        const currentCandidate = materializeCandidate(rawCandidate);
+        if (candidateInputHash(currentCandidate) !== latestRender.candidateInputHash) {
+          throw new Error("The candidate changed after rendering; render the current candidate again before critiquing it");
+        }
+        const rawCritique = JSON.parse(await readFile(critiqueFilePath, "utf8"));
+        const evaluation = evaluateCritique(rawCritique, {
+          candidateHash: latestRender.candidateHash,
+          passNumber: latestRender.passNumber,
+          candidate: latestRender.candidate,
+          requirements,
+        });
+        latestEvaluation = evaluation;
+        const result = {
+          valid: true,
+          rubric_version: evaluation.rubric_version,
+          candidate_hash: evaluation.candidate_hash,
+          pass_number: evaluation.pass_number,
+          score: evaluation.score,
+          threshold: evaluation.threshold,
+          passed: evaluation.passed,
+          critical_count: evaluation.critical_count,
+          required_evidence_gaps: evaluation.required_evidence_gaps,
+          total_deduction: evaluation.total_deduction,
+          category_scores: evaluation.category_scores,
+          finding_count: evaluation.finding_count,
+          unsupported_requirement_count: evaluation.unsupported_requirement_count,
+          findings: evaluation.findings,
+          requirement_review: evaluation.requirement_review,
+        };
+        await writeCritiqueResult(paths, result);
+        const attempt = { ...latestRender, evaluation };
+        if (isBetterAttempt(attempt, bestAttempt)) {
+          bestAttempt = attempt;
+          await replaceProtectedJson(resolve(paths.output, "best-candidate.json"), bestAttempt.candidate);
+          await replaceProtectedBinary(resolve(paths.output, "best-candidate-preview.pdf"), bestAttempt.pdfBase64);
+          await replaceProtectedJson(resolve(paths.output, "best-candidate-preview.json"), {
+            ...bestAttempt.preview,
+            critique_score: evaluation.score,
+            critique_passed: evaluation.passed,
+          });
+        }
+        const repeatedCandidate = seenCandidateHashes.has(latestRender.candidateInputHash);
+        seenCandidateHashes.add(latestRender.candidateInputHash);
+        scores.push(evaluation.score);
+        const stalled = scores.length >= 3 &&
+          scores[scores.length - 1] - scores[scores.length - 2] < 2 &&
+          scores[scores.length - 2] - scores[scores.length - 3] < 2;
+        critiqueHistory.push(result);
+        await replaceProtectedJson(resolve(paths.output, "critique-history.json"), critiqueHistory);
+
+        if (evaluation.passed) {
+          fallbackReady = false;
+          stopReason = null;
+          await writeSessionStatus(paths, {
+            state: "passed",
+            pass_number: passCount,
+            max_passes: MAX_CRITIQUE_PASSES,
+            score: evaluation.score,
+            candidate_hash: evaluation.candidate_hash,
+          });
+          process.stderr.write(`Critique passed at ${evaluation.score}/100. Submit this unchanged rendered candidate, or revise and render again before submitting.\n`);
+        } else {
+          fallbackReady = passCount >= MAX_CRITIQUE_PASSES || repeatedCandidate || stalled;
+          stopReason = repeatedCandidate ? "repeated_candidate" : stalled ? "stalled" : passCount >= MAX_CRITIQUE_PASSES ? "max_passes" : null;
+          await writeSessionStatus(paths, {
+            state: fallbackReady ? "fallback_available" : "revision_required",
+            pass_number: passCount,
+            max_passes: MAX_CRITIQUE_PASSES,
+            score: evaluation.score,
+            threshold: evaluation.threshold,
+            passed: false,
+            critical_count: evaluation.critical_count,
+            best_score: bestAttempt?.evaluation.score ?? null,
+            stop_reason: stopReason,
+          });
+          const detail = fallbackReady
+            ? `Critique stopped (${stopReason}). Inspect best-candidate.json; SUBMIT will use that reviewed candidate and attach a note for the user.`
+            : `Critique score ${evaluation.score}/100; ${evaluation.critical_count} Critical issue(s). Revise candidate.json and create RENDER for pass ${passCount + 1}/${MAX_CRITIQUE_PASSES}.`;
+          process.stderr.write(detail + "\n");
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "invalid critique";
+        await writeCritiqueResult(paths, {
+          valid: false,
+          pass_number: latestRender?.passNumber ?? passCount,
+          candidate_hash: latestRender?.candidateHash ?? null,
+          error: message,
+        });
+        await writeSessionStatus(paths, {
+          state: "critique_rejected",
+          pass_number: latestRender?.passNumber ?? passCount,
+          error: message,
+        });
+        process.stderr.write(`Critique rejected: ${message}. Repair critique.json and recreate CRITIQUE, or render the updated candidate.\n`);
+      }
+      continue;
+    }
+
+    if (await exists(submitPath)) {
+      try {
+        const notes = await readReviewNotes(paths.output);
+        let selectedAttempt = null;
+        let fallbackNote = null;
+        if (latestRender && latestEvaluation?.passed) {
+          const rawCandidate = JSON.parse(await readFile(candidatePath, "utf8"));
+          validateCandidate(rawCandidate, context);
+          const currentCandidate = materializeCandidate(rawCandidate);
+          if (candidateInputHash(currentCandidate) === latestRender.candidateInputHash) {
+            selectedAttempt = { ...latestRender, evaluation: latestEvaluation };
+          }
+        }
+        if (!selectedAttempt && bestAttempt?.evaluation.passed) {
+          const rawCandidate = JSON.parse(await readFile(candidatePath, "utf8"));
+          validateCandidate(rawCandidate, context);
+          const currentCandidate = materializeCandidate(rawCandidate);
+          if (candidateInputHash(currentCandidate) === bestAttempt.candidateInputHash) selectedAttempt = bestAttempt;
+        }
+        if (!selectedAttempt && fallbackReady && bestAttempt) {
+          selectedAttempt = bestAttempt;
+          if (!bestAttempt.evaluation.passed) fallbackNote = fallbackReviewNote(bestAttempt, passCount, stopReason);
+        }
+        if (!selectedAttempt) {
+          throw new Error("No passing critique is bound to the current candidate. Render and critique it before SUBMIT; after the limit, SUBMIT uses best-candidate.json.");
+        }
+        const finalNotes = fallbackNote ? await appendReviewNote(notes, fallbackNote) : notes;
+        await replaceProtectedJson(resolve(paths.output, "normalized-candidate.json"), selectedAttempt.candidate);
+        return {
+          candidate: selectedAttempt.candidate,
+          candidateHash: selectedAttempt.candidateHash,
+          reviewNotes: finalNotes,
+        };
+      } catch (error) {
+        await unlink(submitPath).catch(() => undefined);
+        const message = error instanceof Error ? error.message : "submission is not ready";
+        await writeSessionStatus(paths, { state: "submit_rejected", pass_number: passCount, error: message });
+        process.stderr.write(`Submission rejected: ${message}\n`);
+      }
+      continue;
+    }
+
+    if (!(await exists(renderPath)) && !(await exists(critiquePath)) && !(await exists(submitPath))) {
+      await wait(750);
     }
   }
   throw new Error("The tailoring session expired before a valid candidate was ready");
@@ -232,17 +498,26 @@ export async function runSession(sessionUrl, workspace, options = {}) {
     }
   }
   process.stdout.write(`Context ready in ${paths.source}\n`);
-  process.stdout.write(`Write ${resolve(paths.output, "candidate.json")}, create ${resolve(paths.output, "RENDER")} to preview, then create ${resolve(paths.output, SUBMIT_MARKER)} to submit.\n`);
-  const { candidate, reviewNotes } = await waitForCandidate(paths, context, origin, capability);
+  process.stdout.write(`Write ${resolve(paths.output, "candidate.json")} and create RENDER. After each preview, write critique.json and create CRITIQUE. Submit only after critique passes, or use the reviewed best candidate after the bounded fallback is available.\n`);
+  const { candidate, candidateHash, reviewNotes } = await waitForCandidate(paths, context, origin, capability);
   const result = await requestJson(`${origin}/api/v1/tailoring/submit`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-Aergia-Tailoring-Capability": capability,
     },
-    body: JSON.stringify({ context_hash: context.context_hash, candidate, review_notes: reviewNotes }),
+    body: JSON.stringify({
+      context_hash: context.context_hash,
+      expected_candidate_hash: candidateHash,
+      candidate,
+      review_notes: reviewNotes,
+    }),
   });
+  if (result.candidate_hash !== candidateHash) {
+    throw new Error("The submitted draft hash did not match its rendered critique");
+  }
   await writeFile(resolve(paths.output, "result.json"), `${JSON.stringify(result, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+  await writeSessionStatus(paths, { state: "submitted", draft_cv_id: result.draft_cv_id, candidate_hash: result.candidate_hash });
   process.stdout.write(`${JSON.stringify(result)}\n`);
   return result;
 }

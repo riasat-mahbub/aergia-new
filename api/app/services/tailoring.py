@@ -145,6 +145,19 @@ def profile_snapshot_hash(profile: Mapping[str, Any]) -> str:
     return _content_hash(dict(profile))
 
 
+def _candidate_preview_feedback(
+    requirements: list[JobRequirement],
+    sections: list[dict[str, Any]],
+    profile: Mapping[str, Any],
+    page_count: int,
+) -> tuple[dict[str, Any], list[str]]:
+    """Use the same advisory checks for preview and persisted draft results."""
+
+    relevance = evaluate_requirement_relevance(requirements, sections, profile=profile)
+    quality = evaluate_cv_quality(sections, page_count=page_count)
+    return relevance.model_dump(mode="json"), [issue.message for issue in quality.issues[:50]]
+
+
 def _bounded_label(value: str, limit: int) -> str:
     return value[:limit]
 
@@ -156,7 +169,9 @@ def build_tailoring_prompt(session_url: str, code: str, skill_url: str) -> str:
         f"One-time session code: {code}\n\n"
         "The skill will give your coding agent the job, profile, Library, "
         "optional previous CV, templates, and effective styles. Compose one "
-        "complete candidate, preview it, then submit it for my review. "
+        "complete candidate, render and critique it, revise until it passes "
+        "the bounded review or reaches its fallback limit, then submit it "
+        "for my review. "
         "Never accept or reject the draft through the agent capability.\n\n"
         "If the aergia-tailor skill is missing or incompatible, ask for my "
         "approval to download and install this official bundle:\n\n"
@@ -788,10 +803,19 @@ class TailoringService:
             sections,
             candidate["customizations"],
         )
+        page_count = pdf_page_count(pdf)
+        relevance, warnings = _candidate_preview_feedback(
+            parts["requirements"],
+            sections,
+            parts["profile"].model_dump(mode="json", exclude_none=True),
+            page_count,
+        )
         return TailoringPreviewResponse(
             pdf_base64=base64.b64encode(pdf).decode("ascii"),
-            page_count=pdf_page_count(pdf),
+            page_count=page_count,
             candidate_hash=self._candidate_hash(candidate),
+            relevance=relevance,
+            warnings=warnings,
         )
 
     async def submit(
@@ -804,6 +828,8 @@ class TailoringService:
         if request.context_hash != parts["context_hash"]:
             raise TailoringStaleError("The tailoring context changed; start a new session")
         candidate, sections = self._normalize_candidate(request.candidate, parts)
+        if request.expected_candidate_hash is not None and request.expected_candidate_hash != self._candidate_hash(candidate):
+            raise TailoringStaleError("The candidate changed after preview; render the current candidate before submitting")
         application: Application = parts["application"]
         source_cv: CV | None = parts["source_cv"]
         # Quota reservation starts a SQLite write transaction by rolling back
@@ -819,9 +845,12 @@ class TailoringService:
             candidate["customizations"],
         )
         page_count = pdf_page_count(pdf)
-        relevance = evaluate_requirement_relevance(parts["requirements"], sections, profile=parts["profile"])
-        quality = evaluate_cv_quality(sections, page_count=page_count)
-        warnings = [issue.message for issue in quality.issues]
+        relevance, warnings = _candidate_preview_feedback(
+            parts["requirements"],
+            sections,
+            parts["profile"].model_dump(mode="json", exclude_none=True),
+            page_count,
+        )
         source_cv_id = source_cv.id if source_cv else None
         candidate_hash = self._candidate_hash(candidate)
         # The service reserves a quota slot and creates an ordinary unlinked
@@ -853,7 +882,7 @@ class TailoringService:
             "draft_cv_id": new_cv.id,
             "candidate_hash": candidate_hash,
             "candidate": candidate,
-            "relevance": relevance.model_dump(mode="json"),
+            "relevance": relevance,
             "warnings": warnings,
             "review_notes": request.review_notes,
         }
@@ -887,7 +916,7 @@ class TailoringService:
             draft_cv_id=new_cv.id,
             candidate_hash=candidate_hash,
             candidate=TailoringCandidateCV.model_validate(candidate),
-            relevance=relevance.model_dump(mode="json"),
+            relevance=relevance,
             warnings=warnings,
             review_notes=request.review_notes,
         )

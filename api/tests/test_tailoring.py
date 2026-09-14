@@ -18,9 +18,13 @@ def test_tailoring_skill_bundle_contains_v2_candidate_workflow():
         assert "aergia-tailor/SKILL.md" in names
         assert "aergia-tailor/scripts/session.mjs" in names
         assert "aergia-tailor/scripts/validate-candidate.mjs" in names
+        assert "aergia-tailor/scripts/validate-critique.mjs" in names
+        assert "aergia-tailor/references/critique.schema.json" in names
         assert not any(name.endswith("validate-patch.mjs") for name in names)
-        skill = archive.read("aergia-tailor/SKILL.md").decode()
+        skill = " ".join(archive.read("aergia-tailor/SKILL.md").decode().split())
         assert 'protocol-version: "2"' in skill
+        assert "adversarial" in skill
+        assert "five critique passes" in skill
 
 
 @pytest.mark.asyncio
@@ -76,14 +80,44 @@ async def test_tailoring_submit_creates_an_unlinked_review_draft(client, monkeyp
         ],
         "customizations": {},
     }
+    preview = await client.post(
+        "/api/v1/tailoring/preview",
+        headers=capability_headers,
+        json={"context_hash": context.json()["context_hash"], "candidate": candidate},
+    )
+    assert preview.status_code == 200
+    assert preview.json()["relevance"] is not None
+    assert isinstance(preview.json()["warnings"], list)
+
+    stale_submission = await client.post(
+        "/api/v1/tailoring/submit",
+        headers=capability_headers,
+        json={
+            "context_hash": context.json()["context_hash"],
+            "expected_candidate_hash": "f" * 64,
+            "candidate": candidate,
+            "review_notes": [],
+        },
+    )
+    assert stale_submission.status_code == 409
+    assert "changed after preview" in stale_submission.json()["detail"]
+
     submitted = await client.post(
         "/api/v1/tailoring/submit",
         headers=capability_headers,
-        json={"context_hash": context.json()["context_hash"], "candidate": candidate, "review_notes": []},
+        json={
+            "context_hash": context.json()["context_hash"],
+            "expected_candidate_hash": preview.json()["candidate_hash"],
+            "candidate": candidate,
+            "review_notes": [],
+        },
     )
 
     assert submitted.status_code == 200
     assert submitted.json()["status"] == "draft_ready"
     assert submitted.json()["draft_cv_id"]
+    assert submitted.json()["candidate_hash"] == preview.json()["candidate_hash"]
+    assert submitted.json()["relevance"] == preview.json()["relevance"]
+    assert submitted.json()["warnings"] == preview.json()["warnings"]
     unchanged_application = await client.get(f"/api/v1/applications/{application_id}", headers=headers)
     assert unchanged_application.json()["cv_id"] is None
