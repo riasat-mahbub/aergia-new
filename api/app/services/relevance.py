@@ -299,7 +299,7 @@ _LIBRARY_FIELDS: dict[str, tuple[str, ...]] = {
     "skill": ("category", "items"),
     "experience": ("company", "position", "location", "description"),
     "language": ("language", "proficiency", "level"),
-    "certification": ("name", "issuer"),
+    "certification": ("name", "issuer", "description"),
     "project": ("name", "description", "tech_stack"),
     "research": ("title", "publication_value", "description"),
 }

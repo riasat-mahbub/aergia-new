@@ -224,15 +224,46 @@ def test_languages_emits_language_and_proficiency():
     assert keys == ["language", "proficiency"]
 
 
-def test_certifications_emits_name_meta_link():
+def test_certifications_emits_name_meta_link_and_description():
     cv = _cv([{
         "id": "cert",
         "type": "certifications",
         "title": "Certifications",
         "enabled": True,
         "data": [
-            {"id": "c1", "name": "AWS SAA", "issuer": "AWS", "date": "2023-05", "credential_url": "https://aws.example"},
+            {
+                "id": "c1",
+                "name": "AWS SAA",
+                "issuer": "AWS",
+                "date": "2023-05",
+                "credential_url": "https://aws.example",
+                "description": [{
+                    "type": "paragraph",
+                    "items": [{"text": "Cloud security foundations", "style": {"bold": True}}],
+                }],
+            },
         ],
+    }])
+    doc = build_document(cv)
+    fields = doc.sections[0].entries[0].fields
+    assert [f.key for f in fields] == ["certification", "date", "issuer", "link", "description"]
+    assert fields[-1].rich_text is True
+    assert fields[-1].blocks[0].items[0].style.bold is True
+
+
+def test_certifications_omit_empty_description_for_legacy_rows():
+    cv = _cv([{
+        "id": "cert",
+        "type": "certifications",
+        "title": "Certifications",
+        "enabled": True,
+        "data": [{
+            "id": "c1",
+            "name": "AWS SAA",
+            "issuer": "AWS",
+            "date": "2023-05",
+            "credential_url": "https://aws.example",
+        }],
     }])
     doc = build_document(cv)
     keys = [f.key for f in doc.sections[0].entries[0].fields]

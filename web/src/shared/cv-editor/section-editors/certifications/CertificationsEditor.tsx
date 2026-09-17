@@ -3,6 +3,7 @@ import { useFieldArray } from "@/shared/forms/useFieldArray";
 import DateField from "@/shared/ui/DateField";
 import SortableAccordionList from "@/shared/ui/SortableAccordionList";
 import EntryAddRow from "@/shared/cv-editor/section-editors/shared/EntryAddRow";
+import RichTextEditor from "@/shared/cv-editor/section-editors/rich-text/RichTextEditor";
 import { renderEntryActionFor, type SectionEditorActions } from "../types";
 
 interface Props {
@@ -20,6 +21,7 @@ export default function CertificationsEditor({ data = [], onChange, actions, mod
     date: "",
     credential_url: "",
     link_text: "",
+    description: [],
   }));
 
   return (
@@ -54,6 +56,14 @@ export default function CertificationsEditor({ data = [], onChange, actions, mod
             <div>
               <label className="block text-xs text-app-ink-3">Link Text</label>
               <input type="text" value={entry.link_text ?? ""} placeholder="Certificate" onChange={(e) => update(i, "link_text", e.target.value)} className="mt-0.5 w-full rounded border px-2 py-1 text-sm" />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs text-app-ink-3">Description</label>
+              <RichTextEditor
+                value={entry.description ?? ""}
+                onChange={(blocks) => update(i, "description", blocks)}
+                placeholder="Add context or what this certification demonstrates…"
+              />
             </div>
           </div>
         )}

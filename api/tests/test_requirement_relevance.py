@@ -3,6 +3,7 @@
 from app.services.relevance import (
     evaluate_requirement_relevance,
     extract_requirements,
+    extract_requirements_v2,
     requirement_row_removal_loss,
     select_requirement_library_rows,
 )
@@ -229,6 +230,22 @@ def test_specific_certification_and_research_evidence_can_drive_selection():
         ],
     )
     assert [row.kind for row in research_rows][0] == "research"
+
+
+def test_certification_description_is_relevance_evidence():
+    requirements = extract_requirements_v2("Security Engineer", "Cloud security certification required")
+    rows = select_requirement_library_rows(
+        requirements,
+        [
+            {
+                "id": "certification",
+                "kind": "certification",
+                "payload": [{"id": "cert", "name": "Professional credential", "description": "Cloud security"}],
+            },
+        ],
+    )
+
+    assert [row.kind for row in rows] == ["certification"]
 
 
 def test_required_evidence_is_protected_from_fit_removal():

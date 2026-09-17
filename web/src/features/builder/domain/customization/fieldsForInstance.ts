@@ -123,6 +123,7 @@ const VOCAB: Record<string, FieldDef[]> = {
     { key: "issuer", label: "Issuer", sample: (e) => strOrEmpty(e.issuer) },
     { key: "date", label: "Date", sample: () => "2024" },
     { key: "link", label: "Link", sample: (e) => strOrEmpty(e.link_text ?? e.credential_url) },
+    { key: "description", label: "Description", sample: (e) => summaryText(e.description), richText: true },
   ],
   languages: [
     { key: "language", label: "Language", sample: (e) => strOrEmpty(e.language) },

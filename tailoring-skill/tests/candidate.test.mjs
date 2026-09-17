@@ -60,3 +60,30 @@ test("materialization gives new rich-text blocks stable IDs without changing cla
   assert.equal(first.sections[0].data.summary[0].items[0].text, "Built a platform");
   assert.equal(raw.sections[0].data.summary[0].id, undefined);
 });
+
+test("materialization supports certification descriptions", () => {
+  const raw = {
+    ...candidate,
+    sections: [
+      ...candidate.sections,
+      {
+        id: "certifications",
+        type: "certifications",
+        title: "Certifications",
+        enabled: true,
+        data: [{
+          id: "cert-1",
+          name: "AWS SAA",
+          description: [{ type: "paragraph", items: [{ text: "Cloud security" }] }],
+        }],
+      },
+    ],
+  };
+
+  const first = materializeCandidate(raw);
+  const second = materializeCandidate(raw);
+  assert.deepEqual(first, second);
+  assert.equal(first.sections[1].data[0].description[0].id, second.sections[1].data[0].description[0].id);
+  assert.equal(first.sections[1].data[0].description[0].items[0].id, second.sections[1].data[0].description[0].items[0].id);
+  assert.equal(raw.sections[1].data[0].description[0].id, undefined);
+});
