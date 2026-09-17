@@ -43,6 +43,7 @@ export function materializeCandidate(candidate) {
     education: ["summary"],
     projects: ["description"],
     research: ["description"],
+    certifications: ["description"],
   };
 
   function validId(value) {

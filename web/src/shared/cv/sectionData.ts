@@ -74,6 +74,7 @@ export interface CertificationEntry {
   date?: string;
   credential_url?: string;
   link_text?: string;
+  description?: string | RichTextBlock[];
 }
 
 export interface ResearchEntry {

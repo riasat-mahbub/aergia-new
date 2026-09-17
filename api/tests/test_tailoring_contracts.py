@@ -102,6 +102,9 @@ def test_context_and_status_contracts_are_v2_and_do_not_expose_capabilities():
     assert capabilities["tailoring"]["candidate_content"] == "editable_except_server_owned_profile_identity"
     assert capabilities["document"]["section_types"]["experience"]["fields"]["company"]["editable"] is True
     assert capabilities["document"]["section_types"]["profile"]["fields"]["email"]["server_owned"] is True
+    certification_description = capabilities["document"]["section_types"]["certifications"]["fields"]["description"]
+    assert certification_description["type"] == "rich_text"
+    assert certification_description["editable"] is True
     context = TailoringContextResponse.model_validate(
         {
             "protocol_version": 2,

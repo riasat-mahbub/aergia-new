@@ -1,12 +1,12 @@
 """AST builder for the ``certifications`` section.
 
 Fields per entry: ``certification``, ``date``, ``issuer``, ``link``
-(credential URL, optional ``link_text``).
+(credential URL, optional ``link_text``), and ``description``.
 """
 
 from __future__ import annotations
 from app.document_schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextStyle, TextRun
-from ._utils import format_single_date, normalize_url_scheme
+from ._utils import format_single_date, normalize_url_scheme, rich_text_to_field_block
 
 
 def build_certifications(instance: SectionInstance, resolved_layout: LayoutHints | None = None) -> Section:
@@ -42,6 +42,10 @@ def build_certifications(instance: SectionInstance, resolved_layout: LayoutHints
                 key="link", group="secondary", align="right",
                 runs=[TextRun(text=link_text, style=TextStyle(link=url))],
             ))
+
+        description = rich_text_to_field_block("description", row.get("description"))
+        if description:
+            fields.append(description)
 
         if fields:
             entries.append(Entry(id=entry_id, fields=fields))

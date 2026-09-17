@@ -105,6 +105,7 @@ export function createDefaultSectionData(type: string): unknown {
           issuer: "",
           date: "",
           credential_url: "",
+          description: [],
         },
       ];
     case "research":

@@ -100,6 +100,7 @@ SECTION_FIELDS: dict[str, dict[str, str]] = {
         "issuer": "string",
         "credential_url": "url",
         "link_text": "string",
+        "description": "rich_text",
     },
     "research": {
         "id": "id",

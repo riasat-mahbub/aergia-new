@@ -22,6 +22,7 @@ RICH_TEXT_FIELDS_BY_SECTION: dict[str, frozenset[str]] = {
     "education": frozenset({"summary"}),
     "projects": frozenset({"description"}),
     "research": frozenset({"description"}),
+    "certifications": frozenset({"description"}),
 }
 
 

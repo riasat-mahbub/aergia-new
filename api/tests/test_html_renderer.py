@@ -255,6 +255,25 @@ def test_date_style_mon_yyyy_renders_in_research_single_date():
     assert "Mar 2024" in html
 
 
+def test_certification_description_renders_as_rich_text():
+    manifest = _manifest(MODERN_ID)
+    cv = _cv([{
+        "id": "s1", "type": "certifications", "title": "Certifications", "enabled": True,
+        "data": [{
+            "id": "c1",
+            "name": "AWS SAA",
+            "description": [{
+                "type": "bullet_list",
+                "items": [{"text": "Cloud security foundations", "style": {"bold": True}}],
+            }],
+        }],
+    }])
+    html = HTMLDocumentRenderer().render(_resolve(cv, manifest))
+    assert "f-description" in html
+    assert "Cloud security foundations" in html
+    assert "font-weight:700" in html
+
+
 def test_all_date_style_presets_render():
     """Every preset renders a non-YYYY-MM form for current roles; the
     The explicit YYYY-MM preset renders literally."""
