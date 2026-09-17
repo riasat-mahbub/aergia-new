@@ -1,0 +1,26 @@
+{
+  "format": {
+    "viewport": [1280, 800],
+    "gif_width": 1200,
+    "gif_fps": 12
+  },
+  "scenes": [
+    {"id": "intro", "caption": "Build once. Tailor every application.", "target_seconds": 1.8},
+    {"id": "dashboard", "caption": "One workspace for your job search", "target_seconds": 0.8},
+    {"id": "cv-list", "caption": "Start with one reusable CV", "target_seconds": 1.0},
+    {"id": "import-dialog", "caption": "Import that CV with the Modern template", "target_seconds": 0.8},
+    {"id": "import-result", "caption": "The same CV becomes editable", "target_seconds": 1.2},
+    {"id": "builder", "caption": "Keep editing the same CV with a live preview", "target_seconds": 1.3},
+    {"id": "edit", "caption": "Edit experience and section content", "target_seconds": 0.9},
+    {"id": "customize", "caption": "Customize typography and color", "target_seconds": 0.9},
+    {"id": "design", "caption": "Changes appear instantly in the live preview", "target_seconds": 1.8},
+    {"id": "library", "caption": "Reuse your best career material", "target_seconds": 0.8},
+    {"id": "library-add", "caption": "Add a saved experience to this CV", "target_seconds": 1.0},
+    {"id": "applications-tab", "caption": "Open the application pipeline", "target_seconds": 0.7},
+    {"id": "applications-list", "caption": "Track roles, relevance, and follow-ups", "target_seconds": 1.4},
+    {"id": "application", "caption": "Open an application to review its fit", "target_seconds": 1.5},
+    {"id": "tailored", "caption": "Review the tailored CV", "target_seconds": 1.2},
+    {"id": "export", "caption": "Export a polished PDF", "target_seconds": 1.3},
+    {"id": "outro", "caption": "From source material to a job-ready CV.", "target_seconds": 1.6}
+  ]
+}

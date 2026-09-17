@@ -1,0 +1,9 @@
+# Generated showcase artifacts. Keep the directory itself in the repository.
+output/*
+!output/.gitkeep
+work/*
+!work/.gitkeep
+
+# Local capture logs and temporary runtime state.
+*.log
+*.json.tmp

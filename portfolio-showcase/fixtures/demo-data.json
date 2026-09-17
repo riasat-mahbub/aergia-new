@@ -1,0 +1,201 @@
+{
+  "profile": {
+    "name": "Maya Chen",
+    "title": "Product Engineer",
+    "email": "maya.chen@aergia.dev",
+    "phone": "+1 555 010 2040",
+    "location": "Halifax, NS",
+    "site_text": "maya-chen.dev",
+    "site_url": "https://maya-chen.dev",
+    "summary": "Product engineer who turns complex workflows into calm, useful software. Experienced across Python services, React interfaces, and document automation.",
+    "photo_url": null,
+    "email_link": true,
+    "social_links": [
+      {"label": "GitHub", "url": "https://github.com/maya-chen", "icon": "github"},
+      {"label": "LinkedIn", "url": "https://linkedin.com/in/maya-chen", "icon": "linkedin"}
+    ]
+  },
+  "library": [
+    {
+      "kind": "experience",
+      "payload": [{
+        "id": "exp-northstar",
+        "company": "Northstar Labs",
+        "position": "Product Engineer",
+        "location": "Remote",
+        "start_date": "2022-04",
+        "end_date": null,
+        "current": true,
+        "description": "Built a Python and FastAPI workflow platform used by 40,000 monthly users. Partnered with design and support to reduce task completion time by 31%."
+      }]
+    },
+    {
+      "kind": "experience",
+      "payload": [{
+        "id": "exp-atlas",
+        "company": "Atlas Commerce",
+        "position": "Software Engineer",
+        "location": "Toronto, ON",
+        "start_date": "2019-06",
+        "end_date": "2022-03",
+        "current": false,
+        "description": "Designed reliable PostgreSQL-backed services and React tools for operations teams, improving deployment confidence through contract tests and observability."
+      }]
+    },
+    {
+      "kind": "skill",
+      "payload": [{
+        "id": "skill-platform",
+        "category": "Platform",
+        "items": ["Python", "FastAPI", "PostgreSQL", "Docker", "Playwright"]
+      }]
+    },
+    {
+      "kind": "skill",
+      "payload": [{
+        "id": "skill-product",
+        "category": "Product",
+        "items": ["React", "TypeScript", "Accessibility", "User research"]
+      }]
+    },
+    {
+      "kind": "education",
+      "payload": [{
+        "id": "edu-dal",
+        "institution": "Dalhousie University",
+        "degree": "BSc Computer Science",
+        "start_date": "2015-09",
+        "end_date": "2019-05",
+        "gpa": "3.8",
+        "summary": "Co-operative education program; distinction."
+      }]
+    },
+    {
+      "kind": "project",
+      "payload": [{
+        "id": "project-aergia",
+        "name": "Aergia",
+        "url": "https://github.com/maya-chen/aergia",
+        "link_text": "Source",
+        "start_date": "2025-01",
+        "end_date": null,
+        "current": true,
+        "description": "Created a private CV workspace with reusable career material, deterministic relevance analysis, and a shared HTML-first preview and PDF pipeline.",
+        "tech_stack": ["FastAPI", "React", "TypeScript", "Playwright"]
+      }]
+    },
+    {
+      "kind": "certification",
+      "payload": [{
+        "id": "cert-cloud",
+        "name": "Cloud Architecture Foundations",
+        "issuer": "Cloud Native Institute",
+        "date": "2024-09",
+        "credential_url": "https://credentials.example.test/maya/cloud",
+        "link_text": "Credential"
+      }]
+    }
+  ],
+  "cv": {
+    "title": "Product Engineer — General",
+    "description": "A reusable product engineering CV",
+    "template_id": "generic-modern",
+    "sections": [
+      {
+        "id": "profile-main",
+        "type": "profile",
+        "title": "Profile",
+        "enabled": true,
+        "data": {
+          "name": "Maya Chen",
+          "title": "Product Engineer",
+          "email": "maya.chen@aergia.dev",
+          "phone": "+1 555 010 2040",
+          "location": "Halifax, NS",
+          "site_text": "maya-chen.dev",
+          "site_url": "https://maya-chen.dev",
+          "summary": "Product engineer who turns complex workflows into calm, useful software.",
+          "social_links": [{"label": "GitHub", "url": "https://github.com/maya-chen", "icon": "github"}]
+        }
+      },
+      {
+        "id": "experience-main",
+        "type": "experience",
+        "title": "Experience",
+        "enabled": true,
+        "data": [
+          {
+            "id": "cv-exp-northstar",
+            "company": "Northstar Labs",
+            "position": "Product Engineer",
+            "location": "Remote",
+            "start_date": "2022-04",
+            "end_date": null,
+            "current": true,
+            "description": "Built a Python and FastAPI workflow platform used by 40,000 monthly users. Partnered with design and support to reduce task completion time by 31%."
+          },
+          {
+            "id": "cv-exp-atlas",
+            "company": "Atlas Commerce",
+            "position": "Software Engineer",
+            "location": "Toronto, ON",
+            "start_date": "2019-06",
+            "end_date": "2022-03",
+            "current": false,
+            "description": "Designed reliable PostgreSQL-backed services and React tools for operations teams."
+          }
+        ]
+      },
+      {
+        "id": "skills-main",
+        "type": "skills",
+        "title": "Skills",
+        "enabled": true,
+        "data": [
+          {"id": "cv-skill-platform", "category": "Platform", "items": ["Python", "FastAPI", "PostgreSQL", "Docker", "Playwright"]},
+          {"id": "cv-skill-product", "category": "Product", "items": ["React", "TypeScript", "Accessibility"]}
+        ]
+      },
+      {
+        "id": "projects-main",
+        "type": "projects",
+        "title": "Projects",
+        "enabled": true,
+        "data": [{
+          "id": "cv-project-aergia",
+          "name": "Aergia",
+          "url": "https://github.com/maya-chen/aergia",
+          "link_text": "Source",
+          "start_date": "2025-01",
+          "end_date": null,
+          "current": true,
+          "description": "A private CV workspace with reusable career material and a shared HTML-first preview and PDF pipeline.",
+          "tech_stack": ["FastAPI", "React", "TypeScript"]
+        }]
+      },
+      {
+        "id": "education-main",
+        "type": "education",
+        "title": "Education",
+        "enabled": true,
+        "data": [{
+          "id": "cv-edu-dal",
+          "institution": "Dalhousie University",
+          "degree": "BSc Computer Science",
+          "start_date": "2015-09",
+          "end_date": "2019-05",
+          "gpa": "3.8",
+          "summary": "Co-operative education program; distinction."
+        }]
+      }
+    ]
+  },
+  "application": {
+    "company": "Northstar Systems",
+    "role": "Senior Product Engineer",
+    "job_description": "Northstar Systems is building tools that make complex work easier.\n\nResponsibilities\n- Design and build reliable Python and FastAPI services.\n- Collaborate with product, design, and customer teams to improve workflows.\n- Build accessible React and TypeScript interfaces.\n- Operate PostgreSQL-backed systems with thoughtful testing and observability.\n\nRequired qualifications\n- Strong Python and FastAPI experience.\n- Experience with PostgreSQL and Docker.\n- Experience shipping React and TypeScript products.\n\nPreferred\n- Experience with Playwright, document automation, or developer tooling.",
+    "job_url": "https://northstar.example.test/jobs/senior-product-engineer",
+    "notes": "Portfolio showcase fixture; fictional company and role.",
+    "next_follow_up_at": "2026-10-01"
+  }
+}
