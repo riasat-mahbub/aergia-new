@@ -79,6 +79,14 @@ def test_frontend_waits_for_api_readiness():
     )
 
 
+def test_api_and_ssr_share_one_frontend_origin():
+    """Keep FastAPI CSRF validation aligned with SSR session resolution."""
+    text = DEV_SH.read_text()
+    assert 'FRONTEND_ORIGIN="${AERGIA_FRONTEND_ORIGIN:-${FRONTEND_URL:-http://localhost:5173}}"' in text
+    assert 'export FRONTEND_URL="$FRONTEND_ORIGIN"' in text
+    assert 'AERGIA_FRONTEND_ORIGIN="$FRONTEND_ORIGIN"' in text
+
+
 SMOKE_SECTION_MARKERS = (
     "--smoke",
     "SMOKE=true",
