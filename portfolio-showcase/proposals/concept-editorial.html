@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aergia — Editorial journey concept</title>
+  <style>
+    :root {
+      --ink: #24373e;
+      --ink-soft: #53666b;
+      --paper: #f4f3ec;
+      --surface: #fffef8;
+      --mint: #c8f2dd;
+      --green: #087f62;
+      --green-dark: #075d4a;
+      --rule: #cdd4cd;
+      --coral: #e66d51;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: Arial, Helvetica, sans-serif; }
+    a { color: inherit; }
+    .wrap { width: min(1240px, calc(100% - 64px)); margin: 0 auto; }
+    header { border-bottom: 1px solid var(--rule); background: rgba(244,243,236,.96); }
+    header .wrap { min-height: 74px; display: flex; align-items: center; justify-content: space-between; gap: 32px; }
+    .brand { display: flex; align-items: center; gap: 11px; text-decoration: none; font-weight: 750; letter-spacing: -.02em; }
+    .mark { width: 32px; height: 32px; display: grid; place-items: center; background: var(--ink); color: white; border-radius: 5px; }
+    nav { display: flex; align-items: center; gap: 30px; font-size: 13px; color: var(--ink-soft); }
+    nav a { text-decoration: none; }
+    .maker { padding-left: 28px; border-left: 1px solid var(--rule); color: var(--ink); font-weight: 700; }
+    .button { display: inline-flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 20px; border-radius: 4px; text-decoration: none; font-size: 14px; font-weight: 750; }
+    .button.primary { color: white; background: var(--green); }
+    .button.secondary { border: 1px solid var(--ink); background: transparent; }
+    .eyebrow { margin: 0 0 22px; color: var(--green); font-size: 11px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; }
+    .hero { position: relative; overflow: hidden; border-bottom: 1px solid var(--rule); }
+    .hero:after { content: ""; position: absolute; width: 440px; height: 440px; border-radius: 50%; border: 1px solid #a8c9b9; right: -190px; top: -190px; }
+    .hero-grid { min-height: 730px; display: grid; grid-template-columns: .9fr 1.1fr; gap: 82px; align-items: center; padding: 86px 0 92px; }
+    h1 { max-width: 620px; margin: 0; font-size: clamp(64px, 6.4vw, 100px); line-height: .92; letter-spacing: -.065em; }
+    h1 span { display: block; color: var(--green); font-family: Georgia, 'Times New Roman', serif; font-weight: 400; letter-spacing: -.06em; }
+    .hero-copy > p:not(.eyebrow) { max-width: 570px; margin: 30px 0 0; font-size: 19px; line-height: 1.65; color: var(--ink-soft); }
+    .actions { display: flex; gap: 12px; margin-top: 34px; }
+    .trust { display: flex; flex-wrap: wrap; gap: 18px 26px; margin-top: 44px; padding-top: 22px; border-top: 1px solid var(--rule); font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+    .trust span:before { content: "✓"; margin-right: 8px; color: var(--green); }
+    .document-stage { position: relative; min-height: 555px; }
+    .document-stage:before { content: ""; position: absolute; inset: 18px -22px -18px 22px; background: var(--mint); border-radius: 3px; }
+    .cv-crop { position: absolute; inset: 0; overflow: hidden; border: 1px solid var(--ink); background: white; box-shadow: 0 28px 70px rgba(32,55,61,.18); }
+    .cv-crop img { position: absolute; width: 1220px; max-width: none; height: 760px; object-fit: cover; object-position: right top; left: -612px; top: -65px; }
+    .cv-label { position: absolute; right: -20px; bottom: 30px; width: 200px; padding: 16px 18px; background: var(--coral); color: white; font-size: 12px; line-height: 1.45; font-weight: 700; box-shadow: 0 10px 30px rgba(56,43,37,.18); }
+    .cv-label small { display: block; margin-bottom: 6px; font-size: 9px; letter-spacing: .16em; text-transform: uppercase; opacity: .78; }
+    .manifesto { border-bottom: 1px solid var(--rule); }
+    .manifesto-grid { display: grid; grid-template-columns: .55fr 1.45fr; gap: 80px; padding: 106px 0; }
+    .manifesto h2 { margin: 0; font-size: 21px; letter-spacing: -.025em; }
+    .manifesto blockquote { margin: 0; font-family: Georgia, 'Times New Roman', serif; font-size: clamp(38px, 4vw, 61px); line-height: 1.08; letter-spacing: -.04em; }
+    .manifesto blockquote em { color: var(--green); font-style: normal; }
+    .journey { padding: 120px 0 132px; }
+    .section-head { display: grid; grid-template-columns: .72fr 1.28fr; gap: 64px; align-items: end; margin-bottom: 66px; }
+    .section-head h2 { margin: 0; max-width: 780px; font-size: clamp(42px, 5vw, 70px); line-height: .98; letter-spacing: -.055em; }
+    .section-head p:last-child { max-width: 620px; margin: 0; font-size: 17px; line-height: 1.7; color: var(--ink-soft); }
+    .chapter { display: grid; grid-template-columns: 160px minmax(0,1fr); border-top: 1px solid var(--ink); padding: 34px 0 84px; }
+    .chapter-number { font-size: 12px; font-weight: 800; letter-spacing: .16em; color: var(--green); }
+    .chapter-body { display: grid; grid-template-columns: .72fr 1.28fr; gap: 56px; align-items: start; }
+    .chapter-copy h3 { margin: 0; font-size: 34px; line-height: 1.05; letter-spacing: -.04em; }
+    .chapter-copy p { margin: 18px 0 24px; font-size: 15px; line-height: 1.65; color: var(--ink-soft); }
+    .feature-list { margin: 0; padding: 0; list-style: none; }
+    .feature-list li { padding: 11px 0; border-top: 1px solid var(--rule); font-size: 13px; font-weight: 750; }
+    .screen { position: relative; overflow: hidden; border: 1px solid #9facaa; background: white; box-shadow: 0 18px 45px rgba(30,50,55,.11); }
+    .screen:before { content: "Aergia / actual product"; display: block; height: 28px; padding: 9px 12px 0; background: var(--ink); color: rgba(255,255,255,.72); font-size: 9px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; }
+    .screen img { display: block; width: 100%; }
+    .screen.crop-top img { margin-top: -32px; }
+    .screen-pair { display: grid; grid-template-columns: 1.1fr .9fr; gap: 18px; align-items: end; }
+    .screen-pair .screen:last-child { transform: translateY(28px); }
+    .application-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .application-grid .screen:first-child { grid-column: 1 / -1; }
+    .tour { background: var(--ink); color: white; padding: 110px 0; }
+    .tour-grid { display: grid; grid-template-columns: .55fr 1.45fr; gap: 70px; align-items: start; }
+    .tour h2 { margin: 0 0 20px; font-size: 45px; line-height: 1; letter-spacing: -.045em; }
+    .tour p { max-width: 390px; color: rgba(255,255,255,.65); line-height: 1.7; }
+    .tour video { width: 100%; border: 1px solid rgba(255,255,255,.28); background: #d6f5e7; box-shadow: 24px 24px 0 rgba(200,242,221,.14); }
+    .maker-band { background: var(--mint); border-bottom: 1px solid #8fb5a3; }
+    .maker-band .wrap { min-height: 220px; display: grid; grid-template-columns: 1fr auto; gap: 60px; align-items: center; }
+    .maker-band p { margin: 0 0 12px; color: var(--green-dark); font-size: 11px; font-weight: 800; letter-spacing: .17em; text-transform: uppercase; }
+    .maker-band h2 { margin: 0; max-width: 730px; font-size: 36px; line-height: 1.15; letter-spacing: -.04em; }
+    .maker-band a { font-weight: 800; text-decoration-thickness: 1px; text-underline-offset: 5px; }
+    .cta { padding: 124px 0; text-align: center; }
+    .cta h2 { margin: 0 auto; max-width: 850px; font-size: clamp(52px, 6vw, 88px); line-height: .94; letter-spacing: -.065em; }
+    .cta p { margin: 26px auto 32px; max-width: 560px; color: var(--ink-soft); font-size: 18px; line-height: 1.6; }
+    footer { border-top: 1px solid var(--rule); }
+    footer .wrap { min-height: 100px; display: flex; align-items: center; justify-content: space-between; color: var(--ink-soft); font-size: 12px; }
+    footer a { font-weight: 750; }
+    @media (max-width: 900px) {
+      .wrap { width: min(100% - 36px, 720px); }
+      nav a:not(.maker) { display: none; }
+      .hero-grid, .manifesto-grid, .section-head, .tour-grid { grid-template-columns: 1fr; }
+      .hero-grid { padding: 70px 0; }
+      .document-stage { min-height: 500px; }
+      .chapter { grid-template-columns: 60px 1fr; }
+      .chapter-body { grid-template-columns: 1fr; }
+      .maker-band .wrap { grid-template-columns: 1fr; padding-top: 60px; padding-bottom: 60px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <a class="brand" href="#"><span class="mark">A</span> Aergia</a>
+      <nav aria-label="Primary">
+        <a href="#journey">Product</a><a href="#tour">Tour</a><a href="#maker">About the maker</a>
+        <a class="maker" href="https://rmahbub.com">rmahbub.com ↗</a>
+      </nav>
+    </div>
+  </header>
+  <main>
+    <section class="hero">
+      <div class="wrap hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow">A private workspace for your job search</p>
+          <h1>One career.<span>Every version.</span></h1>
+          <p>Build your source CV, reuse the work you are proud of, tailor it to each role, and keep the entire application in view.</p>
+          <div class="actions"><a class="button primary" href="#">Start building →</a><a class="button secondary" href="#tour">Watch the tour</a></div>
+          <div class="trust"><span>Private by default</span><span>Live document preview</span><span>Polished PDF export</span></div>
+        </div>
+        <div class="document-stage" aria-label="Real demo CV in Aergia">
+          <div class="cv-crop"><img src="assets/tailored.webp" alt="A real Maya Chen demo CV rendered inside Aergia" /></div>
+          <div class="cv-label"><small>Real demo document</small>Maya Chen’s application-ready CV—not a decorative mockup.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="manifesto">
+      <div class="wrap manifesto-grid">
+        <h2>The idea behind Aergia</h2>
+        <blockquote>Your CV should be a living body of work, <em>not a file you rebuild for every application.</em></blockquote>
+      </div>
+    </section>
+
+    <section class="journey" id="journey">
+      <div class="wrap">
+        <div class="section-head">
+          <div><p class="eyebrow">The complete workflow</p><h2>From what you’ve done to what you send.</h2></div>
+          <p>Each part of the search stays connected. Your source material remains reusable; every application keeps its own context and document.</p>
+        </div>
+
+        <article class="chapter">
+          <div class="chapter-number">01 / BEGIN</div>
+          <div class="chapter-body">
+            <div class="chapter-copy"><h3>Bring in what you already have.</h3><p>Start clean or import a PDF into a structured CV you can continue editing.</p><ul class="feature-list"><li>CV dashboard</li><li>PDF import</li><li>Modern and Minimal templates</li></ul></div>
+            <div class="screen crop-top"><img src="assets/import.webp" alt="Import CV dialog in Aergia" /></div>
+          </div>
+        </article>
+
+        <article class="chapter">
+          <div class="chapter-number">02 / SHAPE</div>
+          <div class="chapter-body">
+            <div class="chapter-copy"><h3>Edit the content and the page together.</h3><p>Work with structured sections while the resolved CV stays visible. Typography, color, spacing, headings, and layout remain yours to tune.</p><ul class="feature-list"><li>Structured content editor</li><li>Live HTML preview</li><li>Document-level design controls</li></ul></div>
+            <div class="screen-pair"><div class="screen crop-top"><img src="assets/builder.webp" alt="Aergia content editor and live CV preview" /></div><div class="screen crop-top"><img src="assets/customize.webp" alt="Aergia CV customization controls" /></div></div>
+          </div>
+        </article>
+
+        <article class="chapter">
+          <div class="chapter-number">03 / REUSE</div>
+          <div class="chapter-body">
+            <div class="chapter-copy"><h3>Keep your strongest material close.</h3><p>Promote useful experience, projects, and skills to your Library, then bring them into the next CV without copy-and-paste drift.</p><ul class="feature-list"><li>Reusable career Library</li><li>Add saved material in context</li><li>One source of truth</li></ul></div>
+            <div class="screen crop-top"><img src="assets/library.webp" alt="Adding a saved experience from the Aergia Library" /></div>
+          </div>
+        </article>
+
+        <article class="chapter">
+          <div class="chapter-number">04 / APPLY</div>
+          <div class="chapter-body">
+            <div class="chapter-copy"><h3>Give every opportunity its own context.</h3><p>Track the role, status, relevance, and follow-up. Review the tailored version beside the application and export only when it is ready.</p><ul class="feature-list"><li>Application pipeline and search</li><li>Relevance and follow-up signals</li><li>Tailored CV and PDF export</li></ul></div>
+            <div class="application-grid"><div class="screen crop-top"><img src="assets/pipeline.webp" alt="Application pipeline with role status and relevance" /></div><div class="screen crop-top"><img src="assets/tailored.webp" alt="Tailored CV for an application" /></div><div class="screen crop-top"><img src="assets/export.webp" alt="PDF export from Aergia" /></div></div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="tour" id="tour">
+      <div class="wrap tour-grid">
+        <div><p class="eyebrow">63 seconds, end to end</p><h2>See the whole search stay connected.</h2><p>The real application, from importing a source CV through editing, reuse, tracking, tailoring, and PDF export.</p></div>
+        <video controls muted playsinline poster="../output/aergia-showcase-poster.webp"><source src="../output/aergia-showcase.webm" type="video/webm" /><source src="../output/aergia-showcase.mp4" type="video/mp4" /></video>
+      </div>
+    </section>
+
+    <section class="maker-band" id="maker"><div class="wrap"><div><p>Independently designed and built</p><h2>A focused tool by Riasat Mahbub, built around the real work of a job search.</h2></div><a href="https://rmahbub.com">Meet the maker at rmahbub.com ↗</a></div></section>
+    <section class="cta"><div class="wrap"><h2>Your next application can start from somewhere better.</h2><p>Keep one dependable source, make each version purposeful, and send the right story.</p><a class="button primary" href="#">Create your workspace →</a></div></section>
+  </main>
+  <footer><div class="wrap"><span>© 2026 Aergia</span><span>A product by <a href="https://rmahbub.com">Riasat Mahbub ↗</a></span></div></footer>
+</body>
+</html>

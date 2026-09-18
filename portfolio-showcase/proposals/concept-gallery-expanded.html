@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aergia — Expanded Product Atlas</title>
+  <style>
+    :root {
+      --night: #14272e;
+      --night-2: #1c343c;
+      --night-3: #29454d;
+      --paper: #f0f1e9;
+      --paper-2: #e4e8de;
+      --mint: #a7f3d0;
+      --green: #18a47f;
+      --green-deep: #08735b;
+      --orange: #ff855f;
+      --blue: #a7baff;
+      --rule-dark: rgba(240, 241, 233, .19);
+      --rule-light: #aeb9b2;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--night); color: var(--paper); font-family: Arial, Helvetica, sans-serif; }
+    a { color: inherit; }
+    img { max-width: 100%; }
+    .shell { width: min(1320px, calc(100% - 72px)); margin-inline: auto; }
+    .kicker { margin: 0 0 24px; color: var(--mint); font-size: 10px; font-weight: 800; letter-spacing: .2em; text-transform: uppercase; }
+    .kicker.dark { color: var(--green-deep); }
+    .button { display: inline-flex; min-height: 50px; align-items: center; justify-content: center; padding: 0 22px; background: var(--mint); color: var(--night); text-decoration: none; font-size: 13px; font-weight: 850; }
+    .button.ghost { border: 1px solid rgba(240,241,233,.55); background: transparent; color: var(--paper); }
+    header { border-bottom: 1px solid var(--rule-dark); }
+    header .shell { height: 78px; display: flex; align-items: center; justify-content: space-between; gap: 30px; }
+    .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; font-weight: 850; letter-spacing: -.02em; }
+    .brand b { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 50%; background: var(--mint); color: var(--night); }
+    nav { display: flex; align-items: center; gap: 28px; color: rgba(240,241,233,.65); font-size: 12px; }
+    nav a { text-decoration: none; }
+    nav .personal { color: var(--mint); font-weight: 800; }
+
+    .hero { position: relative; overflow: hidden; padding: 92px 0 110px; }
+    .hero:before { content: ""; position: absolute; inset: 0; background: linear-gradient(125deg, transparent 50%, rgba(167,243,208,.055)); pointer-events: none; }
+    .hero-grid { position: relative; display: grid; grid-template-columns: .83fr 1.17fr; align-items: center; gap: 72px; }
+    h1 { max-width: 650px; margin: 0; font-size: clamp(68px, 7.5vw, 112px); line-height: .84; letter-spacing: -.075em; }
+    h1 span { display: block; color: transparent; -webkit-text-stroke: 1px rgba(240,241,233,.7); }
+    .hero-copy > p:not(.kicker) { max-width: 560px; margin: 32px 0 0; color: rgba(240,241,233,.66); font-size: 18px; line-height: 1.65; }
+    .actions { display: flex; align-items: center; gap: 12px; margin-top: 34px; }
+    .hero-note { display: flex; flex-wrap: wrap; gap: 10px 22px; margin-top: 34px; color: rgba(240,241,233,.48); font-size: 11px; }
+    .hero-note span:before { content: "•"; margin-right: 8px; color: var(--mint); }
+    .atlas { display: grid; grid-template-columns: 1.05fr .95fr; grid-template-rows: 196px 196px 126px; gap: 13px; transform: rotate(-1.2deg); }
+    .atlas-card { position: relative; overflow: hidden; border: 1px solid rgba(240,241,233,.3); background: white; box-shadow: 0 22px 45px rgba(0,0,0,.22); }
+    .atlas-card:first-child { grid-row: 1 / 4; }
+    .atlas-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .atlas-card:first-child img { width: 940px; max-width: none; height: 610px; transform: translate(-475px,-30px); }
+    .atlas-card:nth-child(2) img, .atlas-card:nth-child(3) img { transform: scale(1.07) translateY(-7px); }
+    .atlas-card:nth-child(4) { background: var(--orange); color: white; padding: 20px; box-shadow: none; }
+    .atlas-card:nth-child(4) p { margin: 0 0 24px; font-size: 9px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+    .atlas-card:nth-child(4) strong { display: block; max-width: 270px; font-size: 23px; line-height: 1.02; letter-spacing: -.035em; }
+    .tag { position: absolute; left: 11px; bottom: 11px; padding: 8px 10px; background: var(--night); color: white; font-size: 8px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+
+    .section-index { border-top: 1px solid var(--rule-dark); border-bottom: 1px solid var(--rule-dark); }
+    .section-index .shell { min-height: 126px; display: grid; grid-template-columns: repeat(4,1fr); }
+    .section-index a { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 15px; padding: 0 24px; border-left: 1px solid var(--rule-dark); text-decoration: none; color: rgba(240,241,233,.6); font-size: 11px; font-weight: 700; }
+    .section-index a:last-child { border-right: 1px solid var(--rule-dark); }
+    .section-index strong { color: var(--paper); font-size: 30px; letter-spacing: -.05em; }
+
+    .premise { padding: 116px 0; border-bottom: 1px solid var(--rule-dark); }
+    .premise p { max-width: 1160px; margin: 0; font-size: clamp(44px,5.6vw,79px); line-height: 1.01; letter-spacing: -.06em; }
+    .premise em { color: var(--mint); font-style: normal; }
+
+    .map { padding: 116px 0 130px; border-bottom: 1px solid var(--rule-dark); }
+    .section-title { display: grid; grid-template-columns: 180px .8fr 1.2fr; gap: 40px; align-items: start; margin-bottom: 66px; }
+    .section-no { color: var(--mint); font-size: 10px; font-weight: 800; letter-spacing: .18em; }
+    .section-title h2 { margin: 0; font-size: 52px; line-height: .95; letter-spacing: -.055em; }
+    .section-title > p { max-width: 610px; margin: 0; color: rgba(240,241,233,.64); font-size: 16px; line-height: 1.7; }
+    .system-map { display: grid; grid-template-columns: .9fr 1.1fr; gap: 18px; align-items: stretch; }
+    .system-screen { position: relative; min-height: 480px; overflow: hidden; border: 1px solid rgba(240,241,233,.3); background: white; }
+    .system-screen img { width: 100%; height: 100%; object-fit: cover; object-position: top left; }
+    .system-screen .stamp { position: absolute; left: 18px; bottom: 18px; padding: 10px 12px; background: var(--night); font-size: 9px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    .system-flow { display: grid; grid-template-columns: 1fr 52px 1fr; grid-template-rows: 1fr 52px 1fr; }
+    .flow-node { padding: 28px; border: 1px solid var(--rule-dark); background: var(--night-2); }
+    .flow-node small { color: var(--mint); font-weight: 800; letter-spacing: .14em; }
+    .flow-node h3 { margin: 35px 0 9px; font-size: 23px; letter-spacing: -.035em; }
+    .flow-node p { margin: 0; color: rgba(240,241,233,.58); font-size: 12px; line-height: 1.55; }
+    .flow-arrow { display: grid; place-items: center; color: var(--mint); font-size: 24px; }
+    .flow-core { display: grid; place-items: center; border-radius: 50%; background: var(--mint); color: var(--night); font-size: 10px; font-weight: 900; letter-spacing: .1em; }
+
+    .zone { padding: 120px 0 132px; border-bottom: 1px solid var(--rule-dark); }
+    .zone.light { background: var(--paper); color: var(--night); }
+    .zone.light .section-no, .zone.light .kicker { color: var(--green-deep); }
+    .zone.light .section-title > p { color: #596a6d; }
+    .anatomy { position: relative; min-height: 670px; overflow: hidden; border: 1px solid rgba(240,241,233,.33); background: white; }
+    .anatomy img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
+    .anatomy-label { position: absolute; width: 205px; padding: 14px 15px; background: var(--night); color: white; box-shadow: 0 14px 30px rgba(0,0,0,.2); }
+    .anatomy-label b { display: block; margin-bottom: 6px; color: var(--mint); font-size: 9px; letter-spacing: .15em; }
+    .anatomy-label span { display: block; font-size: 12px; line-height: 1.4; }
+    .anatomy-label.one { left: 3%; top: 19%; }
+    .anatomy-label.two { right: 3%; top: 29%; }
+    .anatomy-label.three { left: 36%; bottom: 4%; }
+    .ledger { margin-top: 22px; border-top: 1px solid var(--rule-dark); }
+    .ledger-row { min-height: 104px; display: grid; grid-template-columns: 180px .8fr 1.2fr; gap: 40px; align-items: center; border-bottom: 1px solid var(--rule-dark); }
+    .ledger-row .code { color: var(--mint); font-size: 9px; font-weight: 850; letter-spacing: .15em; }
+    .ledger-row h3 { margin: 0; font-size: 18px; letter-spacing: -.025em; }
+    .ledger-row p { margin: 0; color: rgba(240,241,233,.58); font-size: 12px; line-height: 1.55; }
+    .zone.light .ledger { border-color: var(--rule-light); }
+    .zone.light .ledger-row { border-color: var(--rule-light); }
+    .zone.light .ledger-row .code { color: var(--green-deep); }
+    .zone.light .ledger-row p { color: #5d6b6e; }
+    .split-showcase { display: grid; grid-template-columns: .88fr 1.12fr; gap: 18px; margin-top: 70px; }
+    .visual { position: relative; overflow: hidden; min-height: 430px; border: 1px solid var(--rule-light); background: white; }
+    .visual img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .visual .caption { position: absolute; inset: auto 0 0; padding: 70px 24px 22px; background: linear-gradient(transparent, rgba(15,30,35,.92)); color: white; }
+    .caption small { color: var(--mint); font-size: 9px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    .caption h3 { margin: 8px 0 0; font-size: 22px; letter-spacing: -.03em; }
+    .caption p { max-width: 510px; margin: 8px 0 0; color: rgba(255,255,255,.67); font-size: 11px; line-height: 1.5; }
+
+    .library-stage { display: grid; grid-template-columns: 1.22fr .78fr; gap: 18px; }
+    .library-screen { position: relative; min-height: 570px; overflow: hidden; border: 1px solid #9ea9a4; background: white; }
+    .library-screen img { width: 100%; height: 100%; object-fit: cover; }
+    .library-copy { display: flex; flex-direction: column; background: #dde5dc; border: 1px solid #aeb9b2; }
+    .library-copy > div { flex: 1; padding: 28px; border-bottom: 1px solid #aeb9b2; }
+    .library-copy > div:last-child { border-bottom: 0; }
+    .library-copy small { color: var(--green-deep); font-size: 9px; font-weight: 850; letter-spacing: .15em; }
+    .library-copy h3 { margin: 22px 0 8px; font-size: 22px; letter-spacing: -.035em; }
+    .library-copy p { margin: 0; color: #5b6869; font-size: 12px; line-height: 1.55; }
+    .category-strip { display: grid; grid-template-columns: repeat(7,1fr); margin-top: 18px; border-top: 1px solid var(--rule-light); border-bottom: 1px solid var(--rule-light); }
+    .category-strip span { min-height: 88px; display: grid; place-items: center; padding: 12px; border-right: 1px solid var(--rule-light); font-size: 10px; font-weight: 800; text-align: center; }
+    .category-strip span:last-child { border-right: 0; }
+
+    .application-stage { display: grid; grid-template-columns: .75fr 1.25fr; gap: 18px; align-items: stretch; }
+    .application-copy { padding: 34px; border: 1px solid var(--rule-dark); background: var(--night-2); }
+    .application-copy h3 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: -.045em; }
+    .application-copy > p { margin: 20px 0 30px; color: rgba(240,241,233,.6); font-size: 14px; line-height: 1.65; }
+    .signal { display: grid; grid-template-columns: 42px 1fr; gap: 13px; padding: 15px 0; border-top: 1px solid var(--rule-dark); }
+    .signal b { color: var(--mint); font-size: 11px; }
+    .signal strong { display: block; font-size: 13px; }
+    .signal span { display: block; margin-top: 5px; color: rgba(240,241,233,.5); font-size: 11px; line-height: 1.45; }
+    .application-screen { position: relative; min-height: 590px; overflow: hidden; border: 1px solid rgba(240,241,233,.33); background: white; }
+    .application-screen img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
+    .application-screen .score { position: absolute; right: 24px; top: 24px; display: grid; width: 98px; height: 98px; place-items: center; border-radius: 50%; background: var(--orange); color: white; text-align: center; }
+    .score b { display: block; font-size: 26px; letter-spacing: -.05em; }
+    .score small { font-size: 8px; font-weight: 800; letter-spacing: .1em; }
+    .process { display: grid; grid-template-columns: repeat(5,1fr); margin-top: 18px; border-top: 1px solid var(--rule-dark); border-bottom: 1px solid var(--rule-dark); }
+    .process div { min-height: 142px; padding: 22px; border-right: 1px solid var(--rule-dark); }
+    .process div:last-child { border-right: 0; }
+    .process b { color: var(--mint); font-size: 9px; letter-spacing: .14em; }
+    .process h3 { margin: 29px 0 0; font-size: 16px; line-height: 1.25; }
+
+    .tailoring { margin-top: 72px; padding: 54px; background: var(--mint); color: var(--night); }
+    .tailoring-head { display: grid; grid-template-columns: .78fr 1.22fr; gap: 50px; align-items: end; }
+    .tailoring h3 { margin: 0; font-size: 45px; line-height: .96; letter-spacing: -.055em; }
+    .tailoring-head p { max-width: 600px; margin: 0; color: #355a53; font-size: 15px; line-height: 1.65; }
+    .tailoring-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin-top: 42px; background: rgba(20,39,46,.25); border: 1px solid rgba(20,39,46,.25); }
+    .mode { padding: 30px; background: var(--paper); }
+    .mode small { color: var(--green-deep); font-size: 9px; font-weight: 850; letter-spacing: .14em; }
+    .mode h4 { margin: 20px 0 10px; font-size: 23px; letter-spacing: -.035em; }
+    .mode p { margin: 0; color: #5a696b; font-size: 12px; line-height: 1.55; }
+    .mode ul { margin: 22px 0 0; padding: 0; list-style: none; }
+    .mode li { padding: 10px 0; border-top: 1px solid #bdc6bf; font-size: 11px; font-weight: 750; }
+    .mode li:before { content: "→"; margin-right: 10px; color: var(--green-deep); }
+
+    .output-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
+    .output-grid .visual { min-height: 450px; border-color: var(--rule-dark); }
+
+    .trust { padding: 120px 0; background: var(--paper); color: var(--night); }
+    .trust-grid { display: grid; grid-template-columns: .8fr 1.2fr; gap: 75px; }
+    .trust h2 { margin: 0; font-size: 58px; line-height: .94; letter-spacing: -.06em; }
+    .trust-list { border-top: 1px solid var(--rule-light); }
+    .trust-item { display: grid; grid-template-columns: 58px 1fr; gap: 18px; padding: 25px 0; border-bottom: 1px solid var(--rule-light); }
+    .trust-item b { color: var(--green-deep); font-size: 11px; }
+    .trust-item h3 { margin: 0; font-size: 18px; }
+    .trust-item p { margin: 7px 0 0; color: #5b696b; font-size: 12px; line-height: 1.5; }
+
+    .tour { padding: 116px 0; background: var(--mint); color: var(--night); }
+    .tour-grid { display: grid; grid-template-columns: .7fr 1.3fr; gap: 70px; align-items: center; }
+    .tour h2 { margin: 0; max-width: 540px; font-size: 60px; line-height: .92; letter-spacing: -.06em; }
+    .tour p { max-width: 440px; margin: 23px 0 0; color: #3f615a; font-size: 14px; line-height: 1.65; }
+    video { width: 100%; border: 1px solid var(--night); background: #d7f4e6; box-shadow: 20px 20px 0 rgba(20,39,46,.14); }
+    .final { padding: 135px 0; text-align: center; }
+    .final h2 { max-width: 930px; margin: 0 auto; font-size: clamp(58px,7vw,99px); line-height: .89; letter-spacing: -.075em; }
+    .final p { margin: 28px auto 34px; color: rgba(240,241,233,.6); font-size: 16px; }
+    footer { border-top: 1px solid var(--rule-dark); }
+    footer .shell { min-height: 102px; display: flex; align-items: center; justify-content: space-between; gap: 30px; color: rgba(240,241,233,.48); font-size: 11px; }
+    footer a { color: var(--mint); }
+
+    @media (max-width: 900px) {
+      .shell { width: min(100% - 36px,720px); }
+      nav a:not(.personal) { display: none; }
+      .hero { padding: 66px 0 78px; }
+      .hero-grid, .system-map, .split-showcase, .library-stage, .application-stage, .tailoring-head, .trust-grid, .tour-grid { grid-template-columns: 1fr; }
+      h1 { font-size: 58px; }
+      .atlas { margin-top: 28px; grid-template-rows: 160px 160px 106px; }
+      .atlas-card:first-child img { width: 700px; height: 500px; transform: translate(-370px,-25px); }
+      .section-index .shell { grid-template-columns: 1fr 1fr; }
+      .section-index a { min-height: 92px; border-bottom: 1px solid var(--rule-dark); }
+      .section-title { grid-template-columns: 58px 1fr; gap: 20px; }
+      .section-title > p { grid-column: 2; }
+      .system-screen, .anatomy, .application-screen { min-height: 360px; }
+      .system-flow { min-height: 520px; }
+      .anatomy-label { width: 155px; padding: 10px; }
+      .anatomy-label.three { left: 25%; }
+      .ledger-row { grid-template-columns: 50px 1fr; gap: 15px; padding: 18px 0; }
+      .ledger-row p { grid-column: 2; }
+      .category-strip { grid-template-columns: repeat(2,1fr); }
+      .category-strip span { border-bottom: 1px solid var(--rule-light); }
+      .process { grid-template-columns: 1fr; }
+      .process div { min-height: 100px; border-right: 0; border-bottom: 1px solid var(--rule-dark); }
+      .process h3 { margin-top: 17px; }
+      .tailoring { padding: 30px 22px; }
+      .tailoring-modes, .output-grid { grid-template-columns: 1fr; }
+      .visual { min-height: 310px; }
+      .tour h2, .trust h2 { font-size: 44px; }
+      footer .shell { align-items: flex-start; flex-direction: column; justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+  <header><div class="shell"><a class="brand" href="#"><b>A</b>Aergia</a><nav><a href="#map">System</a><a href="#author">Author</a><a href="#remember">Remember</a><a href="#pursue">Pursue</a><a href="#tour">Tour</a><a class="personal" href="https://rmahbub.com">rmahbub.com ↗</a></nav></div></header>
+  <main>
+    <section class="hero"><div class="shell hero-grid">
+      <div class="hero-copy"><p class="kicker">A private operating system for your job search</p><h1>Build your story.<span>Keep the thread.</span></h1><p>Aergia connects the CV you maintain, the career material you reuse, and every role you pursue—from first draft to application-ready PDF.</p><div class="actions"><a class="button" href="#">Create your workspace →</a><a class="button ghost" href="#tour">Watch the tour</a></div><div class="hero-note"><span>Real document preview</span><span>Reusable career Library</span><span>Application-specific CVs</span></div></div>
+      <div class="atlas" aria-label="Actual Aergia product screens"><div class="atlas-card"><img src="assets/tailored.webp" alt="A real demo CV in the Aergia builder" /><span class="tag">Application-ready CV</span></div><div class="atlas-card"><img src="assets/library.webp" alt="Adding career material from the Library" /><span class="tag">Reuse your work</span></div><div class="atlas-card"><img src="assets/application-detail.webp" alt="Application detail with job relevance" /><span class="tag">Keep role context</span></div><div class="atlas-card"><p>One connected workspace</p><strong>CV → Library → application → tailored output</strong></div></div>
+    </div></section>
+
+    <section class="section-index"><div class="shell"><a href="#map"><strong>00</strong>See the connected system</a><a href="#author"><strong>01</strong>Author the source</a><a href="#remember"><strong>02</strong>Reuse what matters</a><a href="#pursue"><strong>03</strong>Pursue each role</a></div></section>
+    <section class="premise"><div class="shell"><p>Most CV tools stop at the page. Aergia keeps going—through the <em>source material, the opportunity, the tailored draft, and the follow-up.</em></p></div></section>
+
+    <section class="map" id="map"><div class="shell"><div class="section-title"><div class="section-no">00 / THE SYSTEM</div><h2>Everything has a place—and a relationship.</h2><p>The dashboard is an overview, not a dead end. Each area feeds the next while the source material stays reusable and independently editable.</p></div><div class="system-map"><div class="system-screen"><img src="assets/dashboard.webp" alt="Aergia dashboard connecting CVs, Library, and Applications" /><span class="stamp">Actual dashboard</span></div><div class="system-flow"><div class="flow-node"><small>01</small><h3>CVs</h3><p>Create, import, duplicate, edit, and keep reusable versions.</p></div><div class="flow-arrow">→</div><div class="flow-node"><small>02</small><h3>Library</h3><p>Maintain the evidence and profile that power future documents.</p></div><div class="flow-arrow">↑</div><div class="flow-core">AERGIA</div><div class="flow-arrow">↓</div><div class="flow-node"><small>04</small><h3>Output</h3><p>Review the resolved page, run quality checks, and export PDF.</p></div><div class="flow-arrow">←</div><div class="flow-node"><small>03</small><h3>Applications</h3><p>Attach job context, relevance, status, follow-up, and tailored CV.</p></div></div></div></div></section>
+
+    <section class="zone" id="author"><div class="shell"><div class="section-title"><div class="section-no">01 / AUTHOR</div><h2>Make one CV worth maintaining.</h2><p>Start from a blank template or import the document you already have. Structured editing, document design, and the resolved output stay in the same working context.</p></div><div class="anatomy"><img src="assets/builder.webp" alt="Aergia content editor and live document preview" /><div class="anatomy-label one"><b>01 / CONTENT</b><span>Reorder, show, hide, add, and edit structured sections.</span></div><div class="anatomy-label two"><b>02 / PREVIEW</b><span>See the real HTML document resolve as you work.</span></div><div class="anatomy-label three"><b>03 / OUTPUT</b><span>Save, promote useful material, or export the current PDF.</span></div></div><div class="ledger"><div class="ledger-row"><div class="code">AUTHOR / 01</div><h3>Structured content</h3><p>Profile, experience, education, skills, projects, certifications, languages, research, and custom ordering.</p></div><div class="ledger-row"><div class="code">AUTHOR / 02</div><h3>Section-level control</h3><p>Reorder instances, toggle visibility, add sections, and tune individual heading and layout behavior.</p></div><div class="ledger-row"><div class="code">AUTHOR / 03</div><h3>Document-level design</h3><p>Templates, typography, heading colors, section accents, body text, spacing, page breaks, and date presentation.</p></div><div class="ledger-row"><div class="code">AUTHOR / 04</div><h3>One resolved output</h3><p>The editing preview and Chromium PDF share the same document model, reducing surprises at export.</p></div></div><div class="split-showcase"><article class="visual"><img src="assets/imported.webp" alt="Importing an existing CV with a selected template" /><div class="caption"><small>Start from what exists</small><h3>Import a PDF into an editable CV</h3><p>Give it a title, choose the starting template, and continue in the same builder.</p></div></article><article class="visual"><img src="assets/customize.webp" alt="Typography and section customization controls" /><div class="caption"><small>Make the system yours</small><h3>Customize without losing the page</h3><p>Design controls remain beside the document they affect, from heading treatment to spacing and page behavior.</p></div></article></div></div></section>
+
+    <section class="zone light" id="remember"><div class="shell"><div class="section-title"><div class="section-no">02 / REMEMBER</div><h2>Your best career material should compound.</h2><p>The Library is not a folder of old CVs. It is the reusable source material behind them, plus the profile used to generate role-specific drafts.</p></div><div class="library-stage"><div class="library-screen"><img src="assets/library.webp" alt="Adding saved experience from the Aergia Library" /></div><div class="library-copy"><div><small>SAVE FROM THE BUILDER</small><h3>Promote what is worth keeping.</h3><p>A strong project or experience can become reusable material instead of staying trapped in one CV.</p></div><div><small>ADD IN CONTEXT</small><h3>Bring the right evidence back.</h3><p>Browse saved entries while editing and insert the relevant one into the current document.</p></div><div><small>POWER TAILORING</small><h3>Keep one dependable profile.</h3><p>Your Library profile and selected entries give tailored CV generation a consistent source.</p></div></div></div><div class="category-strip" aria-label="Library categories"><span>Experiences</span><span>Education</span><span>Skills</span><span>Projects</span><span>Certifications</span><span>Languages</span><span>Research</span></div><div class="ledger"><div class="ledger-row"><div class="code">REMEMBER / 01</div><h3>Create and edit entries directly</h3><p>Maintain the source independently, even when it does not yet belong to a specific CV.</p></div><div class="ledger-row"><div class="code">REMEMBER / 02</div><h3>Move both directions</h3><p>Promote sections from a CV to the Library or pull Library entries into a CV without manual re-entry.</p></div><div class="ledger-row"><div class="code">REMEMBER / 03</div><h3>Keep source and use separate</h3><p>Reuse does not force every application to tell the same story; each CV can select only what fits.</p></div></div></div></section>
+
+    <section class="zone" id="pursue"><div class="shell"><div class="section-title"><div class="section-no">03 / PURSUE</div><h2>Keep the role attached to the work.</h2><p>An application is more than a status label. Aergia keeps the job description, relevance evidence, next follow-up, status history, generated CV, and final output together.</p></div><div class="application-stage"><div class="application-copy"><p class="kicker">A complete application record</p><h3>Know why this version belongs to this role.</h3><p>The CV remains editable, but its purpose and evidence never drift away from the opportunity.</p><div class="signal"><b>01</b><div><strong>Job context</strong><span>Company, role, description, URL, notes, and next follow-up.</span></div></div><div class="signal"><b>02</b><div><strong>Relevance evidence</strong><span>Weighted fit plus matched, missing, and source evidence in the linked CV.</span></div></div><div class="signal"><b>03</b><div><strong>Progress history</strong><span>Current status and a recorded history as the application moves forward.</span></div></div><div class="signal"><b>04</b><div><strong>Generated document</strong><span>Selected sections, Library sources, quality result, edit link, and PDF export.</span></div></div></div><div class="application-screen"><img src="assets/application-detail.webp" alt="Aergia application detail with job, relevance, and generated CV panels" /><div class="score"><div><b>64%</b><small>RELEVANCE</small></div></div></div></div><div class="process"><div><b>03A</b><h3>Track and search roles</h3></div><div><b>03B</b><h3>Set status and follow-up</h3></div><div><b>03C</b><h3>Inspect relevance evidence</h3></div><div><b>03D</b><h3>Review the tailored draft</h3></div><div><b>03E</b><h3>Edit and export PDF</h3></div></div>
+
+      <section class="tailoring"><div class="tailoring-head"><div><p class="kicker dark">Two paths, one review step</p><h3>Tailor with control—not blind automation.</h3></div><p>Aergia can generate a standard application CV or open a secure, time-limited session for your coding agent. Either way, the result stays a draft you can inspect and edit before it replaces anything.</p></div><div class="tailoring-modes"><article class="mode"><small>FAST PATH</small><h4>Generate a standard CV</h4><p>Create a role-focused document from the profile and Library when you want a dependable starting point quickly.</p><ul><li>Uses the application’s job context</li><li>Selects relevant Library material</li><li>Produces an editable linked CV</li><li>Runs document quality checks</li></ul></article><article class="mode"><small>AGENT PATH</small><h4>Use your coding agent</h4><p>Let Codex, Claude Code, or OpenCode compose a complete draft through a scoped tailoring session.</p><ul><li>Time-limited session and one-time access</li><li>May adjust content, sections, template, layout, and styles</li><li>Returns relevance, warnings, and review notes</li><li>Accept or reject before changing the application CV</li></ul></article></div></section>
+
+      <div class="output-grid"><article class="visual"><img src="assets/pipeline.webp" alt="Searchable application pipeline with relevance and follow-up" /><div class="caption"><small>Across the search</small><h3>See roles, relevance, status, and follow-ups</h3><p>Search and filter the pipeline so the next action is visible.</p></div></article><article class="visual"><img src="assets/tailored.webp" alt="Tailored CV open for review and editing" /><div class="caption"><small>Inside one application</small><h3>Keep the tailored CV editable</h3><p>Review it in the same builder, refine what the role needs, and export only when it is ready.</p></div></article></div>
+    </div></section>
+
+    <section class="trust"><div class="shell trust-grid"><div><p class="kicker dark">Quiet infrastructure</p><h2>Private where it matters. Consistent where it counts.</h2></div><div class="trust-list"><div class="trust-item"><b>01</b><div><h3>Private workspace</h3><p>Your career material is account-scoped and designed around one person’s job search.</p></div></div><div class="trust-item"><b>02</b><div><h3>Import credentials are not retained</h3><p>Provider keys used to parse an imported CV stay in memory and are not stored by Aergia.</p></div></div><div class="trust-item"><b>03</b><div><h3>Drafts remain drafts</h3><p>Agent-tailored work must be reviewed and accepted before replacing the CV attached to an application.</p></div></div><div class="trust-item"><b>04</b><div><h3>Preview and PDF stay aligned</h3><p>The same HTML-first document path powers the working preview and Chromium export.</p></div></div></div></div></section>
+
+    <section class="tour" id="tour"><div class="shell tour-grid"><div><p class="kicker dark">Real product, real workflow</p><h2>One minute from source CV to send-ready PDF.</h2><p>No fantasy screens. Watch the application move through import, editing, customization, reuse, tracking, tailoring, and export.</p></div><video controls muted playsinline poster="../output/aergia-showcase-poster.webp"><source src="../output/aergia-showcase.webm" type="video/webm" /><source src="../output/aergia-showcase.mp4" type="video/mp4" /></video></div></section>
+    <section class="final"><div class="shell"><p class="kicker">Your career material deserves continuity</p><h2>Build once. Keep improving. Apply with intent.</h2><p>One private workspace. Every relevant version.</p><a class="button" href="#">Create your workspace →</a></div></section>
+  </main>
+  <footer><div class="shell"><span>Aergia © 2026</span><span>CV builder · Career Library · Application tracker · Agent tailoring · PDF export</span><span>Built by <a href="https://rmahbub.com">Riasat Mahbub ↗</a></span></div></footer>
+</body>
+</html>
