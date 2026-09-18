@@ -46,6 +46,12 @@ if [ -f "$ROOT_DIR/.env" ]; then
   set +a
 fi
 
+# FastAPI's CSRF/CORS checks and TanStack Start's SSR session resolver must
+# agree on the exact browser origin. Prefer the explicit Start origin, then
+# the API's configured public origin, and finally the local dev default.
+FRONTEND_ORIGIN="${AERGIA_FRONTEND_ORIGIN:-${FRONTEND_URL:-http://localhost:5173}}"
+export FRONTEND_URL="$FRONTEND_ORIGIN"
+
 # ── Dependency checks ─────────────────────────────────────────────
 command -v python3 >/dev/null 2>&1 || { echo "ERROR: python3 not found"; exit 1; }
 command -v node >/dev/null 2>&1 || { echo "ERROR: node not found"; exit 1; }
@@ -159,7 +165,7 @@ if [ "$BUILD" = false ] && [ "$PROD" = false ]; then
         npm install
     fi
     AERGIA_API_ORIGIN="${AERGIA_API_ORIGIN:-http://127.0.0.1:8000}" \
-    AERGIA_FRONTEND_ORIGIN="${AERGIA_FRONTEND_ORIGIN:-http://127.0.0.1:5173}" \
+    AERGIA_FRONTEND_ORIGIN="$FRONTEND_ORIGIN" \
       npm run dev -- --host 0.0.0.0 &
     WEB_PID=$!
 elif [ "$BUILD" = true ] || [ "$PROD" = true ]; then
@@ -171,7 +177,7 @@ elif [ "$BUILD" = true ] || [ "$PROD" = true ]; then
     echo "=== Starting TanStack Start on :$FRONTEND_PORT ==="
     cd "$WEB_DIR"
     AERGIA_API_ORIGIN="${AERGIA_API_ORIGIN:-http://127.0.0.1:8000}" \
-    AERGIA_FRONTEND_ORIGIN="${AERGIA_FRONTEND_ORIGIN:-http://127.0.0.1:$FRONTEND_PORT}" \
+    AERGIA_FRONTEND_ORIGIN="$FRONTEND_ORIGIN" \
     NODE_ENV=production \
     HOST=0.0.0.0 PORT="$FRONTEND_PORT" \
       node .output/server/index.mjs &
