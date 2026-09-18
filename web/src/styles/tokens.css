@@ -1,34 +1,34 @@
 /* Aergia application design tokens.
  *
- * The application chrome has one visual language: emerald actions, mint
- * surfaces, slate ink, and an off-white canvas. CV document accents remain
- * data-driven and are resolved by the HTML renderer separately.
+ * The application chrome shares the Product Atlas palette: deep slate,
+ * paper surfaces, mint highlights, and green actions. CV document accents
+ * remain data-driven and are resolved by the HTML renderer separately.
  */
 
 :root {
   /* ── Application palette ───────────────────────────────────────── */
-  --app-primary:         #059669;
-  --app-primary-hover:   #047857;
-  --app-primary-soft:    #DAFFEF;
-  --app-secondary:       #41658A;
-  --app-secondary-soft:  rgba(65, 101, 138, 0.12);
-  --app-canvas:          #FCFFFD;
-  --app-surface:         #FCFFFD;
-  --app-surface-muted:   #DAFFEF;
-  --app-surface-strong:  rgba(47, 69, 80, 0.08);
-  --app-ink:             #2F4550;
-  --app-ink-2:           #41658A;
-  --app-ink-3:           rgba(65, 101, 138, 0.78);
-  --app-ink-muted:       rgba(65, 101, 138, 0.46);
-  --app-rule:            rgba(47, 69, 80, 0.14);
-  --app-rule-soft:       rgba(47, 69, 80, 0.08);
-  --app-rule-strong:     rgba(47, 69, 80, 0.24);
-  --app-focus:           rgba(5, 150, 105, 0.28);
+  --app-primary:         #08735B;
+  --app-primary-hover:   #065744;
+  --app-primary-soft:    #A7F3D0;
+  --app-secondary:       #29454D;
+  --app-secondary-soft:  rgba(41, 69, 77, 0.12);
+  --app-canvas:          #F0F1E9;
+  --app-surface:         #FFFFFF;
+  --app-surface-muted:   #E4E8DE;
+  --app-surface-strong:  rgba(20, 39, 46, 0.08);
+  --app-ink:             #14272E;
+  --app-ink-2:           #29454D;
+  --app-ink-3:           rgba(41, 69, 77, 0.74);
+  --app-ink-muted:       rgba(41, 69, 77, 0.46);
+  --app-rule:            rgba(20, 39, 46, 0.17);
+  --app-rule-soft:       rgba(20, 39, 46, 0.09);
+  --app-rule-strong:     rgba(20, 39, 46, 0.28);
+  --app-focus:           rgba(24, 164, 127, 0.28);
 
   /* Compatibility names used by the customization inspector. */
   --paper:        var(--app-canvas);
   --paper-1:      var(--app-surface);
-  --paper-2:      var(--app-surface);
+  --paper-2:      var(--app-surface-muted);
   --ink:          var(--app-ink);
   --ink-2:        var(--app-ink-2);
   --ink-3:        var(--app-ink-3);

@@ -37,6 +37,19 @@ The accompanying `concept-gallery-expanded.md` records the page architecture,
 visual system, interaction behavior, responsive rules, accessibility checks,
 and the intended production adaptation.
 
+## Workspace directions
+
+`workspace-directions.html` extends the selected Product Atlas system into the
+authenticated product and public utility pages. It compares two shared-shell
+directions—Atlas Workbench and Paper Desk—then proposes a distinct treatment
+for the dashboard, CV shelf, builder, Library, applications index, application
+case file, settings, authentication, and agent-tailoring handoff.
+
+The board uses the real captured screens in `assets/` as visual anchors. The
+companion `workspace-directions.png` and
+`workspace-directions-mobile.png` are the rendered desktop and mobile review
+boards. This is an isolated proposal and does not change the live routes.
+
 ## Feature coverage
 
 | Capability | Editorial journey | Product atlas |

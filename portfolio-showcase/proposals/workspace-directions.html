@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aergia workspace directions</title>
+  <style>
+    :root {
+      --night: #14272e;
+      --night-2: #1d363e;
+      --night-3: #2c4a51;
+      --paper: #f0f1e9;
+      --paper-2: #e2e7de;
+      --mint: #a7f3d0;
+      --green: #18a47f;
+      --green-deep: #08735b;
+      --orange: #ff855f;
+      --ink-soft: #657376;
+      --rule: #afbab3;
+      --shadow: 0 22px 55px rgba(20, 39, 46, .16);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: #d5d9d1;
+      color: var(--night);
+      font: 14px/1.5 Arial, Helvetica, sans-serif;
+    }
+    a { color: inherit; }
+    .wrap { width: min(1380px, calc(100% - 72px)); margin: 0 auto; }
+    .eyebrow {
+      margin: 0 0 13px;
+      color: var(--green-deep);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+    }
+    .hero {
+      padding: 80px 0 70px;
+      background: var(--night);
+      color: var(--paper);
+    }
+    .hero-top,
+    .section-head,
+    .route-card-head,
+    .footer-line {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 30px;
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--mint);
+      font-weight: 800;
+      text-decoration: none;
+    }
+    .brand b {
+      display: grid;
+      width: 32px;
+      height: 32px;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--mint);
+      color: var(--night);
+    }
+    .hero h1 {
+      max-width: 910px;
+      margin: 72px 0 24px;
+      font-size: clamp(56px, 8vw, 116px);
+      line-height: .84;
+      letter-spacing: -.08em;
+    }
+    .hero h1 span { color: transparent; -webkit-text-stroke: 1px rgba(240,241,233,.7); }
+    .hero-copy { max-width: 670px; color: rgba(240,241,233,.65); font-size: 17px; line-height: 1.65; }
+    .hero-nav { display: flex; flex-wrap: wrap; gap: 22px; color: rgba(240,241,233,.62); font-size: 12px; }
+    .hero-nav a { text-decoration: none; }
+    .hero-nav a:first-child { color: var(--mint); }
+
+    .recommendation {
+      margin-top: 58px;
+      padding: 25px 28px;
+      border: 1px solid rgba(167,243,208,.34);
+      background: rgba(167,243,208,.08);
+    }
+    .recommendation strong { display: block; color: var(--mint); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
+    .recommendation p { max-width: 780px; margin: 10px 0 0; color: rgba(240,241,233,.72); }
+
+    main { padding: 85px 0 110px; }
+    .section { margin-top: 88px; }
+    .section:first-child { margin-top: 0; }
+    .section-head { margin-bottom: 34px; }
+    .section-head h2 { max-width: 760px; margin: 0; font-size: 48px; line-height: .94; letter-spacing: -.06em; }
+    .section-head p { max-width: 420px; margin: 0; color: var(--ink-soft); line-height: 1.65; }
+    .section-number { color: var(--green-deep); font-size: 10px; font-weight: 800; letter-spacing: .18em; }
+
+    .directions { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .direction {
+      min-width: 0;
+      padding: 30px;
+      border: 1px solid var(--rule);
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+    .direction.recommended { border-color: var(--green); box-shadow: 0 0 0 2px var(--green), var(--shadow); }
+    .direction-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+    .direction h3 { margin: 0; font-size: 29px; line-height: .98; letter-spacing: -.045em; }
+    .direction .label { color: var(--green-deep); font-size: 9px; font-weight: 850; letter-spacing: .16em; text-transform: uppercase; }
+    .direction p { margin: 17px 0 0; color: var(--ink-soft); line-height: 1.6; }
+    .tokens { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 24px; }
+    .token { padding: 7px 9px; border: 1px solid var(--rule); color: var(--night); font-size: 10px; font-weight: 750; }
+    .token.dark { border-color: var(--night); background: var(--night); color: var(--paper); }
+    .token.mint { border-color: var(--mint); background: var(--mint); }
+
+    .shell-demo { display: grid; grid-template-columns: 70px 1fr; min-height: 255px; margin-top: 26px; overflow: hidden; border: 1px solid var(--night); }
+    .shell-demo .rail { padding: 13px 9px; background: var(--night); color: rgba(240,241,233,.63); }
+    .shell-demo .rail b { display: grid; width: 28px; height: 28px; margin-bottom: 28px; place-items: center; border-radius: 50%; background: var(--mint); color: var(--night); font-size: 12px; }
+    .shell-demo .rail span { display: block; padding: 11px 0; border-top: 1px solid rgba(240,241,233,.14); font-size: 8px; letter-spacing: .04em; text-align: center; }
+    .shell-demo .rail span.active { color: var(--mint); }
+    .shell-demo .surface { padding: 18px; background: var(--paper); }
+    .surface-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 15px; border-bottom: 1px solid var(--rule); }
+    .surface-bar strong { font-size: 11px; }
+    .surface-bar span { color: var(--green-deep); font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    .surface-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
+    .surface-grid div { min-height: 62px; padding: 10px; border: 1px solid var(--rule); background: white; }
+    .surface-grid b { display: block; font-size: 18px; line-height: 1; }
+    .surface-grid small { display: block; margin-top: 7px; color: var(--ink-soft); font-size: 8px; }
+    .paper-demo { background: var(--paper); }
+    .paper-demo .rail { background: var(--night); }
+    .paper-demo .surface { background: white; }
+    .paper-demo .surface-grid div { border-top: 3px solid var(--green); }
+
+    .route-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+    .route-card { overflow: hidden; border: 1px solid var(--rule); background: var(--paper); box-shadow: var(--shadow); }
+    .route-card-head { align-items: center; padding: 23px 24px 17px; border-bottom: 1px solid var(--rule); }
+    .route-card-head h3 { margin: 0; font-size: 25px; line-height: 1; letter-spacing: -.04em; }
+    .route-card-head p { margin: 5px 0 0; color: var(--ink-soft); font-size: 11px; }
+    .route-number { color: var(--green-deep); font-size: 10px; font-weight: 850; letter-spacing: .16em; }
+    .route-card-body { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(155px, .8fr); gap: 18px; padding: 18px 24px 24px; }
+    .route-card.reverse .route-card-body { grid-template-columns: minmax(155px, .8fr) minmax(0, 1.2fr); }
+    .screen { overflow: hidden; border: 1px solid var(--night); background: white; }
+    .screen img { display: block; width: 100%; aspect-ratio: 1.6; object-fit: cover; object-position: top; }
+    .screen-note { padding: 9px 10px; background: var(--night); color: var(--mint); font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+    .route-card-body ul { margin: 0; padding: 0; list-style: none; }
+    .route-card-body li { padding: 11px 0; border-top: 1px solid var(--rule); color: var(--ink-soft); font-size: 11px; line-height: 1.45; }
+    .route-card-body li:first-child { padding-top: 0; border-top: 0; }
+    .route-card-body li strong { display: block; margin-bottom: 3px; color: var(--night); font-size: 12px; }
+    .route-card-body li::before { content: "→"; margin-right: 7px; color: var(--green-deep); font-weight: 800; }
+
+    .special-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .special-card { min-height: 335px; padding: 24px; border: 1px solid var(--rule); background: var(--night); color: var(--paper); box-shadow: var(--shadow); }
+    .special-card:nth-child(2) { background: var(--mint); color: var(--night); }
+    .special-card:nth-child(3) { background: var(--paper); color: var(--night); }
+    .special-card .route-number { color: var(--mint); }
+    .special-card:nth-child(2) .route-number { color: var(--green-deep); }
+    .special-card h3 { margin: 32px 0 0; font-size: 31px; line-height: .94; letter-spacing: -.05em; }
+    .special-card p { margin: 18px 0 0; color: rgba(240,241,233,.67); font-size: 12px; line-height: 1.6; }
+    .special-card:nth-child(2) p,
+    .special-card:nth-child(3) p { color: var(--ink-soft); }
+    .special-ui { display: grid; gap: 6px; margin-top: 27px; }
+    .special-ui span { display: block; min-height: 25px; padding: 7px 9px; border: 1px solid rgba(240,241,233,.22); background: rgba(240,241,233,.08); font-size: 9px; }
+    .special-card:nth-child(2) .special-ui span { border-color: rgba(20,39,46,.2); background: rgba(20,39,46,.08); }
+    .special-card:nth-child(3) .special-ui span { border-color: var(--rule); background: white; }
+
+    .matrix { overflow: hidden; border: 1px solid var(--rule); background: var(--paper); box-shadow: var(--shadow); }
+    .matrix-row { display: grid; grid-template-columns: 1.05fr 1fr 1fr; border-bottom: 1px solid var(--rule); }
+    .matrix-row:last-child { border-bottom: 0; }
+    .matrix-row > div { min-height: 70px; padding: 15px 18px; border-right: 1px solid var(--rule); }
+    .matrix-row > div:last-child { border-right: 0; }
+    .matrix-row.header { background: var(--night); color: var(--paper); font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    .matrix-row:not(.header) > div:first-child { color: var(--green-deep); font-size: 10px; font-weight: 850; letter-spacing: .11em; }
+    .matrix-row p { margin: 0; color: var(--ink-soft); font-size: 11px; line-height: 1.45; }
+    .matrix-row strong { display: block; margin-bottom: 4px; color: var(--night); font-size: 12px; }
+
+    footer { padding: 30px 0; background: var(--night); color: rgba(240,241,233,.6); }
+    footer .footer-line { align-items: center; font-size: 11px; }
+    footer a { color: var(--mint); }
+
+    @media (max-width: 900px) {
+      .wrap { width: min(calc(100% - 36px), 720px); }
+      .hero { padding: 52px 0 52px; }
+      .hero h1 { margin-top: 55px; font-size: 58px; }
+      .hero-top, .section-head, .route-card-head, .footer-line { display: block; }
+      .hero-nav { margin-top: 24px; }
+      .section-head p { margin-top: 20px; }
+      .directions, .route-grid, .special-grid { grid-template-columns: 1fr; }
+      .direction { padding: 22px; }
+      .route-card-body, .route-card.reverse .route-card-body { grid-template-columns: 1fr; }
+      .route-card-body ul { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+      .matrix-row { grid-template-columns: 1fr; }
+      .matrix-row > div { min-height: auto; border-right: 0; border-bottom: 1px solid var(--rule); }
+      .matrix-row > div:last-child { border-bottom: 0; }
+      footer .footer-line > * { margin-top: 12px; }
+      footer .footer-line > *:first-child { margin-top: 0; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <div class="hero-top">
+        <a class="brand" href="/"><b>A</b>Aergia</a>
+        <nav class="hero-nav" aria-label="Proposal sections">
+          <a href="#directions">Directions</a>
+          <a href="#pages">Pages</a>
+          <a href="#special">Entry points</a>
+          <a href="#matrix">Recommendation</a>
+        </nav>
+      </div>
+      <h1>Carry the thread<br><span>into the workspace.</span></h1>
+      <p class="hero-copy">Two possible design systems for the authenticated product, both grounded in the new Product Atlas home page and the real Aergia workflow. The page proposals below show what each route should feel like, what it should foreground, and which existing screens can anchor it.</p>
+      <div class="recommendation">
+        <strong>Working recommendation</strong>
+        <p>Use Atlas Workbench as the shared visual language: a dark navigation rail, paper work surfaces, mint state accents, editorial metadata, and fewer rounded cards. Keep the Builder intentionally denser, and let the public auth and tailoring pages borrow the home page's generous editorial composition.</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="section" id="directions">
+      <div class="section-head">
+        <div><p class="section-number">00 / TWO SYSTEMS</p><h2>Choose how much of the atlas should enter the product.</h2></div>
+        <p>Both options preserve the current information architecture and behavior. They differ in shell, density, and how much of the home-page drama remains visible once the user is working.</p>
+      </div>
+      <div class="directions">
+        <article class="direction recommended">
+          <div class="direction-head"><div><p class="label">Recommended · Option A</p><h3>Atlas Workbench</h3></div><span class="section-number">A / 01</span></div>
+          <p>A dark, persistent product shell makes the workspace feel like the same instrument introduced on the home page. Content lives on warm paper surfaces, with green used for action and relevance—not decoration.</p>
+          <div class="tokens"><span class="token dark">Night rail</span><span class="token mint">Mint actions</span><span class="token">Paper surfaces</span><span class="token">Editorial labels</span><span class="token">Dense builder</span></div>
+          <div class="shell-demo">
+            <aside class="rail"><b>A</b><span class="active">HOME</span><span>CVS</span><span>LIB</span><span>JOBS</span><span>SET</span></aside>
+            <div class="surface"><div class="surface-bar"><strong>Workspace / Dashboard</strong><span>Ready to pursue</span></div><div class="surface-grid"><div><b>03</b><small>authored CVs</small></div><div><b>12</b><small>library entries</small></div><div><b>05</b><small>active roles</small></div></div><div class="surface-grid"><div></div><div></div><div></div></div></div>
+          </div>
+        </article>
+        <article class="direction">
+          <div class="direction-head"><div><p class="label">Option B</p><h3>Paper Desk</h3></div><span class="section-number">B / 02</span></div>
+          <p>A quieter, lighter system keeps the workspace closer to a refined document tool. The same dark rail anchors navigation, but the content canvas stays white and the home-page colors become small signals.</p>
+          <div class="tokens"><span class="token">White desk</span><span class="token dark">Slate rail</span><span class="token mint">Mint highlights</span><span class="token">Green rules</span><span class="token">Calm density</span></div>
+          <div class="shell-demo paper-demo">
+            <aside class="rail"><b>A</b><span class="active">HOME</span><span>CVS</span><span>LIB</span><span>JOBS</span><span>SET</span></aside>
+            <div class="surface"><div class="surface-bar"><strong>Workspace / Dashboard</strong><span>05 active roles</span></div><div class="surface-grid"><div><b>03</b><small>authored CVs</small></div><div><b>12</b><small>library entries</small></div><div><b>05</b><small>active roles</small></div></div><div class="surface-grid"><div></div><div></div><div></div></div></div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="pages">
+      <div class="section-head">
+        <div><p class="section-number">01 / CORE WORKSPACE</p><h2>Each page gets a job, not just a new coat of paint.</h2></div>
+        <p>These are the page-level treatments I would apply first. The captures are real Aergia screens from the showcase flow; the surrounding frame shows the proposed hierarchy.</p>
+      </div>
+      <div class="route-grid">
+        <article class="route-card">
+          <div class="route-card-head"><div><p class="route-number">01 / COMMAND CENTER</p><h3>Dashboard</h3><p>/dashboard</p></div><span class="route-number">A + B</span></div>
+          <div class="route-card-body"><div class="screen"><img src="assets/dashboard.webp" alt="Current Aergia dashboard capture"><div class="screen-note">Retain the overview</div></div><ul><li><strong>Hero row</strong>“Your workspace” plus one next-action sentence.</li><li><strong>Three signal tiles</strong>CVs, Library, Applications as system nodes.</li><li><strong>Priority lane</strong>Recent CVs and applications become a single action-oriented split.</li><li><strong>Empty state</strong>Use the same editorial prompts as the home page.</li></ul></div>
+        </article>
+        <article class="route-card reverse">
+          <div class="route-card-head"><div><p class="route-number">02 / DOCUMENT SHELF</p><h3>CVs</h3><p>/cvs</p></div><span class="route-number">A + B</span></div>
+          <div class="route-card-body"><ul><li><strong>CV folios</strong>Show title, template, updated date, and whether it is reusable.</li><li><strong>Primary action</strong>New CV is the mint action; import is a quieter secondary action.</li><li><strong>Card actions</strong>Edit, duplicate, and delete stay visible without clutter.</li><li><strong>Generated boundary</strong>Tailored CVs remain clearly attached to Applications.</li></ul><div class="screen"><img src="assets/cv-list.webp" alt="Current Aergia CV list capture"><div class="screen-note">Turn cards into folios</div></div></div>
+        </article>
+        <article class="route-card">
+          <div class="route-card-head"><div><p class="route-number">03 / SOURCE LEDGER</p><h3>Library</h3><p>/library</p></div><span class="route-number">A</span></div>
+          <div class="route-card-body"><div class="screen"><img src="assets/library.webp" alt="Current Aergia Library capture"><div class="screen-note">Source material compounds</div></div><ul><li><strong>Profile first</strong>Make the profile a quiet, persistent identity panel.</li><li><strong>Category index</strong>Experiences, education, skills, projects, and more become a horizontal ledger.</li><li><strong>Entry groups</strong>Use section numbers and rules instead of isolated rounded cards.</li><li><strong>Promote/add</strong>Keep both directions visible: add new source or promote from a CV.</li></ul></div>
+        </article>
+        <article class="route-card reverse">
+          <div class="route-card-head"><div><p class="route-number">04 / OPPORTUNITY INDEX</p><h3>Applications</h3><p>/applications</p></div><span class="route-number">A</span></div>
+          <div class="route-card-body"><ul><li><strong>Search leads</strong>Make the query field the page's primary instrument.</li><li><strong>Status rails</strong>Use a colored left edge and concise labels, not large status pills.</li><li><strong>Relevance signal</strong>Score and follow-up date sit in the card's first reading line.</li><li><strong>New application</strong>One high-contrast action stays fixed in the page header.</li></ul><div class="screen"><img src="assets/pipeline.webp" alt="Current Aergia application pipeline capture"><div class="screen-note">Make the next action visible</div></div></div>
+        </article>
+        <article class="route-card">
+          <div class="route-card-head"><div><p class="route-number">05 / CASE FILE</p><h3>Application detail</h3><p>/applications/:id</p></div><span class="route-number">A</span></div>
+          <div class="route-card-body"><div class="screen"><img src="assets/application-detail.webp" alt="Current Aergia application detail capture"><div class="screen-note">Keep the role attached</div></div><ul><li><strong>Job brief</strong>Company, role, source, description, and follow-up form the left anchor.</li><li><strong>Relevance gauge</strong>Make the score a prominent but explainable signal.</li><li><strong>Status history</strong>Render progress as a vertical event line.</li><li><strong>Generated CV</strong>Give review, edit, quality, and export one clear output block.</li></ul></div>
+        </article>
+        <article class="route-card reverse">
+          <div class="route-card-head"><div><p class="route-number">06 / WRITING STUDIO</p><h3>Builder</h3><p>/builder/:id</p></div><span class="route-number">A, dense</span></div>
+          <div class="route-card-body"><ul><li><strong>Keep the split</strong>Content controls and live document preview remain side by side.</li><li><strong>Dark chrome</strong>Use the atlas rail and a compact top bar to frame a focused session.</li><li><strong>Inspector hierarchy</strong>Content, customization, and relevance become explicit modes.</li><li><strong>Export confidence</strong>Save state, quality result, and PDF export sit at the top right.</li></ul><div class="screen"><img src="assets/builder.webp" alt="Current Aergia builder capture"><div class="screen-note">The working instrument</div></div></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="special">
+      <div class="section-head">
+        <div><p class="section-number">02 / SUPPORTING ENTRY POINTS</p><h2>Public and utility pages should feel intentional too.</h2></div>
+        <p>These pages do not need the full workspace shell. They should borrow the home page's typography, spacing, and confidence while keeping their tasks obvious.</p>
+      </div>
+      <div class="special-grid">
+        <article class="special-card">
+          <p class="route-number">07 / ENTRY GATE</p>
+          <h3>Login &amp;<br>register</h3>
+          <p>A split editorial gate: the form stays small and calm on paper, while the dark side carries one concise promise about keeping a career thread together.</p>
+          <div class="special-ui"><span>Aergia / Sign in</span><span>Email address</span><span>Password</span><span>Continue →</span></div>
+        </article>
+        <article class="special-card">
+          <p class="route-number">08 / AGENT HANDOFF</p>
+          <h3>Tailoring<br>session</h3>
+          <p>A mint public handoff page: session status, one-time prompt instructions, download skill, and return-to-Aergia action. The security boundary should be readable at a glance.</p>
+          <div class="special-ui"><span>SESSION / READY</span><span>Paste prompt into your agent</span><span>Download skill ↗</span><span>Return to Aergia</span></div>
+        </article>
+        <article class="special-card">
+          <p class="route-number">09 / CONTROL ROOM</p>
+          <h3>Settings</h3>
+          <p>A quiet two-panel control room: personal profile on the left, import credentials and privacy assurance on the right. No dashboard-style metrics here.</p>
+          <div class="special-ui"><span>PROFILE / YOUR SOURCE</span><span>IMPORT / PROVIDER KEYS</span><span>Keys are memory-only</span><span>Save changes</span></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="matrix">
+      <div class="section-head">
+        <div><p class="section-number">03 / RECOMMENDATION</p><h2>One visual system, three densities.</h2></div>
+        <p>The product should feel related without making every page look like a landing page. The frame stays consistent; the work surface changes with the task.</p>
+      </div>
+      <div class="matrix">
+        <div class="matrix-row header"><div>Surface</div><div>Recommended treatment</div><div>Reason</div></div>
+        <div class="matrix-row"><div>Workspace shell</div><div><strong>Atlas Workbench</strong>Night rail, paper canvas, mint action color.</div><div><p>Makes the authenticated app feel like the product promised on the home page.</p></div></div>
+        <div class="matrix-row"><div>Dashboard / CVs / Library</div><div><strong>Editorial index</strong>Rules, labels, folios, and connected content blocks.</div><div><p>These pages organize material; they should reward scanning and reuse.</p></div></div>
+        <div class="matrix-row"><div>Applications / detail</div><div><strong>Case-file density</strong>Status rails, relevance evidence, timeline, and clear next action.</div><div><p>The role and the tailored document must remain visibly connected.</p></div></div>
+        <div class="matrix-row"><div>Builder</div><div><strong>Focused studio</strong>Dark chrome around the existing high-density split view.</div><div><p>Editing needs space and continuity more than decorative breathing room.</p></div></div>
+        <div class="matrix-row"><div>Auth / tailoring</div><div><strong>Public editorial gate</strong>Generous composition, short copy, one obvious action.</div><div><p>These moments establish trust and should inherit the home page's confidence.</p></div></div>
+      </div>
+    </section>
+  </main>
+
+  <footer><div class="wrap footer-line"><span>Aergia workspace directions · Proposal only</span><span>Real screen references from the showcase flow</span><a href="https://rmahbub.com" target="_blank" rel="noreferrer">rmahbub.com ↗</a></div></footer>
+</body>
+</html>
