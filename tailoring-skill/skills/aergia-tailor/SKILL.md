@@ -3,7 +3,7 @@ name: aergia-tailor
 description: Tailor a CV through an Aergia session when the user provides an Aergia tailoring link and one-time code.
 metadata:
   short-description: Compose, critique, and preview a complete tailored CV draft for an Aergia application
-  protocol-version: "2"
+  protocol-version: "3"
 ---
 
 # Aergia tailoring
@@ -108,19 +108,31 @@ For the final CV, selectively display the supporting materials that are most use
 
 When work is decomposed into a specific facet, relevant supporting materials from the parent project or publication may accompany that facet.
 
-### 7. Use a simple visual default
+### 7. Adapt location disclosure to the job geography
+
+The candidate's stored profile may contain a full street address. Treat street-level location as selectively disclosed contact information rather than immutable CV content.
+
+- If the role is explicitly local to the candidate's current city, metro area, or a clearly reasonable commuting area, the full supplied address may be retained.
+- If the role is not explicitly local, omit or redact the street-level portion of the address and retain only the useful broader location, normally city plus state/province/region and country when appropriate.
+- If the role is clearly outside the candidate's current local area, also add `Open to relocation` near the location/contact information.
+- For remote roles or roles whose location is unclear, remove the street-level address unless there is a concrete reason to keep it, but do not add `Open to relocation` unless the job is actually located outside the candidate's current area.
+- Do not invent a new residence, local address, commute, or relocation date. The candidate's actual current broader location remains unchanged.
+
+This location rule is an explicit exception to the normal requirement to preserve server-owned profile identity fields unchanged.
+
+### 8. Use a simple visual default
 
 Use a white page with black or near-black text by default. Use color only when explicitly requested by the user or when a restrained, high-contrast accent materially improves hierarchy. Avoid colored page backgrounds by default.
 
 Visual styling must not reduce readability, accessibility, print quality, or machine readability.
 
-### 8. Prefer the simplest suitable template
+### 9. Prefer the simplest suitable template
 
 Use the simplest supported template, normally `generic-minimal`, unless the user explicitly selects another template or the role, content, or application type clearly benefits from another supported template.
 
 If the agent automatically selects a non-default template, record a brief reason. Do not change templates merely to make the CV look more distinctive.
 
-### 9. Maintain a coherent document-wide style
+### 10. Maintain a coherent document-wide style
 
 Treat the CV as one visual and structural system. Section-specific styling may vary when it clarifies hierarchy, content type, or layout, but sections should not look independently designed or assembled from unrelated templates.
 
@@ -128,13 +140,19 @@ Across the document, keep typography, heading hierarchy, spacing rhythm, alignme
 
 Use section-specific differences to improve hierarchy or readability, not for visual novelty.
 
-### 10. Readability takes priority over compression
+### 11. Write naturally and avoid generic AI-like prose
+
+Apply [`references/natural-writing.md`](references/natural-writing.md) to all candidate-facing prose. Optimize for specific, credible, economical writing that sounds like it belongs to this candidate, not for generic polish or an AI-detector score. Preserve useful candidate voice when source writing exists, prefer concrete evidence over abstract claims, and remove formulaic or repetitive rhetoric when it adds no information.
+
+Do not deliberately add errors, slang, awkwardness, unusual punctuation, or random variation merely to appear human. Natural writing must remain truthful, professional, and appropriate to the document type.
+
+### 12. Readability takes priority over compression
 
 Never achieve a page target through unreadably small text, excessively tight line spacing, cramped margins, excessive abbreviation, dense or ambiguous layouts, or removing strong evidence solely for space.
 
 Prefer editing and prioritizing content before compressing the layout. A slightly longer readable CV is better than a one-page CV that is difficult to scan.
 
-### 11. Treat page count as a target, not a hard constraint
+### 13. Treat page count as a target, not a hard constraint
 
 Aim for one page for most early-career and standard industry applications.
 
@@ -144,13 +162,13 @@ Additional pages are acceptable for academic or research applications, senior or
 
 If the generated CV materially exceeds the expected target, briefly record why.
 
-### 12. Preserve ATS and semantic clarity
+### 14. Preserve ATS and semantic clarity
 
 Use conventional and recognizable section names unless there is a good reason not to. Keep important information machine-readable, and preserve standard names for technologies, frameworks, qualifications, degrees, organizations, and skills.
 
 Do not sacrifice semantic clarity for visual novelty. Avoid formatting structures that make important information difficult for ATS software or human reviewers to interpret. ATS optimization should improve terminology and relevance, not distort the candidate's experience.
 
-### 13. Let the agent rewrite aggressively when the evidence supports it
+### 15. Let the agent rewrite aggressively when the evidence supports it
 
 The agent may substantially rewrite bullets, descriptions, titles, ordering, and grouping when doing so presents the candidate's work more effectively.
 
@@ -158,13 +176,13 @@ The original wording is not authoritative.
 
 What must be preserved is the underlying substance, provenance, and defensibility of the claim. A tailored CV should not merely be a shortened copy of the source CV.
 
-### 14. Avoid artificial inflation
+### 16. Avoid artificial inflation
 
 Do not make one body of work appear to be several independent accomplishments simply because it has been decomposed for relevance. Avoid counting the same project multiple times, repeating the same accomplishment across several sections, presenting closely related subsystems as unrelated projects, or implying separate employment or research engagements where none existed.
 
 Decomposition is a presentation technique, not a way to manufacture additional experience.
 
-### 15. User confirmation can strengthen inferred evidence
+### 17. User confirmation can strengthen inferred evidence
 
 The candidate is the final authority on their own experience. When the agent proposes an inferred qualification and the user confirms it, that information may be treated as user-confirmed evidence in subsequent drafts. Rejected or corrected inferences should not be repeatedly reintroduced without new supporting evidence.
 
@@ -172,25 +190,26 @@ Within one tailoring session, this applies to later revisions. Across sessions, 
 
 The draft-review process is part of the tailoring workflow, not merely a final proofreading step.
 
-### 16. Explain significant exceptions, not routine edits
+### 18. Explain significant exceptions, not routine edits
 
 Record brief explanations for meaningful automatic decisions such as using a non-default template, materially exceeding the target page count, removing or replacing useful links, omitting otherwise relevant evidence, splitting or substantially restructuring major work, or introducing a materially uncertain inference.
 
 Do not clutter the review process with explanations for routine rewording, ordering, shortening, or formatting changes.
 
-### 17. Conflict priority
+### 19. Conflict priority
 
 When objectives compete, use this priority order:
 
-1. **Explicit user instructions**
-2. **No deliberate fabrication or material misrepresentation**
+1. **No deliberate fabrication or material misrepresentation**
+2. **Explicit user instructions**
 3. **Defensibility of claims and preservation of provenance**
 4. **Readability, accessibility, document-wide consistency, and link integrity**
 5. **Strength and preservation of relevant evidence**
-6. **Role relevance and keyword alignment**
-7. **ATS and semantic compatibility**
-8. **Page-count target**
-9. **Visual minimalism**
+6. **Specific, natural, candidate-appropriate writing**
+7. **Role relevance and keyword alignment**
+8. **ATS and semantic compatibility**
+9. **Page-count target**
+10. **Visual minimalism**
 
 A lower-priority objective should not materially compromise a higher-priority one.
 
@@ -214,7 +233,7 @@ The context is the authoritative snapshot. It contains the job, profile, optiona
 
 ## Compose
 
-Read the complete job description and all relevant context before writing the candidate. Optimize for relevance, clarity, credibility, and a concise human document. Use Library rows to find relevant evidence. For rows likely to contribute to the CV or support important job requirements, perform a lightweight inspection of relevant source links when available. Inspect more deeply only when the first pass reveals useful additional detail, a potentially relevant facet, or a material conflict. Resolve conflicts using the evidence-precedence rules above; do not assume that either the Library or a linked source automatically supersedes the other. When precedence remains unclear, use the strongest mutually supported claim and flag the discrepancy or uncertainty for review. Do not let a missing Library skill field prevent a supported inference from project material.
+Before writing candidate-facing prose, read and apply [`references/natural-writing.md`](references/natural-writing.md). Read the complete job description and all relevant context before writing the candidate. Optimize for relevance, clarity, credibility, specificity, and a concise human document. Do not optimize for an AI-detector score or deliberately degrade the writing to appear human. Use Library rows to find relevant evidence. For rows likely to contribute to the CV or support important job requirements, perform a lightweight inspection of relevant source links when available. Inspect more deeply only when the first pass reveals useful additional detail, a potentially relevant facet, or a material conflict. Resolve conflicts using the evidence-precedence rules above; do not assume that either the Library or a linked source automatically supersedes the other. When precedence remains unclear, use the strongest mutually supported claim and flag the discrepancy or uncertainty for review. Do not let a missing Library skill field prevent a supported inference from project material.
 
 Write one JSON object to `output/candidate.json` with:
 
@@ -224,7 +243,7 @@ Write one JSON object to `output/candidate.json` with:
 
 Optionally write up to 20 concise strings to `output/review-notes.json` for important assumptions or uncertain inferences. These notes are sent separately from the CV document and shown to the user with the draft.
 
-The server owns profile identity fields (name, contact, location, personal URLs, social links, and photo), so include them as received but do not alter them. You may rewrite the profile summary and every other supported field.
+The server owns profile identity fields (name, contact, location, personal URLs, social links, and photo), so include them as received and do not alter them except for the location-disclosure transformation explicitly allowed by Ground Rule 7. You may rewrite the profile summary and every other supported field.
 
 The candidate can omit irrelevant sections or add renderer-supported `extras` sections. Keep IDs unique and preserve stable rich-text block/item IDs when reusing content. Preserve supported URLs and meaningful link text when reusing CV or Library entries, including project, publication, certification, and similar links. Keep both the URL and its label. Remove a link only for a concrete reason, such as a broken, private, unsafe, unrelated, or unsupported target, or a real layout constraint that cannot be addressed another way; generic ATS or stylistic concerns are not sufficient.
 
@@ -254,7 +273,9 @@ Use this 100-point rubric, calibrated to the role and seniority:
 | Clarity and skimmability | 15 |
 | Rendered presentation | 10 |
 
-Review role expectations at the right level: execution and outcomes for an individual contributor, team results for a manager, and strategy, scope, and business outcomes for an executive. Review bullets for concrete actions and outcomes without requiring invented or arbitrary metrics. Prefer conventional section labels and text that remains readable to an ATS; avoid keyword stuffing and judge columns, graphics, and density in the actual PDF rather than applying a blanket ban. Check chronology and whether the most relevant evidence is easy to find near the beginning. Judge length for the role and seniority; a page-count warning is advisory, not an automatic deduction. Preserve supported CV links by default; generic ATS or presentation preferences alone are not a reason to remove them. Check document-wide consistency across sections as well as parity within sections; flag unexplained differences in typography, spacing, heading hierarchy, date treatment, link styling, alignment, or accent usage when they make the CV feel assembled from unrelated styles. Check structural parity across comparable entries: heading structure, date format, typography, bullet style, link treatment, spacing, and general presentation should normally be consistent. Unequal bullet counts alone are not a defect; judge whether the difference reflects legitimate differences in relevance or evidence. Flag inconsistent entry structure only when it creates visible imbalance, makes comparable entries harder to scan, or leaves substantial relevant work underrepresented. Do not pad, duplicate, artificially split, or remove content solely to force equal counts. Use a `polish` finding only for a concrete improvement to clarity or readability, not a subjective stylistic preference.
+Review role expectations at the right level: execution and outcomes for an individual contributor, team results for a manager, and strategy, scope, and business outcomes for an executive. Review bullets for concrete actions and outcomes without requiring invented or arbitrary metrics. Prefer conventional section labels and text that remains readable to an ATS; avoid keyword stuffing and judge columns, graphics, and density in the actual PDF rather than applying a blanket ban. Check chronology and whether the most relevant evidence is easy to find near the beginning. Judge length for the role and seniority; a page-count warning is advisory, not an automatic deduction. Preserve supported CV links by default; generic ATS or presentation preferences alone are not a reason to remove them. Check location disclosure against Ground Rule 7: street-level address should be retained only for explicitly local roles, and `Open to relocation` should appear when the role is clearly outside the candidate's current local area. Check document-wide consistency across sections as well as parity within sections; flag unexplained differences in typography, spacing, heading hierarchy, date treatment, link styling, alignment, or accent usage when they make the CV feel assembled from unrelated styles. Check structural parity across comparable entries: heading structure, date format, typography, bullet style, link treatment, spacing, and general presentation should normally be consistent. Unequal bullet counts alone are not a defect; judge whether the difference reflects legitimate differences in relevance or evidence. Flag inconsistent entry structure only when it creates visible imbalance, makes comparable entries harder to scan, or leaves substantial relevant work underrepresented. Do not pad, duplicate, artificially split, or remove content solely to force equal counts. Use a `polish` finding only for a concrete improvement to clarity or readability, not a subjective stylistic preference.
+
+Review candidate-facing prose against [`references/natural-writing.md`](references/natural-writing.md). Look for clusters of generic or formulaic writing across the document: vague corporate language, repeated sentence openings or constructions, unnecessary explanatory clauses, generic enthusiasm, excessive transitions, or wording that could apply to almost any candidate. Do not flag isolated punctuation, individual words, or ordinary professional conventions as AI-like. Treat these as clarity, credibility, or polish issues only when they materially weaken the document.
 
 Classify every extracted job requirement exactly once in `requirement_review`:
 
