@@ -102,6 +102,10 @@ def test_context_and_status_contracts_are_v2_and_do_not_expose_capabilities():
     assert capabilities["tailoring"]["candidate_content"] == "editable_except_server_owned_profile_identity"
     assert capabilities["document"]["section_types"]["experience"]["fields"]["company"]["editable"] is True
     assert capabilities["document"]["section_types"]["profile"]["fields"]["email"]["server_owned"] is True
+    location = capabilities["document"]["section_types"]["profile"]["fields"]["location"]
+    assert location["server_owned"] is False
+    assert location["editable"] is True
+    assert "location" not in capabilities["tailoring"]["server_owned_profile_fields"]
     certification_description = capabilities["document"]["section_types"]["certifications"]["fields"]["description"]
     assert certification_description["type"] == "rich_text"
     assert certification_description["editable"] is True
@@ -142,9 +146,14 @@ def test_context_and_status_contracts_are_v2_and_do_not_expose_capabilities():
         )
 
 
-def test_candidate_normalization_injects_server_owned_profile_identity():
-    profile = UserProfile(name="Ada Lovelace", email="ada@example.com")
+def test_candidate_normalization_preserves_tailored_location_and_injects_server_owned_identity():
+    profile = UserProfile(
+        name="Ada Lovelace",
+        email="ada@example.com",
+        location="42 Example Street, Halifax, NS",
+    )
     candidate = _candidate()
+    candidate.sections[0].data["location"] = "Halifax, NS, Canada"
     candidate.sections[0].data["phone"] = "555-0100"
     candidate.sections[0].data["social_links"] = [{"label": "LinkedIn", "url": "https://example.test/fake"}]
     candidate.sections[0].data["photo_url"] = "https://example.test/fake.png"
@@ -155,6 +164,7 @@ def test_candidate_normalization_injects_server_owned_profile_identity():
     normalized, sections = TailoringService._normalize_candidate(candidate, parts)
     assert normalized["sections"][0]["data"]["name"] == "Ada Lovelace"
     assert normalized["sections"][0]["data"]["email"] == "ada@example.com"
+    assert normalized["sections"][0]["data"]["location"] == "Halifax, NS, Canada"
     assert "phone" not in normalized["sections"][0]["data"]
     assert normalized["sections"][0]["data"]["social_links"] == []
     assert "photo_url" not in normalized["sections"][0]["data"]

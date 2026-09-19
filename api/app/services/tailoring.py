@@ -723,14 +723,14 @@ class TailoringService:
         data = profile_section.get("data")
         if not isinstance(data, dict):
             raise TailoringCandidateError("The profile section must contain object data")
-        # Identity is server-owned. The model may rewrite summary and choose
-        # presentation, but it cannot accidentally change contact details.
+        # Identity and direct contact fields are server-owned. Location is
+        # intentionally candidate-editable so the agent can tailor its
+        # disclosure without changing the saved user profile.
         for key in (
             "name",
             "title",
             "email",
             "phone",
-            "location",
             "site_text",
             "site_url",
             "email_link",
