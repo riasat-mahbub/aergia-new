@@ -159,7 +159,6 @@ SERVER_OWNED_PROFILE_FIELDS = frozenset(
         "email",
         "email_link",
         "phone",
-        "location",
         "site_text",
         "site_url",
         "photo_url",
