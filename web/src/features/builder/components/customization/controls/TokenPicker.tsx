@@ -1,15 +1,10 @@
 /**
- * TokenPicker — 3- or 5-bucket radio chip group with an optional gap
- * indicator.
+ * Radio picker for the closed section-spacing scale, with an optional gap
+ * indicator. The inspector uses it for spacing before and after sections,
+ * between entries, and between fields.
  *
- * Replaces the spacing radios at the document level (compact /
- * comfortable / minimal — 3 buckets) AND the raw pixel text inputs at
- * the section level (spacing_before / spacing_after — also collapsed
- * into tokens). One component, one idiom.
- *
- * The gap indicator renders the resolved px value as a thin colored
- * bar so the user sees the spacing they're picking. The bar is a
- * visual hint, not an exact representation — Chromium rounds to 1px.
+ * The indicator renders the resolved px value as a thin colored bar; each
+ * option also exposes its exact value in a tooltip.
  */
 
 import { SECTION_SPACING_LABELS, SECTION_SPACING_TOKENS, SECTION_SPACING_PX } from "@/styles/tokens";
@@ -63,6 +58,7 @@ export default function TokenPicker({
           <TokenChip
             key={tok}
             label={SECTION_SPACING_LABELS[tok]}
+            title={`${SECTION_SPACING_LABELS[tok]}: ${SECTION_SPACING_PX[tok]}px`}
             active={selected === tok}
             onClick={() => onChange(tok)}
           />
@@ -90,11 +86,23 @@ export default function TokenPicker({
   );
 }
 
-function TokenChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function TokenChip({
+  label,
+  title,
+  active,
+  onClick,
+}: {
+  label: string;
+  title?: string;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"
       role="radio"
+      title={title}
+      aria-label={title ?? label}
       aria-checked={active}
       onClick={onClick}
       className="rounded px-2 py-0.5 text-xs transition-colors"
