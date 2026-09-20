@@ -738,7 +738,7 @@ def test_section_typography_and_spacing_use_independent_css_values():
     html = HTMLDocumentRenderer().render(resolve(doc, HTMLDocumentRenderer(), manifest, Customizations()))
     assert "margin-bottom:40px" in html
     assert "gap:24px" in html
-    assert "gap:12px" in html
+    assert "gap:4px" in html
     assert "font-size:1.25rem" in html
     assert "--section-body-size:1.125rem" in html
     assert "--section-body-color:#123456" in html
