@@ -60,7 +60,7 @@ FONT_SIZE_VALUES: dict[str, str] = {
 
 SPACING_VALUES: dict[str, str] = {
     "none": "0",
-    "tight": "12px",
+    "tight": "4px",
     "comfortable": "24px",
     "loose": "32px",
     "spacious": "40px",

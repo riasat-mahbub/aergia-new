@@ -64,11 +64,11 @@ export const SECTION_SPACING_LABELS: Record<SectionSpacingToken, string> = {
 };
 
 /** Maps a section spacing token to its CSS px value for the live gap
- * indicator in the inspector. Mirrors tokens.py PADDING_TOKEN_VALUES.
+ * indicator in the inspector. Mirrors the renderer's SPACING_VALUES.
  */
 export const SECTION_SPACING_PX: Record<SectionSpacingToken, number> = {
   none: 0,
-  tight: 12,
+  tight: 4,
   comfortable: 24,
   loose: 32,
   spacious: 40,
