@@ -1,5 +1,5 @@
 // This file is generated. Do not edit by hand.
-// Source: api/app/document_schema/models.py (sha256:a6a9e027f978f5c0)
+// Source: api/app/document_schema/models.py (sha256:540460854e1f0542)
 
 export interface CVLayout {
   "placement"?: Record<string, string>;
@@ -146,11 +146,11 @@ export interface SectionTypography {
 export interface SubsectionStyle {
   "accent_color"?: (string) | null;
   "background_color"?: (string) | null;
-  "entry_gap"?: (("none" | "tight" | "comfortable" | "loose" | "spacious")) | null;
-  "field_gap"?: (("none" | "tight" | "comfortable" | "loose" | "spacious")) | null;
+  "entry_gap"?: (("none" | "tight" | "snug" | "balanced" | "roomy" | "comfortable" | "loose" | "spacious")) | null;
+  "field_gap"?: (("none" | "tight" | "snug" | "balanced" | "roomy" | "comfortable" | "loose" | "spacious")) | null;
   "section_color"?: (string) | null;
-  "spacing_after"?: (("none" | "tight" | "comfortable" | "loose" | "spacious")) | null;
-  "spacing_before"?: (("none" | "tight" | "comfortable" | "loose" | "spacious")) | null;
+  "spacing_after"?: (("none" | "tight" | "snug" | "balanced" | "roomy" | "comfortable" | "loose" | "spacious")) | null;
+  "spacing_before"?: (("none" | "tight" | "snug" | "balanced" | "roomy" | "comfortable" | "loose" | "spacious")) | null;
   "text_align"?: (("left" | "right" | "center" | "justify")) | null;
 }
 

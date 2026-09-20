@@ -51,13 +51,18 @@ export const FONT_TOKEN_LABELS: Record<FontToken, string> = {
   display: "Display",
 };
 
-/** Section spacing tokens (above, below, between entries). */
-export const SECTION_SPACING_TOKENS = ["none", "tight", "comfortable", "loose", "spacious"] as const;
+/** Section spacing tokens (above, below, between entries and fields). */
+export const SECTION_SPACING_TOKENS = [
+  "none", "tight", "snug", "balanced", "roomy", "comfortable", "loose", "spacious",
+] as const;
 export type SectionSpacingToken = (typeof SECTION_SPACING_TOKENS)[number];
 
 export const SECTION_SPACING_LABELS: Record<SectionSpacingToken, string> = {
   none: "None",
   tight: "Tight",
+  snug: "Snug",
+  balanced: "Balanced",
+  roomy: "Roomy",
   comfortable: "Comfortable",
   loose: "Loose",
   spacious: "Spacious",
@@ -69,6 +74,9 @@ export const SECTION_SPACING_LABELS: Record<SectionSpacingToken, string> = {
 export const SECTION_SPACING_PX: Record<SectionSpacingToken, number> = {
   none: 0,
   tight: 4,
+  snug: 8,
+  balanced: 12,
+  roomy: 16,
   comfortable: 24,
   loose: 32,
   spacious: 40,

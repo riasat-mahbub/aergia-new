@@ -48,10 +48,15 @@ from app.core.safe_url import normalize_url
 # ``auto`` lets the renderer fall back to its content-driven default.
 WidthToken = Literal["narrow", "half", "full", "auto"]
 
-# Spacing and padding presets. The resolver maps these to design-token
-# CSS variables (``--spacing-section`` etc.). The values are renderer-
-# defined; the schema only carries the names.
-SpacingToken = Literal["none", "tight", "comfortable", "loose", "spacious"]
+# Section spacing presets. The values are renderer-defined; the schema only
+# carries the names. Keep padding's vocabulary separate because it uses a
+# different scale from entry and field gaps.
+SpacingToken = Literal[
+    "none", "tight", "snug", "balanced", "roomy", "comfortable", "loose", "spacious",
+]
+
+# Zone padding presets retain their existing spacing values.
+PaddingToken = Literal["none", "tight", "comfortable", "loose", "spacious"]
 
 # Font families exposed to template authors. Each renderer maps a token
 # to its native font stack (CSS, DOCX font reference, etc.).
@@ -427,7 +432,7 @@ class ZoneStyle(BaseModel):
 
     The manifest exposes a closed vocabulary: ``width`` is a
     :data:`WidthToken`, ``background`` is a color ref (a hex literal or
-    a palette reference), and ``padding`` is a :data:`SpacingToken`.
+    a palette reference), and ``padding`` is a :data:`PaddingToken`.
     The manifest never carries raw CSS strings; the resolver maps each
     token to the renderer's native value.
 
@@ -438,7 +443,7 @@ class ZoneStyle(BaseModel):
 
     width: WidthToken | None = None
     background: str | None = None
-    padding: SpacingToken | None = None
+    padding: PaddingToken | None = None
 
     model_config = {"extra": "forbid", "populate_by_name": True}
 
