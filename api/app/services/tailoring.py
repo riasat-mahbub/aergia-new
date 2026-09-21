@@ -852,6 +852,28 @@ class TailoringService:
             customizations = coerce_customizations(candidate_data.get("customizations"))
         except (TypeError, ValueError, ValidationError) as exc:
             raise TailoringCandidateError("Candidate customizations are invalid") from exc
+        # CVService adds the template's default zone layout when persisting a
+        # draft. Apply the same deterministic default before preview scanning
+        # so candidate and persisted CV fingerprints are identical.
+        if customizations.layout is None:
+            manifest = parts["manifest_by_id"].get(template_id) or {}
+            zones = manifest.get("zones") or []
+            placement_by_type = manifest.get("placement") or {}
+            placement = {
+                section["id"]: placement_by_type[section["type"]]
+                for section in sections
+                if isinstance(section, dict)
+                and isinstance(section.get("id"), str)
+                and isinstance(section.get("type"), str)
+                and isinstance(placement_by_type.get(section["type"]), str)
+            }
+            if zones:
+                customizations = coerce_customizations(
+                    {
+                        **customizations.model_dump(mode="json", exclude_none=True),
+                        "layout": {"zones": zones, "placement": placement},
+                    }
+                )
         candidate_data["sections"] = sections
         candidate_data["customizations"] = customizations.model_dump(mode="json", exclude_none=True)
         candidate_data.pop("id", None)
