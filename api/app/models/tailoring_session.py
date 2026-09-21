@@ -27,7 +27,7 @@ class TailoringSession(Base):
     application_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("applications.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    # The source document is optional: protocol v2 can compose a CV from the
+    # The source document is optional: protocol v4 can compose a CV from the
     # profile, Library, and job without an existing CV.
     cv_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("cvs.id", ondelete="SET NULL"), nullable=True, index=True
@@ -43,6 +43,10 @@ class TailoringSession(Base):
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     context_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # New sessions freeze the wire contract and scanner interpretation. Older
+    # rows retain their historical protocol number and result payload.
+    protocol_version: Mapped[int] = mapped_column(Integer, nullable=False, default=4, server_default="4")
+    context_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     # A sanitized copy of the successful submission result for the browser's
     # status poll. It never contains the exchange code or capability.
