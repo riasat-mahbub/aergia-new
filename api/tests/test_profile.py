@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 from sqlalchemy import select
 
+from app.document_schema.models import RichTextBlock
 from app.db.session import async_session
 from app.models.user import User
 from app.services.profile import ProfileService
@@ -128,11 +129,16 @@ async def test_profile_accepts_rich_text_summary(client):
     )
 
     assert response.status_code == 200
-    assert response.json()["summary"] == summary
+    returned_summary = [
+        RichTextBlock.model_validate(block)
+        for block in response.json()["summary"]
+    ]
+    expected_summary = [RichTextBlock.model_validate(block) for block in summary]
+    assert returned_summary == expected_summary
 
     async with async_session() as session:
         user = (await session.execute(select(User).where(User.email == email))).scalar_one()
-        assert user.profile_data["summary"] == summary
+        assert user.profile_data["summary"] == response.json()["summary"]
 
 
 @pytest.mark.asyncio
