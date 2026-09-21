@@ -209,6 +209,41 @@ def test_presentation_analyzes_persisted_section_instance_data() -> None:
     assert result.bullet_assessments[0].classification is BulletEvidenceClass.ACTION_WITH_TECHNICAL_SPECIFICITY
 
 
+def test_alayacare_project_bullets_detect_actions_and_technical_specificity() -> None:
+    bullets = [
+        "Developed requirement-analysis and coding-agent workflows that compose, render, and critique editable CV drafts while keeping the user in control of final approval.",
+        "Kept the React editor and Python document renderer on one validated model so live previews and exported PDFs remain consistent.",
+        "Combined semantic embeddings, metadata signals, and text search in a RAG pipeline for context-aware recommendations.",
+    ]
+    cv = {
+        "sections": [
+            {
+                "id": "profile",
+                "type": "profile",
+                "fields": [_field("name", "Ada Example"), _field("email", "ada@example.com")],
+                "entries": [],
+            },
+            {
+                "id": "projects",
+                "type": "projects",
+                "fields": [],
+                "entries": [
+                    {"id": f"project-{index}", "fields": [_field("description", bullet)]}
+                    for index, bullet in enumerate(bullets)
+                ],
+            },
+        ]
+    }
+
+    result = analyze_presentation_quality(cv)
+
+    assert [item.classification for item in result.bullet_assessments] == [
+        BulletEvidenceClass.ACTION_WITH_TECHNICAL_SPECIFICITY,
+        BulletEvidenceClass.ACTION_WITH_TECHNICAL_SPECIFICITY,
+        BulletEvidenceClass.ACTION_WITH_TECHNICAL_SPECIFICITY,
+    ]
+
+
 def test_pdf_recovery_is_explicitly_unavailable_without_a_pdf_and_size_bounded() -> None:
     cv = _cv_fixture()
 
@@ -256,6 +291,7 @@ def test_scanner_service_keeps_four_independent_branches_and_versions_them() -> 
     assert result.versions.extractor_version == "gliner2.5-structured-v7"
     assert result.versions.matcher_version == "requirement-match-v4"
     assert result.versions.lexical_version == "ats-lexical-v5"
+    assert result.versions.quality_version == "resume-presentation-v2"
     assert result.versions.semantic_score_version == "job-fit-v2"
     assert result.versions.lexical_score_version == "term-visibility-v2"
     assert result.versions.pdf_score_version == "pdf-recovery-score-v1"
