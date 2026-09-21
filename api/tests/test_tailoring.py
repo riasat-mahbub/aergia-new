@@ -149,3 +149,90 @@ async def test_tailoring_submit_creates_owned_review_draft_without_promoting_it(
     assert accepted.json()["scanner_result"]["schema_version"] == "scanner-v1"
     accepted_application = await client.get(f"/api/v1/applications/{application_id}", headers=headers)
     assert accepted_application.json()["cv_id"] == submitted.json()["draft_cv_id"]
+
+
+@pytest.mark.asyncio
+async def test_tailoring_source_context_freezes_and_reuses_source_scanner_result(client, monkeypatch):
+    email = f"tailoring-source-{uuid4().hex}@example.com"
+    registered = await client.post("/api/v1/auth/register", json={"email": email, "password": "testpass123"})
+    assert registered.status_code == 201
+    logged_in = await client.post("/api/v1/auth/login", json={"email": email, "password": "testpass123"})
+    headers = {"Authorization": f"Bearer {logged_in.json()['access_token']}"}
+    profile = await client.put(
+        "/api/v1/profile",
+        headers=headers,
+        json={"name": "Ada Lovelace", "email": email, "email_link": True, "social_links": []},
+    )
+    assert profile.status_code == 200
+    cv = await client.post(
+        "/api/v1/cvs",
+        headers=headers,
+        json={
+            "title": "Source CV",
+            "template_id": "generic-minimal",
+            "sections": [
+                {
+                    "id": "profile",
+                    "type": "profile",
+                    "title": "Profile",
+                    "enabled": True,
+                    "data": {"name": "Ada Lovelace", "email": email, "email_link": True, "social_links": []},
+                }
+            ],
+            "customizations": {},
+        },
+    )
+    assert cv.status_code == 201
+    application = await client.post(
+        "/api/v1/applications",
+        headers=headers,
+        json={"company": "Example", "role": "Engineer", "job_description": "Build Python APIs on Linux"},
+    )
+    assert application.status_code == 201
+    application_id = application.json()["id"]
+    linked = await client.patch(
+        f"/api/v1/applications/{application_id}",
+        headers=headers,
+        json={"cv_id": cv.json()["id"]},
+    )
+    assert linked.status_code == 200
+
+    class _CountingExtractor:
+        calls = 0
+
+        def extract(self, job_description):
+            type(self).calls += 1
+            return extract_requirements_from_entities(job_description, {"entities": {}})
+
+    class _FixtureScanner(ScannerService):
+        def __init__(self):
+            super().__init__(extractor=_CountingExtractor())
+
+    monkeypatch.setattr(tailoring_service_module, "ScannerService", _FixtureScanner)
+    monkeypatch.setattr(tailoring_service_module, "configured_extractor_version", lambda: "gliner2.5-structured-v7")
+
+    async def render_payload(self, template_id, sections, customizations):
+        return b"pdf"
+
+    monkeypatch.setattr(pdf_service_module.PDFService, "render_payload", render_payload)
+    monkeypatch.setattr(tailoring_service_module, "pdf_page_count", lambda _pdf: 1)
+
+    created = await client.post(f"/api/v1/applications/{application_id}/tailoring-sessions", headers=headers)
+    assert created.status_code == 201
+    exchanged = await client.post(
+        "/api/v1/tailoring/exchange",
+        json={"protocol_version": 4, "code": created.json()["code"]},
+    )
+    assert exchanged.status_code == 200
+    capability_headers = {"X-Aergia-Tailoring-Capability": exchanged.json()["capability"]}
+    first_context = await client.get("/api/v1/tailoring/context", headers=capability_headers)
+    second_context = await client.get("/api/v1/tailoring/context", headers=capability_headers)
+    assert first_context.status_code == 200
+    assert second_context.status_code == 200
+    assert first_context.json()["context_hash"] == second_context.json()["context_hash"]
+    assert first_context.json()["scanner"]["source_scan"]["schema_version"] == "scanner-v1"
+    assert first_context.json()["scanner"]["requirement_extraction"] == first_context.json()["scanner"]["source_scan"]["requirement_extraction"]
+    assert _CountingExtractor.calls == 1
+    source_preview = await client.get("/api/v1/tailoring/source-preview", headers=capability_headers)
+    assert source_preview.status_code == 200
+    assert source_preview.json()["scanner_result"]["schema_version"] == "scanner-v1"
