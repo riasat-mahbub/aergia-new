@@ -52,6 +52,7 @@ def test_audit_aggregates_only_current_scanner_results_and_lists_review_ids() ->
     }
     assert report["pdf_status_counts"] == {"pass": 1, "warning": 1, "fail": 0, "unavailable": 0}
     assert report["freshness_reason_frequencies"] == {"job_changed": 1, "matcher_version_changed": 1}
+    assert report["extraction_warning_frequencies"]["concept_spans_not_promoted"] == 2
     assert report["interesting_application_ids"]["highest_job_fit"][0]["application_id"] == "app-a"
     assert report["interesting_application_ids"]["lowest_classification_coverage"][0]["application_id"] == "app-b"
     assert report["interesting_application_ids"]["applications_with_conflicts"][0]["application_id"] == "app-b"

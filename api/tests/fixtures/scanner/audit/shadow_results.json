@@ -15,7 +15,7 @@
         "pdf_score_version": "pdf-score-v1",
         "classification_warning_version": "classification-warning-v1"
       },
-      "requirement_extraction": {"warnings": ["candidate_eligibility_low_confidence"]},
+      "requirement_extraction": {"warnings": ["candidate_eligibility_low_confidence", "concept_spans_not_promoted:18"]},
       "semantic": {
         "summary": {
           "job_fit": 0.8,
@@ -61,7 +61,7 @@
         "pdf_score_version": "pdf-score-v1",
         "classification_warning_version": "classification-warning-v1"
       },
-      "requirement_extraction": {"warnings": ["candidate_eligibility_low_confidence", "unknown_section_context"]},
+      "requirement_extraction": {"warnings": ["candidate_eligibility_low_confidence", "unknown_section_context", "concept_spans_not_promoted:265"]},
       "semantic": {
         "summary": {
           "job_fit": 0.4,
