@@ -1,4 +1,4 @@
-"""Pure protocol-v2 contract tests (no database or browser runtime)."""
+"""Pure protocol-v4 contract tests (no database or browser runtime)."""
 
 import asyncio
 from datetime import datetime, timedelta, timezone
@@ -9,6 +9,8 @@ from pydantic import ValidationError
 
 from app.document_schema.capabilities import capabilities_hash, renderer_capabilities
 from app.http_schemas.profile import UserProfile
+from app.scanner.extraction import extract_requirements_from_entities
+from app.scanner.service import ScannerService
 from app.http_schemas.tailoring import (
     PROTOCOL_VERSION,
     TailoringCandidateCV,
@@ -54,9 +56,20 @@ def _candidate() -> TailoringCandidateCV:
     )
 
 
-def test_protocol_v2_is_complete_candidate_only():
+class _FixtureExtractor:
+    def extract(self, job_description: str):
+        return extract_requirements_from_entities(job_description, {"entities": {}})
+
+
+def _scanner_result() -> tuple[dict, object]:
+    scanner = ScannerService(extractor=_FixtureExtractor())
+    result = scanner.scan("Build Python APIs", _candidate())
+    return result.model_dump(mode="json"), result
+
+
+def test_protocol_v4_is_complete_candidate_only():
     candidate = _candidate()
-    assert PROTOCOL_VERSION == 2
+    assert PROTOCOL_VERSION == 4
     assert candidate.customizations.accent_color == "#123456"
     assert candidate.sections[0].style is not None
     with pytest.raises(ValidationError):
@@ -69,15 +82,16 @@ def test_protocol_v2_is_complete_candidate_only():
         )
 
 
-def test_preview_feedback_and_expected_candidate_hash_are_part_of_the_tailoring_contract():
+def test_preview_scanner_result_and_expected_candidate_hash_are_part_of_the_tailoring_contract():
+    scanner_result, _ = _scanner_result()
     preview = TailoringPreviewResponse.model_validate(
         {
             "format": "pdf",
             "pdf_base64": "cGRm",
             "page_count": 1,
             "candidate_hash": "b" * 64,
-            "relevance": {"status": "evaluated", "score": 90},
-            "warnings": ["Review length for the target role."],
+            "scanner_result": scanner_result,
+            "render_warnings": ["Review length for the target role."],
         }
     )
     request = TailoringSubmitRequest.model_validate(
@@ -88,12 +102,12 @@ def test_preview_feedback_and_expected_candidate_hash_are_part_of_the_tailoring_
         }
     )
 
-    assert preview.relevance["score"] == 90
-    assert preview.warnings == ["Review length for the target role."]
+    assert preview.scanner_result.schema_version == "scanner-v1"
+    assert preview.render_warnings == ["Review length for the target role."]
     assert request.expected_candidate_hash == preview.candidate_hash
 
 
-def test_context_and_status_contracts_are_v2_and_do_not_expose_capabilities():
+def test_context_and_status_contracts_are_v4_and_do_not_expose_capabilities():
     capabilities = renderer_capabilities()
     assert capabilities["version"] == 2
     assert capabilities["tailoring"]["mode"] == "complete_candidate"
@@ -109,9 +123,10 @@ def test_context_and_status_contracts_are_v2_and_do_not_expose_capabilities():
     certification_description = capabilities["document"]["section_types"]["certifications"]["fields"]["description"]
     assert certification_description["type"] == "rich_text"
     assert certification_description["editable"] is True
+    scanner_result, result_model = _scanner_result()
     context = TailoringContextResponse.model_validate(
         {
-            "protocol_version": 2,
+            "protocol_version": 4,
             "session_id": "session",
             "application_id": "application",
             "source_cv_id": None,
@@ -121,7 +136,13 @@ def test_context_and_status_contracts_are_v2_and_do_not_expose_capabilities():
             "profile": {"name": "Ada"},
             "previous_cv": None,
             "library": [],
-            "requirements": [],
+            "scanner": {
+                "schema_version": "scanner-v1",
+                "versions": scanner_result["versions"],
+                "requirement_extraction": scanner_result["requirement_extraction"],
+                "source_scan": None,
+            },
+            "requirements": [item.model_dump(mode="json") for item in result_model.requirement_extraction.requirements],
             "templates": [{"id": "minimal", "name": "Minimal", "manifest": {}}],
             "selected_template_id": "minimal",
             "selected_template_manifest": {},
@@ -130,10 +151,13 @@ def test_context_and_status_contracts_are_v2_and_do_not_expose_capabilities():
         }
     )
     assert context.previous_cv is None
+    assert context.protocol_version == 4
+    assert context.scanner.source_scan is None
+    assert context.scanner.requirement_extraction.extractor_version
     with pytest.raises(ValidationError):
         TailoringSessionStatusResponse.model_validate(
             {
-                "protocol_version": 2,
+                "protocol_version": 4,
                 "session_id": "session",
                 "application_id": "application",
                 "status": "draft_ready",
