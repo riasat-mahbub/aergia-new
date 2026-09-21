@@ -6,9 +6,8 @@ import {
   formatApplicationDate,
   formatFollowUpDate,
   isFollowUpOverdue,
-  relevanceScore,
-  RELEVANCE_TOOLTIP,
 } from "../domain/list/applicationPresentation";
+import { scannerBadgeState, scannerStatusLabel } from "../domain/scannerReport";
 import { STATUS_CLASSES, STATUS_LABELS, STATUS_STRIP_CLASSES } from "../domain/applicationStatus";
 
 interface ApplicationCardProps {
@@ -17,7 +16,7 @@ interface ApplicationCardProps {
 }
 
 export default function ApplicationCard({ application, onDelete }: ApplicationCardProps) {
-  const score = relevanceScore(application.relevance);
+  const scanner = scannerBadgeState(application);
 
   return (
     <motion.article
@@ -62,7 +61,8 @@ export default function ApplicationCard({ application, onDelete }: ApplicationCa
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2 rounded-md bg-app-canvas px-3 py-2.5 text-xs">
-          {score !== null && <span className="font-medium text-app-ink" title={RELEVANCE_TOOLTIP}>Legacy relevance {score}%</span>}
+          <span className={`font-medium ${scanner.stale ? "text-app-warning" : "text-app-ink"}`}>{scanner.label}</span>
+          <span className="text-app-ink-3">{scannerStatusLabel(scanner.state)}</span>
           {application.cv_id ? (
             <span className="ml-auto inline-flex items-center gap-1 font-medium text-app-primary">
               <FileText className="h-3.5 w-3.5" />

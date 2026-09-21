@@ -3,10 +3,10 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { Pencil, Trash2 } from "lucide-react";
 import ApplicationFormModal from "../components/ApplicationFormModal";
 import ApplicationJobPanel from "../components/detail/ApplicationJobPanel";
-import ApplicationRelevancePanel from "../components/detail/ApplicationRelevancePanel";
 import ApplicationScannerPanel from "../components/detail/ApplicationScannerPanel";
 import ApplicationStatusHistory from "../components/detail/ApplicationStatusHistory";
 import ApplicationCvPanel from "../components/detail/ApplicationCvPanel";
+import ScannerJobFitBadge from "../components/ScannerJobFitBadge";
 import LoadingSkeleton from "@/shared/ui/LoadingSkeleton";
 import { exportPDF, useCVListStore } from "@/features/cvs";
 import { downloadBlob } from "@/shared/browser/downloadBlob";
@@ -21,11 +21,7 @@ import {
   isFollowUpOverdue,
 } from "../domain/list/applicationPresentation";
 import { STATUS_CLASSES, STATUS_LABELS } from "../domain/applicationStatus";
-import {
-  isRelevanceResult,
-  sectionTypes,
-  selectedSourceCount,
-} from "../domain/detail/applicationDetail";
+import { sectionTypes, selectedSourceCount } from "../domain/detail/applicationDetail";
 import { useTailoringSession } from "@/features/tailoring";
 import { useLinkedCv } from "../hooks/useLinkedCv";
 import ConfirmModal from "@/shared/ui/ConfirmModal";
@@ -73,7 +69,7 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
 
   const linkedCV = useLinkedCv(application?.cv_id);
 
-  const relevance = application && isRelevanceResult(application.relevance) ? application.relevance : null;
+  const [scannerAnalysisOpen, setScannerAnalysisOpen] = useState(false);
   const sections = useMemo(() => sectionTypes(linkedCV), [linkedCV]);
   const sourceCount = selectedSourceCount(linkedCV);
 
@@ -125,6 +121,11 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
     navigate({ to: "/applications" });
   };
 
+  const handleTailorFromScanner = () => {
+    setScannerAnalysisOpen(false);
+    void startTailoring();
+  };
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
       <Link to="/applications" className="text-sm text-app-ink-3 hover:text-app-ink-2">&larr; Applications</Link>
@@ -138,6 +139,7 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
           </p>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+          <ScannerJobFitBadge application={application} onClick={() => setScannerAnalysisOpen(true)} />
           <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_CLASSES[application.status]}`}>
             {STATUS_LABELS[application.status]}
           </span>
@@ -155,9 +157,8 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
         </div>
       </header>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
+      <div className="mt-6">
         <ApplicationJobPanel application={application} />
-        <ApplicationRelevancePanel application={application} relevance={relevance} />
       </div>
 
       <ApplicationScannerPanel
@@ -166,6 +167,10 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
         cvListLoading={cvListLoading}
         onLinkCV={(cvId) => update(application.id, { cv_id: cvId })}
         onScan={() => scan(application.id)}
+        analysisOpen={scannerAnalysisOpen}
+        onOpenAnalysis={() => setScannerAnalysisOpen(true)}
+        onCloseAnalysis={() => setScannerAnalysisOpen(false)}
+        onTailor={handleTailorFromScanner}
       />
 
       <ApplicationCvPanel

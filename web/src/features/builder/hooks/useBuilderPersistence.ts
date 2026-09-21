@@ -8,7 +8,7 @@ interface UseBuilderPersistenceOptions {
   customizations: BuilderSaveData["customizations"];
   setIsSaving: (saving: boolean) => void;
   setLastSaved: (date: Date) => void;
-  refreshApplicationRelevance: () => Promise<void>;
+  refreshApplicationAnalysis: () => Promise<void>;
 }
 
 export interface BuilderPersistence {
@@ -28,7 +28,7 @@ export function useBuilderPersistence({
   customizations,
   setIsSaving,
   setLastSaved,
-  refreshApplicationRelevance,
+  refreshApplicationAnalysis,
 }: UseBuilderPersistenceOptions): BuilderPersistence {
   const [showSavedFeedback, setShowSavedFeedback] = useState(false);
   const pendingSaveRef = useRef<Promise<unknown> | null>(null);
@@ -58,14 +58,14 @@ export function useBuilderPersistence({
         const request = updateCV(cvId, saveData);
         pendingSaveRef.current = request;
         await request;
-        await refreshApplicationRelevance();
+        await refreshApplicationAnalysis();
         setLastSaved(new Date());
       } finally {
         setIsSaving(false);
         pendingSaveRef.current = null;
       }
     },
-    [refreshApplicationRelevance, setIsSaving, setLastSaved],
+    [refreshApplicationAnalysis, setIsSaving, setLastSaved],
   );
 
   const getPendingSaveData = useCallback(() => instancesForUnloadRef.current, []);
@@ -87,7 +87,7 @@ export function useBuilderPersistence({
       });
       pendingSaveRef.current = request;
       await request;
-      await refreshApplicationRelevance();
+      await refreshApplicationAnalysis();
       setLastSaved(new Date());
       markClean();
       setShowSavedFeedback(true);
@@ -96,7 +96,7 @@ export function useBuilderPersistence({
       setIsSaving(false);
       pendingSaveRef.current = null;
     }
-  }, [markClean, refreshApplicationRelevance, setIsSaving, setLastSaved]);
+  }, [markClean, refreshApplicationAnalysis, setIsSaving, setLastSaved]);
 
   return {
     hasUnsavedChanges,

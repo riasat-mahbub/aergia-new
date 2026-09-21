@@ -1,10 +1,10 @@
 import type { Application } from "@/features/applications/types";
 
-export const RELEVANCE_TOOLTIP = "Weighted job-requirement coverage of this CV—not an ATS or hiring probability.";
+export const JOB_FIT_TOOLTIP = "How well the evidence in this CV supports the job's requirements.";
 
-export function relevanceScore(relevance: Application["relevance"]): number | null {
-  if ("score" in relevance && typeof relevance.score === "number") return relevance.score;
-  return null;
+export function scannerJobFitScore(application: Application): number | null {
+  const score = application.scanner_result?.semantic.summary?.job_fit;
+  return typeof score === "number" && application.scanner_status !== "stale" && application.scanner_status !== "needs_rescan" ? score : null;
 }
 
 export function formatApplicationDate(value: string | null): string {
@@ -55,8 +55,8 @@ function dateFromQuery(value: string): Date | null {
   return parseDateValue(value);
 }
 
-function matchesRelevance(application: Application, expression: string): boolean {
-  const score = relevanceScore(application.relevance);
+function matchesJobFit(application: Application, expression: string): boolean {
+  const score = scannerJobFitScore(application);
   if (score === null) return false;
   const match = /^(>=|<=|>|<|=)?(\d{1,3})$/.exec(expression);
   if (!match) return false;
@@ -100,7 +100,7 @@ export function applicationMatchesSearch(application: Application, query: string
       const fieldValue = field === "company" ? application.company : field === "role" ? application.role : application.status;
       return fieldValue.toLowerCase().includes(value);
     }
-    if (field === "relevance") return matchesRelevance(application, value);
+    if (field === "jobfit" || field === "job-fit") return matchesJobFit(application, value);
     if (field === "followup" || field === "follow-up") return matchesFollowUp(application, value);
     if (field === "date" || field === "after" || field === "before") {
       const target = dateFromQuery(value);

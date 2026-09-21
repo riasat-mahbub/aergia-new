@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getApplication, recomputeApplicationRelevance } from "@/features/applications";
+import { getApplication, scanApplication } from "@/features/applications";
 import type { Application } from "@/features/applications";
-import { applicationMatchesCv, applicationRelevance } from "../domain/applicationRelevance";
+import { applicationMatchesCv } from "../domain/applicationRelevance";
 
 interface UseBuilderApplicationContextOptions {
   applicationId: string | null;
@@ -13,8 +13,8 @@ export function useBuilderApplicationContext({
   cvId,
 }: UseBuilderApplicationContextOptions) {
   const [applicationContext, setApplicationContext] = useState<Application | null>(null);
-  const [relevanceRefreshing, setRelevanceRefreshing] = useState(false);
-  const [relevanceRefreshError, setRelevanceRefreshError] = useState(false);
+  const [scannerRefreshing, setScannerRefreshing] = useState(false);
+  const [scannerRefreshError, setScannerRefreshError] = useState(false);
   const applicationRef = useRef<Application | null>(null);
 
   useEffect(() => {
@@ -43,30 +43,49 @@ export function useBuilderApplicationContext({
     return () => { cancelled = true; };
   }, [applicationId, cvId]);
 
-  const refreshApplicationRelevance = useCallback(async () => {
+  const refreshApplicationAnalysis = useCallback(async () => {
     const linkedApplication = applicationRef.current;
     if (!linkedApplication) return;
-    setRelevanceRefreshing(true);
-    setRelevanceRefreshError(false);
+    setScannerRefreshError(false);
     try {
-      const refreshed = await recomputeApplicationRelevance(linkedApplication.id);
+      // Saving a CV invalidates its scanner result. Refresh the application
+      // status here without automatically starting an expensive scan.
+      const refreshed = await getApplication(linkedApplication.id);
       if (refreshed.cv_id === cvId) {
         applicationRef.current = refreshed;
         setApplicationContext(refreshed);
       }
     } catch {
-      // Relevance refresh is best effort; the saved CV remains authoritative.
-      setRelevanceRefreshError(true);
+      setScannerRefreshError(true);
+    }
+  }, [cvId]);
+
+  const runScanner = useCallback(async () => {
+    const linkedApplication = applicationRef.current;
+    if (!linkedApplication?.cv_id) return;
+    setScannerRefreshing(true);
+    setScannerRefreshError(false);
+    try {
+      const refreshed = await scanApplication(linkedApplication.id);
+      if (refreshed.cv_id === cvId) {
+        applicationRef.current = refreshed;
+        setApplicationContext(refreshed);
+      }
+    } catch {
+      setScannerRefreshError(true);
+      throw new Error("scanner request failed");
     } finally {
-      setRelevanceRefreshing(false);
+      setScannerRefreshing(false);
     }
   }, [cvId]);
 
   return {
     applicationContext,
-    relevance: applicationRelevance(applicationContext),
-    relevanceRefreshing,
-    relevanceRefreshError,
-    refreshApplicationRelevance,
+    scannerResult: applicationContext?.scanner_result ?? null,
+    scannerStatus: applicationContext?.scanner_status ?? (applicationContext?.scanner_result ? "current" : "not_scanned"),
+    scannerRefreshing,
+    scannerRefreshError,
+    refreshApplicationAnalysis,
+    runScanner,
   };
 }
