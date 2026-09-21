@@ -34,14 +34,12 @@ os.environ["CSRF_PROTECTION_ENABLED"] = "false"
 # Python 3.14's default selector loop does not reliably wake from the
 # aiosqlite worker thread in this Linux test environment. Uvicorn's standard
 # extra already supplies uvloop, which is also the production server loop.
-_use_test_uvloop = False
 if sys.platform.startswith("linux"):
     try:
         import uvloop
     except ImportError as exc:  # pragma: no cover - project dependency guard
         raise RuntimeError("Linux API tests require uvloop for aiosqlite worker wakeups") from exc
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
-    _use_test_uvloop = True
 
 from app.app import app  # noqa: E402
 from app.db.seed import seed_templates  # noqa: E402
@@ -63,8 +61,6 @@ def _apply_migrations() -> None:
         alembic_bin = shutil.which("alembic") or "alembic"
     env = os.environ.copy()
     env["DATABASE_URL"] = os.environ["API_TEST_DB_URL"]
-    if _use_test_uvloop:
-        env["AERGIA_TEST_USE_UVLOOP"] = "1"
     subprocess.run([alembic_bin, "upgrade", "head"], check=True, cwd=api_dir, env=env)
 
 
