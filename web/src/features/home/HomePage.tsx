@@ -101,7 +101,7 @@ export default function HomePage() {
               <div className="library-copy">
                 <div><small>SAVE FROM THE BUILDER</small><h3>Keep the good parts.</h3><p>Promote a project or experience once; reuse it anywhere.</p></div>
                 <div><small>ADD IN CONTEXT</small><h3>Bring evidence back.</h3><p>Insert saved material into the CV you are editing.</p></div>
-                <div><small>POWER TAILORING</small><h3>Start from a dependable profile.</h3><p>Give standard and agent tailoring a consistent source.</p></div>
+                <div><small>POWER TAILORING</small><h3>Start from a dependable profile.</h3><p>Give direct editing and agent-assisted tailoring a consistent source.</p></div>
               </div>
             </div>
             <div className="category-strip" aria-label="Library categories"><span>Experiences</span><span>Education</span><span>Skills</span><span>Projects</span><span>Certifications</span><span>Languages</span><span>Research</span></div>
@@ -110,29 +110,38 @@ export default function HomePage() {
 
         <section className="zone" id="pursue">
           <div className="shell">
-            <div className="section-title"><div className="section-title-main"><div className="section-no">04 / PURSUE</div><h2>Keep every application together.</h2></div><p>Job context, relevance, status, follow-up, and the tailored CV stay attached to the role.</p></div>
+            <div className="section-title"><div className="section-title-main"><div className="section-no">04 / PURSUE</div><h2>Keep every application together.</h2></div><p>Job context, scanner findings, status, follow-up, and the linked CV stay attached to the role.</p></div>
             <div className="application-stage">
               <div className="application-copy">
-                <p className="kicker">One record per role</p><h3>See why the role fits.</h3><p>Keep the opportunity and the document in the same working context.</p>
+                <p className="kicker">One record per role</p><h3>Review what the role asks for.</h3><p>Keep the opportunity and the document in the same working context.</p>
                 <div className="signal"><b>01</b><div><strong>Job context</strong><span>Role, company, description, notes, and follow-up.</span></div></div>
-                <div className="signal"><b>02</b><div><strong>Relevance</strong><span>Matched, missing, and source evidence with a weighted fit.</span></div></div>
+                <div className="signal"><b>02</b><div><strong>Scanner</strong><span>Requirement evidence, term visibility, presentation findings, and PDF text recovery.</span></div></div>
                 <div className="signal"><b>03</b><div><strong>Progress</strong><span>Status history that shows what happens next.</span></div></div>
                 <div className="signal"><b>04</b><div><strong>Document</strong><span>A linked CV you can review, edit, check, and export.</span></div></div>
               </div>
-              <div className="application-screen"><img src="/showcase/application-detail.webp" alt="Aergia application detail with job, relevance, and generated CV panels" loading="lazy" /><div className="score"><div><b>64%</b><small>RELEVANCE</small></div></div></div>
+              <div className="application-screen scanner-preview" role="img" aria-label="Illustration of four separate resume scanner analyses">
+                <div className="scanner-preview-top"><span>SCANNER PREVIEW</span><span>JOB DESCRIPTION + EXISTING CV</span></div>
+                <div className="scanner-preview-grid">
+                  <article><small>01 / SEMANTIC JOB FIT</small><h4>Evidence by requirement</h4><p><span>Supported</span><span>Partial</span><span>Not evidenced</span></p></article>
+                  <article><small>02 / TERM VISIBILITY</small><h4>Lexical ATS signals</h4><p><span>Exact</span><span>Variant</span><span>Absent</span></p></article>
+                  <article><small>03 / PRESENTATION</small><h4>Resume quality findings</h4><p>Structure · specificity · outcomes</p></article>
+                  <article><small>04 / PDF TEXT RECOVERY</small><h4>Aergia parser check</h4><p>Text · sections · reading order · links</p></article>
+                </div>
+                <p className="scanner-preview-note">Four independent analyses · no composite score</p>
+              </div>
             </div>
 
             <section className="tailoring">
-              <div className="tailoring-head"><div><p className="kicker dark">Standard or agent-assisted</p><h3>Tailor with control.</h3></div><p>Start with a standard CV or use a time-limited agent session. Review every draft before it replaces anything.</p></div>
+              <div className="tailoring-head"><div><p className="kicker dark">Edit directly or use an agent</p><h3>Tailor with control.</h3></div><p>Start from an existing CV in the editor, or use a time-limited agent session. Review every agent draft before accepting it.</p></div>
               <div className="tailoring-modes">
-                <article className="mode"><small>FAST PATH</small><h4>Generate a focused CV</h4><p>Use the profile and Library to make a dependable role-specific starting point.</p><ul><li>Uses role context</li><li>Selects relevant material</li><li>Runs quality checks</li></ul></article>
+                <article className="mode"><small>EDITOR PATH</small><h4>Work directly on your CV</h4><p>Build or revise a document from your own experience and reusable Library material.</p><ul><li>Keep your CV under your control</li><li>Edit structured sections</li><li>Preview and export a PDF</li></ul></article>
                 <article className="mode"><small>AGENT PATH</small><h4>Use your coding agent</h4><p>Let Codex, Claude Code, or OpenCode compose a draft through a scoped session.</p><ul><li>Time-limited access</li><li>Can adjust content and design</li><li>Returns a reviewable draft</li><li>Accept or reject before replacing</li></ul></article>
               </div>
             </section>
 
             <div className="output-grid">
-              <article className="visual"><img src="/showcase/pipeline.webp" alt="Searchable application pipeline with relevance and follow-up" loading="lazy" /><div className="caption"><small>Across the search</small><h3>See the next action</h3><p>Search roles, status, relevance, and follow-up.</p></div></article>
-              <article className="visual"><img src="/showcase/tailored.webp" alt="Tailored CV open for review and editing" loading="lazy" /><div className="caption"><small>Inside one application</small><h3>Keep the draft editable</h3><p>Review, refine, and export when ready.</p></div></article>
+              <article className="visual feature-note"><div className="caption"><small>Across the search</small><h3>See the next action.</h3><p>Track application status, linked CVs, scanner findings, and follow-up dates together.</p></div></article>
+              <article className="visual feature-note"><div className="caption"><small>Inside one application</small><h3>Review an agent-authored draft.</h3><p>Inspect, edit, accept, or reject each draft before it becomes part of your application.</p></div></article>
             </div>
           </div>
         </section>

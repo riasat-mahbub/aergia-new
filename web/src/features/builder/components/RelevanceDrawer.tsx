@@ -61,7 +61,7 @@ function LegacyRelevance({ relevance }: { relevance: RelevanceResult }) {
 
 function RequirementRelevance({ relevance }: { relevance: RequirementRelevanceResult }) {
   if (relevance.status === "not_evaluated") {
-    return <p className="py-6 text-sm text-app-ink-2">Generate the CV before relevance is evaluated. Later Builder edits update this analysis without rebuilding the CV.</p>;
+    return <p className="py-6 text-sm text-app-ink-2">This legacy analysis has no result yet. Link this CV to an application and run its scanner from the application page for current analysis.</p>;
   }
   return (
     <div className="space-y-4 py-6">
@@ -127,9 +127,9 @@ export default function RelevanceDrawer({ open, relevance, onClose, refreshing =
       >
         <header className="flex items-start justify-between gap-4 border-b border-app-rule-soft pb-4">
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.14em] text-app-primary">Application analysis</p>
-            <h2 id="relevance-drawer-title" className="mt-1 text-xl font-semibold text-app-ink">Relevance details</h2>
-            <p className="mt-1 text-sm text-app-ink-2">Requirement coverage and the strongest CV evidence for each requirement.</p>
+            <p className="text-xs font-medium uppercase tracking-[0.14em] text-app-primary">Legacy analysis</p>
+            <h2 id="relevance-drawer-title" className="mt-1 text-xl font-semibold text-app-ink">Legacy relevance details</h2>
+            <p className="mt-1 text-sm text-app-ink-2">The current scanner results appear on the application page in separate analysis panels.</p>
             {refreshing && <p className="mt-2 text-xs text-app-primary" role="status">Updating relevance…</p>}
             {refreshError && <p className="mt-2 text-xs text-app-danger" role="alert">Could not update relevance. Your saved CV is unchanged.</p>}
           </div>
