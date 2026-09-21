@@ -474,6 +474,12 @@ class TailoringService:
                 frozen_basis = snapshot["basis"]
             except (KeyError, TypeError, ValidationError) as exc:
                 raise TailoringStaleError("The tailoring scanner context is invalid; start a new session") from exc
+            current_versions = scanner_versions_for_extraction(scanner_context.requirement_extraction)
+            configured_version = configured_extractor_version()
+            if configured_version and configured_version != scanner_context.versions.extractor_version:
+                raise TailoringStaleError("The scanner contract changed; start a new tailoring session")
+            if current_versions != scanner_context.versions:
+                raise TailoringStaleError("The scanner contract changed; start a new tailoring session")
             current_basis = self._context_basis(resources, scanner_context)
             if _content_hash(current_basis) != _content_hash(frozen_basis):
                 raise TailoringStaleError("The tailoring context changed; start a new session")
