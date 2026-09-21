@@ -27,6 +27,12 @@ async def _auth_headers(client) -> dict[str, str]:
 @pytest.mark.asyncio
 async def test_scanner_endpoint_persists_new_result_separately_from_legacy_relevance(client, monkeypatch):
     headers = await _auth_headers(client)
+
+    async def no_pdf(self, template_id, sections, customizations):
+        raise PDFUnavailableError("test render skipped")
+
+    monkeypatch.setattr(pdf_service_module.PDFService, "render_payload", no_pdf)
+
     created = await client.post(
         "/api/v1/applications",
         headers=headers,
@@ -78,11 +84,7 @@ async def test_scanner_endpoint_persists_new_result_separately_from_legacy_relev
     def scanner_factory():
         return ScannerService(extractor=_FixtureExtractor())
 
-    async def no_pdf(self, template_id, sections, customizations):
-        raise PDFUnavailableError("test render skipped")
-
     monkeypatch.setattr(application_service_module, "ScannerService", scanner_factory)
-    monkeypatch.setattr(pdf_service_module.PDFService, "render_payload", no_pdf)
 
     scanned = await client.post(f"/api/v1/applications/{application_id}/scan", headers=headers)
 
@@ -112,12 +114,44 @@ async def test_scanner_endpoint_persists_new_result_separately_from_legacy_relev
     edited_cv = await client.patch(
         f"/api/v1/cvs/{cv_id}",
         headers=headers,
-        json={"title": "Updated CV title"},
+        json={
+            "sections": [
+                {
+                    "id": "profile",
+                    "type": "profile",
+                    "title": "Profile",
+                    "enabled": True,
+                    "data": {"name": "Example Candidate", "email": "candidate@example.com", "title": "Python Developer"},
+                },
+                {
+                    "id": "experience",
+                    "type": "experience",
+                    "title": "Experience",
+                    "enabled": True,
+                    "data": [
+                        {
+                            "id": "python-job",
+                            "position": "Developer",
+                            "description": "Built Python and Docker APIs.",
+                        }
+                    ],
+                },
+            ]
+        },
     )
     assert edited_cv.status_code == 200
     refreshed = await client.get(f"/api/v1/applications/{application_id}", headers=headers)
     assert refreshed.status_code == 200
     assert refreshed.json()["scanner_result"] is None
+
+    rescanned_after_cv_edit = await client.post(f"/api/v1/applications/{application_id}/scan", headers=headers)
+    assert rescanned_after_cv_edit.status_code == 200
+    assert rescanned_after_cv_edit.json()["scanner_result"]["input_fingerprints"]["cv_content_sha256"] != body[
+        "scanner_result"
+    ]["input_fingerprints"]["cv_content_sha256"]
+    persisted_after_cv_edit = await client.get(f"/api/v1/applications/{application_id}", headers=headers)
+    assert persisted_after_cv_edit.status_code == 200
+    assert persisted_after_cv_edit.json()["scanner_result"]["schema_version"] == "scanner-v1"
 
     other_application = await client.post(
         "/api/v1/applications",
