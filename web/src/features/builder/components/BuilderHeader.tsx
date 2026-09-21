@@ -48,7 +48,7 @@ export default function BuilderHeader({
             aria-label="Open relevance details"
             className="rounded-full bg-app-primary-soft px-2.5 py-1 text-xs font-medium text-app-primary hover:bg-app-primary-soft"
           >
-            Relevance {relevance ? `${relevance.score}%` : "—"}
+            Legacy relevance {relevance ? `${relevance.score}%` : "—"}
           </button>
         )}
       </div>
