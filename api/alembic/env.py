@@ -51,6 +51,13 @@ async def run_async_migrations() -> None:
 
 
 def run_migrations_online() -> None:
+    if os.environ.get("AERGIA_TEST_USE_UVLOOP") == "1":
+        # The pytest bootstrap marks its isolated migration subprocess
+        # explicitly. Keep the migration path aligned with pytest's loop so
+        # aiosqlite's worker-thread callbacks wake reliably on Python 3.14.
+        import uvloop
+
+        uvloop.install()
     asyncio.run(run_async_migrations())
 
 
