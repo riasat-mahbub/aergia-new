@@ -61,10 +61,17 @@ def canonicalize_scanner_cv(value: object) -> dict[str, object]:
         value = dict(value)
     if not isinstance(value, Mapping):
         raise TypeError("cv must be a CV mapping or object")
+    def strip_none(item: object) -> object:
+        if isinstance(item, Mapping):
+            return {key: strip_none(child) for key, child in item.items() if child is not None}
+        if isinstance(item, list):
+            return [strip_none(child) for child in item]
+        return item
+
     return {
-        "sections": value.get("sections") or [],
+        "sections": strip_none(value.get("sections") or []),
         "template_id": value.get("template_id"),
-        "customizations": value.get("customizations") or {},
+        "customizations": strip_none(value.get("customizations") or {}),
     }
 
 
