@@ -51,26 +51,20 @@ _CUSTOM_TERMS: tuple[tuple[str, str], ...] = (
     ("communication", "communication"),
     ("collaboration", "collaboration"),
 )
-_LEXICAL_VARIANTS: dict[str, tuple[str, ...]] = {
-    "genai": ("generative AI", "large language model", "LLM", "coding agent"),
-    "ai-assisted development": ("implementing with AI", "AI tools", "coding agent"),
-    "ai tools": ("GenAI tools", "coding agent", "generative AI tools"),
-    "automated testing": (
-        "automated tests",
-        "unit tests",
-        "unit testing",
-        "unit and integration tests",
-        "integration tests",
-        "integration testing",
-    ),
-    "containerization": ("containerisation", "Docker", "Dockerized", "containerized"),
-    "ci/cd": ("continuous integration", "continuous delivery", "continuous deployment"),
+_SURFACE_VARIANTS: dict[str, tuple[str, ...]] = {
+    # These are spelling, punctuation, acronym-expansion, or inflectional
+    # variants. Semantic equivalents belong only in the semantic matcher.
+    "genai": ("generative AI",),
+    "ai-assisted development": ("AI assisted development",),
+    "ai tools": (),
+    "automated testing": ("automated tests",),
+    "containerization": ("containerisation",),
+    "ci/cd": (),  # punctuation-only forms are caught by normalized matching
     "full-stack development": ("full stack", "fullstack", "full-stack developer"),
-    "front-end development": ("front end", "frontend", "frontend development"),
-    "back-end development": ("back end", "backend", "backend development"),
-    "pair programming": ("pair-programming", "pair program"),
-    "communication": ("communication skills",),
-    "collaboration": ("collaborative", "collaboration skills"),
+    "front-end development": ("frontend",),
+    "back-end development": ("backend",),
+    "pair programming": ("pair program",),
+    "collaboration": ("collaborative",),
 }
 
 
@@ -129,22 +123,21 @@ def _display_name(name: str) -> str:
 
 def _term_inventory(segments: Sequence[CandidateTextSegment]) -> list[dict[str, object]]:
     inventory: OrderedDict[str, dict[str, object]] = OrderedDict()
-    candidates: list[tuple[str, str, tuple[str, ...]]] = []
+    candidates: list[tuple[str, str]] = []
     for alias, canonical in ALIAS_TO_CANONICAL.items():
         family = TAXONOMY.get(canonical, ("", ()))[0]
         if family not in {"hard_skill", "responsibility", "certification"}:
             continue
-        aliases = tuple(TAXONOMY.get(canonical, ("", ()))[1])
-        candidates.append((alias, canonical, aliases))
+        candidates.append((alias, canonical))
     for alias, canonical in _CUSTOM_TERMS:
-        candidates.append((alias, canonical, _LEXICAL_VARIANTS.get(_exact_normalize(canonical), ())))
+        candidates.append((alias, canonical))
     candidates.sort(key=lambda item: (-len(item[0]), item[0], item[1]))
 
     for segment in segments:
         folded = segment.text.casefold()
         seen_in_segment: set[str] = set()
         selected_ranges: list[tuple[int, int]] = []
-        for alias, canonical, aliases in candidates:
+        for alias, canonical in candidates:
             for match in re.finditer(
                 rf"(?<![{_BOUNDARY_CHARS}]){re.escape(alias.casefold())}(?![{_BOUNDARY_CHARS}])",
                 folded,
@@ -162,7 +155,7 @@ def _term_inventory(segments: Sequence[CandidateTextSegment]) -> list[dict[str, 
                     {
                         "term": _display_name(canonical),
                         "canonical": canonical,
-                        "variants": list(dict.fromkeys((*aliases, *_LEXICAL_VARIANTS.get(_exact_normalize(canonical), ())))),
+                        "variants": list(_SURFACE_VARIANTS.get(_exact_normalize(canonical), ())),
                         "locations": [],
                         "importance": RequirementImportance.UNKNOWN,
                     },

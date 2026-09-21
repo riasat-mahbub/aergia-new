@@ -2,6 +2,7 @@ import hashlib
 import json
 from pathlib import Path
 
+from app.scanner.extraction import _all_sentences, candidate_facing_segments
 from app.scanner.requirements import RequirementSource
 
 
@@ -43,6 +44,7 @@ def test_alayacare_annotations_resolve_to_exact_source_spans() -> None:
 
     items = [
         *annotations["expected_non_requirements"],
+        *annotations["source_unit_annotations"],
         *annotations["requirements"],
         *annotations["separate_logistics"],
     ]
@@ -60,6 +62,26 @@ def test_alayacare_annotations_resolve_to_exact_source_spans() -> None:
         assert job_description[source.source_start : source.source_end] == source.original_text
 
 
+def test_alayacare_source_units_are_exhaustively_classified() -> None:
+    annotations, job_description, _ = _fixture()
+    source_units = annotations["source_unit_annotations"]
+    expected_sentences = [sentence.text for sentence in _all_sentences(job_description)]
+    actual_sentences = [item["source_text"] for item in source_units]
+    requirements = {item["id"]: item for item in annotations["requirements"]}
+
+    assert actual_sentences == expected_sentences
+    for item in source_units:
+        assert item["label"] in {"requirement", "non_requirement", "logistics", "ambiguous"}
+        if item["label"] == "requirement":
+            requirement = requirements[item["requirement_id"]]
+            assert requirement["source_text"] == item["source_text"]
+    assert {segment.text for segment in candidate_facing_segments(job_description)} == {
+        item["source_text"]
+        for item in source_units
+        if item["label"] == "requirement"
+    }
+
+
 def test_alayacare_core_expected_labels_are_explicit() -> None:
     annotations, _, _ = _fixture()
     requirements = {item["id"]: item for item in annotations["requirements"]}
@@ -75,6 +97,14 @@ def test_alayacare_core_expected_labels_are_explicit() -> None:
         "concept": "monitoring",
         "cv_evidence": "not_evidenced",
     }
+    assert requirements["automated-tests"]["cv_evidence"] == "supported"
+    assert "with guidance from team members" in requirements["automated-tests"]["contextual_modifiers"]
+    assert "under supervision" in requirements["investigate-reproduce-resolve-bugs"]["contextual_modifiers"]
+
+    development_interest = requirements["learning-development-tools"]["cv_evidence"]
+    assert development_interest["developmental_interest_expectation"] == "supported"
+    full_stack_interest = requirements["fullstack-development-interest"]["cv_evidence"]
+    assert full_stack_interest["developmental_interest_expectation"] == "supported"
 
     curiosity = requirements["industry-trends-curiosity"]["cv_evidence"]
     assert curiosity["software_development_concept"] == "supported"
