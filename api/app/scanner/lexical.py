@@ -23,6 +23,16 @@ from app.services.relevance_taxonomy import ALIAS_TO_CANONICAL, TAXONOMY
 
 _DASHES = str.maketrans({char: "-" for char in "‐‑‒–—―−﹘﹣－"})
 _BOUNDARY_CHARS = r"\w"
+_PREFERRED_CUE_RE = re.compile(
+    r"\b(?:preferred|preferably|nice\s+to\s+have|good\s+to\s+have|a\s+plus|bonus|"
+    r"desirable|advantageous|beneficial|optional|asset)\b",
+    re.I,
+)
+_REQUIRED_CUE_RE = re.compile(
+    r"\b(?:must(?:\s+have|\s+be able to)?|required|mandatory|essential|shall|"
+    r"non[- ]negotiable|need to)\b",
+    re.I,
+)
 _CUSTOM_TERMS: tuple[tuple[str, str], ...] = (
     ("ai", "AI-assisted development"),
     ("ai tools", "AI tools"),
@@ -121,6 +131,14 @@ def _display_name(name: str) -> str:
     return special.get(_exact_normalize(name), name[:1].upper() + name[1:])
 
 
+def _segment_importance(segment: CandidateTextSegment) -> RequirementImportance:
+    if segment.section_purpose.value == "candidate_preferences" or _PREFERRED_CUE_RE.search(segment.text):
+        return RequirementImportance.PREFERRED
+    if segment.section_purpose.value in {"candidate_responsibilities", "candidate_qualifications"} or _REQUIRED_CUE_RE.search(segment.text):
+        return RequirementImportance.REQUIRED
+    return RequirementImportance.UNKNOWN
+
+
 def _term_inventory(segments: Sequence[CandidateTextSegment]) -> list[dict[str, object]]:
     inventory: OrderedDict[str, dict[str, object]] = OrderedDict()
     candidates: list[tuple[str, str]] = []
@@ -162,24 +180,20 @@ def _term_inventory(segments: Sequence[CandidateTextSegment]) -> list[dict[str, 
                 )
                 locations = entry["locations"]
                 assert isinstance(locations, list)
+                importance = _segment_importance(segment)
                 locations.append(
                     JobTextLocation(
                         source_start=segment.source_start + match.start(),
                         source_end=segment.source_start + match.end(),
                         section_title=segment.section_title,
                         section_purpose=segment.section_purpose.value,
+                        importance=importance,
                     )
                 )
-                text = segment.text
-                if segment.section_purpose.value == "candidate_preferences" or re.search(
-                    r"\b(?:preferred|nice\s+to\s+have|bonus|asset|desirable)\b", text, re.I
-                ):
-                    entry["importance"] = RequirementImportance.PREFERRED
-                elif entry["importance"] is RequirementImportance.UNKNOWN and segment.section_purpose.value in {
-                    "candidate_responsibilities",
-                    "candidate_qualifications",
-                }:
+                if importance is RequirementImportance.REQUIRED:
                     entry["importance"] = RequirementImportance.REQUIRED
+                elif importance is RequirementImportance.PREFERRED and entry["importance"] is RequirementImportance.UNKNOWN:
+                    entry["importance"] = RequirementImportance.PREFERRED
 
     return list(inventory.values())
 

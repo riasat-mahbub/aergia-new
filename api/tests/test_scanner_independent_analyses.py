@@ -9,7 +9,12 @@ from app.scanner.pdf_recovery import (
     analyze_pdf_recovery,
 )
 from app.scanner.quality import analyze_presentation_quality
-from app.scanner.results import BulletEvidenceClass, LexicalVisibility, PDFRecoveryStatus
+from app.scanner.results import (
+    BulletEvidenceClass,
+    EvidenceStatus,
+    LexicalVisibility,
+    PDFRecoveryStatus,
+)
 from app.scanner.service import ScannerService
 from app.services.parser._extract_pdfplumber import extract_with_pdfplumber
 
@@ -44,7 +49,7 @@ def _cv_fixture() -> dict[str, Any]:
                 "enabled": True,
                 "fields": [],
                 "entries": [
-                    {"id": "job-1", "fields": [_field("position", "Software Engineer"), _field("description", "Built Python APIs and wrote unit and integration tests.")]},
+                    {"id": "job-1", "fields": [_field("position", "Software Engineer"), _field("description", "Built Python APIs and wrote unit and integration tests. Deployed Dockerized applications through Git and CI/CD pipelines.")]},
                     {"id": "job-2", "fields": [_field("position", "Developer"), _field("description", "Reduced query time by 40% using PostgreSQL indexes.")]},
                     {"id": "job-3", "fields": [_field("position", "Intern"), _field("description", "Created a testing plan for a new service.")]},
                     {"id": "job-4", "fields": [_field("position", "Assistant"), _field("description", "Responsible for support tickets.")]},
@@ -175,7 +180,23 @@ def test_scanner_service_keeps_four_independent_branches_and_versions_them() -> 
     assert result.lexical.status.value == "evaluated"
     assert result.presentation_quality.status.value == "evaluated"
     assert result.pdf_recovery.status is PDFRecoveryStatus.UNAVAILABLE
-    assert result.versions.extractor_version == "gliner2.5-structured-v3"
-    assert result.versions.matcher_version == "requirement-match-v2"
-    assert result.versions.lexical_version == "ats-lexical-v3"
+    assert result.versions.extractor_version == "gliner2.5-structured-v4"
+    assert result.versions.matcher_version == "requirement-match-v3"
+    assert result.versions.lexical_version == "ats-lexical-v4"
+    assert result.versions.semantic_score_version == "job-fit-v1"
+    assert result.versions.lexical_score_version == "term-visibility-v1"
+    assert result.versions.pdf_score_version == "pdf-recovery-score-v1"
+    assert result.semantic.summary is not None
+    assert result.lexical.summary is not None
+    assert result.pdf_recovery.summary is not None
+    assert result.pdf_recovery.summary.recovery_score is None
+    terms = {term.term.casefold(): term for term in result.lexical.terms}
+    assert terms["genai"].visibility is LexicalVisibility.ABSENT
+    assert terms["genai"].semantic_support is EvidenceStatus.PARTIAL
+    assert terms["automated testing"].visibility is LexicalVisibility.ABSENT
+    assert terms["automated testing"].semantic_support is EvidenceStatus.SUPPORTED
+    assert terms["containerization"].visibility is LexicalVisibility.ABSENT
+    assert terms["containerization"].semantic_support is EvidenceStatus.SUPPORTED
+    assert terms["monitoring"].visibility is LexicalVisibility.ABSENT
+    assert terms["monitoring"].semantic_support is EvidenceStatus.NOT_EVIDENCED
     assert len(result.input_fingerprints.cv_content_sha256) == 64
