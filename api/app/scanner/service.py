@@ -23,6 +23,7 @@ from app.scanner.results import (
     ScannerVersions,
 )
 from app.scanner.scoring import (
+    CLASSIFICATION_WARNING_VERSION,
     LEXICAL_SCORE_VERSION,
     PDF_SCORE_VERSION,
     SEMANTIC_SCORE_VERSION,
@@ -135,6 +136,7 @@ class ScannerService:
                 semantic_score_version=SEMANTIC_SCORE_VERSION,
                 lexical_score_version=LEXICAL_SCORE_VERSION,
                 pdf_score_version=PDF_SCORE_VERSION,
+                classification_warning_version=CLASSIFICATION_WARNING_VERSION,
             ),
             requirement_extraction=extraction,
             semantic=semantic,

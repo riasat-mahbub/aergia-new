@@ -36,9 +36,12 @@ from app.scanner.results import (
 
 
 SEMANTIC_SCORE_VERSION = "job-fit-v2"
+CLASSIFICATION_WARNING_VERSION = "classification-coverage-warning-v1"
 LEXICAL_SCORE_VERSION = "term-visibility-v1"
 PDF_SCORE_VERSION = "pdf-recovery-score-v1"
 MINIMUM_JOB_FIT_SCORABLE_FRACTION = 0.70
+MINIMUM_CLASSIFICATION_COVERAGE_WARNING_FRACTION = 0.70
+CLASSIFICATION_COVERAGE_WARNING_CODE = "low_requirement_classification_coverage"
 
 _STATUS_VALUE = {
     EvidenceStatus.SUPPORTED: 1.0,
@@ -353,6 +356,11 @@ def score_semantic_analysis(
         scorable_fraction=evidence_scorable_fraction,
         classified_fraction=classified_fraction,
         evidence_scorable_fraction=evidence_scorable_fraction,
+        classification_warning_code=(
+            CLASSIFICATION_COVERAGE_WARNING_CODE
+            if classified_fraction < MINIMUM_CLASSIFICATION_COVERAGE_WARNING_FRACTION
+            else None
+        ),
         qualification_fit=bucket_summaries["qualification"],
         responsibility_alignment=bucket_summaries["responsibility"],
         preferred_fit=bucket_summaries["preferred"],
@@ -480,7 +488,10 @@ def score_pdf_recovery(analysis: PDFTextRecoveryAnalysis) -> PDFRecoveryScoreSum
 
 
 __all__ = [
+    "CLASSIFICATION_COVERAGE_WARNING_CODE",
+    "CLASSIFICATION_WARNING_VERSION",
     "LEXICAL_SCORE_VERSION",
+    "MINIMUM_CLASSIFICATION_COVERAGE_WARNING_FRACTION",
     "MINIMUM_JOB_FIT_SCORABLE_FRACTION",
     "PDF_SCORE_VERSION",
     "SEMANTIC_SCORE_VERSION",

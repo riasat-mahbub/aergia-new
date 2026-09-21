@@ -167,6 +167,32 @@ def test_all_score_averages_leaf_coverage_and_maps_partial_to_half() -> None:
     assert summary.qualification_fit.total_weight == 2.0
 
 
+def test_low_classification_coverage_adds_caution_without_changing_job_fit() -> None:
+    classified = _requirement("known", _leaf("python", "Python"))
+    unclassified = _requirement(
+        "unknown",
+        _leaf("misc", "miscellaneous"),
+        importance=RequirementImportance.UNKNOWN,
+        purpose=SectionPurpose.UNKNOWN,
+        family=RequirementFamily.OTHER,
+    )
+    evaluations = [
+        _leaf_result(classified.expression, EvidenceStatus.SUPPORTED),
+        _leaf_result(unclassified.expression, EvidenceStatus.NOT_EVIDENCED),
+    ]
+
+    summary = score_semantic_analysis(
+        _semantic([classified, unclassified], evaluations),
+        [classified, unclassified],
+    )
+
+    assert summary.status is ScoreStatus.AVAILABLE
+    assert summary.job_fit == 1.0
+    assert summary.classified_fraction == 0.5
+    assert summary.evidence_scorable_fraction == 1.0
+    assert summary.classification_warning_code == "low_requirement_classification_coverage"
+
+
 def test_stronger_leaf_evidence_never_lowers_job_fit() -> None:
     leaf = _leaf("python", "Python")
     requirement = _requirement("python", leaf)
