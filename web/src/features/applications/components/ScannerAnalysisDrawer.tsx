@@ -244,6 +244,10 @@ function Overview({ report, onTab }: { report: ScannerReportViewModel; onTab: (t
         <div className="space-y-4">
           {Object.values(report.score.buckets).map((bucket) => <ProgressBar key={bucket.label} value={bucket.totalWeight > 0 ? bucket.score : null} label={bucket.label} />)}
         </div>
+        <details className="mt-4 rounded-md bg-app-canvas px-3 py-2">
+          <summary className="cursor-pointer text-xs font-semibold text-app-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary">How Job Fit is calculated</summary>
+          <p className="mt-2 text-xs leading-5 text-app-ink-2">Required qualifications contribute 70%, responsibilities 25%, and preferred qualifications 5% when those categories are present. Empty categories are redistributed. The score summarizes the evidence statuses shown below; it does not predict interview or hiring outcomes.</p>
+        </details>
       </PanelSection>
 
       <div className="grid gap-4 sm:grid-cols-2">
