@@ -56,8 +56,9 @@ from app.services.requirement_extractor import (
 
 logger = logging.getLogger(__name__)
 
-SCANNER_EXTRACTOR_VERSION = "gliner2.5-structured-v5"
+SCANNER_EXTRACTOR_VERSION = "gliner2.5-structured-v6"
 _EXAMPLE_LIST_RE = re.compile(r"(?<!\w)(?:such\s+as|e\.g\.?|for\s+example)(?!\w)", re.I)
+_INCLUDING_LIST_RE = re.compile(r"\bincluding\b", re.I)
 _REQUIREMENT_LABELS = frozenset({"candidate_requirement", "requirement", "preferred_requirement"})
 _CONCEPT_LABELS = frozenset(
     {
@@ -215,6 +216,22 @@ _ACTION_NAMES = {
 
 class EntityModel(Protocol):
     def extract_entities(self, text: str, labels: Mapping[str, str], **kwargs: Any) -> Mapping[str, Any]: ...
+
+
+def configured_scanner_extractor_version(
+    provider: object | None = None,
+    *,
+    contract_version: str = SCANNER_EXTRACTOR_VERSION,
+) -> str | None:
+    """Return the configured model and normalization contract without inference."""
+
+    if provider is None:
+        provider = get_requirement_extractor()
+    model_name = getattr(provider, "model_name", None)
+    if not isinstance(model_name, str):
+        return None
+    revision = getattr(provider, "revision", "default")
+    return f"{model_name}@{revision}+{contract_version}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -840,6 +857,53 @@ def _components_for(sentence: _Sentence, spans: Sequence[_EntitySpan]) -> list[_
     return components
 
 
+def _without_including_umbrella(
+    sentence: _Sentence,
+    components: Sequence[_Component],
+) -> list[_Component]:
+    """Drop the final pre-list concept when ``including`` introduces its members.
+
+    The noun phrase immediately before an ``including`` list is an umbrella,
+    not a sibling obligation. Restrict removal to the rightmost coordinated
+    phrase so an earlier independent concept (for example, Python in
+    "Python and cloud technologies, including AWS") remains required.
+    """
+
+    marker = _INCLUDING_LIST_RE.search(sentence.text)
+    if marker is None:
+        return list(components)
+
+    absolute_marker_end = sentence.start + marker.end()
+    if not any(component.start >= absolute_marker_end for component in components):
+        return list(components)
+
+    prefix = sentence.text[: marker.start()]
+    content_end = len(prefix.rstrip(" \t\r\n,;:"))
+    if content_end == 0:
+        return list(components)
+    prefix = prefix[:content_end]
+
+    boundaries = list(re.finditer(r",|;|:|\b(?:and|or)\b", prefix, re.I))
+    phrase_start = boundaries[-1].end() if boundaries else 0
+    phrase_start += len(prefix[phrase_start:]) - len(prefix[phrase_start:].lstrip())
+    phrase_start_absolute = sentence.start + phrase_start
+    phrase_end_absolute = sentence.start + content_end
+
+    umbrella_components = [
+        component
+        for component in components
+        if component.start >= phrase_start_absolute
+        and component.end <= phrase_end_absolute
+    ]
+    if not umbrella_components:
+        return list(components)
+
+    # Only remove components belonging to the trailing umbrella phrase. This
+    # also handles nested model spans such as both "cloud" and "cloud
+    # technologies" without relying on a fixed list of umbrella nouns.
+    return [component for component in components if component not in umbrella_components]
+
+
 def _expectation_for(sentence: _Sentence, component: _Component) -> Expectation:
     relative_start = max(0, component.start - sentence.start)
     cues: list[tuple[int, int, ExpectationKind, float, str]] = []
@@ -1062,6 +1126,15 @@ def _relation_tree(
             confidence=confidence,
         )
 
+    if _INCLUDING_LIST_RE.search(sentence.text):
+        return AllExpression(
+            kind="all",
+            id=f"{requirement_id}-all",
+            children=list(component_nodes),
+            modifiers=ExpressionModifiers(list_semantics="exhaustive"),
+            confidence=confidence,
+        )
+
     groups: list[list[ExpressionNode]] = []
     current: list[ExpressionNode] = [component_nodes[0]]
     for index, connector in enumerate(connectors):
@@ -1263,7 +1336,7 @@ def _examples_expression(
 
 def _build_requirement(sentence: _Sentence, spans: Sequence[_EntitySpan], index: int, version: str, confidence: float, signals: list[CandidateFacingSignal]) -> Requirement:
     requirement_id = f"req-{index:03d}"
-    components = _components_for(sentence, spans)
+    components = _without_including_umbrella(sentence, _components_for(sentence, spans))
     examples_result = _examples_expression(sentence, components, requirement_id, confidence)
     if examples_result is not None:
         expression, family_components = examples_result
@@ -1372,12 +1445,18 @@ class ScannerRequirementExtractor:
         if not callable(extract_raw):
             raise RequirementExtractionError("The configured GLiNER provider cannot return raw entity spans")
         spans = extract_raw(source)
-        provider_version = f"{getattr(provider, 'model_name', 'gliner2')}@{getattr(provider, 'revision', 'default')}"
+        provider_version = configured_scanner_extractor_version(
+            provider,
+            contract_version=self.extractor_version,
+        )
+        if provider_version is None:
+            provider_version = self.extractor_version
         return extract_requirements_from_entities(source, spans, extractor_version=provider_version)
 
 
 __all__ = [
     "SCANNER_EXTRACTOR_VERSION",
+    "configured_scanner_extractor_version",
     "CandidateTextSegment",
     "ScannerRequirementExtractor",
     "candidate_facing_segments",

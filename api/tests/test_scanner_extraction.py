@@ -2,7 +2,12 @@ import json
 from pathlib import Path
 from typing import Any
 
-from app.scanner.extraction import candidate_facing_segments, extract_requirements_from_entities
+from app.scanner.extraction import (
+    SCANNER_EXTRACTOR_VERSION,
+    ScannerRequirementExtractor,
+    candidate_facing_segments,
+    extract_requirements_from_entities,
+)
 from app.scanner.requirements import (
     AllExpression,
     AnyExpression,
@@ -37,6 +42,22 @@ def test_typed_concept_spans_do_not_promote_employer_copy() -> None:
 
     assert result.requirements == []
     assert result.warnings == ["concept_spans_not_promoted:18"]
+
+
+def test_configured_model_version_includes_requirement_normalization_contract(monkeypatch) -> None:
+    class Provider:
+        model_name = "example/model"
+        revision = "abc123"
+
+        def extract_raw_spans(self, _source):
+            return []
+
+    monkeypatch.setattr("app.scanner.extraction.get_requirement_extractor", lambda: Provider())
+
+    result = ScannerRequirementExtractor().extract("What You Bring\nFamiliarity with Python.")
+
+    assert SCANNER_EXTRACTOR_VERSION == "gliner2.5-structured-v6"
+    assert result.extractor_version == f"example/model@abc123+{SCANNER_EXTRACTOR_VERSION}"
 
 
 def test_candidate_section_and_concept_span_jointly_recover_implicit_skill_list() -> None:
@@ -179,6 +200,81 @@ def test_one_item_example_list_requires_only_one_example() -> None:
     assert isinstance(expression, ExamplesExpression)
     assert len(expression.examples) == 1
     assert expression.min_supporting_examples == 1
+
+
+def _including_requirement(source: str, concepts: list[str]):
+    sentence = source.split("\n", 1)[1].strip()
+    sentence_start = source.index(sentence)
+
+    def sentence_span(label: str, phrase: str) -> dict[str, Any]:
+        start = source.index(phrase, sentence_start)
+        return {"text": phrase, "start": start, "end": start + len(phrase), "confidence": 0.92}
+
+    entities: dict[str, list[dict[str, Any]]] = {
+        "candidate_requirement": [_span(source, "candidate_requirement", sentence)],
+        "hard_skill": [sentence_span("hard_skill", concept) for concept in concepts],
+    }
+    if "cloud technologies" in sentence:
+        entities["domain_knowledge"] = [sentence_span("domain_knowledge", "cloud technologies")]
+    return extract_requirements_from_entities(source, {"entities": entities}).requirements[0]
+
+
+def test_including_list_drops_its_umbrella_and_builds_flat_all_expression() -> None:
+    source = "What You Bring\nLearn practices, including A, B, and C.\n"
+    requirement = _including_requirement(source, ["A", "B", "C"])
+
+    assert isinstance(requirement.expression, AllExpression)
+    assert [child.concept.name for child in requirement.expression.children] == ["A", "B", "C"]
+    assert requirement.expression.modifiers.list_semantics == "exhaustive"
+
+
+def test_including_list_drops_cloud_umbrella_without_losing_other_concepts() -> None:
+    source = "What You Bring\nExperience with cloud technologies, including AWS and Azure.\n"
+    requirement = _including_requirement(source, ["AWS", "Azure"])
+
+    assert isinstance(requirement.expression, AllExpression)
+    assert [child.concept.name for child in requirement.expression.children] == ["aws", "azure"]
+
+    source_with_independent_concept = (
+        "What You Bring\nExperience with Python and cloud technologies, including AWS and Azure.\n"
+    )
+    requirement_with_independent_concept = _including_requirement(
+        source_with_independent_concept,
+        ["Python", "AWS", "Azure"],
+    )
+
+    assert isinstance(requirement_with_independent_concept.expression, AllExpression)
+    assert [child.concept.name for child in requirement_with_independent_concept.expression.children] == [
+        "python",
+        "aws",
+        "azure",
+    ]
+
+
+def test_alayacare_including_span_is_not_a_mandatory_sibling() -> None:
+    sentence = (
+        "Learn and apply modern development practices, including Implementing with AI, CI/CD, "
+        "containerization, and monitoring."
+    )
+    source = f"What You’ll Do\n{sentence}\n"
+    result = extract_requirements_from_entities(
+        source,
+        {
+            "entities": {
+                "candidate_requirement": [_span(source, "candidate_requirement", sentence)],
+                "domain_knowledge": [_span(source, "domain_knowledge", "modern development practices")],
+            }
+        },
+    )
+
+    expression = result.requirements[0].expression
+    assert isinstance(expression, AllExpression)
+    assert [leaf.concept.name for leaf in _walk_leaves(expression)] == [
+        "AI-assisted development",
+        "ci/cd",
+        "containerization",
+        "monitoring",
+    ]
 
 
 def test_demonstrated_ai_interest_preserves_the_application_expectation() -> None:
