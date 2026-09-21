@@ -9,7 +9,14 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
-from app.scanner.requirements import AllExpression, AnyExpression, ExpressionNode, Requirement, RequirementLeaf
+from app.scanner.requirements import (
+    AllExpression,
+    AnyExpression,
+    ExamplesExpression,
+    ExpressionNode,
+    Requirement,
+    RequirementLeaf,
+)
 from app.scanner.results import (
     Evidence,
     EvidenceStatus,
@@ -105,6 +112,36 @@ def _any_status(children: Sequence[ExpressionEvaluation]) -> EvidenceStatus:
     return EvidenceStatus.PARTIAL
 
 
+def _examples_status(
+    subject: ExpressionEvaluation,
+    examples: Sequence[ExpressionEvaluation],
+    minimum_support: int,
+) -> EvidenceStatus:
+    if subject.status is EvidenceStatus.SUPPORTED:
+        return EvidenceStatus.SUPPORTED
+    if subject.status is EvidenceStatus.CONFLICTING:
+        return EvidenceStatus.CONFLICTING
+    supported_examples = sum(item.status is EvidenceStatus.SUPPORTED for item in examples)
+    if supported_examples >= minimum_support:
+        return EvidenceStatus.SUPPORTED
+    statuses = [subject.status, *(item.status for item in examples)]
+    if supported_examples or any(item.status is EvidenceStatus.PARTIAL for item in examples):
+        return EvidenceStatus.PARTIAL
+    if EvidenceStatus.CONFLICTING in statuses and all(
+        status in {EvidenceStatus.CONFLICTING, EvidenceStatus.NOT_EVIDENCED, EvidenceStatus.UNVERIFIABLE}
+        for status in statuses
+    ):
+        return EvidenceStatus.CONFLICTING
+    if EvidenceStatus.UNVERIFIABLE in statuses and all(
+        status in {EvidenceStatus.NOT_EVIDENCED, EvidenceStatus.UNVERIFIABLE}
+        for status in statuses
+    ):
+        return EvidenceStatus.UNVERIFIABLE
+    if subject.status is EvidenceStatus.PARTIAL:
+        return EvidenceStatus.PARTIAL
+    return EvidenceStatus.NOT_EVIDENCED
+
+
 def evaluate_expression(
     expression: ExpressionNode,
     evidence_by_node: Mapping[str, Sequence[Evidence]],
@@ -127,6 +164,22 @@ def evaluate_expression(
             mandatory_total=0 if optional else 1,
             mandatory_supported=int(not optional and status is EvidenceStatus.SUPPORTED),
             evidence_ids=relevant_ids,
+        )
+
+    if isinstance(expression, ExamplesExpression):
+        subject = evaluate_expression(expression.subject, evidence_by_node)
+        examples = [evaluate_expression(item, evidence_by_node) for item in expression.examples]
+        children = [subject, *examples]
+        optional = expression.modifiers.optional
+        status = _examples_status(subject, examples, expression.min_supporting_examples)
+        return ExpressionEvaluation(
+            node_id=expression.id,
+            status=status,
+            optional=optional,
+            mandatory_total=0 if optional else 1,
+            mandatory_supported=int(not optional and status is EvidenceStatus.SUPPORTED),
+            evidence_ids=_unique_evidence_ids(children),
+            children=children,
         )
 
     child_evaluations = [evaluate_expression(child, evidence_by_node) for child in expression.children]

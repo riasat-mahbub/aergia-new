@@ -18,6 +18,7 @@ from app.scanner.requirements import (
     DegreeConstraint,
     Expectation,
     ExpectationKind,
+    ExamplesExpression,
     GeographicEligibilityConstraint,
     LanguageProficiencyConstraint,
     MinimumYearsConstraint,
@@ -579,10 +580,7 @@ def _expectation_support(expectation: Expectation, concept: object, fields: Sequ
     if kind is ExpectationKind.PRIOR_EXPERIENCE:
         return (EvidenceStatus.SUPPORTED if experience and has_action else EvidenceStatus.PARTIAL), matched_fields
     if kind is ExpectationKind.PRACTICAL_USE:
-        qualifier = _normalize(expectation.qualifier or "")
-        if normalized_concept in {"genai", "ai tools", "ai-assisted development"} and re.search(r"\b(?:plan|generate|test)\b.{0,40}\bcode\b", qualifier):
-            return (EvidenceStatus.SUPPORTED, matched_fields) if _AI_CODING_USE_RE.search(text) else (EvidenceStatus.NOT_EVIDENCED, [])
-        if normalized_concept == "ai-assisted development":
+        if normalized_concept in {"genai", "ai tools", "ai-assisted development"}:
             return (EvidenceStatus.SUPPORTED, matched_fields) if _AI_CODING_USE_RE.search(text) else (EvidenceStatus.NOT_EVIDENCED, [])
         return (EvidenceStatus.SUPPORTED if experience and has_action else EvidenceStatus.PARTIAL), matched_fields
     if kind is ExpectationKind.ABILITY_TO_PERFORM:
@@ -590,7 +588,10 @@ def _expectation_support(expectation: Expectation, concept: object, fields: Sequ
             return (EvidenceStatus.SUPPORTED, matched_fields) if _AI_CODING_USE_RE.search(text) else (EvidenceStatus.NOT_EVIDENCED, [])
         return (EvidenceStatus.SUPPORTED if experience and has_action else EvidenceStatus.PARTIAL), matched_fields
     if kind is ExpectationKind.DEMONSTRATED_APPLICATION:
-        if normalized_concept == "ai-assisted development":
+        qualifier = _normalize(expectation.qualifier or "")
+        if normalized_concept in {"genai", "ai tools", "ai-assisted development"} or re.search(
+            r"\b(?:day[- ]to[- ]day|daily)\s+work\b", qualifier
+        ):
             return (EvidenceStatus.SUPPORTED, matched_fields) if _AI_CODING_USE_RE.search(text) else (EvidenceStatus.NOT_EVIDENCED, [])
         return (EvidenceStatus.SUPPORTED if experience and has_action else EvidenceStatus.PARTIAL), matched_fields
     if kind is ExpectationKind.PARTICIPATION:
@@ -789,10 +790,23 @@ def _degree_rank(value: str) -> int:
 def _walk_leaves(node: object) -> list[RequirementLeaf]:
     if isinstance(node, RequirementLeaf):
         return [node]
+    if isinstance(node, ExamplesExpression):
+        return [
+            *_walk_leaves(node.subject),
+            *[leaf for item in node.examples for leaf in _walk_leaves(item)],
+        ]
     children = _value(node, "children", [])
     if isinstance(children, Sequence):
         return [leaf for child in children for leaf in _walk_leaves(child)]
     return []
+
+
+def concepts_semantically_overlap(left: object, right: object) -> bool:
+    """Return whether two concepts share a semantic alias for gap explanation."""
+
+    left_aliases = {_normalize(item.phrase) for item in _concept_aliases(left)}
+    right_aliases = {_normalize(item.phrase) for item in _concept_aliases(right)}
+    return bool(left_aliases & right_aliases)
 
 
 def _evidence_for_leaf(
@@ -873,4 +887,9 @@ def evaluate_semantic_coverage(
     )
 
 
-__all__ = ["CVTextField", "evaluate_semantic_coverage", "flatten_cv_text"]
+__all__ = [
+    "CVTextField",
+    "concepts_semantically_overlap",
+    "evaluate_semantic_coverage",
+    "flatten_cv_text",
+]

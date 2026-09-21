@@ -285,13 +285,31 @@ class AnyExpression(ScannerModel):
     confidence: float = Field(ge=0.0, le=1.0)
 
 
+class ExamplesExpression(ScannerModel):
+    """One umbrella expectation supported by an illustrative concept list.
+
+    The listed examples are evidence vocabulary, not independent job
+    requirements. Without direct umbrella evidence, multiple supported
+    examples are required before the umbrella is considered fully supported.
+    """
+
+    kind: Literal["examples"]
+    id: str = Field(min_length=1, max_length=128)
+    subject: ExpressionNode
+    examples: list[ExpressionNode] = Field(min_length=1, max_length=100)
+    min_supporting_examples: int = Field(default=2, ge=1, le=100)
+    modifiers: ExpressionModifiers = Field(default_factory=ExpressionModifiers)
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
 ExpressionNode: TypeAlias = Annotated[
-    RequirementLeaf | AllExpression | AnyExpression,
+    RequirementLeaf | AllExpression | AnyExpression | ExamplesExpression,
     Field(discriminator="kind"),
 ]
 
 AllExpression.model_rebuild()
 AnyExpression.model_rebuild()
+ExamplesExpression.model_rebuild()
 
 
 class Requirement(ScannerModel):
@@ -327,6 +345,7 @@ __all__ = [
     "DegreeConstraint",
     "Expectation",
     "ExpectationKind",
+    "ExamplesExpression",
     "ExpressionModifiers",
     "ExpressionNode",
     "GeographicEligibilityConstraint",
