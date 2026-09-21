@@ -217,6 +217,46 @@ def test_scoped_behavioral_domains_form_one_scored_obligation() -> None:
     assert expression.modifiers.scope == "technology, performance, and software development practices"
 
 
+def test_scoped_expectation_patterns_do_not_score_domains_as_separate_skills() -> None:
+    examples = [
+        ("Knowledge of trends in cloud infrastructure and security tooling.", ExpectationKind.KNOWLEDGE),
+        ("Knowledge of trends in emerging specialisms and next-generation methods.", ExpectationKind.KNOWLEDGE),
+        ("Interest in developments across backend services and data platforms.", ExpectationKind.INTEREST),
+        ("Awareness of issues related to accessibility and performance.", ExpectationKind.KNOWLEDGE),
+        ("Curiosity about advances in AI and software performance.", ExpectationKind.CURIOSITY),
+    ]
+
+    for sentence, expectation in examples:
+        result = extract_requirements_from_entities(f"What You Bring\n{sentence}\n", {"entities": {}})
+        expression = result.requirements[0].expression
+
+        assert isinstance(expression, RequirementLeaf), sentence
+        assert expression.expectation.kind is expectation, sentence
+        assert expression.modifiers.scope, sentence
+
+
+def test_experience_areas_such_as_remain_one_umbrella_with_examples() -> None:
+    source = "What You Bring\nExperience working in areas such as cloud platforms, databases, and APIs.\n"
+    result = extract_requirements_from_entities(
+        source,
+        {
+            "entities": {
+                "hard_skill": [
+                    _span(source, "hard_skill", "cloud platforms"),
+                    _span(source, "hard_skill", "databases"),
+                    _span(source, "hard_skill", "APIs"),
+                ]
+            }
+        },
+    )
+
+    expression = result.requirements[0].expression
+
+    assert isinstance(expression, ExamplesExpression)
+    assert expression.subject.concept.name == "working in areas"
+    assert all(item.modifiers.optional for item in expression.examples)
+
+
 def test_genuine_coordinated_skills_remain_independent_all_obligations() -> None:
     source = "What You Bring\nExperience with Python, Docker, and PostgreSQL.\n"
     result = extract_requirements_from_entities(source, {"entities": {}})
