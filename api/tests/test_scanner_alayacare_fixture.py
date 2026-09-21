@@ -106,8 +106,11 @@ def test_alayacare_core_expected_labels_are_explicit() -> None:
     full_stack_interest = requirements["fullstack-development-interest"]["cv_evidence"]
     assert full_stack_interest["developmental_interest_expectation"] == "supported"
 
-    curiosity = requirements["industry-trends-curiosity"]["cv_evidence"]
-    assert curiosity["software_development_concept"] == "supported"
+    curiosity_requirement = requirements["industry-trends-curiosity"]
+    assert curiosity_requirement["logical_shape"] == "leaf"
+    assert curiosity_requirement["scope"] == "technology, performance, and software development practices"
+    curiosity = curiosity_requirement["cv_evidence"]
+    assert curiosity["industry_trends_concept"] == "supported"
     assert curiosity["curiosity_about_current_trends_expectation"] == "not_evidenced"
     assert curiosity["must_not_be_fully_supported"] is True
 

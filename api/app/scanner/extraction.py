@@ -13,7 +13,7 @@ import re
 import threading
 import unicodedata
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Protocol
 
 from app.scanner.requirements import (
@@ -56,9 +56,14 @@ from app.services.requirement_extractor import (
 
 logger = logging.getLogger(__name__)
 
-SCANNER_EXTRACTOR_VERSION = "gliner2.5-structured-v6"
+SCANNER_EXTRACTOR_VERSION = "gliner2.5-structured-v7"
 _EXAMPLE_LIST_RE = re.compile(r"(?<!\w)(?:such\s+as|e\.g\.?|for\s+example)(?!\w)", re.I)
 _INCLUDING_LIST_RE = re.compile(r"\bincluding\b", re.I)
+_SCOPED_DOMAIN_RE = re.compile(
+    r"\b(?P<head>(?:industry\s+)?(?:trends?|developments?|advances?|issues?|topics?|areas?|domains?|fields?|practices?))"
+    r"\s+(?P<relation>in|across|related\s+to|regarding|around)\s+(?P<scope>[^.;!?]+)",
+    re.I,
+)
 _REQUIREMENT_LABELS = frozenset({"candidate_requirement", "requirement", "preferred_requirement"})
 _CONCEPT_LABELS = frozenset(
     {
@@ -279,6 +284,7 @@ class _Component:
     start: int
     end: int
     label: str
+    scope: str | None = None
 
 
 def _normalize(value: str) -> str:
@@ -904,6 +910,52 @@ def _without_including_umbrella(
     return [component for component in components if component not in umbrella_components]
 
 
+def _scope_trailing_domains(
+    sentence: _Sentence,
+    components: Sequence[_Component],
+) -> list[_Component]:
+    """Attach a domain list to its abstract focus instead of scoring each domain.
+
+    In phrases such as "curiosity about industry trends in technology and
+    software development", the coordinated tail qualifies the focus
+    ("industry trends"). It does not create independent curiosity obligations.
+    Ordinary coordinated skill lists do not match this abstract-focus pattern.
+    """
+
+    for match in _SCOPED_DOMAIN_RE.finditer(sentence.text):
+        head_start = sentence.start + match.start("head")
+        head_end = sentence.start + match.end("head")
+        scope_start = sentence.start + match.start("scope")
+        scope_end = sentence.start + match.end("scope")
+        focus = next(
+            (
+                component
+                for component in components
+                if component.start < head_end and component.end > head_start
+            ),
+            None,
+        )
+        if focus is None:
+            continue
+        scoped_components = [
+            component
+            for component in components
+            if component.start >= scope_start and component.end <= scope_end
+        ]
+        if not scoped_components:
+            continue
+        scope_text = match.group("scope").strip(" \t,;:")[:500]
+        if not scope_text:
+            continue
+        scoped_focus = replace(focus, scope=scope_text)
+        return [
+            scoped_focus if component is focus else component
+            for component in components
+            if component not in scoped_components
+        ]
+    return list(components)
+
+
 def _expectation_for(sentence: _Sentence, component: _Component) -> Expectation:
     relative_start = max(0, component.start - sentence.start)
     cues: list[tuple[int, int, ExpectationKind, float, str]] = []
@@ -1239,6 +1291,7 @@ def _component_node(
             modifiers=ExpressionModifiers(
                 optional=optional,
                 list_semantics="examples" if is_example else "unknown",
+                scope=component.scope,
             ),
             confidence=min(confidence, component.concept.confidence),
         )
@@ -1305,7 +1358,7 @@ def _examples_expression(
     components: Sequence[_Component],
     requirement_id: str,
     confidence: float,
-) -> tuple[ExamplesExpression, list[_Component]] | None:
+) -> tuple[ExpressionNode, list[_Component]] | None:
     marker = _EXAMPLE_LIST_RE.search(sentence.text)
     if marker is None or re.search(r"\b(?:at\s+least\s+one|one\s+of|either)\b", sentence.text, re.I):
         return None
@@ -1317,12 +1370,22 @@ def _examples_expression(
     if subject_component is None:
         return None
 
-    subject_node = _component_node(sentence, subject_component, requirement_id, 1, confidence)
+    leading_components = [
+        item
+        for item in components
+        if item.end <= sentence.start + marker.start()
+        and not (
+            item.start < subject_component.end
+            and item.end > subject_component.start
+        )
+    ]
+    next_index = len(leading_components) + 1
+    subject_node = _component_node(sentence, subject_component, requirement_id, next_index, confidence)
     example_nodes = [
-        _component_node(sentence, item, requirement_id, index + 1, confidence, is_example=True)
+        _component_node(sentence, item, requirement_id, next_index + index, confidence, is_example=True)
         for index, item in enumerate(example_components, start=1)
     ]
-    expression = ExamplesExpression(
+    examples_expression = ExamplesExpression(
         kind="examples",
         id=f"{requirement_id}-examples",
         subject=subject_node,
@@ -1331,7 +1394,20 @@ def _examples_expression(
         modifiers=ExpressionModifiers(list_semantics="examples"),
         confidence=confidence,
     )
-    return expression, [subject_component, *example_components]
+    if leading_components:
+        leading_nodes = [
+            _component_node(sentence, item, requirement_id, index, confidence)
+            for index, item in enumerate(leading_components, start=1)
+        ]
+        expression: ExpressionNode = AllExpression(
+            kind="all",
+            id=f"{requirement_id}-all",
+            children=[*leading_nodes, examples_expression],
+            confidence=confidence,
+        )
+    else:
+        expression = examples_expression
+    return expression, [*leading_components, subject_component, *example_components]
 
 
 def _build_requirement(sentence: _Sentence, spans: Sequence[_EntitySpan], index: int, version: str, confidence: float, signals: list[CandidateFacingSignal]) -> Requirement:
@@ -1341,6 +1417,7 @@ def _build_requirement(sentence: _Sentence, spans: Sequence[_EntitySpan], index:
     if examples_result is not None:
         expression, family_components = examples_result
     else:
+        components = _scope_trailing_domains(sentence, components)
         component_nodes = [
             _component_node(sentence, item, requirement_id, index, confidence)
             for index, item in enumerate(components, start=1)

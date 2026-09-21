@@ -91,7 +91,7 @@ async def test_scanner_endpoint_persists_new_result_separately_from_legacy_relev
     monkeypatch.setattr(
         application_routes_module,
         "configured_extractor_version",
-        lambda: "gliner2.5-structured-v6",
+        lambda: "gliner2.5-structured-v7",
     )
 
     scanned = await client.post(f"/api/v1/applications/{application_id}/scan", headers=headers)
