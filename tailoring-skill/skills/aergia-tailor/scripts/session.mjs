@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { materializeCandidate, validateCandidate } from "./validate-candidate.mjs";
 import { evaluateCritique, MAX_CRITIQUE_PASSES } from "./validate-critique.mjs";
 
-const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 4;
 const SUBMIT_MARKER = "SUBMIT";
 const RENDER_MARKER = "RENDER";
 const CRITIQUE_MARKER = "CRITIQUE";
@@ -120,13 +120,17 @@ async function prepareWorkspace(workspace, context) {
   await mkdir(source, { recursive: true, mode: 0o700 });
   await mkdir(output, { recursive: true, mode: 0o700 });
   const previous = context.previous_cv ?? {};
+  const scanner = context.scanner ?? {};
+  const requirementExtraction = scanner.requirement_extraction ?? {};
   await Promise.all([
     writeProtectedJson(resolve(source, "context.json"), context),
     writeProtectedJson(resolve(source, "job.json"), context.job),
     writeProtectedJson(resolve(source, "profile.json"), context.profile),
     writeProtectedJson(resolve(source, "previous-cv.json"), previous),
     writeProtectedJson(resolve(source, "library.json"), context.library ?? []),
-    writeProtectedJson(resolve(source, "requirements.json"), context.requirements ?? []),
+    writeProtectedJson(resolve(source, "scanner-context.json"), scanner),
+    writeProtectedJson(resolve(source, "requirements.json"), requirementExtraction.requirements ?? context.requirements ?? []),
+    writeProtectedJson(resolve(source, "source-scan.json"), scanner.source_scan ?? null),
     writeProtectedJson(resolve(source, "templates.json"), context.templates ?? []),
     writeProtectedJson(resolve(source, "capabilities.json"), context.capabilities ?? {}),
     writeProtectedJson(resolve(source, "effective-appearance.json"), context.effective_appearance ?? {}),
@@ -184,8 +188,8 @@ async function renderCandidate(paths, origin, capability, context, candidate, pa
     candidate_hash: preview.candidate_hash,
     candidate_input_hash: candidateInputDigest,
     pass_number: passNumber,
-    relevance: preview.relevance ?? null,
-    warnings: Array.isArray(preview.warnings) ? preview.warnings : [],
+    scanner_result: preview.scanner_result ?? null,
+    render_warnings: Array.isArray(preview.render_warnings) ? preview.render_warnings : [],
   };
   await replaceProtectedJson(resolve(paths.output, "candidate-preview.json"), details);
   return {
@@ -243,7 +247,9 @@ async function waitForCandidate(paths, context, origin, capability) {
   const critiquePath = resolve(paths.output, CRITIQUE_MARKER);
   const candidatePath = resolve(paths.output, "candidate.json");
   const critiqueFilePath = resolve(paths.output, "critique.json");
-  const requirements = Array.isArray(context.requirements) ? context.requirements : [];
+  const requirements = Array.isArray(context.scanner?.requirement_extraction?.requirements)
+    ? context.scanner.requirement_extraction.requirements
+    : (Array.isArray(context.requirements) ? context.requirements : []);
   const critiqueHistory = [];
   const seenCandidateHashes = new Set();
   const scores = [];
@@ -490,7 +496,7 @@ export async function runSession(sessionUrl, workspace, options = {}) {
       await writeProtectedBinary(resolve(paths.source, "source-cv.pdf"), sourcePreview.pdf_base64);
       await writeFile(
         resolve(paths.source, "source-cv-render.json"),
-        `${JSON.stringify({ format: sourcePreview.format, page_count: sourcePreview.page_count, candidate_hash: sourcePreview.candidate_hash }, null, 2)}\n`,
+        `${JSON.stringify({ format: sourcePreview.format, page_count: sourcePreview.page_count, candidate_hash: sourcePreview.candidate_hash, scanner_result: sourcePreview.scanner_result ?? null }, null, 2)}\n`,
         { encoding: "utf8", mode: 0o600 },
       );
     } catch (error) {

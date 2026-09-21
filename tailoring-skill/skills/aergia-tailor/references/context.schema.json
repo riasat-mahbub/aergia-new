@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://aergia.local/contracts/tailoring-context-v2.schema.json",
-  "title": "Aergia tailoring context protocol v2",
+  "$id": "https://aergia.local/contracts/tailoring-context-v4.schema.json",
+  "title": "Aergia tailoring context protocol v4",
   "type": "object",
   "additionalProperties": false,
-  "required": ["protocol_version", "session_id", "application_id", "context_hash", "job", "profile", "library", "requirements", "templates", "selected_template_id", "selected_template_manifest", "capabilities", "capabilities_hash"],
+  "required": ["protocol_version", "session_id", "application_id", "context_hash", "job", "profile", "library", "scanner", "requirements", "templates", "selected_template_id", "selected_template_manifest", "capabilities", "capabilities_hash"],
   "properties": {
-    "protocol_version": {"const": 2},
+    "protocol_version": {"const": 4},
     "session_id": {"type": "string"},
     "application_id": {"type": "string"},
     "source_cv_id": {"type": ["string", "null"]},
@@ -16,6 +16,17 @@
     "profile": {"type": "object"},
     "previous_cv": {"type": ["object", "null"]},
     "library": {"type": "array"},
+    "scanner": {
+      "type": "object",
+      "required": ["schema_version", "versions", "requirement_extraction", "source_scan"],
+      "properties": {
+        "schema_version": {"const": "scanner-v1"},
+        "versions": {"type": "object"},
+        "requirement_extraction": {"type": "object"},
+        "source_scan": {"type": ["object", "null"]}
+      },
+      "additionalProperties": false
+    },
     "requirements": {"type": "array"},
     "templates": {"type": "array"},
     "selected_template_id": {"type": "string"},
