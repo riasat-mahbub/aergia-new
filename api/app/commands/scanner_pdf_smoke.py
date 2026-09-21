@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 from typing import Any
@@ -159,6 +160,10 @@ async def run_pdf_smoke() -> dict[str, Any]:
 
 
 def main() -> None:
+    argparse.ArgumentParser(
+        prog="scanner-pdf-smoke",
+        description="Check Playwright, Chromium, Aergia PDF rendering, and pdfplumber recovery.",
+    ).parse_args()
     report = asyncio.run(run_pdf_smoke())
     print(json.dumps(report, indent=2, sort_keys=True))
     raise SystemExit(0 if report["overall"] == "pass" else 1)
