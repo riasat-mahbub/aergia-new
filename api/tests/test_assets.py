@@ -81,5 +81,9 @@ async def test_upload_file_too_large_is_rejected(client, auth_headers):
 @pytest.mark.asyncio
 async def test_traversal_like_asset_names_cannot_delete_outside_upload_root(client, auth_headers):
     for filename in ("../outside", "../../etc/passwd", "not-owned.png", ".", ""):
-        response = await client.delete(f"/api/v1/assets/{filename}", headers=auth_headers)
+        response = await client.delete(
+            f"/api/v1/assets/{filename}",
+            headers=auth_headers,
+            follow_redirects=True,
+        )
         assert response.status_code in {404, 405}

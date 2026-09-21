@@ -82,7 +82,8 @@ async def test_delete_user_template_route_does_not_exist(client):
     """Phase 6 step 1 deleted DELETE /api/v1/templates/user/{id}."""
     headers = await register_and_login(client, "user-tpl-del@example.com")
     resp = await client.delete("/api/v1/templates/user/generic-modern", headers=headers)
-    assert resp.status_code == 405, resp.text
+    # The remaining GET /{template_id} route only matches one path segment.
+    assert resp.status_code == 404, resp.text
 
 
 @pytest.mark.asyncio
@@ -96,13 +97,15 @@ async def test_multipart_upload_route_does_not_exist(client):
 
 
 def test_user_template_create_schema_is_not_exported():
-    """``UserTemplateCreate`` was deleted from ``app.document_schema.models``."""
+    """The removed user-template workflow has no remaining create DTO."""
     import pytest
-    from app import schema as schema_pkg
+    import app.document_schema.models as document_models
+    import app.http_schemas as http_schemas
 
     with pytest.raises(ImportError):
         from app.document_schema.models import UserTemplateCreate  # noqa: F401
-    assert "UserTemplateCreate" not in dir(schema_pkg.models)
+    assert not hasattr(document_models, "UserTemplateCreate")
+    assert not hasattr(http_schemas, "UserTemplateCreate")
 
 
 def test_template_model_drops_is_system_and_user_id():

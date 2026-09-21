@@ -435,7 +435,11 @@ def test_coding_agent_project_does_not_prove_ai_assisted_coding_predicate() -> N
     job = (FIXTURE_DIR / "job_description.txt").read_text(encoding="utf-8")
     extraction = extract_requirements_from_entities(job, {"entities": {}})
     compound = next(item for item in extraction.requirements if item.source.original_text.startswith("Learn and apply modern development practices"))
-    ai_component = compound.expression.children[0].children[0]
+    ai_component = next(
+        leaf
+        for leaf in _walk_leaves(compound.expression)
+        if leaf.concept.name.casefold() == "ai-assisted development"
+    )
     result = evaluate_semantic_coverage(
         [compound.model_copy(update={"expression": ai_component})],
         _cv_fixture(),
@@ -451,7 +455,11 @@ def test_explicit_ai_coding_tool_use_can_support_ai_assisted_development() -> No
     job = (FIXTURE_DIR / "job_description.txt").read_text(encoding="utf-8")
     extraction = extract_requirements_from_entities(job, {"entities": {}})
     compound = next(item for item in extraction.requirements if item.source.original_text.startswith("Learn and apply modern development practices"))
-    ai_component = compound.expression.children[0].children[0]
+    ai_component = next(
+        leaf
+        for leaf in _walk_leaves(compound.expression)
+        if leaf.concept.name.casefold() == "ai-assisted development"
+    )
     cv = {
         "sections": [
             {
