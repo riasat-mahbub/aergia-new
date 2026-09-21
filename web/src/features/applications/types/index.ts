@@ -148,6 +148,7 @@ export interface CVQualityResult {
 export type ScannerEvidenceStatus = "supported" | "partial" | "not_evidenced" | "conflicting" | "unverifiable";
 export type ScannerAnalysisStatus = "evaluated" | "not_evaluated" | "failed";
 export type ScannerImportance = "required" | "preferred" | "unknown";
+export type ScannerScoreStatus = "available" | "insufficient_scorable_evidence" | "unavailable";
 
 export interface ScannerCVLocation {
   section_id: string | null;
@@ -158,12 +159,15 @@ export interface ScannerCVLocation {
 }
 
 export interface ScannerExpressionNode {
-  kind: "leaf" | "all" | "any";
+  kind: "leaf" | "all" | "any" | "examples";
   id: string;
   concept?: { name: string; family: string | null; source_text: string | null };
   expectation?: { kind: string; qualifier: string | null };
   modifiers?: { optional: boolean; list_semantics: string; scope: string | null };
   children?: ScannerExpressionNode[];
+  subject?: ScannerExpressionNode;
+  examples?: ScannerExpressionNode[];
+  min_supporting_examples?: number;
 }
 
 export interface ScannerRequirement {
@@ -208,8 +212,59 @@ export interface ScannerLexicalTerm {
   canonical_concept_id: string | null;
   variants: string[];
   importance: ScannerImportance;
+  source_locations: Array<{
+    source_start: number;
+    source_end: number;
+    section_title: string | null;
+    section_purpose: string | null;
+    importance: ScannerImportance;
+  }>;
   visibility: "exact" | "normalized" | "variant" | "absent" | "unverifiable";
   evidence: Array<{ location: ScannerCVLocation; matched_text: string; visibility: "exact" | "normalized" | "variant" }>;
+  semantic_support?: ScannerEvidenceStatus | null;
+}
+
+export interface ScannerScoreBucketSummary {
+  score: number | null;
+  scorable_fraction: number;
+  scorable_weight: number;
+  total_weight: number;
+  requirement_count: number;
+}
+
+export interface ScannerSemanticScoreSummary {
+  status: ScannerScoreStatus;
+  job_fit: number | null;
+  scorable_fraction: number;
+  qualification_fit: ScannerScoreBucketSummary;
+  responsibility_alignment: ScannerScoreBucketSummary;
+  preferred_fit: ScannerScoreBucketSummary;
+  unclassified_requirement_count: number;
+  supported_count: number;
+  partial_count: number;
+  not_evidenced_count: number;
+  conflicting_count: number;
+  unverifiable_count: number;
+  required_constraint_conflicts: number;
+}
+
+export interface ScannerLexicalScoreSummary {
+  status: ScannerScoreStatus;
+  visibility_score: number | null;
+  scorable_fraction: number;
+  exact_count: number;
+  normalized_count: number;
+  variant_count: number;
+  absent_count: number;
+  unverifiable_count: number;
+}
+
+export interface ScannerPDFScoreSummary {
+  status: ScannerScoreStatus;
+  recovery_score: number | null;
+  scorable_fraction: number;
+  scored_check_count: number;
+  unavailable_check_count: number;
 }
 
 export interface ScanResult {
@@ -226,6 +281,9 @@ export interface ScanResult {
     lexical_version: string;
     quality_version: string;
     pdf_analysis_version: string;
+    semantic_score_version?: string | null;
+    lexical_score_version?: string | null;
+    pdf_score_version?: string | null;
   };
   requirement_extraction: {
     status: "evaluated" | "partial" | "failed";
@@ -243,8 +301,13 @@ export interface ScanResult {
       confidence: number;
       method: string;
     }>;
+    summary?: ScannerSemanticScoreSummary | null;
   };
-  lexical: { status: ScannerAnalysisStatus; terms: ScannerLexicalTerm[] };
+  lexical: {
+    status: ScannerAnalysisStatus;
+    terms: ScannerLexicalTerm[];
+    summary?: ScannerLexicalScoreSummary | null;
+  };
   presentation_quality: {
     status: ScannerAnalysisStatus;
     findings: Array<{ code: string; severity: "info" | "warning" | "error"; location: ScannerCVLocation | null; evidence: string | null; explanation: string }>;
@@ -254,6 +317,7 @@ export interface ScanResult {
     status: "pass" | "warning" | "fail" | "unavailable";
     page_count: number | null;
     checks: Array<{ code: string; status: "pass" | "warning" | "fail" | "unavailable"; expected_count: number | null; recovered_count: number | null; evidence: string[]; explanation: string | null }>;
+    summary?: ScannerPDFScoreSummary | null;
   };
 }
 

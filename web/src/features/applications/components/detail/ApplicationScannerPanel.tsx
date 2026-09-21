@@ -21,6 +21,10 @@ function labelFor(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function percentage(value: number | null | undefined): string {
+  return value === null || value === undefined ? "—" : `${Math.round(value * 100)}%`;
+}
+
 function statusTone(value: string): string {
   if (value === "supported" || value === "pass" || value === "evaluated") {
     return "border-app-primary/30 bg-app-primary-soft text-app-primary";
@@ -51,13 +55,24 @@ interface ExpressionRowProps {
   node: ScannerExpressionNode;
   result: ScannerExpressionEvaluation;
   evidenceById: Map<string, ScanResult["semantic"]["evidence"][number]>;
+  relationLabel?: string;
 }
 
-function ExpressionRow({ node, result, evidenceById }: ExpressionRowProps) {
-  const title = node.concept?.name ?? (node.kind === "all" ? "All of the following" : "Any of the following");
+function ExpressionRow({ node, result, evidenceById, relationLabel }: ExpressionRowProps) {
+  const title = node.concept?.name ?? (
+    node.kind === "examples"
+      ? "Illustrative examples"
+      : node.kind === "all" ? "All of the following" : "Any of the following"
+  );
   const evidence = node.kind === "leaf"
     ? result.evidence_ids.flatMap((id) => evidenceById.get(id)?.locations ?? [])
     : [];
+  const expressionChildren = node.kind === "examples"
+    ? [
+        ...(node.subject ? [{ node: node.subject, label: "Umbrella" }] : []),
+        ...(node.examples ?? []).map((child) => ({ node: child, label: "Example" })),
+      ]
+    : (node.children ?? []).map((child) => ({ node: child, label: undefined }));
 
   return (
     <li className="min-w-0">
@@ -65,6 +80,8 @@ function ExpressionRow({ node, result, evidenceById }: ExpressionRowProps) {
         <span className="text-sm font-medium text-app-ink">{title}</span>
         {node.expectation && <span className="text-xs text-app-ink-3">Expectation: {labelFor(node.expectation.kind)}</span>}
         {node.modifiers?.optional && <span className="text-xs text-app-ink-3">Optional</span>}
+        {relationLabel && <span className="text-xs text-app-ink-3">{relationLabel}</span>}
+        {node.kind === "examples" && <span className="text-xs text-app-ink-3">Illustrative list, not separate requirements</span>}
         <StatusBadge status={result.status} />
         {result.mandatory_total > 1 && (
           <span className="text-xs text-app-ink-3">
@@ -82,12 +99,12 @@ function ExpressionRow({ node, result, evidenceById }: ExpressionRowProps) {
           ))}
         </ul>
       )}
-      {node.children && node.children.length > 0 && (
+      {expressionChildren.length > 0 && (
         <ul className="mt-2 space-y-2 border-l border-app-rule pl-3">
-          {node.children.map((child, index) => {
+          {expressionChildren.map(({ node: child, label }, index) => {
             const childResult = result.children[index];
             if (!childResult) return null;
-            return <ExpressionRow key={child.id} node={child} result={childResult} evidenceById={evidenceById} />;
+            return <ExpressionRow key={child.id} node={child} result={childResult} evidenceById={evidenceById} relationLabel={label} />;
           })}
         </ul>
       )}
@@ -99,12 +116,53 @@ function JobFit({ result }: { result: ScanResult }) {
   const { requirement_extraction: extraction, semantic } = result;
   const evaluationById = new Map(semantic.requirements.map((item) => [item.requirement_id, item]));
   const evidenceById = new Map(semantic.evidence.map((item) => [item.id, item]));
+  const summary = semantic.summary;
 
   return (
     <SectionCard title="Job fit">
       {extraction.status === "failed" && <p className="text-sm text-app-danger">Requirement extraction failed for this scan.</p>}
       {extraction.warnings.length > 0 && <p className="mb-3 text-xs text-app-warning">{extraction.warnings.join(" · ")}</p>}
       {semantic.status !== "evaluated" && <p className="text-sm text-app-ink-2">Semantic analysis: {labelFor(semantic.status)}.</p>}
+      {summary && (
+        <div className="mb-4 rounded-md border border-app-rule-soft bg-app-surface p-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-lg font-semibold text-app-ink">
+              {summary.status === "available" && summary.job_fit !== null
+                ? `Job Fit ${percentage(summary.job_fit)}`
+                : summary.status === "insufficient_scorable_evidence"
+                  ? "Insufficient scorable evidence"
+                  : "Job Fit unavailable"}
+            </p>
+            <span className="text-xs text-app-ink-3">{percentage(summary.scorable_fraction)} scorable</span>
+          </div>
+          <p className="mt-1 text-xs text-app-ink-3">
+            {summary.supported_count} supported · {summary.partial_count} partial · {summary.not_evidenced_count} not evidenced · {summary.conflicting_count} conflicting · {summary.unverifiable_count} unverifiable
+          </p>
+          <p className="mt-1 text-xs text-app-ink-3">Category weights: 70% qualifications, 25% responsibilities, 5% preferred. Empty categories are redistributed.</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            {[
+              { title: "Core qualifications", bucket: summary.qualification_fit },
+              { title: "Responsibility alignment", bucket: summary.responsibility_alignment },
+              { title: "Preferred fit", bucket: summary.preferred_fit },
+            ].map(({ title, bucket }) => {
+              return (
+                <div key={title} className="rounded border border-app-rule-soft px-2.5 py-2">
+                  <p className="text-xs text-app-ink-3">{title}</p>
+                  <p className="text-sm font-medium text-app-ink">{bucket.total_weight > 0 ? percentage(bucket.score) : "No requirements"}</p>
+                  {bucket.total_weight > 0 && <p className="text-xs text-app-ink-3">{percentage(bucket.scorable_fraction)} scorable</p>}
+                </div>
+              );
+            })}
+          </div>
+          {(summary.unclassified_requirement_count > 0 || summary.required_constraint_conflicts > 0) && (
+            <p className="mt-2 text-xs text-app-ink-2">
+              {summary.unclassified_requirement_count > 0 && `${summary.unclassified_requirement_count} unclassified requirement${summary.unclassified_requirement_count === 1 ? "" : "s"}`}
+              {summary.unclassified_requirement_count > 0 && summary.required_constraint_conflicts > 0 && " · "}
+              {summary.required_constraint_conflicts > 0 && `${summary.required_constraint_conflicts} required constraint conflict${summary.required_constraint_conflicts === 1 ? "" : "s"}`}
+            </p>
+          )}
+        </div>
+      )}
       {extraction.requirements.length > 0 ? (
         <ul className="space-y-3">
           {extraction.requirements.map((requirement: ScannerRequirement) => {
@@ -147,6 +205,19 @@ function LexicalAnalysis({ result }: { result: ScanResult }) {
   return (
     <SectionCard title="ATS / keywords">
       {lexical.status !== "evaluated" && <p className="mb-3 text-sm text-app-ink-2">Lexical analysis: {labelFor(lexical.status)}.</p>}
+      {lexical.summary && (
+        <div className="mb-4 rounded-md border border-app-rule-soft bg-app-surface p-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-lg font-semibold text-app-ink">
+              {lexical.summary.visibility_score === null ? "Term Visibility unavailable" : `Term Visibility ${percentage(lexical.summary.visibility_score)}`}
+            </p>
+            <span className="text-xs text-app-ink-3">{percentage(lexical.summary.scorable_fraction)} scorable</span>
+          </div>
+          <p className="mt-1 text-xs text-app-ink-3">
+            {lexical.summary.exact_count} exact · {lexical.summary.normalized_count} normalized · {lexical.summary.variant_count} variant · {lexical.summary.absent_count} absent
+          </p>
+        </div>
+      )}
       {lexical.terms.length > 0 ? (
         <ul className="space-y-2">
           {lexical.terms.map((term) => (
@@ -157,6 +228,17 @@ function LexicalAnalysis({ result }: { result: ScanResult }) {
                   <p className="mt-1 text-xs text-app-ink-3">
                     {term.importance !== "unknown" && `${labelFor(term.importance)} · `}
                     {term.evidence.map((item) => `Found as “${item.matched_text}”`).join(" · ")}
+                  </p>
+                )}
+                {term.visibility === "absent" && term.semantic_support && (
+                  <p className="mt-1 text-xs text-app-ink-2">
+                    {term.semantic_support === "supported" || term.semantic_support === "partial"
+                      ? `Relevant CV evidence is ${term.semantic_support}; the employer’s wording is absent.`
+                      : term.semantic_support === "not_evidenced"
+                        ? "Wording is absent and this CV does not currently evidence the capability; do not add it without support."
+                        : term.semantic_support === "conflicting"
+                          ? "Wording is absent and the available evidence conflicts with this requirement."
+                          : "Wording is absent and semantic evidence could not be assessed."}
                   </p>
                 )}
               </div>
@@ -171,9 +253,14 @@ function LexicalAnalysis({ result }: { result: ScanResult }) {
 
 function PresentationQuality({ result }: { result: ScanResult }) {
   const quality = result.presentation_quality;
+  const counts = quality.findings.reduce<{ error: number; warning: number; info: number }>(
+    (total, finding) => ({ ...total, [finding.severity]: total[finding.severity] + 1 }),
+    { error: 0, warning: 0, info: 0 },
+  );
   return (
     <SectionCard title="Resume quality">
       {quality.status !== "evaluated" && <p className="mb-3 text-sm text-app-ink-2">Presentation analysis: {labelFor(quality.status)}.</p>}
+      <p className="mb-3 text-xs text-app-ink-3">{counts.error} errors · {counts.warning} warnings · {counts.info} informational findings</p>
       {quality.findings.length > 0 ? (
         <ul className="space-y-2">
           {quality.findings.map((finding, index) => (
@@ -208,8 +295,16 @@ function PDFRecovery({ result }: { result: ScanResult }) {
     <SectionCard title="PDF text recovery">
       <div className="flex flex-wrap items-center gap-2">
         <StatusBadge status={pdf.status} />
+        {pdf.summary?.recovery_score !== null && pdf.summary?.recovery_score !== undefined && (
+          <span className="text-sm font-semibold text-app-ink">{percentage(pdf.summary.recovery_score)} recovery</span>
+        )}
         {pdf.page_count !== null && <span className="text-xs text-app-ink-3">{pdf.page_count} page{pdf.page_count === 1 ? "" : "s"}</span>}
       </div>
+      {pdf.summary && (
+        <p className="mt-1 text-xs text-app-ink-3">
+          {pdf.summary.recovery_score === null ? "Numeric recovery score unavailable" : `${pdf.summary.scored_check_count} checks scored · ${percentage(pdf.summary.scorable_fraction)} scorable coverage`}
+        </p>
+      )}
       <p className="mt-2 text-xs text-app-ink-3">Checks what Aergia recovered from this PDF; it does not guarantee behavior in every ATS.</p>
       {pdf.checks.length > 0 && (
         <ul className="mt-3 space-y-2">
