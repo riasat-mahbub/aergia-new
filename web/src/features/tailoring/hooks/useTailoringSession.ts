@@ -46,7 +46,7 @@ export function useTailoringSession({
       // placeholder session lets the application page retain draft review
       // actions after the user navigates away and comes back.
       setTailoringSession({
-        protocol_version: 2,
+        protocol_version: 4,
         session_id: status.session_id,
         application_id: status.application_id,
         source_cv_id: status.source_cv_id,
