@@ -167,6 +167,20 @@ def test_such_as_list_is_an_umbrella_with_nonmandatory_examples() -> None:
     assert expression.min_supporting_examples == 2
 
 
+def test_one_item_example_list_requires_only_one_example() -> None:
+    source = "What You Bring\nFamiliarity with programming languages such as Python.\n"
+    result = extract_requirements_from_entities(
+        source,
+        {"entities": {"hard_skill": [_span(source, "hard_skill", "Python")]}},
+    )
+
+    expression = result.requirements[0].expression
+
+    assert isinstance(expression, ExamplesExpression)
+    assert len(expression.examples) == 1
+    assert expression.min_supporting_examples == 1
+
+
 def test_demonstrated_ai_interest_preserves_the_application_expectation() -> None:
     source = (
         "What You Bring\n"

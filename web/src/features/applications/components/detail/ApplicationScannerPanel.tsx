@@ -117,6 +117,12 @@ function JobFit({ result }: { result: ScanResult }) {
   const evaluationById = new Map(semantic.requirements.map((item) => [item.requirement_id, item]));
   const evidenceById = new Map(semantic.evidence.map((item) => [item.id, item]));
   const summary = semantic.summary;
+  const supportedRequirements = summary?.supported_requirement_count ?? summary?.supported_count ?? 0;
+  const partialRequirements = summary?.partial_requirement_count ?? summary?.partial_count ?? 0;
+  const notEvidencedRequirements = summary?.not_evidenced_requirement_count ?? summary?.not_evidenced_count ?? 0;
+  const conflictingRequirements = summary?.conflicting_requirement_count ?? summary?.conflicting_count ?? 0;
+  const unverifiableRequirements = summary?.unverifiable_requirement_count ?? summary?.unverifiable_count ?? 0;
+  const evidenceScorableFraction = summary?.evidence_scorable_fraction ?? summary?.scorable_fraction;
 
   return (
     <SectionCard title="Job fit">
@@ -133,11 +139,22 @@ function JobFit({ result }: { result: ScanResult }) {
                   ? "Insufficient scorable evidence"
                   : "Job Fit unavailable"}
             </p>
-            <span className="text-xs text-app-ink-3">{percentage(summary.scorable_fraction)} scorable</span>
+            <span className="text-xs text-app-ink-3">
+              {summary.classified_fraction === null || summary.classified_fraction === undefined
+                ? "Classification coverage unavailable"
+                : `${percentage(summary.classified_fraction)} classified`}
+              {" · "}
+              {percentage(evidenceScorableFraction)} evaluable from CV
+            </span>
           </div>
           <p className="mt-1 text-xs text-app-ink-3">
-            {summary.supported_count} supported · {summary.partial_count} partial · {summary.not_evidenced_count} not evidenced · {summary.conflicting_count} conflicting · {summary.unverifiable_count} unverifiable
+            {supportedRequirements} supported requirements · {partialRequirements} partial · {notEvidencedRequirements} not evidenced · {conflictingRequirements} conflicting · {unverifiableRequirements} unverifiable requirements
           </p>
+          {summary.unverifiable_component_count !== null && summary.unverifiable_component_count !== undefined && (
+            <p className="mt-1 text-xs text-app-ink-3">
+              {summary.unverifiable_component_count} unverifiable mandatory components
+            </p>
+          )}
           <p className="mt-1 text-xs text-app-ink-3">Category weights: 70% qualifications, 25% responsibilities, 5% preferred. Empty categories are redistributed.</p>
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
             {[

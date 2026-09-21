@@ -236,10 +236,18 @@ export interface ScannerSemanticScoreSummary {
   status: ScannerScoreStatus;
   job_fit: number | null;
   scorable_fraction: number;
+  classified_fraction?: number | null;
+  evidence_scorable_fraction?: number | null;
   qualification_fit: ScannerScoreBucketSummary;
   responsibility_alignment: ScannerScoreBucketSummary;
   preferred_fit: ScannerScoreBucketSummary;
   unclassified_requirement_count: number;
+  supported_requirement_count?: number | null;
+  partial_requirement_count?: number | null;
+  not_evidenced_requirement_count?: number | null;
+  conflicting_requirement_count?: number | null;
+  unverifiable_requirement_count?: number | null;
+  unverifiable_component_count?: number | null;
   supported_count: number;
   partial_count: number;
   not_evidenced_count: number;
