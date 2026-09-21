@@ -24,6 +24,7 @@ from app.scanner.requirements import (
     CandidateSignalPolarity,
     CertificationConstraint,
     Concept,
+    ContextualModifierKind,
     DegreeConstraint,
     Expectation,
     ExpectationKind,
@@ -34,6 +35,7 @@ from app.scanner.requirements import (
     LanguageProficiencyConstraint,
     MinimumYearsConstraint,
     Requirement,
+    RequirementContextualModifier,
     RequirementExtraction,
     RequirementFamily,
     RequirementImportance,
@@ -52,7 +54,7 @@ from app.services.requirement_extractor import (
 
 logger = logging.getLogger(__name__)
 
-SCANNER_EXTRACTOR_VERSION = "gliner2.5-structured-v2"
+SCANNER_EXTRACTOR_VERSION = "gliner2.5-structured-v3"
 _REQUIREMENT_LABELS = frozenset({"candidate_requirement", "requirement", "preferred_requirement"})
 _CONCEPT_LABELS = frozenset(
     {
@@ -120,7 +122,8 @@ _DIRECTED_PATTERNS: tuple[tuple[re.Pattern[str], float], ...] = (
 )
 
 _EXPECTATION_CUES: tuple[tuple[re.Pattern[str], ExpectationKind, float], ...] = (
-    (re.compile(r"\bcuriosity\b", re.I), ExpectationKind.INTEREST, 0.92),
+    (re.compile(r"\b(?:interest|interested)\s+in\s+(?:learning|developing)\b", re.I), ExpectationKind.DEVELOPMENTAL_INTEREST, 0.92),
+    (re.compile(r"\bcuriosity\b", re.I), ExpectationKind.CURIOSITY, 0.92),
     (re.compile(r"\binterest\b", re.I), ExpectationKind.INTEREST, 0.90),
     (re.compile(r"\bbilingual\b|\bfluent\b", re.I), ExpectationKind.PROFICIENCY, 0.90),
     (re.compile(r"\bfamiliarity\b", re.I), ExpectationKind.FAMILIARITY, 0.92),
@@ -134,6 +137,11 @@ _EXPECTATION_CUES: tuple[tuple[re.Pattern[str], ExpectationKind, float], ...] = 
     (re.compile(r"\b(?:participate|pair[- ]program|attend)\b", re.I), ExpectationKind.PARTICIPATION, 0.86),
     (re.compile(r"\b(?:write|build|design|develop|test|debug|investigate|maintain|implement|assist|help)\b", re.I), ExpectationKind.ABILITY_TO_PERFORM, 0.78),
     (re.compile(r"\bcommunication\s+skills\b", re.I), ExpectationKind.ABILITY_TO_PERFORM, 0.78),
+)
+_CONTEXTUAL_MODIFIER_PATTERNS: tuple[tuple[ContextualModifierKind, re.Pattern[str], float], ...] = (
+    (ContextualModifierKind.GUIDANCE, re.compile(r"\bwith\s+guidance(?:\s+(?:from|of)\s+[^,.;]+)?", re.I), 0.92),
+    (ContextualModifierKind.SUPERVISION, re.compile(r"\bunder\s+supervision\b", re.I), 0.92),
+    (ContextualModifierKind.LEARNING_PURPOSE, re.compile(r"\bto\s+learn\s+[^,.;]+", re.I), 0.86),
 )
 
 _YEAR_RE = re.compile(
@@ -848,6 +856,20 @@ def _expectation_for(sentence: _Sentence, component: _Component) -> Expectation:
     return Expectation(kind=ExpectationKind.OTHER, source_text=sentence.text, confidence=0.35)
 
 
+def _contextual_modifiers_for(sentence: _Sentence) -> list[RequirementContextualModifier]:
+    modifiers: list[RequirementContextualModifier] = []
+    for kind, pattern, confidence in _CONTEXTUAL_MODIFIER_PATTERNS:
+        for match in pattern.finditer(sentence.text):
+            modifiers.append(
+                RequirementContextualModifier(
+                    kind=kind,
+                    source_text=match.group(0),
+                    confidence=confidence,
+                )
+            )
+    return modifiers
+
+
 def _constraint_for(sentence: _Sentence, component: _Component, node_id: str) -> list[Any]:
     constraints: list[Any] = []
     years = _YEAR_RE.search(sentence.text)
@@ -964,6 +986,9 @@ def _importance(sentence: _Sentence, spans: Sequence[_EntitySpan]) -> tuple[Requ
         evidence.append(ImportanceEvidence(kind=ImportanceEvidenceKind.SECTION_CONTEXT, interpretation=RequirementImportance.PREFERRED, source_text=sentence.section.title or "preferred section", confidence=sentence.section.confidence))
         return RequirementImportance.PREFERRED, sentence.section.confidence, evidence
     if sentence.section.purpose in {SectionPurpose.CANDIDATE_RESPONSIBILITIES, SectionPurpose.CANDIDATE_QUALIFICATIONS}:
+        if sentence.section.confidence < 0.70:
+            evidence.append(ImportanceEvidence(kind=ImportanceEvidenceKind.SECTION_CONTEXT, interpretation=RequirementImportance.UNKNOWN, source_text=sentence.section.title or "low-confidence candidate-facing section", confidence=sentence.section.confidence))
+            return RequirementImportance.UNKNOWN, sentence.section.confidence, evidence
         evidence.append(ImportanceEvidence(kind=ImportanceEvidenceKind.SECTION_CONTEXT, interpretation=RequirementImportance.REQUIRED, source_text=sentence.section.title or "candidate-facing section", confidence=sentence.section.confidence))
         return RequirementImportance.REQUIRED, sentence.section.confidence * 0.70, evidence
     return RequirementImportance.UNKNOWN, 0.45, evidence
@@ -1125,6 +1150,7 @@ def _build_requirement(sentence: _Sentence, spans: Sequence[_EntitySpan], index:
         family=_requirement_family(sentence, components),
         weight=1.0,
         expression=expression,
+        contextual_modifiers=_contextual_modifiers_for(sentence),
     )
 
 

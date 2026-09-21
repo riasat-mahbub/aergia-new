@@ -54,7 +54,7 @@ def _cv_fixture() -> dict[str, Any]:
     }
 
 
-def test_lexical_inventory_is_independent_and_reports_exact_variant_and_absent() -> None:
+def test_lexical_inventory_does_not_promote_semantic_aliases() -> None:
     job = (FIXTURE_DIR / "job_description.txt").read_text(encoding="utf-8")
     cv = _cv_fixture()
 
@@ -62,14 +62,40 @@ def test_lexical_inventory_is_independent_and_reports_exact_variant_and_absent()
     terms = {term.term.casefold(): term for term in result.terms}
 
     assert terms["python"].visibility is LexicalVisibility.EXACT
-    assert terms["genai"].visibility is LexicalVisibility.VARIANT
-    assert terms["genai"].evidence[0].matched_text == "coding-agent"
-    assert terms["automated testing"].visibility is LexicalVisibility.VARIANT
+    assert terms["genai"].visibility is LexicalVisibility.ABSENT
+    assert terms["automated testing"].visibility is LexicalVisibility.ABSENT
+    assert terms["containerization"].visibility is LexicalVisibility.ABSENT
     assert terms["monitoring"].visibility is LexicalVisibility.ABSENT
     assert terms["ci/cd"].visibility is LexicalVisibility.EXACT
+    assert "coding agent" not in terms["genai"].variants
+    assert "unit tests" not in terms["automated testing"].variants
+    assert "docker" not in terms["containerization"].variants
     assert terms["ai tools"].source_locations
     hiring_start = job.index("AlayaCare uses AI tools during our hiring process")
     assert all(location.source_start < hiring_start for location in terms["ai tools"].source_locations)
+
+
+def test_lexical_variants_are_surface_forms_not_semantic_equivalents() -> None:
+    result = analyze_lexical_visibility(
+        "Qualifications\nGenAI, containerization, automated testing, and Front-End.\n",
+        {
+            "sections": [
+                {
+                    "id": "profile",
+                    "type": "profile",
+                    "fields": [_field("summary", "Generative AI, Docker, unit and integration tests, frontend development.")],
+                    "entries": [],
+                }
+            ]
+        },
+    )
+    terms = {term.term.casefold(): term for term in result.terms}
+
+    assert terms["genai"].visibility is LexicalVisibility.VARIANT
+    assert terms["genai"].evidence[0].matched_text == "Generative AI"
+    assert terms["front-end development"].visibility is LexicalVisibility.VARIANT
+    assert terms["containerization"].visibility is LexicalVisibility.ABSENT
+    assert terms["automated testing"].visibility is LexicalVisibility.ABSENT
 
 
 def test_presentation_classifies_bullets_without_requiring_metrics() -> None:
@@ -149,5 +175,7 @@ def test_scanner_service_keeps_four_independent_branches_and_versions_them() -> 
     assert result.lexical.status.value == "evaluated"
     assert result.presentation_quality.status.value == "evaluated"
     assert result.pdf_recovery.status is PDFRecoveryStatus.UNAVAILABLE
-    assert result.versions.matcher_version == "requirement-match-v1"
+    assert result.versions.extractor_version == "gliner2.5-structured-v3"
+    assert result.versions.matcher_version == "requirement-match-v2"
+    assert result.versions.lexical_version == "ats-lexical-v3"
     assert len(result.input_fingerprints.cv_content_sha256) == 64

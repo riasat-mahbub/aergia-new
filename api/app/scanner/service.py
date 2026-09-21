@@ -23,8 +23,8 @@ from app.scanner.results import (
 )
 from app.services.requirement_extractor import RequirementExtractionError
 
-MATCHER_VERSION = "requirement-match-v1"
-LEXICAL_VERSION = "ats-lexical-v2"
+MATCHER_VERSION = "requirement-match-v2"
+LEXICAL_VERSION = "ats-lexical-v3"
 
 
 class RequirementExtractor(Protocol):
@@ -73,7 +73,7 @@ class ScannerService:
             semantic = evaluate_semantic_coverage(extraction.requirements, cv, as_of=as_of)
         except RequirementExtractionError:
             extractor_version = str(
-                getattr(self.extractor, "extractor_version", "gliner2.5-structured-v2")
+                getattr(self.extractor, "extractor_version", "gliner2.5-structured-v3")
             )
             extraction = RequirementExtraction(
                 status="failed",

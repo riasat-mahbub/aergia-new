@@ -178,6 +178,12 @@ export interface ScannerRequirement {
   family: string;
   weight: number;
   expression: ScannerExpressionNode;
+  contextual_modifiers: Array<{
+    kind: "guidance" | "supervision" | "learning_purpose";
+    source_text: string;
+    scope: string | null;
+    confidence: number;
+  }>;
 }
 
 export interface ScannerExpressionEvaluation {

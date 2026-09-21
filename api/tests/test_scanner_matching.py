@@ -14,7 +14,7 @@ from app.scanner.requirements import (
     RequirementLeaf,
     RequirementSource,
 )
-from app.scanner.results import EvidenceStatus
+from app.scanner.results import EvidenceMethod, EvidenceStatus
 from app.scanner.extraction import extract_requirements_from_entities
 
 
@@ -158,6 +158,12 @@ def _requirement(
     )
 
 
+def _walk_leaves(node: Any) -> list[RequirementLeaf]:
+    if node.kind == "leaf":
+        return [node]
+    return [leaf for child in node.children for leaf in _walk_leaves(child)]
+
+
 def test_flatten_cv_text_keeps_provenance_and_skips_disabled_sections() -> None:
     fields = flatten_cv_text(_cv_fixture())
 
@@ -232,7 +238,7 @@ def test_unrelated_skill_and_experience_entries_are_not_joined_as_full_proof() -
 
 
 def test_software_engineer_title_cannot_establish_industry_curiosity() -> None:
-    requirement = _requirement("industry-curiosity", "software development", ExpectationKind.INTEREST)
+    requirement = _requirement("industry-curiosity", "software development", ExpectationKind.CURIOSITY)
     cv = {
         "sections": [
             {"id": "experience", "type": "experience", "fields": [], "entries": [{"id": "job", "fields": [_field("position", "Associate Software Engineer")] }]}
@@ -246,6 +252,113 @@ def test_software_engineer_title_cannot_establish_industry_curiosity() -> None:
     evidence = result.evidence[0]
     assert evidence.concept_status is EvidenceStatus.SUPPORTED
     assert evidence.expectation_status is EvidenceStatus.NOT_EVIDENCED
+
+
+def test_developmental_interest_is_supported_by_practical_tool_use() -> None:
+    job = (FIXTURE_DIR / "job_description.txt").read_text(encoding="utf-8")
+    extraction = extract_requirements_from_entities(job, {"entities": {}})
+    requirement = next(
+        item
+        for item in extraction.requirements
+        if item.source.original_text.startswith("Interest in learning development tools")
+    )
+
+    assert all(
+        leaf.expectation.kind is ExpectationKind.DEVELOPMENTAL_INTEREST
+        for leaf in _walk_leaves(requirement.expression)
+    )
+    result = evaluate_semantic_coverage([requirement], _cv_fixture(), as_of=date(2026, 9, 20))
+
+    assert result.requirements[0].status is EvidenceStatus.SUPPORTED
+    for leaf in _walk_leaves(requirement.expression):
+        leaf_evidence = [item for item in result.evidence if item.id.startswith(f"ev-{leaf.id}-")]
+        assert any(item.expectation_status is EvidenceStatus.SUPPORTED for item in leaf_evidence)
+
+
+def test_skill_listing_alone_does_not_establish_developmental_interest() -> None:
+    requirement = _requirement(
+        "docker-learning-interest",
+        "Docker",
+        ExpectationKind.DEVELOPMENTAL_INTEREST,
+    )
+    cv = {
+        "sections": [
+            {"id": "skills", "type": "skills", "fields": [_field("tools", "Docker")], "entries": []}
+        ]
+    }
+
+    result = evaluate_semantic_coverage([requirement], cv, as_of=date(2026, 9, 20))
+
+    assert result.requirements[0].status is EvidenceStatus.PARTIAL
+    assert result.evidence[0].concept_status is EvidenceStatus.SUPPORTED
+    assert result.evidence[0].expectation_status is EvidenceStatus.NOT_EVIDENCED
+
+
+def test_full_stack_practical_experience_supports_developmental_interest() -> None:
+    job = (FIXTURE_DIR / "job_description.txt").read_text(encoding="utf-8")
+    extraction = extract_requirements_from_entities(job, {"entities": {}})
+    requirement = next(
+        item
+        for item in extraction.requirements
+        if item.source.original_text.startswith("Interest in developing yourself")
+    )
+
+    result = evaluate_semantic_coverage([requirement], _cv_fixture(), as_of=date(2026, 9, 20))
+
+    assert result.requirements[0].status is EvidenceStatus.SUPPORTED
+
+
+def test_curiosity_requires_trend_related_evidence() -> None:
+    requirement = _requirement("industry-curiosity", "industry trends", ExpectationKind.CURIOSITY)
+    cv = {
+        "sections": [
+            {
+                "id": "projects",
+                "type": "projects",
+                "fields": [],
+                "entries": [
+                    {
+                        "id": "project",
+                        "fields": [_field("description", "Followed current industry trends in software through a weekly engineering publication.")],
+                    }
+                ],
+            }
+        ]
+    }
+
+    result = evaluate_semantic_coverage([requirement], cv, as_of=date(2026, 9, 20))
+
+    assert result.requirements[0].status is EvidenceStatus.SUPPORTED
+
+
+def test_general_action_patterns_support_feature_implementation() -> None:
+    requirement = _requirement(
+        "feature-implementation",
+        "software feature implementation",
+        ExpectationKind.ABILITY_TO_PERFORM,
+    )
+    cv = {
+        "sections": [
+            {
+                "id": "experience",
+                "type": "experience",
+                "fields": [],
+                "entries": [
+                    {
+                        "id": "job",
+                        "fields": [
+                            _field("description", "Developed customer-facing features for a scheduling platform.")
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+
+    result = evaluate_semantic_coverage([requirement], cv, as_of=date(2026, 9, 20))
+
+    assert result.requirements[0].status is EvidenceStatus.SUPPORTED
+    assert any(item.method is EvidenceMethod.SEMANTIC_RULE for item in result.evidence)
 
 
 def test_job_title_alone_does_not_establish_familiarity_or_prior_experience() -> None:

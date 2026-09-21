@@ -68,6 +68,16 @@ def test_candidate_facing_lexical_segments_include_bare_candidate_skill_lists() 
     assert [segment.text for segment in segments] == ["Python, Java, and Docker."]
 
 
+def test_unknown_heading_remains_conservative_for_concept_only_skill_lists() -> None:
+    source = "Technical toolkit\nPython or Java.\n"
+    result = extract_requirements_from_entities(
+        source,
+        {"entities": {"hard_skill": [_span(source, "hard_skill", "Python")] }},
+    )
+
+    assert result.requirements == []
+
+
 def test_unknown_or_candidate_section_alone_does_not_admit_every_sentence() -> None:
     source = "Qualifications\nOur team values kindness and transparency.\n"
     result = extract_requirements_from_entities(source, {"entities": {}})
@@ -155,6 +165,38 @@ def test_asset_language_phrase_is_preferred_and_languages_get_constraints() -> N
     assert isinstance(requirement.expression, AllExpression)
     for language in requirement.expression.children:
         assert any(constraint.kind == "language_proficiency" for constraint in language.constraints)
+
+
+def test_guidance_supervision_and_learning_purpose_are_context_not_requirements() -> None:
+    source = (
+        "What You’ll Do\n"
+        "Write and maintain automated tests with guidance from team members.\n"
+        "Help investigate, reproduce, and resolve bugs under supervision.\n"
+        "Pair-program with senior developers and participate in code reviews to learn best practices.\n"
+    )
+    result = extract_requirements_from_entities(source, {"entities": {}})
+    by_source = {item.source.original_text: item for item in result.requirements}
+
+    assert [item.kind.value for item in by_source[source.splitlines()[1]].contextual_modifiers] == ["guidance"]
+    assert [item.kind.value for item in by_source[source.splitlines()[2]].contextual_modifiers] == ["supervision"]
+    assert [item.kind.value for item in by_source[source.splitlines()[3]].contextual_modifiers] == ["learning_purpose"]
+    assert all(
+        leaf.expectation.kind.value != "other"
+        for item in result.requirements
+        for leaf in _walk_leaves(item.expression)
+    )
+
+
+def test_low_confidence_about_role_section_does_not_make_every_duty_required() -> None:
+    source = (
+        "About the Role\n"
+        "As a Junior Developer, you will work closely with experienced developers to contribute to real product features.\n"
+        "You will contribute to meaningful projects while learning modern development practices, tools, and workflows.\n"
+    )
+    result = extract_requirements_from_entities(source, {"entities": {}})
+
+    assert len(result.requirements) == 2
+    assert all(item.importance is RequirementImportance.UNKNOWN for item in result.requirements)
 
 
 def test_year_constraint_is_attached_to_taxonomy_hard_skill_component() -> None:

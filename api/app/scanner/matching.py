@@ -46,8 +46,14 @@ _PREDICATE_ACTION_RE = re.compile(
     r"contributed|configured|authored|automated)\b",
     re.I,
 )
-_INTEREST_RE = re.compile(
-    r"\b(?:interest(?:ed)?|curious|curiosity|keen|enthusiastic|passionate|motivated)\b",
+_INTEREST_LANGUAGE_RE = re.compile(
+    r"\b(?:interest(?:ed)?|keen|enthusiastic|passionate|motivated)\b",
+    re.I,
+)
+_CURIOSITY_EVIDENCE_RE = re.compile(
+    r"\b(?:curious|curiosity)\b.{0,80}\b(?:industry|technology|tech|software|market)\s+(?:trends?|developments?)\b|"
+    r"\b(?:follow|track|research|monitor|read|study)(?:s|ed|ing)?\b.{0,70}"
+    r"\b(?:industry|technology|tech|software|market)\s+(?:trends?|developments?)\b",
     re.I,
 )
 _LEARNING_RE = re.compile(r"\b(?:willing|eager|motivated|actively)\b.{0,35}\b(?:learn|learning)\b", re.I)
@@ -114,6 +120,10 @@ class _ConstraintResult:
 
 
 _SEMANTIC_ALIASES: dict[str, tuple[_AliasHint, ...]] = {
+    "docker": (
+        _AliasHint("Docker", EvidenceStatus.SUPPORTED, EvidenceMethod.EXACT),
+        _AliasHint("Dockerized", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
+    ),
     "ai-assisted development": (
         _AliasHint("implementing with AI", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
         _AliasHint("coding-agent", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
@@ -162,39 +172,28 @@ _SEMANTIC_ALIASES: dict[str, tuple[_AliasHint, ...]] = {
         _AliasHint("integration testing", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
     ),
     "software feature design": (
-        _AliasHint("designing software features", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
-        _AliasHint("designed software features", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
-        _AliasHint("designed features", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
+        _AliasHint("software feature design", EvidenceStatus.SUPPORTED, EvidenceMethod.EXACT),
     ),
     "software feature implementation": (
-        _AliasHint("shipped full-stack web and mobile features", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
-        _AliasHint("implemented software features", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
-        _AliasHint("developed software features", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
-        _AliasHint("built software features", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
-        _AliasHint("shipped features", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
+        _AliasHint("software feature implementation", EvidenceStatus.SUPPORTED, EvidenceMethod.EXACT),
     ),
     "software feature testing": (
-        _AliasHint("unit and integration tests", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
-        _AliasHint("wrote tests", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
-        _AliasHint("automated tests", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
+        _AliasHint("software feature testing", EvidenceStatus.SUPPORTED, EvidenceMethod.EXACT),
     ),
     "software feature debugging": (
-        _AliasHint("diagnosing code-quality issues", EvidenceStatus.PARTIAL, EvidenceMethod.SEMANTIC_RULE),
-        _AliasHint("diagnosed code-quality issues", EvidenceStatus.PARTIAL, EvidenceMethod.SEMANTIC_RULE),
+        _AliasHint("software feature debugging", EvidenceStatus.SUPPORTED, EvidenceMethod.EXACT),
         _AliasHint("debugged software", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
         _AliasHint("debugging software", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
     ),
     "bug investigation": (
-        _AliasHint("investigated bugs", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
-        _AliasHint("diagnosing code-quality issues", EvidenceStatus.PARTIAL, EvidenceMethod.SEMANTIC_RULE),
-        _AliasHint("diagnosed code-quality issues", EvidenceStatus.PARTIAL, EvidenceMethod.SEMANTIC_RULE),
+        _AliasHint("bug investigation", EvidenceStatus.SUPPORTED, EvidenceMethod.EXACT),
     ),
-    "bug reproduction": (_AliasHint("reproduced bugs", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),),
+    "bug reproduction": (_AliasHint("bug reproduction", EvidenceStatus.SUPPORTED, EvidenceMethod.EXACT),),
     "bug resolution": (
-        _AliasHint("resolved bugs", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
-        _AliasHint("fixed bugs", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
+        _AliasHint("bug resolution", EvidenceStatus.SUPPORTED, EvidenceMethod.EXACT),
     ),
     "full-stack development": (
+        _AliasHint("full-stack", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
         _AliasHint("full-stack developer", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
         _AliasHint("full stack developer", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
         _AliasHint("fullstack developer", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
@@ -211,6 +210,33 @@ _SEMANTIC_ALIASES: dict[str, tuple[_AliasHint, ...]] = {
         _AliasHint("backend development", EvidenceStatus.SUPPORTED, EvidenceMethod.EXACT),
         _AliasHint("FastAPI", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
         _AliasHint("Laravel", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
+    ),
+}
+
+_SEMANTIC_PATTERNS: dict[str, tuple[tuple[re.Pattern[str], EvidenceStatus], ...]] = {
+    "software feature design": (
+        (re.compile(r"\b(?:design(?:ed|ing)?|architect(?:ed|ing)?)\b.{0,70}\b(?:software\s+)?features?\b", re.I), EvidenceStatus.SUPPORTED),
+    ),
+    "software feature implementation": (
+        (re.compile(r"\b(?:build|built|create|created|develop|developed|implement|implemented|ship|shipped|deliver|delivered|maintain|maintained)\b.{0,100}\bfeatures?\b", re.I), EvidenceStatus.SUPPORTED),
+    ),
+    "software feature testing": (
+        (re.compile(r"\b(?:unit|integration|automated)\s+(?:and\s+(?:unit|integration|automated)\s+)?tests?\b", re.I), EvidenceStatus.SUPPORTED),
+        (re.compile(r"\b(?:write|wrote|maintain|maintained|create|created|automate|automated)\b.{0,50}\btests?\b", re.I), EvidenceStatus.SUPPORTED),
+    ),
+    "software feature debugging": (
+        (re.compile(r"\b(?:debug|debugged|debugging|troubleshoot|troubleshot|troubleshooting)\b.{0,60}\b(?:software|code|features?|bugs?|issues?|defects?|errors?)\b", re.I), EvidenceStatus.SUPPORTED),
+        (re.compile(r"\b(?:diagnose|diagnosed|diagnosing|investigate|investigated|investigating)\b.{0,60}\b(?:code[- ]quality|quality|issues?|errors?)\b", re.I), EvidenceStatus.PARTIAL),
+    ),
+    "bug investigation": (
+        (re.compile(r"\b(?:investigate|investigated|investigating|diagnose|diagnosed|diagnosing|troubleshoot|troubleshot)\b.{0,60}\b(?:bugs?|defects?|errors?)\b", re.I), EvidenceStatus.SUPPORTED),
+        (re.compile(r"\b(?:investigate|investigated|investigating|diagnose|diagnosed|diagnosing|troubleshoot|troubleshot)\b.{0,60}\b(?:code[- ]quality|quality|issues?)\b", re.I), EvidenceStatus.PARTIAL),
+    ),
+    "bug reproduction": (
+        (re.compile(r"\breproduc(?:e|ed|ing)\b.{0,50}\b(?:bugs?|defects?|errors?|issues?)\b", re.I), EvidenceStatus.SUPPORTED),
+    ),
+    "bug resolution": (
+        (re.compile(r"\b(?:fix|fixed|fixing|resolve|resolved|resolving|repair|repaired|repairing)\b.{0,50}\b(?:bugs?|defects?|errors?|issues?)\b", re.I), EvidenceStatus.SUPPORTED),
     ),
 }
 
@@ -397,6 +423,15 @@ def _concept_aliases(concept: object) -> tuple[_AliasHint, ...]:
     return tuple(deduped)
 
 
+def _semantic_pattern_hit(text: str, concept: object) -> _ConceptHit | None:
+    normalized_name = _normalize(str(_value(concept, "name", "")))
+    for pattern, status in _SEMANTIC_PATTERNS.get(normalized_name, ()):
+        match = pattern.search(text)
+        if match:
+            return _ConceptHit(status, EvidenceMethod.SEMANTIC_RULE, match.group(0))
+    return None
+
+
 def _group_key(field: CVTextField) -> tuple[str, str]:
     if field.entry_id:
         return field.section_type, field.entry_id
@@ -439,6 +474,10 @@ def _best_concept_hit(text: str, concept: object) -> _ConceptHit | None:
             best = next((hit for hit in hits if hit.status is desired), None)
             if best is not None:
                 return best
+
+    pattern_hit = _semantic_pattern_hit(text, concept)
+    if pattern_hit is not None:
+        return pattern_hit
 
     tokens = [token for token in _WORD_RE.findall(_normalize(str(_value(concept, "name", "")))) if token not in _STOP_WORDS]
     if not tokens:
@@ -563,15 +602,31 @@ def _expectation_support(expectation: Expectation, concept: object, fields: Sequ
             return EvidenceStatus.SUPPORTED, matched_fields
         return EvidenceStatus.PARTIAL, matched_fields
     if kind is ExpectationKind.INTEREST:
-        if _INTEREST_RE.search(text):
+        if _INTEREST_LANGUAGE_RE.search(text):
             return EvidenceStatus.SUPPORTED, matched_fields
         # A related personal project is some evidence of interest, but does
-        # not establish curiosity or motivation as a general trait.
+        # not establish a general motivational trait.
         if any(field.section_type in {"projects", "project"} for field in matched_fields):
             return EvidenceStatus.PARTIAL, matched_fields
         return EvidenceStatus.NOT_EVIDENCED, []
+    if kind is ExpectationKind.DEVELOPMENTAL_INTEREST:
+        if _INTEREST_LANGUAGE_RE.search(text) or _LEARNING_RE.search(text):
+            return EvidenceStatus.SUPPORTED, matched_fields
+        # Demonstrated practical use is stronger evidence than a statement of
+        # interest when the JD frames use of a tool as a junior learning goal.
+        if experience and has_action:
+            return EvidenceStatus.SUPPORTED, matched_fields
+        if any(field.section_type in {"projects", "project"} for field in matched_fields):
+            return EvidenceStatus.PARTIAL, matched_fields
+        return EvidenceStatus.NOT_EVIDENCED, []
+    if kind is ExpectationKind.CURIOSITY:
+        if _CURIOSITY_EVIDENCE_RE.search(text):
+            return EvidenceStatus.SUPPORTED, matched_fields
+        return EvidenceStatus.NOT_EVIDENCED, []
     if kind is ExpectationKind.WILLINGNESS_TO_LEARN:
         if _LEARNING_RE.search(text):
+            return EvidenceStatus.SUPPORTED, matched_fields
+        if experience and has_action:
             return EvidenceStatus.SUPPORTED, matched_fields
         return EvidenceStatus.NOT_EVIDENCED, []
     if concept_hit.status is EvidenceStatus.SUPPORTED:

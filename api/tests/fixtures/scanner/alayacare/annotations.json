@@ -38,9 +38,66 @@
     {
       "source_text": "We’re committed to creating a workplace where everyone belongs. If you require accommodation during the application process, please reach out to careers@alayacare.com.",
       "reason": "legal_or_application_process"
+    },
+    {
+      "source_text": "You will be supported by mentors who will help you develop both your technical abilities and professional skills.",
+      "reason": "employer_provided_support_context"
     }
   ],
+  "source_unit_annotations": [
+    {"source_text": "At AlayaCare, we are more than just a fast-growing SaaS company — we’re a team of people passionate about transforming home healthcare.", "label": "non_requirement", "reason": "employer_information"},
+    {"source_text": "Our cloud-based platform empowers care providers around the world to deliver better outcomes for their clients.", "label": "non_requirement", "reason": "employer_information"},
+    {"source_text": "With 650+ employees across Canada, the US, Australia, and Brazil, we’re united by a shared mission and a strong culture of transparency, growth, and human connection.", "label": "non_requirement", "reason": "employer_information"},
+    {"source_text": "Whether you're early in your career or a seasoned expert, AlayaCare offers the opportunity to grow your impact, your skills, and your career.", "label": "non_requirement", "reason": "employer_information"},
+    {"source_text": "As a Junior Fullstack Developer (Python), you will work closely with experienced developers and product team members to contribute to real product features.", "label": "requirement", "requirement_id": "role-overview-work-and-contribute"},
+    {"source_text": "You will contribute to meaningful projects while learning modern development practices, tools, and workflows.", "label": "requirement", "requirement_id": "role-overview-projects-and-learning"},
+    {"source_text": "You will be supported by mentors who will help you develop both your technical abilities and professional skills.", "label": "non_requirement", "reason": "employer_provided_support_context"},
+    {"source_text": "Assist in designing, coding, testing, and debugging software features.", "label": "requirement", "requirement_id": "assist-software-features"},
+    {"source_text": "Use GenAI tools to help plan, generate, and test code.", "label": "requirement", "requirement_id": "genai-code-work"},
+    {"source_text": "Pair-program with senior developers and participate in code reviews to learn best practices.", "label": "requirement", "requirement_id": "pair-programming-code-review"},
+    {"source_text": "Write and maintain automated tests with guidance from team members.", "label": "requirement", "requirement_id": "automated-tests"},
+    {"source_text": "Help investigate, reproduce, and resolve bugs under supervision.", "label": "requirement", "requirement_id": "investigate-reproduce-resolve-bugs"},
+    {"source_text": "Participate in team rituals such as standups, demos, and retrospectives.", "label": "requirement", "requirement_id": "team-rituals"},
+    {"source_text": "Learn and apply modern development practices, including Implementing with AI, CI/CD, containerization, and monitoring.", "label": "requirement", "requirement_id": "modern-development-practices"},
+    {"source_text": "Familiarity with at least one programming language (e.g., Python, TypeScript, JavaScript, PHP, or similar).", "label": "requirement", "requirement_id": "programming-language-familiarity"},
+    {"source_text": "Demonstrated interest in AI tools, with a proactive mindset toward integrating them into day-to-day work to drive efficiency and innovation.", "label": "requirement", "requirement_id": "interest-in-ai-tools"},
+    {"source_text": "Interest in learning development tools and workflows such as Git, CI/CD pipelines, and Docker.", "label": "requirement", "requirement_id": "learning-development-tools"},
+    {"source_text": "Curiosity about current industry trends in technology, performance, and software development practices.", "label": "requirement", "requirement_id": "industry-trends-curiosity"},
+    {"source_text": "Strong communication skills and the ability to collaborate with both technical and non-technical teammates.", "label": "requirement", "requirement_id": "communication-collaboration"},
+    {"source_text": "Interest in developing yourself as a full stack developer as you’ll implement in both Front-End and Back-End code.", "label": "requirement", "requirement_id": "fullstack-development-interest"},
+    {"source_text": "Bilingual in French and English is considered an asset.", "label": "requirement", "requirement_id": "french-english"},
+    {"source_text": "At AlayaCare, you’ll help build technology that empowers care providers and improves outcomes for patients and families.", "label": "non_requirement", "reason": "employer_mission"},
+    {"source_text": "Every line of code and every customer interaction contributes to making care more connected, accessible, and human.", "label": "non_requirement", "reason": "employer_mission"},
+    {"source_text": "We believe in transparency, feedback, and assuming positive intent.", "label": "non_requirement", "reason": "employer_culture"},
+    {"source_text": "Here, you’ll feel safe to share your ideas and career goals, and be supported to achieve them through mentorship, career mobility, and a promote-from-within philosophy.", "label": "non_requirement", "reason": "employer_culture"},
+    {"source_text": "We celebrate diverse perspectives and foster belonging through our DEIB initiatives.", "label": "non_requirement", "reason": "employer_culture"},
+    {"source_text": "Employee-led events, summits, and social activities — both in-person and virtual — create meaningful connections across our global teams.", "label": "non_requirement", "reason": "employer_culture"},
+    {"source_text": "This role is based in the Greater Montreal Area.", "label": "logistics", "reason": "role_location"},
+    {"source_text": "At AlayaCare, our hybrid model includes set in-office collaboration days, and it is expected that team members are present in the office on those days to foster connection, innovation, and teamwork.", "label": "logistics", "reason": "work_model"},
+    {"source_text": "Apply today and be part of a company that makes a real difference in the future of home and community care.", "label": "non_requirement", "reason": "application_process"},
+    {"source_text": "Not the right role for you?", "label": "non_requirement", "reason": "application_process"},
+    {"source_text": "Share this posting with someone who might be a great fit.", "label": "non_requirement", "reason": "application_process"},
+    {"source_text": "AlayaCare uses AI tools during our hiring process to support fair, consistent, and objective decision-making.", "label": "non_requirement", "reason": "application_process"},
+    {"source_text": "Some initial screening steps may be automated to help identify qualified candidates.", "label": "non_requirement", "reason": "application_process"},
+    {"source_text": "If your application is declined automatically, you may request a human review.", "label": "non_requirement", "reason": "application_process"},
+    {"source_text": "We’re committed to creating a workplace where everyone belongs.", "label": "non_requirement", "reason": "employer_inclusion"},
+    {"source_text": "If you require accommodation during the application process, please reach out to careers@alayacare.com.", "label": "non_requirement", "reason": "legal_or_application_process"}
+  ],
   "requirements": [
+    {
+      "id": "role-overview-work-and-contribute",
+      "source_text": "As a Junior Fullstack Developer (Python), you will work closely with experienced developers and product team members to contribute to real product features.",
+      "importance": "unknown",
+      "family": "responsibility",
+      "cv_evidence": "partial"
+    },
+    {
+      "id": "role-overview-projects-and-learning",
+      "source_text": "You will contribute to meaningful projects while learning modern development practices, tools, and workflows.",
+      "importance": "unknown",
+      "family": "responsibility",
+      "cv_evidence": "partial"
+    },
     {
       "id": "assist-software-features",
       "source_text": "Assist in designing, coding, testing, and debugging software features.",
@@ -68,22 +125,22 @@
       "source_text": "Pair-program with senior developers and participate in code reviews to learn best practices.",
       "importance": "required",
       "logical_shape": "all",
+      "contextual_modifiers": ["to learn best practices"],
       "cv_evidence": "not_evidenced"
     },
     {
       "id": "automated-tests",
       "source_text": "Write and maintain automated tests with guidance from team members.",
       "importance": "required",
-      "cv_evidence": {
-        "testing_concept": "supported",
-        "guided_work_expectation": "not_evidenced"
-      }
+      "contextual_modifiers": ["with guidance from team members"],
+      "cv_evidence": "supported"
     },
     {
       "id": "investigate-reproduce-resolve-bugs",
       "source_text": "Help investigate, reproduce, and resolve bugs under supervision.",
       "importance": "required",
       "logical_shape": "all",
+      "contextual_modifiers": ["under supervision"],
       "cv_evidence": "partial"
     },
     {
@@ -135,7 +192,8 @@
       "logical_shape": "all",
       "cv_evidence": {
         "Git_CICD_Docker_concepts": "supported",
-        "interest_in_learning_expectation": "not_evidenced"
+        "developmental_interest_expectation": "supported",
+        "developmental_evidence": "professional Git and CI/CD deployment; Dockerized application deployment"
       }
     },
     {
@@ -163,7 +221,8 @@
       "logical_shape": "all",
       "cv_evidence": {
         "full_stack_implementation_concept": "supported",
-        "interest_expectation": "not_evidenced"
+        "developmental_interest_expectation": "supported",
+        "developmental_evidence": "professional full-stack feature work"
       }
     },
     {
@@ -182,9 +241,9 @@
     {"term": "Git", "visibility": "exact"},
     {"term": "CI/CD", "visibility": "exact"},
     {"term": "Docker", "visibility": "exact"},
-    {"term": "GenAI", "visibility": "variant", "matched_text": "coding-agent", "exact_visibility": "absent", "semantic_support": "partial"},
-    {"term": "automated testing", "visibility": "variant", "matched_text": "unit and integration tests"},
-    {"term": "containerization", "visibility": "variant", "matched_text": "Docker"},
+    {"term": "GenAI", "visibility": "absent", "semantic_support": "partial", "semantic_evidence": "coding-agent and RAG workflows"},
+    {"term": "automated testing", "visibility": "absent", "semantic_support": "supported", "semantic_evidence": "unit and integration tests"},
+    {"term": "containerization", "visibility": "absent", "semantic_support": "supported", "semantic_evidence": "Docker and Dockerized applications"},
     {"term": "monitoring", "visibility": "absent", "semantic_support": "not_evidenced"},
     {"term": "Front-End and Back-End", "visibility": "absent", "semantic_support": "full-stack concept is supported"}
   ],
@@ -199,6 +258,7 @@
     "The PDF is not committed; cv_text_redacted.txt is a reproducible text derivative tied to the source PDF hash.",
     "not_evidenced means the supplied CV does not establish the expectation; it is not a claim about the candidate's actual ability.",
     "The source text and CV are frozen, but labels are provisional agent annotations and need user review before serving as gold data.",
+    "source_unit_annotations labels every sentence produced by the current document segmenter; overview responsibilities have unknown importance, and guidance, supervision, and learning purpose are contextual modifiers rather than candidate qualifications.",
     "The seed case is development data, not held-out data, because its problem examples informed scanner design.",
     "Gold labels for production acceptance require additional independent postings and a held-out set."
   ]

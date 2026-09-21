@@ -129,6 +129,8 @@ class ExpectationKind(StrEnum):
     ABILITY_TO_PERFORM = "ability_to_perform"
     WILLINGNESS_TO_LEARN = "willingness_to_learn"
     INTEREST = "interest"
+    DEVELOPMENTAL_INTEREST = "developmental_interest"
+    CURIOSITY = "curiosity"
     PARTICIPATION = "participation"
     KNOWLEDGE = "knowledge"
     DEMONSTRATED_APPLICATION = "demonstrated_application"
@@ -155,6 +157,21 @@ class Expectation(ScannerModel):
     kind: ExpectationKind
     qualifier: str | None = Field(default=None, max_length=500)
     source_text: str | None = Field(default=None, max_length=2_000)
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
+class ContextualModifierKind(StrEnum):
+    GUIDANCE = "guidance"
+    SUPERVISION = "supervision"
+    LEARNING_PURPOSE = "learning_purpose"
+
+
+class RequirementContextualModifier(ScannerModel):
+    """Employer-provided work context, not an extra candidate qualification."""
+
+    kind: ContextualModifierKind
+    source_text: str = Field(min_length=1, max_length=500)
+    scope: str | None = Field(default=None, max_length=500)
     confidence: float = Field(ge=0.0, le=1.0)
 
 
@@ -286,6 +303,7 @@ class Requirement(ScannerModel):
     family: RequirementFamily = RequirementFamily.OTHER
     weight: float = Field(ge=0.0)
     expression: ExpressionNode
+    contextual_modifiers: list[RequirementContextualModifier] = Field(default_factory=list, max_length=50)
 
 
 class RequirementExtraction(ScannerModel):
@@ -305,6 +323,7 @@ __all__ = [
     "CertificationConstraint",
     "Concept",
     "Constraint",
+    "ContextualModifierKind",
     "DegreeConstraint",
     "Expectation",
     "ExpectationKind",
@@ -318,6 +337,7 @@ __all__ = [
     "NumericThresholdConstraint",
     "OtherConstraint",
     "Requirement",
+    "RequirementContextualModifier",
     "RequirementExtraction",
     "RequirementImportance",
     "RequirementFamily",
