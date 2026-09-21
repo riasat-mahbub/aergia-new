@@ -152,7 +152,9 @@ function ComponentRow({ component }: { component: ScannerComponentViewModel }) {
         </div>
         {!component.illustrative && <StatusMark status={component.status} />}
       </div>
-      {component.evidence.length > 0 && <div className="mt-3"><EvidenceList evidence={component.evidence} allEvidence={component.allEvidence} /></div>}
+      {component.evidence.length > 0
+        ? <div className="mt-3"><EvidenceList evidence={component.evidence} allEvidence={component.allEvidence} /></div>
+        : !component.illustrative && <p className="mt-3 text-xs text-app-ink-3">No supporting CV evidence was found.</p>}
     </li>
   );
 }
