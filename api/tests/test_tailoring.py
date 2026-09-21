@@ -1,4 +1,4 @@
-"""Protocol-v2 tailoring integration and public-bundle checks."""
+"""Protocol-v4 tailoring integration and public-bundle checks."""
 
 from io import BytesIO
 from uuid import uuid4
