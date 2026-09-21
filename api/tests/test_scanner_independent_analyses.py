@@ -180,10 +180,10 @@ def test_scanner_service_keeps_four_independent_branches_and_versions_them() -> 
     assert result.lexical.status.value == "evaluated"
     assert result.presentation_quality.status.value == "evaluated"
     assert result.pdf_recovery.status is PDFRecoveryStatus.UNAVAILABLE
-    assert result.versions.extractor_version == "gliner2.5-structured-v4"
+    assert result.versions.extractor_version == "gliner2.5-structured-v5"
     assert result.versions.matcher_version == "requirement-match-v3"
     assert result.versions.lexical_version == "ats-lexical-v4"
-    assert result.versions.semantic_score_version == "job-fit-v1"
+    assert result.versions.semantic_score_version == "job-fit-v2"
     assert result.versions.lexical_score_version == "term-visibility-v1"
     assert result.versions.pdf_score_version == "pdf-recovery-score-v1"
     assert result.semantic.summary is not None

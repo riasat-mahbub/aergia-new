@@ -214,11 +214,22 @@ class ScoreBucketSummary(ScannerModel):
 class SemanticScoreSummary(ScannerModel):
     status: ScoreStatus
     job_fit: float | None = Field(default=None, ge=0.0, le=1.0)
+    # `scorable_fraction` is retained for previously persisted scanner-v1
+    # results. New results populate the two explicit dimensions below.
     scorable_fraction: float = Field(ge=0.0, le=1.0)
+    classified_fraction: float | None = Field(default=None, ge=0.0, le=1.0)
+    evidence_scorable_fraction: float | None = Field(default=None, ge=0.0, le=1.0)
     qualification_fit: ScoreBucketSummary
     responsibility_alignment: ScoreBucketSummary
     preferred_fit: ScoreBucketSummary
     unclassified_requirement_count: int = Field(ge=0)
+    supported_requirement_count: int | None = Field(default=None, ge=0)
+    partial_requirement_count: int | None = Field(default=None, ge=0)
+    not_evidenced_requirement_count: int | None = Field(default=None, ge=0)
+    conflicting_requirement_count: int | None = Field(default=None, ge=0)
+    unverifiable_requirement_count: int | None = Field(default=None, ge=0)
+    unverifiable_component_count: int | None = Field(default=None, ge=0)
+    # These shorter names remain readable in existing scanner-v1 snapshots.
     supported_count: int = Field(ge=0)
     partial_count: int = Field(ge=0)
     not_evidenced_count: int = Field(ge=0)

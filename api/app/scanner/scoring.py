@@ -35,7 +35,7 @@ from app.scanner.results import (
 )
 
 
-SEMANTIC_SCORE_VERSION = "job-fit-v1"
+SEMANTIC_SCORE_VERSION = "job-fit-v2"
 LEXICAL_SCORE_VERSION = "term-visibility-v1"
 PDF_SCORE_VERSION = "pdf-recovery-score-v1"
 MINIMUM_JOB_FIT_SCORABLE_FRACTION = 0.70
@@ -149,6 +149,39 @@ def _walk_required_constraint_leaves(node: ExpressionNode) -> list[RequirementLe
     ]
 
 
+def _count_unverifiable_components(
+    expression: ExpressionNode,
+    evaluation: ExpressionEvaluation,
+) -> int:
+    """Count unverifiable mandatory leaves without conflating them with parents."""
+
+    if expression.modifiers.optional or evaluation.optional:
+        return 0
+    if isinstance(expression, RequirementLeaf):
+        return int(evaluation.status is EvidenceStatus.UNVERIFIABLE)
+    if isinstance(expression, ExamplesExpression):
+        # The subject is the obligation. Illustrative children are optional
+        # evidence vocabulary and must not inflate component counts.
+        subject_result = next(
+            (child for child in evaluation.children if child.node_id == expression.subject.id),
+            None,
+        )
+        return (
+            _count_unverifiable_components(expression.subject, subject_result)
+            if subject_result is not None
+            else 0
+        )
+
+    evaluation_by_id = {child.node_id: child for child in evaluation.children}
+    return sum(
+        _count_unverifiable_components(child, evaluation_by_id[child.id])
+        for child in expression.children
+        if not child.modifiers.optional
+        and child.id in evaluation_by_id
+        and not evaluation_by_id[child.id].optional
+    )
+
+
 def _bucket_for(requirement: Requirement) -> str | None:
     if requirement.importance is RequirementImportance.UNKNOWN:
         return None
@@ -239,32 +272,54 @@ def score_semantic_analysis(
     buckets = {name: _BucketAccumulator() for name in _BUCKET_WEIGHTS}
     status_counts = {status: 0 for status in EvidenceStatus}
     unclassified = 0
+    total_requirement_weight = 0.0
+    classified_requirement_weight = 0.0
+    evidence_scorable_weight = 0.0
+    unverifiable_component_count = 0
     for requirement in requirements:
-        evaluation = evaluation_by_id.get(requirement.id)
-        if evaluation is None:
-            continue
-        status_counts[evaluation.status] += 1
+        total_requirement_weight += requirement.weight
         bucket_name = _bucket_for(requirement)
         if bucket_name is None:
             unclassified += 1
+        else:
+            classified_requirement_weight += requirement.weight
+
+        evaluation = evaluation_by_id.get(requirement.id)
+        if evaluation is not None:
+            status_counts[evaluation.status] += 1
+            unverifiable_component_count += _count_unverifiable_components(
+                requirement.expression,
+                evaluation.expression,
+            )
+        if bucket_name is None:
             continue
+        projection = (
+            _expression_projection(requirement.expression, evaluation.expression)
+            if evaluation is not None
+            else _status_projection(EvidenceStatus.UNVERIFIABLE)
+        )
+        evidence_scorable_weight += requirement.weight * projection.scorable_fraction
         buckets[bucket_name].add(
             requirement.weight,
-            _expression_projection(requirement.expression, evaluation.expression),
+            projection,
         )
 
+    classified_fraction = (
+        classified_requirement_weight / total_requirement_weight
+        if total_requirement_weight > 0
+        else 0.0
+    )
+    evidence_scorable_fraction = (
+        evidence_scorable_weight / classified_requirement_weight
+        if classified_requirement_weight > 0
+        else 0.0
+    )
     bucket_summaries = {name: bucket.summary() for name, bucket in buckets.items()}
     present = {
         name: summary
         for name, summary in bucket_summaries.items()
         if summary.total_weight > 0
     }
-    base_weight = sum(_BUCKET_WEIGHTS[name] for name in present)
-    scorable_fraction = (
-        sum(_BUCKET_WEIGHTS[name] * summary.scorable_fraction for name, summary in present.items()) / base_weight
-        if base_weight > 0
-        else 0.0
-    )
     scored_bucket_weight = sum(
         _BUCKET_WEIGHTS[name] * summary.scorable_fraction
         for name, summary in present.items()
@@ -283,7 +338,7 @@ def score_semantic_analysis(
     if analysis.status is not AnalysisStatus.EVALUATED:
         score_status = ScoreStatus.UNAVAILABLE
         job_fit = None
-    elif scorable_fraction < MINIMUM_JOB_FIT_SCORABLE_FRACTION:
+    elif evidence_scorable_fraction < MINIMUM_JOB_FIT_SCORABLE_FRACTION:
         score_status = ScoreStatus.INSUFFICIENT_SCORABLE_EVIDENCE
         job_fit = None
     elif job_fit is None:
@@ -294,11 +349,20 @@ def score_semantic_analysis(
     return SemanticScoreSummary(
         status=score_status,
         job_fit=job_fit,
-        scorable_fraction=scorable_fraction,
+        # Keep the legacy alias aligned with the explicit evidence fraction.
+        scorable_fraction=evidence_scorable_fraction,
+        classified_fraction=classified_fraction,
+        evidence_scorable_fraction=evidence_scorable_fraction,
         qualification_fit=bucket_summaries["qualification"],
         responsibility_alignment=bucket_summaries["responsibility"],
         preferred_fit=bucket_summaries["preferred"],
         unclassified_requirement_count=unclassified,
+        supported_requirement_count=status_counts[EvidenceStatus.SUPPORTED],
+        partial_requirement_count=status_counts[EvidenceStatus.PARTIAL],
+        not_evidenced_requirement_count=status_counts[EvidenceStatus.NOT_EVIDENCED],
+        conflicting_requirement_count=status_counts[EvidenceStatus.CONFLICTING],
+        unverifiable_requirement_count=status_counts[EvidenceStatus.UNVERIFIABLE],
+        unverifiable_component_count=unverifiable_component_count,
         supported_count=status_counts[EvidenceStatus.SUPPORTED],
         partial_count=status_counts[EvidenceStatus.PARTIAL],
         not_evidenced_count=status_counts[EvidenceStatus.NOT_EVIDENCED],

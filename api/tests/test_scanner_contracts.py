@@ -305,6 +305,29 @@ def test_examples_expression_needs_breadth_but_counts_as_one_requirement() -> No
     assert all(item.mandatory_total == 0 for item in two_examples.children[1:])
 
 
+def test_examples_expression_caps_threshold_to_available_items() -> None:
+    expression = ExamplesExpression(
+        kind="examples",
+        id="one-language-example",
+        subject=_leaf("languages", "programming languages"),
+        examples=[
+            RequirementLeaf.model_validate(
+                {**_leaf("python", "Python").model_dump(mode="python"), "modifiers": {"optional": True}}
+            )
+        ],
+        min_supporting_examples=2,
+        confidence=0.9,
+    )
+
+    result = evaluate_expression(
+        expression,
+        {"python": [_evidence("python-evidence")]},
+    )
+
+    assert expression.min_supporting_examples == 1
+    assert result.status is EvidenceStatus.SUPPORTED
+
+
 def test_optional_any_alternative_cannot_satisfy_a_mandatory_alternative() -> None:
     expression = AnyExpression(
         kind="any",

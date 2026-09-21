@@ -301,6 +301,14 @@ class ExamplesExpression(ScannerModel):
     modifiers: ExpressionModifiers = Field(default_factory=ExpressionModifiers)
     confidence: float = Field(ge=0.0, le=1.0)
 
+    @model_validator(mode="after")
+    def cap_minimum_support_to_available_examples(self) -> ExamplesExpression:
+        # Older scanner-v1 results may contain a two-example threshold for a
+        # one-example list. Normalize that invalid threshold while loading so
+        # historical results remain readable and the list remains satisfiable.
+        self.min_supporting_examples = min(self.min_supporting_examples, len(self.examples))
+        return self
+
 
 ExpressionNode: TypeAlias = Annotated[
     RequirementLeaf | AllExpression | AnyExpression | ExamplesExpression,

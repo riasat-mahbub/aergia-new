@@ -242,7 +242,9 @@ def test_unverifiable_leaf_is_excluded_and_reduces_scorable_coverage() -> None:
     assert summary.job_fit is None
     assert summary.status is ScoreStatus.INSUFFICIENT_SCORABLE_EVIDENCE
     assert summary.scorable_fraction == 0.5
-    assert summary.unverifiable_count == 0
+    assert summary.evidence_scorable_fraction == 0.5
+    assert summary.unverifiable_requirement_count == 0
+    assert summary.unverifiable_component_count == 1
     assert summary.qualification_fit.score == 1.0
 
 
@@ -341,6 +343,33 @@ def test_unknown_importance_is_visible_but_excluded_from_headline_score() -> Non
     assert summary.job_fit is None
     assert summary.unclassified_requirement_count == 1
     assert summary.supported_count == 1
+    assert summary.classified_fraction == 0.0
+    assert summary.evidence_scorable_fraction == 0.0
+
+
+def test_classification_and_cv_evidence_coverage_are_reported_separately() -> None:
+    classified = _requirement("classified", _leaf("python", "Python"), weight=2.0)
+    unknown = _requirement(
+        "unknown",
+        _leaf("docker", "Docker"),
+        importance=RequirementImportance.UNKNOWN,
+        weight=1.0,
+    )
+    analysis = _semantic(
+        [classified, unknown],
+        [
+            _leaf_result(classified.expression, EvidenceStatus.SUPPORTED),
+            _leaf_result(unknown.expression, EvidenceStatus.UNVERIFIABLE),
+        ],
+    )
+
+    summary = score_semantic_analysis(analysis, [classified, unknown])
+
+    assert summary.classified_fraction == 2 / 3
+    assert summary.evidence_scorable_fraction == 1.0
+    assert summary.scorable_fraction == summary.evidence_scorable_fraction
+    assert summary.job_fit == 1.0
+    assert summary.unverifiable_requirement_count == 1
 
 
 def test_required_constraint_conflicts_are_reported_as_a_flag() -> None:

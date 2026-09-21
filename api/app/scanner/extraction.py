@@ -56,7 +56,7 @@ from app.services.requirement_extractor import (
 
 logger = logging.getLogger(__name__)
 
-SCANNER_EXTRACTOR_VERSION = "gliner2.5-structured-v4"
+SCANNER_EXTRACTOR_VERSION = "gliner2.5-structured-v5"
 _EXAMPLE_LIST_RE = re.compile(r"(?<!\w)(?:such\s+as|e\.g\.?|for\s+example)(?!\w)", re.I)
 _REQUIREMENT_LABELS = frozenset({"candidate_requirement", "requirement", "preferred_requirement"})
 _CONCEPT_LABELS = frozenset(
@@ -1254,7 +1254,7 @@ def _examples_expression(
         id=f"{requirement_id}-examples",
         subject=subject_node,
         examples=example_nodes,
-        min_supporting_examples=2,
+        min_supporting_examples=min(2, len(example_nodes)),
         modifiers=ExpressionModifiers(list_semantics="examples"),
         confidence=confidence,
     )
