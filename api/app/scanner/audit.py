@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from statistics import mean, median
@@ -23,6 +24,7 @@ _VERSION_FIELDS = (
     "classification_warning_version",
 )
 _MAX_INTERESTING_APPLICATIONS = 5
+_WARNING_OFFSET_SUFFIX = re.compile(r":\d+$")
 
 
 def _mapping(value: object) -> Mapping[str, Any]:
@@ -126,7 +128,11 @@ def build_scanner_audit(
 
         warnings = _path(result_mapping, "requirement_extraction", "warnings")
         warning_values = (
-            [str(warning) for warning in warnings if isinstance(warning, str)]
+            [
+                _WARNING_OFFSET_SUFFIX.sub("", warning)
+                for warning in warnings
+                if isinstance(warning, str)
+            ]
             if isinstance(warnings, Sequence) and not isinstance(warnings, (str, bytes))
             else []
         )
