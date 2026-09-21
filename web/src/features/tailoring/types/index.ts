@@ -1,5 +1,7 @@
+import type { ScanResult } from "@/features/applications";
+
 export interface TailoringSession {
-  protocol_version: 2;
+  protocol_version: 4;
   session_id: string;
   application_id: string;
   source_cv_id: string | null;
@@ -33,7 +35,7 @@ export interface TailoringCandidate {
 }
 
 export interface TailoringSessionResult {
-  protocol_version: 2;
+  protocol_version: 4;
   session_id: string;
   application_id: string;
   status: "draft_ready";
@@ -41,13 +43,13 @@ export interface TailoringSessionResult {
   draft_cv_id: string;
   candidate_hash: string;
   candidate?: TailoringCandidate;
-  relevance: Record<string, unknown>;
-  warnings: string[];
+  scanner_result: ScanResult;
+  render_warnings: string[];
   review_notes?: string[];
 }
 
 export interface TailoringSessionStatusResponse {
-  protocol_version: 2;
+  protocol_version: 4;
   session_id: string;
   application_id: string;
   source_cv_id: string | null;
@@ -65,12 +67,12 @@ export interface TailoringSessionStatusResponse {
 }
 
 export interface TailoringReviewResponse {
-  protocol_version: 2;
+  protocol_version: 4;
   session_id: string;
   application_id: string;
   status: "accepted" | "rejected";
   source_cv_id: string | null;
   draft_cv_id: string | null;
   cv_id: string | null;
-  relevance: Record<string, unknown> | null;
+  scanner_result: ScanResult | null;
 }
