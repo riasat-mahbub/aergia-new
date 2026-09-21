@@ -1061,7 +1061,15 @@ class TailoringService:
         draft = await self._owned_cv(session.draft_cv_id, user_id)
         if application is None or draft is None or draft.application_id != application.id:
             raise TailoringConflictError("Tailoring draft is no longer available")
-        parts = await self._current_context(session)
+        try:
+            parts = await self._current_context(session)
+        except TailoringStaleError as exc:
+            now = _utcnow()
+            session.status = TAILORING_SESSION_STALE
+            session.reviewed_at = now
+            session.updated_at = now
+            await self.db.flush()
+            raise TailoringConflictError("The tailoring context changed; start a new session") from exc
         stored_result = (session.result or {}).get("scanner_result") if isinstance(session.result, dict) else None
         try:
             scanner_result = ScanResult.model_validate(stored_result)
