@@ -221,7 +221,8 @@ async def test_backfill_continues_after_one_application_fails(client, monkeypatc
 
     monkeypatch.setattr(application_service_module, "ScannerService", _SelectiveScanner)
 
-    async def selected_ids(session_factory, *, batch_size, application_id, report):
+    async def selected_ids(session_factory, *, batch_size, limit, application_id, report):
+        assert limit is None
         yield [failed_application_id, good_application_id]
 
     monkeypatch.setattr(scanner_backfill, "_application_ids", selected_ids)
@@ -231,3 +232,28 @@ async def test_backfill_continues_after_one_application_fails(client, monkeypatc
     assert report.scanned == 1
     assert report.failures == [{"application_id": failed_application_id, "error_type": "RuntimeError"}]
     assert (await client.get(f"/api/v1/applications/{good_application_id}", headers=headers)).json()["scanner_result"]
+
+
+@pytest.mark.asyncio
+async def test_backfill_limit_caps_total_applications_across_database_pages(client):
+    headers = await _auth_headers(client)
+    for index in range(3):
+        response = await client.post(
+            "/api/v1/applications",
+            headers=headers,
+            json={
+                "company": "Limit Labs",
+                "role": f"Developer {index}",
+                "job_description": "What You Bring\nFamiliarity with Python.",
+            },
+        )
+        assert response.status_code == 201
+
+    report = await scanner_backfill.run_backfill(
+        session_factory=async_session,
+        batch_size=1,
+        limit=2,
+    )
+
+    assert report.failed == 0
+    assert report.scanned + report.skipped + report.unscannable == 2

@@ -93,6 +93,7 @@ async def _application_ids(
     session_factory: SessionFactory,
     *,
     batch_size: int,
+    limit: int | None,
     application_id: str | None,
     report: BackfillReport,
 ) -> AsyncIterator[list[str]]:
@@ -109,9 +110,11 @@ async def _application_ids(
         return
 
     last_id: str | None = None
-    while True:
+    selected_count = 0
+    while limit is None or selected_count < limit:
+        query_limit = batch_size if limit is None else min(batch_size, limit - selected_count)
         async with session_factory() as session:
-            statement = select(Application.id).order_by(Application.id).limit(batch_size)
+            statement = select(Application.id).order_by(Application.id).limit(query_limit)
             if last_id is not None:
                 statement = statement.where(Application.id > last_id)
             result = await session.scalars(statement)
@@ -119,6 +122,7 @@ async def _application_ids(
         if not batch:
             return
         yield batch
+        selected_count += len(batch)
         last_id = batch[-1]
 
 
@@ -192,6 +196,7 @@ async def run_backfill(
     *,
     session_factory: SessionFactory,
     batch_size: int = 100,
+    limit: int | None = None,
     application_id: str | None = None,
     dry_run: bool = False,
     force: bool = False,
@@ -201,6 +206,8 @@ async def run_backfill(
 
     if batch_size < 1:
         raise ValueError("batch_size must be at least 1")
+    if limit is not None and limit < 1:
+        raise ValueError("limit must be at least 1")
     if force and only_missing:
         raise ValueError("--force and --only-missing cannot be combined")
 
@@ -209,6 +216,7 @@ async def run_backfill(
     async for batch in _application_ids(
         session_factory,
         batch_size=batch_size,
+        limit=limit,
         application_id=application_id,
         report=report,
     ):
@@ -231,7 +239,17 @@ def _parser() -> argparse.ArgumentParser:
         description="Populate current scanner results without rewriting legacy analysis.",
     )
     parser.add_argument("--dry-run", action="store_true", help="Run scans and roll back all result writes.")
-    parser.add_argument("--batch-size", type=int, default=100, help="Applications selected per database batch.")
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=100,
+        help="Applications fetched per database page (does not limit the total run).",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        help="Maximum number of application rows to consider in this invocation.",
+    )
     parser.add_argument("--application-id", help="Limit the run to one application ID.")
     parser.add_argument("--force", action="store_true", help="Rescan every eligible application, including current results.")
     parser.add_argument(
@@ -250,6 +268,7 @@ async def _async_main(args: argparse.Namespace) -> int:
         report = await run_backfill(
             session_factory=async_session,
             batch_size=args.batch_size,
+            limit=args.limit,
             application_id=args.application_id,
             dry_run=args.dry_run,
             force=args.force,
@@ -267,6 +286,8 @@ def main() -> None:
     args = parser.parse_args()
     if args.batch_size < 1:
         parser.error("--batch-size must be at least 1")
+    if args.limit is not None and args.limit < 1:
+        parser.error("--limit must be at least 1")
     if args.force and args.only_missing:
         parser.error("--force and --only-missing cannot be combined")
 
