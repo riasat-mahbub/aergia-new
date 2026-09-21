@@ -34,7 +34,7 @@ from app.scanner.scoring import (
 from app.services.requirement_extractor import RequirementExtractionError
 
 MATCHER_VERSION = "requirement-match-v4"
-LEXICAL_VERSION = "ats-lexical-v4"
+LEXICAL_VERSION = "ats-lexical-v5"
 
 
 class RequirementExtractor(Protocol):
@@ -111,7 +111,11 @@ class ScannerService:
                 warnings=["requirement_extraction_failed"],
             )
             semantic = SemanticAnalysis(status=AnalysisStatus.FAILED)
-        lexical = analyze_lexical_visibility(job_description, cv)
+        lexical = analyze_lexical_visibility(
+            job_description,
+            cv,
+            requirements=extraction.requirements,
+        )
         presentation = analyze_presentation_quality(cv)
         pdf_recovery = analyze_pdf_recovery(pdf_bytes, cv)
         semantic = semantic.model_copy(

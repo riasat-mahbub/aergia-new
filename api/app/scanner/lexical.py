@@ -9,7 +9,15 @@ from collections.abc import Sequence
 
 from app.scanner.extraction import CandidateTextSegment, candidate_facing_segments
 from app.scanner.matching import CVTextField, flatten_cv_text
-from app.scanner.requirements import RequirementImportance
+from app.scanner.requirements import (
+    AllExpression,
+    AnyExpression,
+    ExamplesExpression,
+    ExpressionNode,
+    Requirement,
+    RequirementImportance,
+    RequirementLeaf,
+)
 from app.scanner.results import (
     AnalysisStatus,
     CVLocation,
@@ -51,6 +59,7 @@ _CUSTOM_TERMS: tuple[tuple[str, str], ...] = (
     ("standups", "standups"),
     ("demos", "demos"),
     ("retrospectives", "retrospectives"),
+    ("team rituals", "team rituals"),
     ("industry trends", "industry trends"),
     ("full-stack", "full-stack development"),
     ("full stack", "full-stack development"),
@@ -153,7 +162,6 @@ def _term_inventory(segments: Sequence[CandidateTextSegment]) -> list[dict[str, 
 
     for segment in segments:
         folded = segment.text.casefold()
-        seen_in_segment: set[str] = set()
         selected_ranges: list[tuple[int, int]] = []
         for alias, canonical in candidates:
             for match in re.finditer(
@@ -161,12 +169,11 @@ def _term_inventory(segments: Sequence[CandidateTextSegment]) -> list[dict[str, 
                 folded,
             ):
                 key = _custom_id(canonical) if canonical not in TAXONOMY else canonical
-                if key in seen_in_segment or any(
+                if any(
                     match.start() < previous_end and match.end() > previous_start
                     for previous_start, previous_end in selected_ranges
                 ):
                     continue
-                seen_in_segment.add(key)
                 selected_ranges.append((match.start(), match.end()))
                 entry = inventory.setdefault(
                     key,
@@ -198,6 +205,80 @@ def _term_inventory(segments: Sequence[CandidateTextSegment]) -> list[dict[str, 
     return list(inventory.values())
 
 
+def _example_leaves(node: ExpressionNode) -> list[RequirementLeaf]:
+    if isinstance(node, RequirementLeaf):
+        return [node]
+    if isinstance(node, ExamplesExpression):
+        return [leaf for example in node.examples for leaf in _example_leaves(example)]
+    if isinstance(node, (AllExpression, AnyExpression)):
+        return [leaf for child in node.children for leaf in _example_leaves(child)]
+    return []
+
+
+def _illustrative_example_ranges(requirements: Sequence[Requirement]) -> list[tuple[int, int]]:
+    ranges: list[tuple[int, int]] = []
+    for requirement in requirements:
+        source = requirement.source.original_text
+        marker = re.search(r"(?<!\w)(?:such\s+as|e\.g\.?|for\s+example)(?!\w)", source, re.I)
+        cursor = marker.end() if marker else 0
+        leaves: list[RequirementLeaf] = []
+
+        def visit(node: ExpressionNode) -> None:
+            if isinstance(node, ExamplesExpression):
+                for example in node.examples:
+                    leaves.extend(_example_leaves(example))
+                visit(node.subject)
+            elif isinstance(node, (AllExpression, AnyExpression)):
+                for child in node.children:
+                    visit(child)
+
+        visit(requirement.expression)
+        for leaf in leaves:
+            phrase = leaf.concept.source_text or leaf.concept.name
+            relative_start = source.casefold().find(phrase.casefold(), cursor)
+            if relative_start < 0 and phrase != leaf.concept.name:
+                phrase = leaf.concept.name
+                relative_start = source.casefold().find(phrase.casefold(), cursor)
+            if relative_start < 0:
+                continue
+            relative_end = relative_start + len(phrase)
+            ranges.append(
+                (
+                    requirement.source.source_start + relative_start,
+                    requirement.source.source_start + relative_end,
+                )
+            )
+            cursor = relative_end
+    return ranges
+
+
+def _mark_illustrative_examples(
+    inventory: Sequence[dict[str, object]],
+    requirements: Sequence[Requirement],
+) -> None:
+    example_ranges = _illustrative_example_ranges(requirements)
+    if not example_ranges:
+        return
+    for item in inventory:
+        locations = item["locations"]
+        assert isinstance(locations, list)
+        marked = [
+            location.model_copy(
+                update={
+                    "illustrative_example": any(
+                        location.source_start < end and location.source_end > start
+                        for start, end in example_ranges
+                    )
+                }
+            )
+            for location in locations
+        ]
+        item["locations"] = marked
+        item["illustrative_example"] = bool(marked) and all(
+            location.illustrative_example for location in marked
+        )
+
+
 def _field_location(field: CVTextField, matched_text: str) -> CVLocation:
     return CVLocation(
         section_id=field.section_id,
@@ -208,11 +289,17 @@ def _field_location(field: CVTextField, matched_text: str) -> CVLocation:
     )
 
 
-def analyze_lexical_visibility(job_description: str, cv: object) -> LexicalAnalysis:
+def analyze_lexical_visibility(
+    job_description: str,
+    cv: object,
+    *,
+    requirements: Sequence[Requirement] = (),
+) -> LexicalAnalysis:
     """Find candidate-facing literal terms independently of semantic extraction."""
 
     segments = candidate_facing_segments(job_description or "")
     inventory = _term_inventory(segments)
+    _mark_illustrative_examples(inventory, requirements)
     fields = flatten_cv_text(cv)
     terms: list[LexicalTerm] = []
     for index, item in enumerate(inventory, start=1):
@@ -268,6 +355,7 @@ def analyze_lexical_visibility(job_description: str, cv: object) -> LexicalAnaly
                 variants=variants[:100],
                 importance=item["importance"],  # type: ignore[arg-type]
                 source_locations=locations[:100],
+                illustrative_example=bool(item.get("illustrative_example", False)),
                 visibility=visibility,
                 evidence=evidence,
             )
