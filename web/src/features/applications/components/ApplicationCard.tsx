@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { ArrowRight, CalendarDays, FileText, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowRight, CalendarDays, FileText, Trash2 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import type { Application } from "@/features/applications/types";
 import {
@@ -13,19 +13,11 @@ import { STATUS_CLASSES, STATUS_LABELS, STATUS_STRIP_CLASSES } from "../domain/a
 
 interface ApplicationCardProps {
   application: Application;
-  retrying: boolean;
-  onRetry: () => void;
   onDelete: () => void;
 }
 
-export default function ApplicationCard({ application, retrying, onRetry, onDelete }: ApplicationCardProps) {
+export default function ApplicationCard({ application, onDelete }: ApplicationCardProps) {
   const score = relevanceScore(application.relevance);
-  const hasGeneratedCv = application.generation_status === "ready" && Boolean(application.cv_id);
-  const fitLabel = application.fits_one_page === true
-    ? "One-page fit"
-    : application.fits_one_page === false
-      ? "Needs content trimming"
-      : null;
 
   return (
     <motion.article
@@ -70,17 +62,14 @@ export default function ApplicationCard({ application, retrying, onRetry, onDele
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2 rounded-md bg-app-canvas px-3 py-2.5 text-xs">
-          {score !== null && <span className="font-medium text-app-ink" title={RELEVANCE_TOOLTIP}>Relevance {score}%</span>}
-          {fitLabel && <span className={application.fits_one_page ? "text-app-primary" : "text-app-warning"}>{fitLabel}</span>}
-          {hasGeneratedCv ? (
+          {score !== null && <span className="font-medium text-app-ink" title={RELEVANCE_TOOLTIP}>Legacy relevance {score}%</span>}
+          {application.cv_id ? (
             <span className="ml-auto inline-flex items-center gap-1 font-medium text-app-primary">
               <FileText className="h-3.5 w-3.5" />
-              CV ready
+              CV linked
             </span>
           ) : (
-            <span className="text-app-ink-3">
-              {application.generation_status === "failed" ? "CV generation failed" : "CV not generated"}
-            </span>
+            <span className="text-app-ink-3">No CV linked</span>
           )}
         </div>
 
@@ -93,17 +82,6 @@ export default function ApplicationCard({ application, retrying, onRetry, onDele
             View application
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>
-          {!hasGeneratedCv && (
-            <button
-              type="button"
-              onClick={onRetry}
-              disabled={retrying}
-              className="inline-flex items-center gap-1 rounded border border-app-primary-soft px-3 py-1.5 text-sm font-medium text-app-primary hover:bg-app-primary-soft disabled:opacity-50"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${retrying ? "animate-spin" : ""}`} />
-              {retrying ? "Generating…" : application.generation_status === "failed" ? "Retry CV" : "Generate CV"}
-            </button>
-          )}
           <button
             type="button"
             onClick={onDelete}
@@ -113,7 +91,6 @@ export default function ApplicationCard({ application, retrying, onRetry, onDele
             Delete
           </button>
         </div>
-        {application.generation_error && <p className="mt-3 text-xs text-app-danger">{application.generation_error}</p>}
       </div>
     </motion.article>
   );

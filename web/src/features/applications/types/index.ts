@@ -10,7 +10,6 @@ export const APPLICATION_STATUSES = [
 ] as const;
 
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
-export type GenerationStatus = "pending" | "ready" | "failed";
 export type CVQualityStatus = "pass" | "warning" | "error";
 export type CVQualityIssueCode = "missing_name" | "missing_contact" | "empty_section" | "invalid_link" | "page_overflow";
 
@@ -146,6 +145,112 @@ export interface CVQualityResult {
   issues: CVQualityIssue[];
 }
 
+export type ScannerEvidenceStatus = "supported" | "partial" | "not_evidenced" | "conflicting" | "unverifiable";
+export type ScannerAnalysisStatus = "evaluated" | "not_evaluated" | "failed";
+export type ScannerImportance = "required" | "preferred" | "unknown";
+
+export interface ScannerCVLocation {
+  section_id: string | null;
+  section_type: string | null;
+  entry_id: string | null;
+  field_path: string;
+  excerpt: string;
+}
+
+export interface ScannerExpressionNode {
+  kind: "leaf" | "all" | "any";
+  id: string;
+  concept?: { name: string; family: string | null; source_text: string | null };
+  expectation?: { kind: string; qualifier: string | null };
+  modifiers?: { optional: boolean; list_semantics: string; scope: string | null };
+  children?: ScannerExpressionNode[];
+}
+
+export interface ScannerRequirement {
+  id: string;
+  source: {
+    original_text: string;
+    source_start: number;
+    source_end: number;
+    section: { title: string | null; purpose: string; confidence: number } | null;
+  };
+  importance: ScannerImportance;
+  family: string;
+  weight: number;
+  expression: ScannerExpressionNode;
+}
+
+export interface ScannerExpressionEvaluation {
+  node_id: string;
+  status: ScannerEvidenceStatus;
+  optional: boolean;
+  mandatory_total: number;
+  mandatory_supported: number;
+  evidence_ids: string[];
+  children: ScannerExpressionEvaluation[];
+}
+
+export interface ScannerRequirementEvaluation {
+  requirement_id: string;
+  status: ScannerEvidenceStatus;
+  expression: ScannerExpressionEvaluation;
+}
+
+export interface ScannerLexicalTerm {
+  id: string;
+  term: string;
+  canonical_concept_id: string | null;
+  variants: string[];
+  importance: ScannerImportance;
+  visibility: "exact" | "normalized" | "variant" | "absent" | "unverifiable";
+  evidence: Array<{ location: ScannerCVLocation; matched_text: string; visibility: "exact" | "normalized" | "variant" }>;
+}
+
+export interface ScanResult {
+  schema_version: "scanner-v1";
+  created_at: string;
+  input_fingerprints: {
+    job_description_sha256: string;
+    cv_content_sha256: string;
+    pdf_sha256: string | null;
+  };
+  versions: {
+    extractor_version: string;
+    matcher_version: string;
+    lexical_version: string;
+    quality_version: string;
+    pdf_analysis_version: string;
+  };
+  requirement_extraction: {
+    status: "evaluated" | "partial" | "failed";
+    requirements: ScannerRequirement[];
+    warnings: string[];
+  };
+  semantic: {
+    status: ScannerAnalysisStatus;
+    requirements: ScannerRequirementEvaluation[];
+    evidence: Array<{
+      id: string;
+      locations: ScannerCVLocation[];
+      concept_status: ScannerEvidenceStatus;
+      expectation_status: ScannerEvidenceStatus;
+      confidence: number;
+      method: string;
+    }>;
+  };
+  lexical: { status: ScannerAnalysisStatus; terms: ScannerLexicalTerm[] };
+  presentation_quality: {
+    status: ScannerAnalysisStatus;
+    findings: Array<{ code: string; severity: "info" | "warning" | "error"; location: ScannerCVLocation | null; evidence: string | null; explanation: string }>;
+    bullet_assessments: Array<{ location: ScannerCVLocation; classification: string }>;
+  };
+  pdf_recovery: {
+    status: "pass" | "warning" | "fail" | "unavailable";
+    page_count: number | null;
+    checks: Array<{ code: string; status: "pass" | "warning" | "fail" | "unavailable"; expected_count: number | null; recovered_count: number | null; evidence: string[]; explanation: string | null }>;
+  };
+}
+
 export interface Application {
   id: string;
   user_id?: string;
@@ -159,12 +264,10 @@ export interface Application {
   applied_at: string | null;
   next_follow_up_at?: string | null;
   status_history?: ApplicationStatusHistory[];
-  generation_status: GenerationStatus;
-  generation_error: string | null;
   extracted_keywords: ExtractedKeyword[];
+  scanner_result?: ScanResult | null;
   relevance: RelevanceAnalysis | Record<string, never>;
   algorithm_version: string;
-  fits_one_page: boolean | null;
   quality?: CVQualityResult | Record<string, never>;
   created_at: string;
   updated_at: string;
@@ -180,6 +283,7 @@ export interface ApplicationCreateData {
 }
 
 export interface ApplicationUpdateData {
+  cv_id?: string | null;
   company?: string;
   role?: string;
   job_description?: string;
@@ -188,9 +292,4 @@ export interface ApplicationUpdateData {
   next_follow_up_at?: string | null;
   status?: ApplicationStatus;
   applied_at?: string | null;
-}
-
-export interface ApplicationGenerateResponse {
-  application: Application;
-  cv_id: string | null;
 }

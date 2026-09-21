@@ -4,10 +4,11 @@ import { Pencil, Trash2 } from "lucide-react";
 import ApplicationFormModal from "../components/ApplicationFormModal";
 import ApplicationJobPanel from "../components/detail/ApplicationJobPanel";
 import ApplicationRelevancePanel from "../components/detail/ApplicationRelevancePanel";
+import ApplicationScannerPanel from "../components/detail/ApplicationScannerPanel";
 import ApplicationStatusHistory from "../components/detail/ApplicationStatusHistory";
-import GeneratedCvPanel from "../components/detail/GeneratedCvPanel";
+import ApplicationCvPanel from "../components/detail/ApplicationCvPanel";
 import LoadingSkeleton from "@/shared/ui/LoadingSkeleton";
-import { exportPDF } from "@/features/cvs";
+import { exportPDF, useCVListStore } from "@/features/cvs";
 import { downloadBlob } from "@/shared/browser/downloadBlob";
 import { APPLICATION_STATUSES } from "@/features/applications/types";
 import type {
@@ -41,12 +42,14 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
   const error = useApplicationStore((state) => state.error);
   const fetch = useApplicationStore((state) => state.fetch);
   const update = useApplicationStore((state) => state.update);
-  const generate = useApplicationStore((state) => state.generate);
+  const scan = useApplicationStore((state) => state.scan);
   const remove = useApplicationStore((state) => state.remove);
+  const availableCVs = useCVListStore((state) => state.cvList);
+  const cvListLoading = useCVListStore((state) => state.isLoading);
+  const fetchCVs = useCVListStore((state) => state.fetchCVs);
   const addToast = useToastStore((state) => state.addToast);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [retrying, setRetrying] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
   const {
     tailoringSession,
@@ -62,8 +65,11 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
   } = useTailoringSession({ applicationId: application?.id ?? id, fetchApplication: fetch, addToast });
 
   useEffect(() => {
-    if (id) fetch(id);
-  }, [fetch, id]);
+    if (id) {
+      fetch(id);
+      fetchCVs();
+    }
+  }, [fetch, fetchCVs, id]);
 
   const linkedCV = useLinkedCv(application?.cv_id);
 
@@ -100,26 +106,6 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
       addToast("Unable to update application status", "error");
     } finally {
       setStatusSaving(false);
-    }
-  };
-
-  const handleRetry = async () => {
-    setRetrying(true);
-    try {
-      const result = await generate(application.id);
-      if (result.application.generation_status === "ready" && result.cv_id) {
-        navigate({
-          to: "/builder/$id",
-          params: { id: result.cv_id },
-          search: { application: application.id },
-        });
-      } else {
-        addToast("CV generation failed. Please retry.", "error");
-      }
-    } catch {
-      addToast("Unable to generate this CV", "error");
-    } finally {
-      setRetrying(false);
     }
   };
 
@@ -174,7 +160,15 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
         <ApplicationRelevancePanel application={application} relevance={relevance} />
       </div>
 
-      <GeneratedCvPanel
+      <ApplicationScannerPanel
+        application={application}
+        availableCVs={availableCVs}
+        cvListLoading={cvListLoading}
+        onLinkCV={(cvId) => update(application.id, { cv_id: cvId })}
+        onScan={() => scan(application.id)}
+      />
+
+      <ApplicationCvPanel
         application={application}
         linkedCV={linkedCV}
         sections={sections}
@@ -184,9 +178,7 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
         tailoringStatus={tailoringStatus}
         tailoringResult={tailoringResult}
         promptCopied={promptCopied}
-        retrying={retrying}
         onExport={handleExport}
-        onRetry={handleRetry}
         onStartTailoring={startTailoring}
         onCopyPrompt={copyPrompt}
         onCancelTailoring={cancelTailoring}

@@ -2,7 +2,6 @@ import client from "@/shared/api/client";
 import type {
   Application,
   ApplicationCreateData,
-  ApplicationGenerateResponse,
   ApplicationUpdateData,
 } from "@/features/applications/types";
 
@@ -30,12 +29,12 @@ export async function deleteApplication(id: string): Promise<void> {
   await client.delete(`/applications/${id}`);
 }
 
-export async function generateApplication(id: string): Promise<ApplicationGenerateResponse> {
-  const { data } = await client.post(`/applications/${id}/generate`);
+export async function recomputeApplicationRelevance(id: string): Promise<Application> {
+  const { data } = await client.post(`/applications/${id}/relevance`);
   return data;
 }
 
-export async function recomputeApplicationRelevance(id: string): Promise<Application> {
-  const { data } = await client.post(`/applications/${id}/relevance`);
+export async function scanApplication(id: string): Promise<Application> {
+  const { data } = await client.post(`/applications/${id}/scan`);
   return data;
 }

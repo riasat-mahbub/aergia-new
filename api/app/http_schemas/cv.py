@@ -13,7 +13,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from app.document_schema.models import Customizations, SectionInstance
-from app.http_schemas.application import ApplicationStatus, GenerationStatus
+from app.http_schemas.application import ApplicationStatus
 
 
 DEFAULT_SECTIONS: list[dict] = [
@@ -63,7 +63,6 @@ class CVApplicationSummary(BaseModel):
     company: str
     role: str
     status: ApplicationStatus
-    generation_status: GenerationStatus
     applied_at: datetime | None
 
 

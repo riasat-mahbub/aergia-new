@@ -41,7 +41,6 @@ async def list_cvs(
                     company=application.company,
                     role=application.role,
                     status=application.status,
-                    generation_status=application.generation_status,
                     applied_at=application.applied_at,
                 )
                 if application

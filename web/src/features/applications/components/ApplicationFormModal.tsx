@@ -1,10 +1,7 @@
 import { useEffect, useState } from "react";
 import Modal from "@/shared/ui/Modal";
 import { useApplicationStore } from "@/features/applications/state/applicationStore";
-import type {
-  Application,
-  ApplicationGenerateResponse,
-} from "@/features/applications/types";
+import type { Application } from "@/features/applications/types";
 import {
   applicationSaveError,
   createDataFromForm,
@@ -19,7 +16,6 @@ interface ApplicationFormModalProps {
   onClose: () => void;
   initialApplication?: Application | null;
   onSaved?: (application: Application) => void;
-  onGenerated?: (result: ApplicationGenerateResponse) => void;
 }
 
 export default function ApplicationFormModal({
@@ -27,14 +23,11 @@ export default function ApplicationFormModal({
   onClose,
   initialApplication = null,
   onSaved,
-  onGenerated,
 }: ApplicationFormModalProps) {
   const create = useApplicationStore((state) => state.create);
   const update = useApplicationStore((state) => state.update);
-  const generate = useApplicationStore((state) => state.generate);
   const [form, setForm] = useState<ApplicationFormState>(() => formFromApplication(initialApplication));
   const [busy, setBusy] = useState(false);
-  const [phase, setPhase] = useState("");
   const [error, setError] = useState<string | null>(null);
   const editing = Boolean(initialApplication);
 
@@ -44,7 +37,6 @@ export default function ApplicationFormModal({
     setForm(formFromApplication(initialApplication));
     setError(null);
     setBusy(false);
-    setPhase("");
   }, [open, initialApplication]);
 
   const setField = (field: keyof ApplicationFormState, value: string) => {
@@ -70,23 +62,13 @@ export default function ApplicationFormModal({
         return;
       }
 
-      setPhase("Saving application…");
       const created = await create(createDataFromForm(form));
       onSaved?.(created);
-      setPhase("Generating tailored CV…");
-      try {
-        const result = await generate(created.id);
-        onGenerated?.(result);
-        onSaved?.(result.application);
-      } catch (generationError) {
-        setError(applicationSaveError(generationError));
-      }
       onClose();
     } catch (saveError) {
       setError(applicationSaveError(saveError));
     } finally {
       setBusy(false);
-      setPhase("");
     }
   };
 
@@ -100,7 +82,7 @@ export default function ApplicationFormModal({
           <p className="mt-1 text-sm text-app-ink-2">
             {editing
               ? "Update the saved job details without rewriting the linked CV."
-              : "Save a job description and generate an editable tailored CV."}
+              : "Save the job description, then link a CV or start LLM tailoring."}
           </p>
         </header>
 
@@ -166,8 +148,6 @@ export default function ApplicationFormModal({
         </div>
 
         {error && <p className="mt-4 rounded-md bg-app-danger-soft px-3 py-2 text-sm text-app-danger">{error}</p>}
-        {phase && <p className="mt-4 text-sm text-app-primary">{phase}</p>}
-
         <footer className="mt-6 flex justify-end gap-2">
           <button
             type="button"
@@ -182,7 +162,7 @@ export default function ApplicationFormModal({
             disabled={busy}
             className="rounded-md bg-app-primary px-4 py-2 text-sm font-medium text-white hover:bg-app-primary-hover disabled:opacity-50"
           >
-            {busy ? phase || "Saving…" : editing ? "Save changes" : "Done"}
+            {busy ? "Saving…" : editing ? "Save changes" : "Save application"}
           </button>
         </footer>
       </form>
