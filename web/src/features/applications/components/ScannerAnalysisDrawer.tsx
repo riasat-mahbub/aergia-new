@@ -53,7 +53,7 @@ function percentage(value: number | null | undefined): string {
 
 function statusTone(status: ScannerEvidenceStatus | "pass" | "warning" | "fail" | "error" | "unavailable" | "info"): string {
   if (status === "supported" || status === "pass") return "border-app-primary/30 bg-app-primary-soft text-app-primary";
-  if (status === "partial" || status === "warning" || status === "info") return "border-app-warning/30 bg-app-warning-soft text-app-warning";
+  if (status === "partial" || status === "warning") return "border-app-warning/30 bg-app-warning-soft text-app-warning";
   if (status === "conflicting" || status === "fail" || status === "error") return "border-app-danger/30 bg-app-danger-soft text-app-danger";
   return "border-app-rule bg-app-canvas text-app-ink-3";
 }
@@ -61,15 +61,17 @@ function statusTone(status: ScannerEvidenceStatus | "pass" | "warning" | "fail" 
 function StatusMark({ status, label }: { status: ScannerEvidenceStatus | "pass" | "warning" | "fail" | "error" | "unavailable" | "info"; label?: string }) {
   const icon = status === "supported" || status === "pass"
     ? <Check className="h-4 w-4" aria-hidden="true" />
-    : status === "partial" || status === "warning" || status === "info"
+    : status === "partial" || status === "warning"
       ? <AlertTriangle className="h-4 w-4" aria-hidden="true" />
         : status === "conflicting" || status === "fail" || status === "error"
         ? <CircleX className="h-4 w-4" aria-hidden="true" />
-        : <CircleHelp className="h-4 w-4" aria-hidden="true" />;
+        : status === "info"
+          ? <Info className="h-4 w-4" aria-hidden="true" />
+          : <CircleHelp className="h-4 w-4" aria-hidden="true" />;
   return (
     <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${statusTone(status)}`}>
       {icon}
-      <span>{label ?? (status === "supported" ? "Covered" : status === "not_evidenced" ? "Not shown" : status === "partial" ? "Partial" : status === "conflicting" ? "Conflicting evidence" : status === "pass" ? "Pass" : status === "warning" ? "Warning" : status === "fail" || status === "error" ? "Needs attention" : "Unavailable")}</span>
+      <span>{label ?? (status === "supported" ? "Covered" : status === "not_evidenced" ? "Not shown" : status === "partial" ? "Partial" : status === "conflicting" ? "Conflicting evidence" : status === "pass" ? "Pass" : status === "warning" ? "Warning" : status === "fail" || status === "error" ? "Needs attention" : status === "info" ? "Suggestion" : "Unavailable")}</span>
     </span>
   );
 }
