@@ -37,6 +37,7 @@ dependencies = [
 [project.scripts]
 scanner-backfill = "app.commands.scanner_backfill:main"
 scanner-audit = "app.commands.scanner_audit:main"
+scanner-pdf-smoke = "app.commands.scanner_pdf_smoke:main"
 
 [project.optional-dependencies]
 test = [

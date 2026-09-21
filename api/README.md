@@ -38,3 +38,13 @@ ruff check .
 ```
 
 Install Chromium once for PDF export with `playwright install chromium`.
+
+Use `scanner-pdf-smoke` to check the Playwright driver, Chromium launch, Aergia's
+HTML-to-PDF renderer, and pdfplumber recovery independently. A missing browser
+binary is an installation issue; Chromium's `Operation not permitted` launch
+failure means the process sandbox blocks browser startup and must be corrected
+in the runtime that hosts the API. Some managed development runners block
+Chromium syscalls even when both the Playwright driver and browser binary are
+installed; run this diagnostic in the API runtime that will perform PDF work.
+Scanner semantic, lexical, and presentation results remain available when PDF
+rendering is unavailable.
