@@ -36,6 +36,7 @@ dependencies = [
 
 [project.scripts]
 scanner-backfill = "app.commands.scanner_backfill:main"
+scanner-audit = "app.commands.scanner_audit:main"
 
 [project.optional-dependencies]
 test = [

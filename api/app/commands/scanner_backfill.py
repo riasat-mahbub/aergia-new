@@ -6,7 +6,7 @@ import argparse
 import asyncio
 import json
 import sys
-from collections.abc import AsyncIterator, Callable, Mapping
+from collections.abc import AsyncIterator, Callable
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
@@ -15,10 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.application import Application
-from app.scanner.pdf_recovery import PDF_ANALYSIS_VERSION
-from app.scanner.quality import QUALITY_VERSION
-from app.scanner.scoring import LEXICAL_SCORE_VERSION, PDF_SCORE_VERSION, SEMANTIC_SCORE_VERSION
-from app.scanner.service import LEXICAL_VERSION, MATCHER_VERSION, fingerprint_scan_inputs
+from app.scanner.freshness import configured_extractor_version, scanner_result_freshness
 from app.services.application import ApplicationService
 
 
@@ -33,6 +30,7 @@ class BackfillReport:
     unscannable: int = 0
     failures: list[dict[str, str]] = field(default_factory=list)
     unscannable_applications: list[dict[str, str]] = field(default_factory=list)
+    stale_results: list[dict[str, Any]] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -46,47 +44,17 @@ def scanner_result_is_current(
     extractor_version: str | None = None,
 ) -> bool:
     """Check whether a stored scanner-v1 result describes these JD/CV inputs."""
-
-    if not isinstance(result, Mapping) or result.get("schema_version") != "scanner-v1":
-        return False
-    raw_fingerprints = result.get("input_fingerprints")
-    raw_versions = result.get("versions")
-    if not isinstance(raw_fingerprints, Mapping) or not isinstance(raw_versions, Mapping):
-        return False
-    try:
-        current = fingerprint_scan_inputs(job_description, cv)
-    except (TypeError, ValueError):
-        return False
-    inputs_match = (
-        raw_fingerprints.get("job_description_sha256") == current.job_description_sha256
-        and raw_fingerprints.get("cv_content_sha256") == current.cv_content_sha256
-    )
-    expected_versions = {
-        "matcher_version": MATCHER_VERSION,
-        "lexical_version": LEXICAL_VERSION,
-        "quality_version": QUALITY_VERSION,
-        "pdf_analysis_version": PDF_ANALYSIS_VERSION,
-        "semantic_score_version": SEMANTIC_SCORE_VERSION,
-        "lexical_score_version": LEXICAL_SCORE_VERSION,
-        "pdf_score_version": PDF_SCORE_VERSION,
-    }
-    if extractor_version is not None:
-        expected_versions["extractor_version"] = extractor_version
-    versions_match = all(raw_versions.get(name) == version for name, version in expected_versions.items())
-    return inputs_match and versions_match
+    return scanner_result_freshness(
+        result,
+        job_description,
+        cv,
+        extractor_version=extractor_version,
+    )["current"]
 
 
 def _configured_extractor_version() -> str | None:
     """Read the configured model identity without loading its inference model."""
-
-    from app.services.requirement_extractor import get_requirement_extractor
-
-    provider = get_requirement_extractor()
-    model_name = getattr(provider, "model_name", None)
-    if not isinstance(model_name, str):
-        return None
-    revision = getattr(provider, "revision", "default")
-    return f"{model_name}@{revision}"
+    return configured_extractor_version()
 
 
 async def _application_ids(
@@ -168,13 +136,21 @@ async def _process_application(
                 return
 
             existing_result = application.scanner_result
-            if existing_result is not None and not force:
-                if only_missing or scanner_result_is_current(
+            if existing_result is not None:
+                freshness = scanner_result_freshness(
                     existing_result,
                     application.job_description,
                     cv,
                     extractor_version=extractor_version,
-                ):
+                )
+                if not freshness["current"]:
+                    report.stale_results.append(
+                        {
+                            "application_id": application.id,
+                            "reasons": freshness["reasons"],
+                        }
+                    )
+                if not force and (only_missing or freshness["current"]):
                     report.skipped += 1
                     return
 
@@ -212,7 +188,7 @@ async def run_backfill(
         raise ValueError("--force and --only-missing cannot be combined")
 
     report = BackfillReport()
-    extractor_version = None if force or only_missing else _configured_extractor_version()
+    extractor_version = _configured_extractor_version()
     async for batch in _application_ids(
         session_factory,
         batch_size=batch_size,
