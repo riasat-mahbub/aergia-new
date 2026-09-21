@@ -345,6 +345,7 @@ export interface Application {
   status_history?: ApplicationStatusHistory[];
   extracted_keywords: ExtractedKeyword[];
   scanner_result?: ScanResult | null;
+  scanner_status?: "current" | "stale" | "not_scanned" | "needs_rescan";
   relevance: RelevanceAnalysis | Record<string, never>;
   algorithm_version: string;
   quality?: CVQualityResult | Record<string, never>;

@@ -333,6 +333,7 @@ class ApplicationResponse(BaseModel):
     status_history: list[ApplicationStatusHistoryResponse] = Field(default_factory=list)
     extracted_keywords: list[dict]
     scanner_result: ScanResult | None = None
+    scanner_status: Literal["current", "stale", "not_scanned", "needs_rescan"] = "not_scanned"
     relevance: RequirementRelevanceResult | RelevanceResult | dict
     quality: CVQualityResult | dict
     algorithm_version: str
