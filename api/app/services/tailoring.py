@@ -1090,7 +1090,11 @@ class TailoringService:
             draft,
             extractor_version=configured_extractor_version(),
         )
-        if not freshness["current"] or scanner_result.requirement_extraction != parts["scanner_context"].requirement_extraction:
+        if (
+            not freshness["current"]
+            or scanner_result.requirement_extraction != parts["scanner_context"].requirement_extraction
+            or scanner_result.versions != parts["scanner_context"].versions
+        ):
             session.status = TAILORING_SESSION_STALE
             session.reviewed_at = _utcnow()
             session.updated_at = _utcnow()
