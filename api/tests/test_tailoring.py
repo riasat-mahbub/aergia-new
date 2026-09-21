@@ -66,6 +66,10 @@ async def test_tailoring_submit_creates_owned_review_draft_without_promoting_it(
     )
     assert application.status_code == 201
     application_id = application.json()["id"]
+    legacy_snapshot = {
+        key: application.json()[key]
+        for key in ("relevance", "quality", "extracted_keywords", "algorithm_version")
+    }
 
     class _FixtureExtractor:
         def extract(self, job_description):
@@ -164,6 +168,9 @@ async def test_tailoring_submit_creates_owned_review_draft_without_promoting_it(
     assert accepted.json()["scanner_result"]["schema_version"] == "scanner-v1"
     accepted_application = await client.get(f"/api/v1/applications/{application_id}", headers=headers)
     assert accepted_application.json()["cv_id"] == submitted.json()["draft_cv_id"]
+    assert accepted_application.json()["scanner_result"]["schema_version"] == "scanner-v1"
+    for key, value in legacy_snapshot.items():
+        assert accepted_application.json()[key] == value
 
 
 @pytest.mark.asyncio
