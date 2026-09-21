@@ -32,7 +32,7 @@ async function waitForJson(path, predicate, timeoutMs = 8_000) {
 async function makeSessionWorkspace() {
   const workspace = await mkdtemp(join(tmpdir(), "aergia-tailor-session-"));
   const context = {
-    protocol_version: 2,
+    protocol_version: 4,
     session_id: "session-1",
     application_id: "application-1",
     source_cv_id: null,
@@ -44,6 +44,12 @@ async function makeSessionWorkspace() {
     profile: { name: "Ada" },
     previous_cv: null,
     library: [],
+    scanner: {
+      schema_version: "scanner-v1",
+      versions: {},
+      requirement_extraction: { requirements: [] },
+      source_scan: null,
+    },
     requirements: [],
     templates: [{ id: "generic-minimal", manifest: {} }],
     selected_template_id: "generic-minimal",
@@ -70,7 +76,7 @@ function mockTailoringServer(context) {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, options = {}) => {
     calls.push({ url: String(url), options });
-    if (String(url).endsWith("/exchange")) return Response.json({ protocol_version: 2, capability: "scoped-capability" });
+    if (String(url).endsWith("/exchange")) return Response.json({ protocol_version: 4, capability: "scoped-capability" });
     if (String(url).endsWith("/context")) return Response.json(context);
     if (String(url).endsWith("/preview")) {
       previewNumber += 1;
@@ -79,12 +85,12 @@ function mockTailoringServer(context) {
         pdf_base64: Buffer.from("pdf-" + previewNumber).toString("base64"),
         page_count: 1,
         candidate_hash: String(previewNumber).padStart(64, "0"),
-        relevance: { status: "evaluated", score: 95 },
-        warnings: [],
+        scanner_result: { schema_version: "scanner-v1", semantic: { summary: { job_fit: 0.95 } } },
+        render_warnings: [],
       });
     }
     const submitBody = JSON.parse(options.body);
-    return Response.json({ protocol_version: 2, status: "draft_ready", draft_cv_id: "draft-1", candidate_hash: submitBody.expected_candidate_hash, relevance: {}, warnings: [] });
+    return Response.json({ protocol_version: 4, status: "draft_ready", draft_cv_id: "draft-1", candidate_hash: submitBody.expected_candidate_hash, scanner_result: {}, render_warnings: [] });
   };
   return { calls, restore: () => { globalThis.fetch = originalFetch; } };
 }
@@ -106,7 +112,7 @@ test("session helper requires an exact passing rendered critique and keeps capab
     const resultPromise = runSession("https://aergia.example/agent/tailor/session-1", workspace, { code: "code-1234567890123456" });
     void resultPromise.catch(() => undefined);
     const preview = await waitForJson(join(output, "candidate-preview.json"), (value) => value.pass_number === 1);
-    assert.equal(preview.relevance.score, 95);
+    assert.equal(preview.scanner_result.semantic.summary.job_fit, 0.95);
     await writeFile(join(output, "critique.json"), JSON.stringify(emptyCritique(preview.candidate_hash, 1)));
     await writeFile(join(output, "CRITIQUE"), "");
     const assessment = await waitForJson(join(output, "critique-result.json"), (value) => value.pass_number === 1 && value.valid === true);
