@@ -82,6 +82,22 @@ def _sha256(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
+def scanner_versions_for_extraction(extraction: RequirementExtraction) -> ScannerVersions:
+    """Build the complete scanner version set for a frozen extraction."""
+
+    return ScannerVersions(
+        extractor_version=extraction.extractor_version,
+        matcher_version=MATCHER_VERSION,
+        lexical_version=LEXICAL_VERSION,
+        quality_version=QUALITY_VERSION,
+        pdf_analysis_version=PDF_ANALYSIS_VERSION,
+        semantic_score_version=SEMANTIC_SCORE_VERSION,
+        lexical_score_version=LEXICAL_SCORE_VERSION,
+        pdf_score_version=PDF_SCORE_VERSION,
+        classification_warning_version=CLASSIFICATION_WARNING_VERSION,
+    )
+
+
 def fingerprint_scan_inputs(
     job_description: str,
     cv: object,
@@ -107,6 +123,24 @@ class ScannerService:
     def __init__(self, extractor: RequirementExtractor | None = None) -> None:
         self.extractor = extractor or ScannerRequirementExtractor()
 
+    def extract_requirements(self, job_description: str) -> RequirementExtraction:
+        """Extract one versioned requirement interpretation for a job."""
+
+        if not job_description or not job_description.strip():
+            raise ValueError("job_description must not be blank")
+        try:
+            return self.extractor.extract(job_description)
+        except RequirementExtractionError:
+            extractor_version = str(
+                getattr(self.extractor, "extractor_version", "gliner2.5-structured-v3")
+            )
+            return RequirementExtraction(
+                status="failed",
+                source_hash=_sha256(job_description.encode("utf-8")),
+                extractor_version=extractor_version,
+                warnings=["requirement_extraction_failed"],
+            )
+
     def scan(
         self,
         job_description: str,
@@ -120,18 +154,7 @@ class ScannerService:
         if cv is None:
             raise ValueError("cv must be provided")
 
-        try:
-            extraction = self.extractor.extract(job_description)
-        except RequirementExtractionError:
-            extractor_version = str(
-                getattr(self.extractor, "extractor_version", "gliner2.5-structured-v3")
-            )
-            extraction = RequirementExtraction(
-                status="failed",
-                source_hash=_sha256(job_description.encode("utf-8")),
-                extractor_version=extractor_version,
-                warnings=["requirement_extraction_failed"],
-            )
+        extraction = self.extract_requirements(job_description)
         return self.scan_with_extraction(job_description, cv, extraction, pdf_bytes=pdf_bytes, as_of=as_of)
 
     def scan_with_extraction(
@@ -184,17 +207,7 @@ class ScannerService:
         return ScanResult(
             created_at=datetime.now(timezone.utc),
             input_fingerprints=fingerprint_scan_inputs(job_description, cv, pdf_bytes=pdf_bytes),
-            versions=ScannerVersions(
-                extractor_version=extraction.extractor_version,
-                matcher_version=MATCHER_VERSION,
-                lexical_version=LEXICAL_VERSION,
-                quality_version=QUALITY_VERSION,
-                pdf_analysis_version=PDF_ANALYSIS_VERSION,
-                semantic_score_version=SEMANTIC_SCORE_VERSION,
-                lexical_score_version=LEXICAL_SCORE_VERSION,
-                pdf_score_version=PDF_SCORE_VERSION,
-                classification_warning_version=CLASSIFICATION_WARNING_VERSION,
-            ),
+            versions=scanner_versions_for_extraction(extraction),
             requirement_extraction=extraction,
             semantic=semantic,
             lexical=lexical,
@@ -209,4 +222,5 @@ __all__ = [
     "ScannerService",
     "canonicalize_scanner_cv",
     "fingerprint_scan_inputs",
+    "scanner_versions_for_extraction",
 ]

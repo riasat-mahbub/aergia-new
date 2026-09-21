@@ -9,6 +9,7 @@ from app.core.rate_limit import limiter
 from app.db.session import get_db
 from app.models.user import User
 from app.http_schemas.tailoring import (
+    PROTOCOL_VERSION,
     TailoringCodeExchange,
     TailoringContextResponse,
     TailoringExchangeResponse,
@@ -56,7 +57,7 @@ async def download_tailoring_skill(request: Request):
             "Content-Disposition": 'attachment; filename="aergia-tailor.zip"',
             "Cache-Control": "public, max-age=300",
             "ETag": f'"sha256-{bundle.sha256}"',
-            "X-Aergia-Skill-Protocol-Version": "2",
+            "X-Aergia-Skill-Protocol-Version": str(PROTOCOL_VERSION),
         },
     )
 
