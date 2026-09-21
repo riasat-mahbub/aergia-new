@@ -1,4 +1,4 @@
-"""HTTP contracts for whole-document local-agent tailoring (protocol v2).
+"""HTTP contracts for whole-document local-agent tailoring (protocol v4).
 
 The agent authors one complete CV candidate. There is deliberately no patch
 or evidence-reference model here: the exchanged context is read-only input,
@@ -14,9 +14,12 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.document_schema.models import Customizations, SectionInstance
+from app.scanner.requirements import RequirementExtraction
+from app.scanner.results import ScanResult, ScannerVersions
 
 
-PROTOCOL_VERSION = 2
+TAILORING_PROTOCOL_VERSION = 4
+PROTOCOL_VERSION = TAILORING_PROTOCOL_VERSION
 
 
 class _StrictModel(BaseModel):
@@ -131,6 +134,15 @@ class TailoringRenderArtifact(_StrictModel):
     page_count: int | None = Field(default=None, ge=0)
 
 
+class TailoringScannerContext(_StrictModel):
+    """Frozen scanner interpretation exposed to one tailoring session."""
+
+    schema_version: Literal["scanner-v1"] = "scanner-v1"
+    versions: ScannerVersions
+    requirement_extraction: RequirementExtraction
+    source_scan: ScanResult | None = None
+
+
 class TailoringContextResponse(_StrictModel):
     """Read-only context available to the local agent after exchange."""
 
@@ -144,6 +156,9 @@ class TailoringContextResponse(_StrictModel):
     profile: dict
     previous_cv: TailoringCV | None = None
     library: list[TailoringLibraryEntry] = Field(max_length=100)
+    scanner: TailoringScannerContext
+    # Compatibility convenience for clients that iterate requirements directly.
+    # The scanner.requirement_extraction list is canonical.
     requirements: list[dict] = Field(max_length=100)
     templates: list[TailoringTemplate] = Field(max_length=32)
     selected_template_id: str
@@ -155,7 +170,7 @@ class TailoringContextResponse(_StrictModel):
 
 
 class TailoringCandidateCV(_StrictModel):
-    """The only document write value accepted by protocol v2."""
+    """The only document write value accepted by protocol v4."""
 
     id: str | None = None
     title: str = Field(min_length=1, max_length=255)
@@ -183,8 +198,8 @@ class TailoringPreviewResponse(_StrictModel):
     pdf_base64: str
     page_count: int = Field(ge=0)
     candidate_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
-    relevance: dict | None = None
-    warnings: list[str] = Field(default_factory=list, max_length=50)
+    scanner_result: ScanResult
+    render_warnings: list[str] = Field(default_factory=list, max_length=50)
 
 
 class TailoringSubmitRequest(_StrictModel):
@@ -213,8 +228,8 @@ class TailoringSubmitResponse(_StrictModel):
     draft_cv_id: str
     candidate_hash: str
     candidate: TailoringCandidateCV
-    relevance: dict
-    warnings: list[str] = Field(default_factory=list, max_length=50)
+    scanner_result: ScanResult
+    render_warnings: list[str] = Field(default_factory=list, max_length=50)
     review_notes: list[str] = Field(default_factory=list, max_length=20)
 
 
@@ -226,11 +241,12 @@ class TailoringReviewResponse(_StrictModel):
     source_cv_id: str | None = None
     draft_cv_id: str | None = None
     cv_id: str | None = None
-    relevance: dict | None = None
+    scanner_result: ScanResult | None = None
 
 
 __all__ = [
     "PROTOCOL_VERSION",
+    "TAILORING_PROTOCOL_VERSION",
     "TailoringCandidateCV",
     "TailoringCodeExchange",
     "TailoringContextResponse",
@@ -248,5 +264,6 @@ __all__ = [
     "TailoringSessionStatusResponse",
     "TailoringSubmitRequest",
     "TailoringSubmitResponse",
+    "TailoringScannerContext",
     "TailoringTemplate",
 ]
