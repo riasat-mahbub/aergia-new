@@ -41,7 +41,14 @@ class RequirementExtractor(Protocol):
     def extract(self, job_description: str) -> RequirementExtraction: ...
 
 
-def _canonical_json(value: object) -> bytes:
+def canonicalize_scanner_cv(value: object) -> dict[str, object]:
+    """Return the document payload consumed by scanner branches.
+
+    CV ORM objects and tailoring candidates expose different metadata (IDs,
+    revisions, descriptions, and lifecycle fields).  Scanner fingerprints
+    must describe the document itself, so only the renderer inputs are kept.
+    """
+
     if hasattr(value, "model_dump"):
         value = value.model_dump(mode="json")  # type: ignore[union-attr]
     elif hasattr(value, "sections"):
@@ -52,7 +59,23 @@ def _canonical_json(value: object) -> bytes:
         }
     elif isinstance(value, Mapping):
         value = dict(value)
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+    if not isinstance(value, Mapping):
+        raise TypeError("cv must be a CV mapping or object")
+    return {
+        "sections": value.get("sections") or [],
+        "template_id": value.get("template_id"),
+        "customizations": value.get("customizations") or {},
+    }
+
+
+def _canonical_json(value: object) -> bytes:
+    return json.dumps(
+        canonicalize_scanner_cv(value),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    ).encode("utf-8")
 
 
 def _sha256(value: bytes) -> str:
@@ -99,7 +122,6 @@ class ScannerService:
 
         try:
             extraction = self.extractor.extract(job_description)
-            semantic = evaluate_semantic_coverage(extraction.requirements, cv, as_of=as_of)
         except RequirementExtractionError:
             extractor_version = str(
                 getattr(self.extractor, "extractor_version", "gliner2.5-structured-v3")
@@ -110,7 +132,38 @@ class ScannerService:
                 extractor_version=extractor_version,
                 warnings=["requirement_extraction_failed"],
             )
+        return self.scan_with_extraction(job_description, cv, extraction, pdf_bytes=pdf_bytes, as_of=as_of)
+
+    def scan_with_extraction(
+        self,
+        job_description: str,
+        cv: object,
+        extraction: RequirementExtraction,
+        *,
+        pdf_bytes: bytes | None = None,
+        as_of: date | None = None,
+    ) -> ScanResult:
+        """Evaluate a CV against an already-frozen requirement extraction.
+
+        Tailoring sessions use this method so every preview and submission in
+        one session shares the same model interpretation of the job.  The
+        method deliberately does not call the extractor.
+        """
+
+        if not job_description or not job_description.strip():
+            raise ValueError("job_description must not be blank")
+        if cv is None:
+            raise ValueError("cv must be provided")
+        if not isinstance(extraction, RequirementExtraction):
+            extraction = RequirementExtraction.model_validate(extraction)
+        expected_source_hash = _sha256(job_description.encode("utf-8"))
+        if extraction.source_hash != expected_source_hash:
+            raise ValueError("requirement extraction does not match job description")
+
+        if extraction.status == "failed":
             semantic = SemanticAnalysis(status=AnalysisStatus.FAILED)
+        else:
+            semantic = evaluate_semantic_coverage(extraction.requirements, cv, as_of=as_of)
         lexical = analyze_lexical_visibility(
             job_description,
             cv,
@@ -150,4 +203,10 @@ class ScannerService:
         )
 
 
-__all__ = ["LEXICAL_VERSION", "MATCHER_VERSION", "ScannerService", "fingerprint_scan_inputs"]
+__all__ = [
+    "LEXICAL_VERSION",
+    "MATCHER_VERSION",
+    "ScannerService",
+    "canonicalize_scanner_cv",
+    "fingerprint_scan_inputs",
+]
