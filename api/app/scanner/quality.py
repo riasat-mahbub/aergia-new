@@ -18,12 +18,55 @@ from app.scanner.results import (
 )
 from app.services.relevance_taxonomy import ALIAS_TO_CANONICAL, TAXONOMY
 
-QUALITY_VERSION = "resume-presentation-v1"
-_ACTION_RE = re.compile(
-    r"\b(?:built|created|designed|developed|implemented|delivered|shipped|wrote|"
-    r"maintained|led|managed|launched|improved|reduced|increased|automated|"
-    r"configured|deployed|migrated|analyzed|analysed|tested|resolved|extended|"
-    r"collaborated|supported|contributed|provisioned|refactored|optimized|optimised)\b",
+QUALITY_VERSION = "resume-presentation-v2"
+_ACTION_LEMMAS = frozenset(
+    {
+        "analyze",
+        "automate",
+        "build",
+        "collaborate",
+        "combine",
+        "configure",
+        "contribute",
+        "create",
+        "deliver",
+        "deploy",
+        "design",
+        "develop",
+        "diagnose",
+        "extend",
+        "improve",
+        "increase",
+        "implement",
+        "integrate",
+        "keep",
+        "launch",
+        "lead",
+        "maintain",
+        "manage",
+        "migrate",
+        "optimize",
+        "provision",
+        "reduce",
+        "refactor",
+        "resolve",
+        "ship",
+        "support",
+        "test",
+        "write",
+    }
+)
+_IRREGULAR_ACTION_FORMS = {
+    "analysed": "analyze",
+    "built": "build",
+    "kept": "keep",
+    "led": "lead",
+    "optimised": "optimize",
+    "wrote": "write",
+}
+_TECHNICAL_DETAIL_RE = re.compile(
+    r"\b(?:api|apis|database|databases|backend|frontend|codebase|pipeline|"
+    r"rag|embeddings?|renderers?|coding[- ]agent|requirement[- ]analysis)\b",
     re.I,
 )
 _OUTCOME_RE = re.compile(
@@ -133,11 +176,43 @@ def _has_technical_specificity(text: str) -> bool:
             continue
         if re.search(rf"(?<!\w){re.escape(alias)}(?!\w)", text, re.I):
             return True
-    return bool(re.search(r"\b(?:api|apis|database|databases|backend|frontend|codebase|pipeline)\b", text, re.I))
+    return bool(_TECHNICAL_DETAIL_RE.search(text))
+
+
+def _action_lemma(token: str) -> str | None:
+    if token in _IRREGULAR_ACTION_FORMS:
+        return _IRREGULAR_ACTION_FORMS[token]
+    if token in _ACTION_LEMMAS:
+        return token
+    candidates: list[str] = []
+    if token.endswith("ies"):
+        candidates.append(token[:-3] + "y")
+    if token.endswith("ed"):
+        stem = token[:-2]
+        candidates.extend((stem, stem + "e"))
+        if len(stem) > 2 and stem[-1] == stem[-2]:
+            candidates.append(stem[:-1])
+    if token.endswith("ing"):
+        stem = token[:-3]
+        candidates.extend((stem, stem + "e"))
+        if len(stem) > 2 and stem[-1] == stem[-2]:
+            candidates.append(stem[:-1])
+    if token.endswith("s"):
+        candidates.append(token[:-1])
+    return next((candidate for candidate in candidates if candidate in _ACTION_LEMMAS), None)
+
+
+def _has_action(text: str) -> bool:
+    for match in re.finditer(r"\b[A-Za-z]+\b", text):
+        token = match.group(0).casefold()
+        lemma = _action_lemma(token)
+        if lemma is not None and not (token == "support"):
+            return True
+    return False
 
 
 def _classify_bullet(text: str) -> BulletEvidenceClass:
-    has_action = bool(_ACTION_RE.search(text))
+    has_action = _has_action(text)
     has_technical = _has_technical_specificity(text)
     has_outcome = bool(_OUTCOME_RE.search(text))
     has_number = bool(_NUMBER_RE.search(text))
