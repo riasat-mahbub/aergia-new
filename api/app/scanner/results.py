@@ -40,6 +40,12 @@ class AnalysisStatus(StrEnum):
     FAILED = "failed"
 
 
+class ScoreStatus(StrEnum):
+    AVAILABLE = "available"
+    INSUFFICIENT_SCORABLE_EVIDENCE = "insufficient_scorable_evidence"
+    UNAVAILABLE = "unavailable"
+
+
 class CVLocation(ScannerModel):
     section_id: str | None = Field(default=None, max_length=128)
     section_type: str | None = Field(default=None, max_length=100)
@@ -97,6 +103,7 @@ class SemanticAnalysis(ScannerModel):
     status: AnalysisStatus
     requirements: list[RequirementEvaluation] = Field(default_factory=list, max_length=100)
     evidence: list[Evidence] = Field(default_factory=list, max_length=1_000)
+    summary: SemanticScoreSummary | None = None
 
 
 class JobTextLocation(ScannerModel):
@@ -104,6 +111,7 @@ class JobTextLocation(ScannerModel):
     source_end: int = Field(ge=0)
     section_title: str | None = Field(default=None, max_length=500)
     section_purpose: str | None = Field(default=None, max_length=100)
+    importance: RequirementImportance = RequirementImportance.UNKNOWN
 
 
 class LexicalVisibility(StrEnum):
@@ -129,11 +137,13 @@ class LexicalTerm(ScannerModel):
     source_locations: list[JobTextLocation] = Field(min_length=1, max_length=100)
     visibility: LexicalVisibility
     evidence: list[LexicalEvidence] = Field(default_factory=list, max_length=100)
+    semantic_support: EvidenceStatus | None = None
 
 
 class LexicalAnalysis(ScannerModel):
     status: AnalysisStatus
     terms: list[LexicalTerm] = Field(default_factory=list, max_length=1_000)
+    summary: LexicalScoreSummary | None = None
 
 
 class FindingSeverity(StrEnum):
@@ -190,6 +200,50 @@ class PDFTextRecoveryAnalysis(ScannerModel):
     status: PDFRecoveryStatus
     page_count: int | None = Field(default=None, ge=0)
     checks: list[PDFCheck] = Field(default_factory=list, max_length=100)
+    summary: PDFRecoveryScoreSummary | None = None
+
+
+class ScoreBucketSummary(ScannerModel):
+    score: float | None = Field(default=None, ge=0.0, le=1.0)
+    scorable_fraction: float = Field(ge=0.0, le=1.0)
+    scorable_weight: float = Field(ge=0.0)
+    total_weight: float = Field(ge=0.0)
+    requirement_count: int = Field(ge=0)
+
+
+class SemanticScoreSummary(ScannerModel):
+    status: ScoreStatus
+    job_fit: float | None = Field(default=None, ge=0.0, le=1.0)
+    scorable_fraction: float = Field(ge=0.0, le=1.0)
+    qualification_fit: ScoreBucketSummary
+    responsibility_alignment: ScoreBucketSummary
+    preferred_fit: ScoreBucketSummary
+    unclassified_requirement_count: int = Field(ge=0)
+    supported_count: int = Field(ge=0)
+    partial_count: int = Field(ge=0)
+    not_evidenced_count: int = Field(ge=0)
+    conflicting_count: int = Field(ge=0)
+    unverifiable_count: int = Field(ge=0)
+    required_constraint_conflicts: int = Field(ge=0)
+
+
+class LexicalScoreSummary(ScannerModel):
+    status: ScoreStatus
+    visibility_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    scorable_fraction: float = Field(ge=0.0, le=1.0)
+    exact_count: int = Field(ge=0)
+    normalized_count: int = Field(ge=0)
+    variant_count: int = Field(ge=0)
+    absent_count: int = Field(ge=0)
+    unverifiable_count: int = Field(ge=0)
+
+
+class PDFRecoveryScoreSummary(ScannerModel):
+    status: ScoreStatus
+    recovery_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    scorable_fraction: float = Field(ge=0.0, le=1.0)
+    scored_check_count: int = Field(ge=0)
+    unavailable_check_count: int = Field(ge=0)
 
 
 class ScannerVersions(ScannerModel):
@@ -198,6 +252,9 @@ class ScannerVersions(ScannerModel):
     lexical_version: str = Field(min_length=1, max_length=100)
     quality_version: str = Field(min_length=1, max_length=100)
     pdf_analysis_version: str = Field(min_length=1, max_length=100)
+    semantic_score_version: str | None = Field(default=None, max_length=100)
+    lexical_score_version: str | None = Field(default=None, max_length=100)
+    pdf_score_version: str | None = Field(default=None, max_length=100)
 
 
 class ScanInputFingerprints(ScannerModel):
@@ -219,6 +276,10 @@ class ScanResult(ScannerModel):
 
 
 ExpressionEvaluation.model_rebuild()
+SemanticAnalysis.model_rebuild()
+LexicalAnalysis.model_rebuild()
+PDFTextRecoveryAnalysis.model_rebuild()
+ScanResult.model_rebuild()
 
 
 __all__ = [
@@ -234,17 +295,22 @@ __all__ = [
     "FindingSeverity",
     "JobTextLocation",
     "LexicalAnalysis",
+    "LexicalScoreSummary",
     "LexicalEvidence",
     "LexicalTerm",
     "LexicalVisibility",
     "PDFCheck",
     "PDFRecoveryStatus",
     "PDFTextRecoveryAnalysis",
+    "PDFRecoveryScoreSummary",
     "PresentationFinding",
     "PresentationQualityAnalysis",
     "RequirementEvaluation",
     "ScanInputFingerprints",
     "ScanResult",
+    "ScoreBucketSummary",
+    "ScoreStatus",
+    "SemanticScoreSummary",
     "ScannerVersions",
     "SemanticAnalysis",
 ]

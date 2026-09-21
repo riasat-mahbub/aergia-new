@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from datetime import date, datetime, timezone
 from typing import Protocol
 
+from app.scanner.analysis_links import link_lexical_semantic_support
 from app.scanner.extraction import ScannerRequirementExtractor
 from app.scanner.lexical import analyze_lexical_visibility
 from app.scanner.matching import evaluate_semantic_coverage
@@ -21,10 +22,18 @@ from app.scanner.results import (
     SemanticAnalysis,
     ScannerVersions,
 )
+from app.scanner.scoring import (
+    LEXICAL_SCORE_VERSION,
+    PDF_SCORE_VERSION,
+    SEMANTIC_SCORE_VERSION,
+    score_lexical_analysis,
+    score_pdf_recovery,
+    score_semantic_analysis,
+)
 from app.services.requirement_extractor import RequirementExtractionError
 
-MATCHER_VERSION = "requirement-match-v2"
-LEXICAL_VERSION = "ats-lexical-v3"
+MATCHER_VERSION = "requirement-match-v3"
+LEXICAL_VERSION = "ats-lexical-v4"
 
 
 class RequirementExtractor(Protocol):
@@ -85,6 +94,16 @@ class ScannerService:
         lexical = analyze_lexical_visibility(job_description, cv)
         presentation = analyze_presentation_quality(cv)
         pdf_recovery = analyze_pdf_recovery(pdf_bytes, cv)
+        semantic = semantic.model_copy(
+            update={
+                "summary": score_semantic_analysis(semantic, extraction.requirements),
+            }
+        )
+        lexical = link_lexical_semantic_support(lexical, extraction.requirements, semantic)
+        lexical = lexical.model_copy(update={"summary": score_lexical_analysis(lexical)})
+        pdf_recovery = pdf_recovery.model_copy(
+            update={"summary": score_pdf_recovery(pdf_recovery)}
+        )
         cv_hash = _sha256(_canonical_json(cv))
         return ScanResult(
             created_at=datetime.now(timezone.utc),
@@ -99,6 +118,9 @@ class ScannerService:
                 lexical_version=LEXICAL_VERSION,
                 quality_version=QUALITY_VERSION,
                 pdf_analysis_version=PDF_ANALYSIS_VERSION,
+                semantic_score_version=SEMANTIC_SCORE_VERSION,
+                lexical_score_version=LEXICAL_SCORE_VERSION,
+                pdf_score_version=PDF_SCORE_VERSION,
             ),
             requirement_extraction=extraction,
             semantic=semantic,

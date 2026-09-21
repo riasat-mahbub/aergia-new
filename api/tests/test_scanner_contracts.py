@@ -9,6 +9,7 @@ from app.scanner.requirements import (
     Concept,
     Expectation,
     ExpectationKind,
+    ExamplesExpression,
     MinimumYearsConstraint,
     Requirement,
     RequirementImportance,
@@ -270,6 +271,40 @@ def test_any_expression_accepts_one_complete_alternative() -> None:
     assert result.children[1].status is EvidenceStatus.NOT_EVIDENCED
 
 
+def test_examples_expression_needs_breadth_but_counts_as_one_requirement() -> None:
+    expression = ExamplesExpression(
+        kind="examples",
+        id="team-rituals",
+        subject=_leaf("rituals", "team rituals"),
+        examples=[
+            RequirementLeaf.model_validate(
+                {**_leaf(node_id, name).model_dump(mode="python"), "modifiers": {"optional": True, "list_semantics": "examples"}}
+            )
+            for node_id, name in (("standups", "standups"), ("demos", "demos"), ("retros", "retrospectives"))
+        ],
+        min_supporting_examples=2,
+        confidence=0.9,
+    )
+
+    one_example = evaluate_expression(
+        expression,
+        {"standups": [_evidence("standup-evidence")]},
+    )
+    two_examples = evaluate_expression(
+        expression,
+        {
+            "standups": [_evidence("standup-evidence")],
+            "demos": [_evidence("demo-evidence")],
+        },
+    )
+
+    assert one_example.status is EvidenceStatus.PARTIAL
+    assert (one_example.mandatory_supported, one_example.mandatory_total) == (0, 1)
+    assert two_examples.status is EvidenceStatus.SUPPORTED
+    assert (two_examples.mandatory_supported, two_examples.mandatory_total) == (1, 1)
+    assert all(item.mandatory_total == 0 for item in two_examples.children[1:])
+
+
 def test_optional_any_alternative_cannot_satisfy_a_mandatory_alternative() -> None:
     expression = AnyExpression(
         kind="any",
@@ -386,9 +421,13 @@ def test_scan_result_keeps_subsystem_results_and_versions_independent() -> None:
     payload = result.model_dump(mode="json")
     assert payload["schema_version"] == "scanner-v1"
     assert payload["semantic"]["status"] == "evaluated"
+    assert payload["semantic"].get("summary") is None
     assert payload["lexical"]["terms"][0]["visibility"] == "absent"
+    assert payload["lexical"].get("summary") is None
     assert payload["presentation_quality"]["status"] == "not_evaluated"
     assert payload["pdf_recovery"]["status"] == "unavailable"
+    assert payload["pdf_recovery"].get("summary") is None
+    assert result.versions.semantic_score_version is None
 
 
 def test_lexical_variant_requires_evidence_and_cv_location() -> None:
