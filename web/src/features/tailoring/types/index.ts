@@ -43,8 +43,8 @@ export interface TailoringSessionResult {
   draft_cv_id: string;
   candidate_hash: string;
   candidate?: TailoringCandidate;
-  scanner_result: ScanResult;
-  render_warnings: string[];
+  scanner_result?: ScanResult | null;
+  render_warnings?: string[];
   review_notes?: string[];
 }
 
