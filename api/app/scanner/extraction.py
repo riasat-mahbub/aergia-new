@@ -120,9 +120,9 @@ _COMPANY_COPY_RE = re.compile(
 
 _DIRECTED_PATTERNS: tuple[tuple[re.Pattern[str], float], ...] = (
     (re.compile(r"\b(?:you(?:['’]ll|\s+will|\s+must|\s+should|\s+have|\s+are|\s+bring|\s+need|\s+can))\b", re.I), 0.82),
-    (re.compile(r"\b(?:familiarity\s+with|experience\s+(?:with|in|of)|knowledge\s+of|"
+    (re.compile(r"\b(?:familiarity\s+with|experience\s+(?:working|operating)\s+in|experience\s+(?:with|in|of)|knowledge\s+of|"
                 r"ability\s+to|able\s+to|proficien(?:t|cy)\s+(?:in|with)|interest\s+in|"
-                r"curiosity\s+about|bilingual\s+in|strong\s+\w+\s+skills|"
+                r"awareness\s+of|aware\s+of|curiosity\s+about|bilingual\s+in|strong\s+\w+\s+skills|"
                 r"demonstrated\s+interest|willing\s+to)\b", re.I), 0.82),
     (re.compile(r"^\s*(?:assist|use|pair[- ]program|write|help|participate|learn|design|"
                 r"build|develop|test|debug|investigate|maintain|operate|lead|own|"
@@ -134,6 +134,7 @@ _EXPECTATION_CUES: tuple[tuple[re.Pattern[str], ExpectationKind, float], ...] = 
     (re.compile(r"\b(?:interest|interested)\s+in\s+(?:learning|developing)\b", re.I), ExpectationKind.DEVELOPMENTAL_INTEREST, 0.92),
     (re.compile(r"\bcuriosity\b", re.I), ExpectationKind.CURIOSITY, 0.92),
     (re.compile(r"\binterest\b", re.I), ExpectationKind.INTEREST, 0.90),
+    (re.compile(r"\b(?:awareness|aware)\s+of\b", re.I), ExpectationKind.KNOWLEDGE, 0.88),
     (re.compile(r"\bbilingual\b|\bfluent\b", re.I), ExpectationKind.PROFICIENCY, 0.90),
     (re.compile(r"\bfamiliarity\b", re.I), ExpectationKind.FAMILIARITY, 0.92),
     (re.compile(r"\bproficien(?:t|cy)\b", re.I), ExpectationKind.PROFICIENCY, 0.92),
@@ -923,34 +924,76 @@ def _scope_trailing_domains(
     """
 
     for match in _SCOPED_DOMAIN_RE.finditer(sentence.text):
+        head_text = match.group("head")
+        head_start_in_sentence = match.start("head")
+        has_expectation_signal = any(
+            pattern.search(sentence.text[:head_start_in_sentence])
+            for pattern, _kind, _confidence in _EXPECTATION_CUES
+        )
+        if not has_expectation_signal:
+            continue
         head_start = sentence.start + match.start("head")
         head_end = sentence.start + match.end("head")
         scope_start = sentence.start + match.start("scope")
         scope_end = sentence.start + match.end("scope")
+        crossing_scope = [
+            component
+            for component in components
+            if component.start < scope_start and component.end > scope_start
+        ]
+        usable_components = [component for component in components if component not in crossing_scope]
         focus = next(
             (
                 component
-                for component in components
+                for component in usable_components
                 if component.start < head_end and component.end > head_start
             ),
             None,
         )
         if focus is None:
-            continue
+            cue_kinds = {
+                kind
+                for pattern, kind, _confidence in _EXPECTATION_CUES
+                if pattern.search(sentence.text[:head_start_in_sentence])
+            }
+            family = (
+                "behavioral"
+                if cue_kinds.intersection(
+                    {
+                        ExpectationKind.CURIOSITY,
+                        ExpectationKind.DEVELOPMENTAL_INTEREST,
+                        ExpectationKind.INTEREST,
+                        ExpectationKind.WILLINGNESS_TO_LEARN,
+                    }
+                )
+                else "other"
+            )
+            normalized_head = _normalize(head_text).replace(" ", "_")
+            focus = _Component(
+                concept=Concept(
+                    name=head_text,
+                    canonical_id=f"scanner:scoped_focus_{normalized_head}"[:200],
+                    family=family,
+                    source_text=head_text,
+                    confidence=0.58,
+                ),
+                start=head_start,
+                end=head_end,
+                label="derived_scoped_focus",
+            )
+            usable_components = [*usable_components, focus]
         scoped_components = [
             component
-            for component in components
+            for component in usable_components
             if component.start >= scope_start and component.end <= scope_end
         ]
-        if not scoped_components:
-            continue
         scope_text = match.group("scope").strip(" \t,;:")[:500]
         if not scope_text:
             continue
         scoped_focus = replace(focus, scope=scope_text)
         return [
             scoped_focus if component is focus else component
-            for component in components
+            for component in usable_components
             if component not in scoped_components
         ]
     return list(components)
