@@ -58,6 +58,25 @@ def _sha256(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
+def fingerprint_scan_inputs(
+    job_description: str,
+    cv: object,
+    *,
+    pdf_bytes: bytes | None = None,
+) -> ScanInputFingerprints:
+    """Return stable fingerprints for the inputs consumed by scanner branches."""
+
+    if not job_description or not job_description.strip():
+        raise ValueError("job_description must not be blank")
+    if cv is None:
+        raise ValueError("cv must be provided")
+    return ScanInputFingerprints(
+        job_description_sha256=_sha256(job_description.encode("utf-8")),
+        cv_content_sha256=_sha256(_canonical_json(cv)),
+        pdf_sha256=_sha256(pdf_bytes) if pdf_bytes else None,
+    )
+
+
 class ScannerService:
     """Run requirement, semantic, lexical, presentation, and PDF analyses."""
 
@@ -104,14 +123,9 @@ class ScannerService:
         pdf_recovery = pdf_recovery.model_copy(
             update={"summary": score_pdf_recovery(pdf_recovery)}
         )
-        cv_hash = _sha256(_canonical_json(cv))
         return ScanResult(
             created_at=datetime.now(timezone.utc),
-            input_fingerprints=ScanInputFingerprints(
-                job_description_sha256=_sha256(job_description.encode("utf-8")),
-                cv_content_sha256=cv_hash,
-                pdf_sha256=_sha256(pdf_bytes) if pdf_bytes else None,
-            ),
+            input_fingerprints=fingerprint_scan_inputs(job_description, cv, pdf_bytes=pdf_bytes),
             versions=ScannerVersions(
                 extractor_version=extraction.extractor_version,
                 matcher_version=MATCHER_VERSION,
@@ -130,4 +144,4 @@ class ScannerService:
         )
 
 
-__all__ = ["LEXICAL_VERSION", "MATCHER_VERSION", "ScannerService"]
+__all__ = ["LEXICAL_VERSION", "MATCHER_VERSION", "ScannerService", "fingerprint_scan_inputs"]

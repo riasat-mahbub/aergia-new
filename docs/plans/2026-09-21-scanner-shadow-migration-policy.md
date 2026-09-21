@@ -27,7 +27,8 @@ backfilled or transformed.
 
 The command considers applications with a nonblank job description and an
 active, linked CV. It treats a `scanner-v1` result as current when its job and
-CV fingerprints match the current inputs. Current results are skipped by
+CV fingerprints, installed matcher/lexical/quality/PDF/scoring versions, and
+configured extractor model revision match. Current results are skipped by
 default. Stale or absent results are scanned. `--only-missing` skips any
 application that already has a result, even if stale; `--force` rescans all
 scannable applications and cannot be combined with `--only-missing`.
