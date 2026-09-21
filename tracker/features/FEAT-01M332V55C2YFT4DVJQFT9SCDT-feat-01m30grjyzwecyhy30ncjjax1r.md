@@ -79,12 +79,13 @@ warnings.
 
 ## Verification
 
-Focused tailoring/scanner suites: 71 passed. Full API suite with browser
-process access: 634 passed, 1 skipped. Ruff passed. Portable skill tests: 3
-passed. Frontend lint completed with nine pre-existing hook warnings; typecheck,
-architecture checks, and codegen checks passed. Elevated PDF smoke passed for
-Playwright, Chromium, Aergia rendering, and pdfplumber recovery. Normal managed
-sandbox PDF launch remains blocked by its process restriction.
+Focused tailoring/scanner/API lifecycle suites: 53 passed in the final
+verification run. Full API suite with browser process access: 634 passed, 1
+skipped. Ruff passed. Portable skill tests: 3 passed. Frontend lint completed
+with nine pre-existing hook warnings; typecheck, architecture checks, and
+codegen checks passed. Elevated PDF smoke passed for Playwright, Chromium,
+Aergia rendering, and pdfplumber recovery. Normal managed sandbox PDF launch
+remains blocked by its process restriction.
 
 
 ## Follow-up
@@ -93,3 +94,9 @@ Keep legacy relevance writes and old tailoring snapshots until scanner
 validation and a separate consumer-cutover task authorize stopping them.
 Historical protocol-v2 result payloads remain readable but are not converted
 to scanner-v1.
+
+The v4 tailoring path now rejects sessions when the frozen scanner contract or
+submitted scanner result is stale, and acceptance promotes only the scanner
+result evaluated for the exact submitted candidate. Application-facing legacy
+relevance remains outside this task and is still active for non-tailoring
+consumers.
