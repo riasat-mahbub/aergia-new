@@ -258,3 +258,7 @@ async def test_tailoring_source_context_freezes_and_reuses_source_scanner_result
     source_preview = await client.get("/api/v1/tailoring/source-preview", headers=capability_headers)
     assert source_preview.status_code == 200
     assert source_preview.json()["scanner_result"]["schema_version"] == "scanner-v1"
+    monkeypatch.setattr(tailoring_service_module, "configured_extractor_version", lambda: "gliner2.5-structured-v8")
+    stale_context = await client.get("/api/v1/tailoring/context", headers=capability_headers)
+    assert stale_context.status_code == 409
+    assert "scanner contract changed" in stale_context.json()["detail"]
