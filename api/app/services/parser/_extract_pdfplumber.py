@@ -51,7 +51,13 @@ vertical-metrics drift between glyphs of the same line.
 """
 
 
-def extract_with_pdfplumber(file_bytes: bytes) -> ExtractedDocument:
+def extract_with_pdfplumber(
+    file_bytes: bytes,
+    *,
+    max_pages: int | None = None,
+    max_text_chars: int | None = None,
+    max_total_links: int | None = None,
+) -> ExtractedDocument:
     """Pull text + per-line font metadata + link annotations via pdfplumber.
 
     Opens the PDF in-memory, walks each page with
@@ -64,11 +70,31 @@ def extract_with_pdfplumber(file_bytes: bytes) -> ExtractedDocument:
     """
     import pdfplumber
 
+    if max_pages is not None and max_pages < 1:
+        raise ValueError("max_pages must be positive")
+    if max_text_chars is not None and max_text_chars < 1:
+        raise ValueError("max_text_chars must be positive")
+    if max_total_links is not None and max_total_links < 0:
+        raise ValueError("max_total_links cannot be negative")
+
     blocks: list[TextBlock] = []
     plain_lines: list[str] = []
     column_groups: list[list[TextBlock]] = []
+    text_truncated = False
+    links_attached = 0
+    plain_text_chars = 0
 
     with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+        page_count = len(pdf.pages)
+        if max_pages is not None and page_count > max_pages:
+            return ExtractedDocument(
+                blocks=[],
+                plain_text="",
+                columns=[],
+                source_format="pdf",
+                page_count=page_count,
+                page_limit_exceeded=True,
+            )
         for page_index, page in enumerate(pdf.pages):
             lines = page.extract_text_lines()
             words = page.extract_words(
@@ -79,16 +105,48 @@ def extract_with_pdfplumber(file_bytes: bytes) -> ExtractedDocument:
             page_hyperlinks = page.hyperlinks
             page_blocks = _build_page_blocks(lines, words, page_index)
             for block in page_blocks:
-                _attach_hyperlinks_to_block(block, page_hyperlinks)
-            blocks.extend(page_blocks)
-            column_groups.append(page_blocks)
-            plain_lines.extend(b.text for b in page_blocks)
+                remaining_links = (
+                    None
+                    if max_total_links is None
+                    else max(0, max_total_links - links_attached)
+                )
+                if remaining_links == 0:
+                    break
+                before = len(block.links)
+                _attach_hyperlinks_to_block(block, page_hyperlinks, max_links=remaining_links)
+                links_attached += len(block.links) - before
+
+            included_page_blocks: list[TextBlock] = []
+            for block in page_blocks:
+                text = block.text
+                separator_length = 1 if plain_lines else 0
+                if max_text_chars is not None:
+                    remaining_text = max_text_chars - plain_text_chars
+                    available = remaining_text - separator_length
+                    if available <= 0:
+                        text_truncated = True
+                        break
+                    if len(text) > available:
+                        text = text[:available]
+                        block = block.model_copy(update={"text": text})
+                        text_truncated = True
+                included_page_blocks.append(block)
+                plain_lines.append(text)
+                plain_text_chars += separator_length + len(text)
+                if text_truncated:
+                    break
+            blocks.extend(included_page_blocks)
+            column_groups.append(included_page_blocks)
+            if text_truncated:
+                break
 
     return ExtractedDocument(
         blocks=blocks,
         plain_text="\n".join(plain_lines),
         columns=column_groups,
         source_format="pdf",
+        page_count=page_count,
+        text_truncated=text_truncated,
     )
 
 
@@ -175,7 +233,10 @@ def _strip_fontname_prefix(fontname: str) -> str:
 
 
 def _attach_hyperlinks_to_block(
-    block: TextBlock, hyperlinks: list[dict[str, Any]]
+    block: TextBlock,
+    hyperlinks: list[dict[str, Any]],
+    *,
+    max_links: int | None = None,
 ) -> None:
     """Copy matching hyperlink URIs into ``block.links``.
 
@@ -184,7 +245,7 @@ def _attach_hyperlinks_to_block(
     pdfplumber's top-down coords (``top``/``bottom``), so no flipping
     is required.
     """
-    if not hyperlinks:
+    if not hyperlinks or max_links == 0:
         return
 
     block_x0 = block.x - _LINK_OVERLAP_TOLERANCE
@@ -205,6 +266,8 @@ def _attach_hyperlinks_to_block(
         if lbottom < block_y0 or ltop > block_y1:
             continue
         block.links.append(str(uri))
+        if max_links is not None and len(block.links) >= max_links:
+            return
 
 
 __all__ = ["extract_with_pdfplumber"]

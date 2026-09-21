@@ -1222,8 +1222,14 @@ class Gliner2RequirementExtractor:
                 raise RequirementExtractionError() from exc
         return self._model
 
-    def extract_result(self, role: str, job_description: str) -> ExtractionResult:
-        del role  # Role titles are context, not candidate source text.
+    def extract_raw_spans(self, job_description: str) -> tuple[_RawSpan, ...]:
+        """Return document-relative model spans for a downstream extractor.
+
+        The scanner replacement uses this boundary to retain the shared lazy
+        GLiNER model and chunking safeguards without inheriting the legacy
+        requirement normalization contract.
+        """
+
         source = job_description or ""
         if not source.strip():
             raise RequirementExtractionError()
@@ -1266,13 +1272,6 @@ class Gliner2RequirementExtractor:
                             )
                             spans.extend(_coerce_raw_spans(chunk.text, raw, offset=chunk.start))
                     self.last_inference_path = "long"
-                    result = _requirements_from_spans(
-                        source,
-                        spans,
-                        extractor="gliner2",
-                        extractor_version=f"{self.model_name}@{self.revision or 'default'}",
-                        inference_path="long",
-                    )
                 else:
                     raw = model.extract_entities(
                         source,
@@ -1281,22 +1280,29 @@ class Gliner2RequirementExtractor:
                         include_spans=True,
                         overlap_policy="flat",
                     )
+                    spans = _coerce_raw_spans(source, raw)
                     self.last_inference_path = "short"
-                    result = requirements_from_model_output(
-                        source,
-                        raw,
-                        extractor="gliner2",
-                        extractor_version=f"{self.model_name}@{self.revision or 'default'}",
-                        inference_path="short",
-                    )
             except RequirementExtractionError:
                 raise
             except Exception as exc:
                 logger.exception("gliner2_requirement_extraction_failed", extra={"model": self.model_name})
                 raise RequirementExtractionError() from exc
-            if not result.requirements:
-                raise RequirementExtractionError()
-            return result
+            return tuple(spans)
+
+    def extract_result(self, role: str, job_description: str) -> ExtractionResult:
+        del role  # Role titles are context, not candidate source text.
+        source = job_description or ""
+        spans = self.extract_raw_spans(source)
+        result = _requirements_from_spans(
+            source,
+            spans,
+            extractor="gliner2",
+            extractor_version=f"{self.model_name}@{self.revision or 'default'}",
+            inference_path=self.last_inference_path,
+        )
+        if not result.requirements:
+            raise RequirementExtractionError()
+        return result
 
     def extract(self, role: str, job_description: str) -> list[JobRequirement]:
         return to_job_requirements(self.extract_result(role, job_description))

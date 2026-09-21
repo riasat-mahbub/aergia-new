@@ -1,0 +1,205 @@
+{
+  "case_id": "alayacare-junior-fullstack-developer-python-v1",
+  "dataset_split": "seed_regression_development",
+  "annotation_status": "provisional_agent_labels_user_review_required",
+  "source": {
+    "job_description_file": "job_description.txt",
+    "job_description_sha256": "91cd90705ebdc148af7d916c26ab7d2b04df8acc882eeac59a6bc3652da63c0d",
+    "cv_text_file": "cv_text_redacted.txt",
+    "cv_redacted_text_sha256": "90f4bde3836529b5b3a6f5858ddcfb862fb4ff7ea21e01ec9a3de574c77e93eb",
+    "cv_source_pdf_sha256": "baa46c978e9f9e96f7b8b755ab71c93ef1018c21c9b46587af53027597639880",
+    "cv_source_pdf_bytes": 50509,
+    "cv_source_pdf_pages": 1,
+    "cv_extraction": "pdfplumber page.extract_text(layout=False)",
+    "cv_redactions": ["candidate name", "email", "phone number", "external URLs"]
+  },
+  "section_annotations": [
+    {"heading": "About AlayaCare", "purpose": "employer_information"},
+    {"heading": "About the Role", "purpose": "candidate_responsibilities"},
+    {"heading": "What You’ll Do", "purpose": "candidate_responsibilities"},
+    {"heading": "What You Bring to the Team", "purpose": "candidate_qualifications"},
+    {"heading": "Why Join AlayaCare?", "purpose": "employer_information"},
+    {"heading": "Location and Work Model", "purpose": "logistics"},
+    {"heading": "Ready to Join Us?", "purpose": "application_process"}
+  ],
+  "expected_non_requirements": [
+    {
+      "source_text": "At AlayaCare, we are more than just a fast-growing SaaS company — we’re a team of people passionate about transforming home healthcare. Our cloud-based platform empowers care providers around the world to deliver better outcomes for their clients.",
+      "reason": "employer_information"
+    },
+    {
+      "source_text": "With 650+ employees across Canada, the US, Australia, and Brazil, we’re united by a shared mission and a strong culture of transparency, growth, and human connection.",
+      "reason": "employer_information"
+    },
+    {
+      "source_text": "AlayaCare uses AI tools during our hiring process to support fair, consistent, and objective decision-making. Some initial screening steps may be automated to help identify qualified candidates. If your application is declined automatically, you may request a human review.",
+      "reason": "application_process"
+    },
+    {
+      "source_text": "We’re committed to creating a workplace where everyone belongs. If you require accommodation during the application process, please reach out to careers@alayacare.com.",
+      "reason": "legal_or_application_process"
+    }
+  ],
+  "requirements": [
+    {
+      "id": "assist-software-features",
+      "source_text": "Assist in designing, coding, testing, and debugging software features.",
+      "importance": "required",
+      "logical_shape": "all",
+      "cv_evidence": {
+        "designing": "partial",
+        "coding": "supported",
+        "testing": "supported",
+        "debugging": "partial"
+      }
+    },
+    {
+      "id": "genai-code-work",
+      "source_text": "Use GenAI tools to help plan, generate, and test code.",
+      "importance": "required",
+      "logical_shape": "all",
+      "cv_evidence": {
+        "GenAI_or_coding_agent_concept": "supported",
+        "use_to_plan_generate_and_test_code_expectation": "partial"
+      }
+    },
+    {
+      "id": "pair-programming-code-review",
+      "source_text": "Pair-program with senior developers and participate in code reviews to learn best practices.",
+      "importance": "required",
+      "logical_shape": "all",
+      "cv_evidence": "not_evidenced"
+    },
+    {
+      "id": "automated-tests",
+      "source_text": "Write and maintain automated tests with guidance from team members.",
+      "importance": "required",
+      "cv_evidence": {
+        "testing_concept": "supported",
+        "guided_work_expectation": "not_evidenced"
+      }
+    },
+    {
+      "id": "investigate-reproduce-resolve-bugs",
+      "source_text": "Help investigate, reproduce, and resolve bugs under supervision.",
+      "importance": "required",
+      "logical_shape": "all",
+      "cv_evidence": "partial"
+    },
+    {
+      "id": "team-rituals",
+      "source_text": "Participate in team rituals such as standups, demos, and retrospectives.",
+      "importance": "required",
+      "logical_shape": "all",
+      "cv_evidence": "not_evidenced"
+    },
+    {
+      "id": "modern-development-practices",
+      "source_text": "Learn and apply modern development practices, including Implementing with AI, CI/CD, containerization, and monitoring.",
+      "importance": "required",
+      "logical_shape": "all",
+      "components": [
+        {
+          "concept": "AI-assisted development",
+          "cv_evidence": "partial",
+          "reason": "The CV says it built coding-agent and RAG workflows, but does not state that it used an AI tool to plan, generate, or test its own code."
+        },
+        {"concept": "CI/CD", "cv_evidence": "supported"},
+        {"concept": "containerization", "cv_evidence": "supported", "evidence_variant": "Docker"},
+        {"concept": "monitoring", "cv_evidence": "not_evidenced"}
+      ],
+      "mandatory_components_supported": 2,
+      "mandatory_components_partial": 1,
+      "mandatory_components_total": 4
+    },
+    {
+      "id": "programming-language-familiarity",
+      "source_text": "Familiarity with at least one programming language (e.g., Python, TypeScript, JavaScript, PHP, or similar).",
+      "importance": "required",
+      "logical_shape": "any",
+      "cv_evidence": "supported"
+    },
+    {
+      "id": "interest-in-ai-tools",
+      "source_text": "Demonstrated interest in AI tools, with a proactive mindset toward integrating them into day-to-day work to drive efficiency and innovation.",
+      "importance": "required",
+      "cv_evidence": {
+        "AI_tools_concept": "supported",
+        "interest_and_integration_expectation": "partial"
+      }
+    },
+    {
+      "id": "learning-development-tools",
+      "source_text": "Interest in learning development tools and workflows such as Git, CI/CD pipelines, and Docker.",
+      "importance": "required",
+      "logical_shape": "all",
+      "cv_evidence": {
+        "Git_CICD_Docker_concepts": "supported",
+        "interest_in_learning_expectation": "not_evidenced"
+      }
+    },
+    {
+      "id": "industry-trends-curiosity",
+      "source_text": "Curiosity about current industry trends in technology, performance, and software development practices.",
+      "importance": "required",
+      "logical_shape": "all",
+      "cv_evidence": {
+        "software_development_concept": "supported",
+        "curiosity_about_current_trends_expectation": "not_evidenced",
+        "must_not_be_fully_supported": true
+      }
+    },
+    {
+      "id": "communication-collaboration",
+      "source_text": "Strong communication skills and the ability to collaborate with both technical and non-technical teammates.",
+      "importance": "required",
+      "logical_shape": "all",
+      "cv_evidence": "not_evidenced"
+    },
+    {
+      "id": "fullstack-development-interest",
+      "source_text": "Interest in developing yourself as a full stack developer as you’ll implement in both Front-End and Back-End code.",
+      "importance": "required",
+      "logical_shape": "all",
+      "cv_evidence": {
+        "full_stack_implementation_concept": "supported",
+        "interest_expectation": "not_evidenced"
+      }
+    },
+    {
+      "id": "french-english",
+      "source_text": "Bilingual in French and English is considered an asset.",
+      "importance": "preferred",
+      "logical_shape": "all",
+      "cv_evidence": "not_evidenced"
+    }
+  ],
+  "lexical_expectations": [
+    {"term": "Python", "visibility": "exact"},
+    {"term": "TypeScript", "visibility": "exact"},
+    {"term": "JavaScript", "visibility": "exact"},
+    {"term": "PHP", "visibility": "exact"},
+    {"term": "Git", "visibility": "exact"},
+    {"term": "CI/CD", "visibility": "exact"},
+    {"term": "Docker", "visibility": "exact"},
+    {"term": "GenAI", "visibility": "variant", "matched_text": "coding-agent", "exact_visibility": "absent", "semantic_support": "partial"},
+    {"term": "automated testing", "visibility": "variant", "matched_text": "unit and integration tests"},
+    {"term": "containerization", "visibility": "variant", "matched_text": "Docker"},
+    {"term": "monitoring", "visibility": "absent", "semantic_support": "not_evidenced"},
+    {"term": "Front-End and Back-End", "visibility": "absent", "semantic_support": "full-stack concept is supported"}
+  ],
+  "separate_logistics": [
+    {
+      "source_text": "This role is based in the Greater Montreal Area. At AlayaCare, our hybrid model includes set in-office collaboration days, and it is expected that team members are present in the office on those days to foster connection, innovation, and teamwork.",
+      "cv_evidence": "Halifax, Nova Scotia, Canada; open to relocation",
+      "semantic_requirement_extraction": false
+    }
+  ],
+  "notes": [
+    "The PDF is not committed; cv_text_redacted.txt is a reproducible text derivative tied to the source PDF hash.",
+    "not_evidenced means the supplied CV does not establish the expectation; it is not a claim about the candidate's actual ability.",
+    "The source text and CV are frozen, but labels are provisional agent annotations and need user review before serving as gold data.",
+    "The seed case is development data, not held-out data, because its problem examples informed scanner design.",
+    "Gold labels for production acceptance require additional independent postings and a held-out set."
+  ]
+}

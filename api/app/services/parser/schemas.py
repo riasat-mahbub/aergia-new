@@ -53,6 +53,9 @@ class ExtractedDocument(BaseModel):
     plain_text: str
     columns: list[list[TextBlock]]
     source_format: Literal["pdf", "json"]
+    page_count: int | None = None
+    text_truncated: bool = False
+    page_limit_exceeded: bool = False
 
 
 class FieldConfidence(BaseModel):

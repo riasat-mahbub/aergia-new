@@ -1,0 +1,55 @@
+About AlayaCare
+
+At AlayaCare, we are more than just a fast-growing SaaS company — we’re a team of people passionate about transforming home healthcare. Our cloud-based platform empowers care providers around the world to deliver better outcomes for their clients.
+
+With 650+ employees across Canada, the US, Australia, and Brazil, we’re united by a shared mission and a strong culture of transparency, growth, and human connection. Whether you're early in your career or a seasoned expert, AlayaCare offers the opportunity to grow your impact, your skills, and your career.
+
+About the Role
+
+As a Junior Fullstack Developer (Python), you will work closely with experienced developers and product team members to contribute to real product features. You will contribute to meaningful projects while learning modern development practices, tools, and workflows. You will be supported by mentors who will help you develop both your technical abilities and professional skills.
+
+What You’ll Do
+
+- Assist in designing, coding, testing, and debugging software features.
+- Use GenAI tools to help plan, generate, and test code.
+- Pair-program with senior developers and participate in code reviews to learn best practices.
+- Write and maintain automated tests with guidance from team members.
+- Help investigate, reproduce, and resolve bugs under supervision.
+- Participate in team rituals such as standups, demos, and retrospectives.
+- Learn and apply modern development practices, including Implementing with AI, CI/CD, containerization, and monitoring.
+
+What You Bring to the Team
+
+- Familiarity with at least one programming language (e.g., Python, TypeScript, JavaScript, PHP, or similar).
+- Demonstrated interest in AI tools, with a proactive mindset toward integrating them into day-to-day work to drive efficiency and innovation.
+- Interest in learning development tools and workflows such as Git, CI/CD pipelines, and Docker.
+- Curiosity about current industry trends in technology, performance, and software development practices.
+- Strong communication skills and the ability to collaborate with both technical and non-technical teammates.
+- Interest in developing yourself as a full stack developer as you’ll implement in both Front-End and Back-End code.
+- Bilingual in French and English is considered an asset.
+
+Why Join AlayaCare?
+
+Work With Purpose
+
+At AlayaCare, you’ll help build technology that empowers care providers and improves outcomes for patients and families. Every line of code and every customer interaction contributes to making care more connected, accessible, and human.
+
+Grow in a High-Trust Culture
+
+We believe in transparency, feedback, and assuming positive intent. Here, you’ll feel safe to share your ideas and career goals, and be supported to achieve them through mentorship, career mobility, and a promote-from-within philosophy.
+
+Inclusive by Design
+
+We celebrate diverse perspectives and foster belonging through our DEIB initiatives. Employee-led events, summits, and social activities — both in-person and virtual — create meaningful connections across our global teams.
+
+Location and Work Model
+
+This role is based in the Greater Montreal Area. At AlayaCare, our hybrid model includes set in-office collaboration days, and it is expected that team members are present in the office on those days to foster connection, innovation, and teamwork.
+
+Ready to Join Us?
+
+Apply today and be part of a company that makes a real difference in the future of home and community care. Not the right role for you? Share this posting with someone who might be a great fit.
+
+AlayaCare uses AI tools during our hiring process to support fair, consistent, and objective decision-making. Some initial screening steps may be automated to help identify qualified candidates. If your application is declined automatically, you may request a human review.
+
+We’re committed to creating a workplace where everyone belongs. If you require accommodation during the application process, please reach out to careers@alayacare.com.
