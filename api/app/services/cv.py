@@ -174,6 +174,8 @@ class CVService:
         )
         applications = result.scalars().all()
         for application in applications:
+            # The persisted scan describes the previous CV revision.
+            application.scanner_result = None
             requirements = extract_requirements(application.role, application.job_description)
             relevance = evaluate_requirement_relevance(requirements, cv.sections or [])
             application.relevance = relevance.model_dump(mode="json")

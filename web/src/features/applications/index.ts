@@ -1,10 +1,10 @@
 export {
   createApplication,
   deleteApplication,
-  generateApplication,
   getApplication,
   listApplications,
   recomputeApplicationRelevance,
+  scanApplication,
   updateApplication,
 } from "./api/applications";
 export { default as ApplicationDetailPage } from "./pages/ApplicationDetailPage";
@@ -18,7 +18,6 @@ export {
 export type {
   Application,
   ApplicationCreateData,
-  ApplicationGenerateResponse,
   ApplicationStatus,
   ApplicationStatusHistory,
   ApplicationUpdateData,
@@ -27,7 +26,6 @@ export type {
   CVQualityResult,
   CVQualityStatus,
   ExtractedKeyword,
-  GenerationStatus,
   JobRequirement,
   MatchEvidence,
   RelevanceAnalysis,
@@ -37,4 +35,13 @@ export type {
   RequirementMatch,
   RequirementRelevanceResult,
   RequirementType,
+  ScanResult,
+  ScannerCVLocation,
+  ScannerEvidenceStatus,
+  ScannerExpressionEvaluation,
+  ScannerExpressionNode,
+  ScannerImportance,
+  ScannerLexicalTerm,
+  ScannerRequirement,
+  ScannerRequirementEvaluation,
 } from "./types";

@@ -9,18 +9,14 @@ from app.db.session import get_db
 from app.models.user import User
 from app.http_schemas.application import (
     ApplicationCreate,
-    ApplicationGenerateResponse,
     ApplicationListItem,
     ApplicationResponse,
     ApplicationUpdate,
 )
 from app.services.application import (
-    APPLICATION_ALREADY_GENERATED,
     APPLICATION_NOT_FOUND,
-    PROFILE_REQUIRED,
-    ApplicationGenerationConflictError,
+    ApplicationCVLinkError,
     ApplicationService,
-    ProfileRequiredError,
 )
 from app.services.relevance import (
     KEYWORD_EXTRACTION_ERROR,
@@ -90,6 +86,8 @@ async def update_application(
     service = ApplicationService(db)
     try:
         application = await service.update_application(application_id, current_user.id, data)
+    except ApplicationCVLinkError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except RequirementExtractionError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -116,43 +114,6 @@ async def delete_application(
     return None
 
 
-@router.post("/{application_id}/generate", response_model=ApplicationGenerateResponse)
-@limiter.limit("5/minute")
-async def generate_application_cv(
-    request: Request,
-    response: Response,
-    application_id: str,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    service = ApplicationService(db)
-    try:
-        generated = await service.generate_cv(application_id, current_user)
-    except LookupError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=APPLICATION_NOT_FOUND) from exc
-    except ProfileRequiredError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=PROFILE_REQUIRED) from exc
-    except ApplicationGenerationConflictError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=APPLICATION_ALREADY_GENERATED) from exc
-    except QuotaExceededError as exc:
-        if exc.resource is QuotaResource.CV:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="CV limit reached",
-            ) from exc
-        raise
-    except RequirementExtractionError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=REQUIREMENT_EXTRACTION_ERROR,
-        ) from exc
-    except ValueError as exc:
-        if str(exc) == KEYWORD_EXTRACTION_ERROR:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=KEYWORD_EXTRACTION_ERROR) from exc
-        raise
-    return ApplicationGenerateResponse(application=_response(generated.application), cv_id=generated.cv_id)
-
-
 @router.post("/{application_id}/relevance", response_model=ApplicationResponse)
 async def recompute_application_relevance(
     application_id: str,
@@ -170,6 +131,27 @@ async def recompute_application_relevance(
     except ValueError as exc:
         if str(exc) == KEYWORD_EXTRACTION_ERROR:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=KEYWORD_EXTRACTION_ERROR) from exc
+        raise
+    if application is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=APPLICATION_NOT_FOUND)
+    return _response(application)
+
+
+@router.post("/{application_id}/scan", response_model=ApplicationResponse)
+@limiter.limit("5/minute")
+async def scan_application(
+    request: Request,
+    response: Response,
+    application_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    application_service = ApplicationService(db)
+    try:
+        application = await application_service.scan_application(application_id, current_user.id)
+    except ValueError as exc:
+        if str(exc) in {"Application has no linked CV", "Application's linked CV is unavailable"}:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
         raise
     if application is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=APPLICATION_NOT_FOUND)

@@ -9,7 +9,6 @@ import ConfirmModal from "@/shared/ui/ConfirmModal";
 import {
   APPLICATION_STATUSES,
   type Application,
-  type ApplicationGenerateResponse,
   type ApplicationStatus,
 } from "@/features/applications/types";
 import { applicationMatchesSearch, RELEVANCE_TOOLTIP, relevanceScore } from "../domain/list/applicationPresentation";
@@ -23,14 +22,12 @@ export default function ApplicationsPage() {
   const isLoading = useApplicationStore((state) => state.isLoading);
   const error = useApplicationStore((state) => state.error);
   const fetchAll = useApplicationStore((state) => state.fetchAll);
-  const generate = useApplicationStore((state) => state.generate);
   const remove = useApplicationStore((state) => state.remove);
   const addToast = useToastStore((state) => state.addToast);
   const [filter, setFilter] = useState<ApplicationStatus | "all">("all");
   const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Application | null>(null);
-  const [retryingId, setRetryingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAll();
@@ -44,24 +41,6 @@ export default function ApplicationsPage() {
     [applications, filter, search],
   );
 
-  const handleGenerated = async (result: ApplicationGenerateResponse) => {
-    navigate({ to: "/applications/$id", params: { id: result.application.id } });
-    if (result.application.generation_status === "failed") {
-      addToast("CV generation failed. Please retry.", "error");
-    }
-  };
-
-  const handleRetry = async (application: Application) => {
-    setRetryingId(application.id);
-    try {
-      await handleGenerated(await generate(application.id));
-    } catch {
-      addToast("Unable to generate this CV", "error");
-    } finally {
-      setRetryingId(null);
-    }
-  };
-
   const handleDelete = async (application: Application) => {
     await remove(application.id);
     addToast("Application deleted", "info");
@@ -72,7 +51,7 @@ export default function ApplicationsPage() {
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-app-ink">Applications</h1>
-          <p className="mt-1 text-sm text-app-ink-2">Track jobs and generate editable, keyword-tailored CVs.</p>
+          <p className="mt-1 text-sm text-app-ink-2">Track jobs, scan existing CVs, and use LLM tailoring when you want a draft.</p>
         </div>
         <button type="button" onClick={() => setFormOpen(true)} className="inline-flex items-center gap-1 rounded-md bg-app-primary px-4 py-2 text-sm font-medium text-white hover:bg-app-primary-hover">
           <Plus className="h-4 w-4" />
@@ -110,7 +89,7 @@ export default function ApplicationsPage() {
         </div>
       )}
       {!error && !isLoading && applications.length === 0 && (
-        <EmptyState title="No applications yet" description="Save a job description to generate your first tailored CV." action={{ label: "Track application", onClick: () => setFormOpen(true) }} />
+        <EmptyState title="No applications yet" description="Save a job description, then link an existing CV or start LLM tailoring." action={{ label: "Track application", onClick: () => setFormOpen(true) }} />
       )}
       {!isLoading && applications.length > 0 && filteredApplications.length === 0 && (
         <div className="rounded-lg border border-dashed border-app-rule-strong bg-app-surface p-10 text-center text-sm text-app-ink-2">No applications match these filters.</div>
@@ -121,8 +100,6 @@ export default function ApplicationsPage() {
             <ApplicationCard
               key={application.id}
               application={application}
-              retrying={retryingId === application.id}
-              onRetry={() => handleRetry(application)}
               onDelete={() => setDeleteTarget(application)}
             />
           ))}
@@ -142,7 +119,11 @@ export default function ApplicationsPage() {
         ) : null}
         confirmLabel="Delete application"
       />
-      <ApplicationFormModal open={formOpen} onClose={() => setFormOpen(false)} onGenerated={handleGenerated} />
+      <ApplicationFormModal
+        open={formOpen}
+        onClose={() => setFormOpen(false)}
+        onSaved={(application) => navigate({ to: "/applications/$id", params: { id: application.id } })}
+      />
     </div>
   );
 }

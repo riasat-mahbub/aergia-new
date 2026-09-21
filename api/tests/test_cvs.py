@@ -206,10 +206,6 @@ async def test_cv_list_includes_owned_application_summary_and_keeps_copies_unlin
         replaced_row.application_id = application_id
         await session.commit()
 
-    copied = await client.post(f"/api/v1/cvs/{linked_id}/copy", headers=auth_headers)
-    assert copied.status_code == 200
-    assert copied.json()["extra_metadata"] == {}
-
     listed = await client.get("/api/v1/cvs", headers=auth_headers)
     assert listed.status_code == 200
     by_id = {item["id"]: item for item in listed.json()}
@@ -220,11 +216,21 @@ async def test_cv_list_includes_owned_application_summary_and_keeps_copies_unlin
         "company": "Example Labs",
         "role": "Platform Engineer",
         "status": "draft",
-        "generation_status": "pending",
         "applied_at": None,
     }
     assert by_id[replaced_id]["application"] == by_id[linked_id]["application"]
-    assert by_id[copied.json()["id"]]["application"] is None
+
+    # Free one of the free-tier CV slots before exercising copy.
+    deleted_ordinary = await client.delete(f"/api/v1/cvs/{ordinary_id}", headers=auth_headers)
+    assert deleted_ordinary.status_code == 204
+    copied = await client.post(f"/api/v1/cvs/{linked_id}/copy", headers=auth_headers)
+    assert copied.status_code == 200
+    assert copied.json()["extra_metadata"] == {}
+
+    after_copy = await client.get("/api/v1/cvs", headers=auth_headers)
+    assert after_copy.status_code == 200
+    by_id_after_copy = {item["id"]: item for item in after_copy.json()}
+    assert by_id_after_copy[copied.json()["id"]]["application"] is None
 
 
 @pytest.mark.asyncio

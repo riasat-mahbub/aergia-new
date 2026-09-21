@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, JSON, String, Text
+from sqlalchemy import Date, DateTime, ForeignKey, Index, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -25,13 +25,13 @@ class Application(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="draft")
     applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     next_follow_up_at: Mapped[date | None] = mapped_column(Date, nullable=True)
-    generation_status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
-    generation_error: Mapped[str | None] = mapped_column(String(500), nullable=True)
     extracted_keywords: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    # scanner_result is the current versioned contract. `relevance` and
+    # `quality` remain legacy snapshots until scanner cutover completes.
+    scanner_result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     relevance: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     quality: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     algorithm_version: Mapped[str] = mapped_column(String(64), nullable=False, default="gliner2.5-small-v1")
-    fits_one_page: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

@@ -3,7 +3,6 @@ import * as applicationApi from "@/features/applications/api/applications";
 import type {
   Application,
   ApplicationCreateData,
-  ApplicationGenerateResponse,
   ApplicationUpdateData,
 } from "@/features/applications/types";
 
@@ -19,8 +18,8 @@ interface ApplicationState {
   create: (input: ApplicationCreateData) => Promise<Application>;
   update: (id: string, input: ApplicationUpdateData) => Promise<Application>;
   remove: (id: string) => Promise<void>;
-  generate: (id: string) => Promise<ApplicationGenerateResponse>;
   recompute: (id: string) => Promise<Application>;
+  scan: (id: string) => Promise<Application>;
 }
 
 function replaceApplication(applications: Application[], updated: Application): Application[] {
@@ -122,22 +121,6 @@ export const useApplicationStore = create<ApplicationState>((set) => ({
     }
   },
 
-  generate: async (id) => {
-    set({ isSaving: true });
-    try {
-      const result = await applicationApi.generateApplication(id);
-      set((state) => ({
-        applications: replaceApplication(state.applications, result.application),
-        currentApplication: result.application,
-        isSaving: false,
-      }));
-      return result;
-    } catch (error) {
-      set({ isSaving: false });
-      throw error;
-    }
-  },
-
   recompute: async (id) => {
     const application = await applicationApi.recomputeApplicationRelevance(id);
     set((state) => ({
@@ -145,5 +128,21 @@ export const useApplicationStore = create<ApplicationState>((set) => ({
       currentApplication: state.currentApplication?.id === id ? application : state.currentApplication,
     }));
     return application;
+  },
+
+  scan: async (id) => {
+    set({ isSaving: true });
+    try {
+      const application = await applicationApi.scanApplication(id);
+      set((state) => ({
+        applications: replaceApplication(state.applications, application),
+        currentApplication: state.currentApplication?.id === id ? application : state.currentApplication,
+        isSaving: false,
+      }));
+      return application;
+    } catch (error) {
+      set({ isSaving: false });
+      throw error;
+    }
   },
 }));

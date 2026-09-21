@@ -40,11 +40,12 @@ async def test_application_crud_and_applied_date_transition(client):
     assert body["job_description"] == "Python FastAPI PostgreSQL"
     assert body["job_url"] == "https://example.com/jobs/1"
     assert body["status"] == "draft"
-    assert body["generation_status"] == "pending"
     assert body["cv_id"] is None
     assert body["next_follow_up_at"] == "2026-02-15"
     assert [(event["from_status"], event["to_status"]) for event in body["status_history"]] == [(None, "draft")]
     application_id = body["id"]
+
+    assert (await client.post(f"/api/v1/applications/{application_id}/generate", headers=headers)).status_code == 404
 
     applied = await client.patch(
         f"/api/v1/applications/{application_id}",
@@ -122,18 +123,3 @@ async def test_application_ownership_and_required_fields(client):
     ):
         response = await client.post("/api/v1/applications", headers=owner, json=payload)
         assert response.status_code == 422
-
-
-@pytest.mark.asyncio
-async def test_generation_requires_named_library_profile(client):
-    headers = await _auth_headers(client, "application-profile-required")
-    created = await client.post(
-        "/api/v1/applications",
-        headers=headers,
-        json={"company": "Example Labs", "role": "Engineer", "job_description": "Python"},
-    )
-    application_id = created.json()["id"]
-
-    generated = await client.post(f"/api/v1/applications/{application_id}/generate", headers=headers)
-    assert generated.status_code == 422
-    assert generated.json()["detail"] == "Complete your Library Profile before generating a CV"

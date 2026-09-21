@@ -9,6 +9,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.safe_url import normalize_http_url
+from app.scanner.results import ScanResult
 
 
 class ExtractedKeyword(BaseModel):
@@ -227,12 +228,6 @@ class ApplicationStatus(str, Enum):
     WITHDRAWN = "withdrawn"
 
 
-class GenerationStatus(str, Enum):
-    PENDING = "pending"
-    READY = "ready"
-    FAILED = "failed"
-
-
 class ApplicationStatusHistoryResponse(BaseModel):
     """A persisted application status transition."""
 
@@ -290,6 +285,7 @@ class ApplicationCreate(BaseModel):
 
 
 class ApplicationUpdate(BaseModel):
+    cv_id: str | None = Field(default=None, max_length=36)
     company: str | None = Field(default=None, max_length=255)
     role: str | None = Field(default=None, max_length=255)
     job_description: str | None = Field(default=None, max_length=100_000)
@@ -335,13 +331,11 @@ class ApplicationResponse(BaseModel):
     applied_at: datetime | None
     next_follow_up_at: date | None
     status_history: list[ApplicationStatusHistoryResponse] = Field(default_factory=list)
-    generation_status: GenerationStatus
-    generation_error: str | None
     extracted_keywords: list[dict]
+    scanner_result: ScanResult | None = None
     relevance: RequirementRelevanceResult | RelevanceResult | dict
     quality: CVQualityResult | dict
     algorithm_version: str
-    fits_one_page: bool | None
     created_at: datetime
     updated_at: datetime
 
@@ -356,23 +350,14 @@ class ApplicationListItem(BaseModel):
     status: ApplicationStatus
     applied_at: datetime | None
     next_follow_up_at: date | None
-    generation_status: GenerationStatus
-    generation_error: str | None
     relevance: RequirementRelevanceResult | RelevanceResult | dict
-    fits_one_page: bool | None
     quality: CVQualityResult | dict
     created_at: datetime
     updated_at: datetime
 
 
-class ApplicationGenerateResponse(BaseModel):
-    application: ApplicationResponse
-    cv_id: str | None
-
-
 __all__ = [
     "ApplicationCreate",
-    "ApplicationGenerateResponse",
     "ApplicationListItem",
     "ApplicationResponse",
     "ApplicationStatusHistoryResponse",
@@ -386,7 +371,6 @@ __all__ = [
     "CVQualityIssue",
     "CVQualityResult",
     "ExtractedKeyword",
-    "GenerationStatus",
     "JobRequirement",
     "MatchEvidence",
     "RequirementEvidence",

@@ -941,11 +941,9 @@ class TailoringService:
             .where(Application.id == application.id, Application.user_id == user_id, source_condition)
             .values(
                 cv_id=draft.id,
-                generation_status="ready",
-                generation_error=None,
+                scanner_result=None,
                 relevance=relevance.model_dump(mode="json"),
                 quality=quality.model_dump(mode="json"),
-                fits_one_page=None,
                 extracted_keywords=[],
                 algorithm_version=REQUIREMENT_ALGORITHM_VERSION,
                 updated_at=now,

@@ -8,7 +8,6 @@ export interface CVApplicationSummary {
   company: string;
   role: string;
   status: "draft" | "applied" | "responded" | "interview" | "offer" | "hired" | "rejected" | "withdrawn";
-  generation_status: "pending" | "ready" | "failed";
   applied_at: string | null;
 }
 
