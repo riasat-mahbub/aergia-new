@@ -4,7 +4,7 @@ import { motion } from "motion/react";
 
 import BuilderHeader from "./components/BuilderHeader";
 import BuilderWorkspace from "./components/BuilderWorkspace";
-import RelevanceDrawer from "./components/RelevanceDrawer";
+import { ScannerAnalysisDrawer } from "@/features/applications";
 import { useBuilderDocumentStore } from "./state/builderDocumentStore";
 import { useSupportStore } from "./state/supportStore";
 import type { SectionInstance, SectionInstanceStyle } from "@/shared/cv/schema";
@@ -34,15 +34,15 @@ export default function BuilderPage({ cvId, applicationId }: BuilderPageProps) {
   const documentError = useBuilderDocumentStore((state) => state.error);
 
   const [activeTab, setActiveTab] = useState<"content" | "customize">("content");
-  const [relevanceDrawerOpen, setRelevanceDrawerOpen] = useState(false);
+  const [scannerDrawerOpen, setScannerDrawerOpen] = useState(false);
   // Inspector replaces CustomizePanel as of Phase C of
   // FEAT-01M0X607K4MWVGGCVZWWMSKJHE.
   const {
     applicationContext,
-    relevance,
-    relevanceRefreshing,
-    relevanceRefreshError,
-    refreshApplicationRelevance,
+    scannerRefreshing,
+    scannerRefreshError,
+    refreshApplicationAnalysis,
+    runScanner,
   } = useBuilderApplicationContext({ applicationId, cvId: id });
 
   const {
@@ -82,7 +82,7 @@ export default function BuilderPage({ cvId, applicationId }: BuilderPageProps) {
     customizations,
     setIsSaving,
     setLastSaved,
-    refreshApplicationRelevance,
+    refreshApplicationAnalysis,
   });
 
   const handleToggle = useCallback(
@@ -217,13 +217,12 @@ export default function BuilderPage({ cvId, applicationId }: BuilderPageProps) {
           cv={currentCV}
           cvId={id}
           applicationContext={applicationContext}
-          relevance={relevance}
           hasUnsavedChanges={hasUnsavedChanges}
           isSaving={isSaving}
           lastSaved={lastSaved}
           showSavedFeedback={showSavedFeedback}
           onBack={handleBack}
-          onOpenRelevance={() => setRelevanceDrawerOpen(true)}
+          onOpenScanner={() => setScannerDrawerOpen(true)}
           onSave={handleSave}
           formatLastSaved={formatLastSaved}
         />
@@ -245,13 +244,14 @@ export default function BuilderPage({ cvId, applicationId }: BuilderPageProps) {
           onTemplateChange={() => handleTemplateChange(currentCV.template_id)}
           onReset={handleReset}
         />
-        <RelevanceDrawer
-          open={relevanceDrawerOpen}
-          relevance={relevance}
-          refreshing={relevanceRefreshing}
-          refreshError={relevanceRefreshError}
-          onClose={() => setRelevanceDrawerOpen(false)}
-        />
+        {applicationContext && <ScannerAnalysisDrawer
+          open={scannerDrawerOpen}
+          application={applicationContext}
+          onClose={() => setScannerDrawerOpen(false)}
+          onScan={runScanner}
+          scanning={scannerRefreshing}
+          scanError={scannerRefreshError ? "We couldn’t complete the analysis. Please try again." : null}
+        />}
       </div>
     ) : (
       <motion.div

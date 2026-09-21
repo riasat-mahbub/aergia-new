@@ -1,20 +1,19 @@
 import type { CVDetail } from "@/features/cvs";
-import type { Application, RelevanceAnalysis } from "@/features/applications";
+import type { Application } from "@/features/applications";
+import { ScannerJobFitBadge } from "@/features/applications";
 import ExportPDFButton from "./ExportPDFButton";
 import PromoteToLibraryButton from "./PromoteToLibraryButton";
-import { APPLICATION_RELEVANCE_TOOLTIP } from "../domain/applicationRelevance";
 
 interface BuilderHeaderProps {
   cv: CVDetail;
   cvId: string;
   applicationContext: Application | null;
-  relevance: RelevanceAnalysis | null;
   hasUnsavedChanges: boolean;
   isSaving: boolean;
   lastSaved: Date | null;
   showSavedFeedback: boolean;
   onBack: () => void;
-  onOpenRelevance: () => void;
+  onOpenScanner: () => void;
   onSave: () => Promise<void>;
   formatLastSaved: (date: Date) => string;
 }
@@ -23,13 +22,12 @@ export default function BuilderHeader({
   cv,
   cvId,
   applicationContext,
-  relevance,
   hasUnsavedChanges,
   isSaving,
   lastSaved,
   showSavedFeedback,
   onBack,
-  onOpenRelevance,
+  onOpenScanner,
   onSave,
   formatLastSaved,
 }: BuilderHeaderProps) {
@@ -41,15 +39,7 @@ export default function BuilderHeader({
         </button>
         <h1 className="text-lg font-semibold text-app-ink">{cv.title}</h1>
         {applicationContext && (
-          <button
-            type="button"
-            onClick={onOpenRelevance}
-            title={APPLICATION_RELEVANCE_TOOLTIP}
-            aria-label="Open relevance details"
-            className="rounded-full bg-app-primary-soft px-2.5 py-1 text-xs font-medium text-app-primary hover:bg-app-primary-soft"
-          >
-            Legacy relevance {relevance ? `${relevance.score}%` : "—"}
-          </button>
+          <ScannerJobFitBadge application={applicationContext} onClick={onOpenScanner} />
         )}
       </div>
       <div className="flex items-center gap-3">

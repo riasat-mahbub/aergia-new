@@ -11,7 +11,7 @@ import {
   type Application,
   type ApplicationStatus,
 } from "@/features/applications/types";
-import { applicationMatchesSearch, RELEVANCE_TOOLTIP, relevanceScore } from "../domain/list/applicationPresentation";
+import { applicationMatchesSearch } from "../domain/list/applicationPresentation";
 import { STATUS_LABELS } from "../domain/applicationStatus";
 import { useApplicationStore } from "@/features/applications/state/applicationStore";
 import { useToastStore } from "@/shared/state/uiStore";
@@ -66,10 +66,10 @@ export default function ApplicationsPage() {
           type="search"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search company, role, or try status:interview relevance:>=70 followup:overdue"
+          placeholder="Search company, role, or try status:interview jobfit:>=70 followup:overdue"
           className="w-full rounded-md border border-app-rule-strong bg-app-surface px-3 py-2 text-sm"
         />
-        <p className="text-xs text-app-ink-3">Filters: <code>company:</code>, <code>status:</code>, <code>after:</code>, <code>before:</code>, <code>relevance:&gt;=70</code>, <code>followup:overdue</code>.</p>
+        <p className="text-xs text-app-ink-3">Filters: <code>company:</code>, <code>status:</code>, <code>after:</code>, <code>before:</code>, <code>jobfit:&gt;=70</code>, <code>followup:overdue</code>.</p>
         <div className="flex flex-wrap items-center gap-3">
           <label htmlFor="application-status-filter" className="shrink-0 text-sm font-medium text-app-ink-2">Status</label>
         <select id="application-status-filter" value={filter} onChange={(event) => setFilter(event.target.value as ApplicationStatus | "all")} className="w-full min-w-[10rem] rounded-md border border-app-rule-strong px-3 py-2 text-sm sm:w-auto">
@@ -128,4 +128,4 @@ export default function ApplicationsPage() {
   );
 }
 
-export { RELEVANCE_TOOLTIP, STATUS_LABELS, relevanceScore };
+export { STATUS_LABELS };
