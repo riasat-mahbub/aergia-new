@@ -152,7 +152,7 @@ function JobFit({ result }: { result: ScanResult }) {
           </p>
           {summary.unverifiable_component_count !== null && summary.unverifiable_component_count !== undefined && (
             <p className="mt-1 text-xs text-app-ink-3">
-              {summary.unverifiable_component_count} unverifiable mandatory components
+              {summary.unverifiable_component_count} unverifiable components
             </p>
           )}
           <p className="mt-1 text-xs text-app-ink-3">Category weights: 70% qualifications, 25% responsibilities, 5% preferred. Empty categories are redistributed.</p>
