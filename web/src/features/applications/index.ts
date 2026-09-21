@@ -10,6 +10,30 @@ export {
 export { default as ApplicationDetailPage } from "./pages/ApplicationDetailPage";
 export type { ApplicationDetailPageProps } from "./pages/ApplicationDetailPage";
 export { default as ApplicationListPage } from "./pages/ApplicationListPage";
+export { default as ScannerAnalysisDrawer } from "./components/ScannerAnalysisDrawer";
+export { default as ScannerJobFitBadge } from "./components/ScannerJobFitBadge";
+export type { ScannerAnalysisDrawerProps } from "./components/ScannerAnalysisDrawer";
+export {
+  buildScannerReportViewModel,
+  componentStatusIcon,
+  formatScannerPercent,
+  scannerBadgeState,
+  scannerStatusLabel,
+  statusText,
+} from "./domain/scannerReport";
+export type {
+  ScannerAtsCheckViewModel,
+  ScannerBadgeState,
+  ScannerBadgeViewModel,
+  ScannerComponentViewModel,
+  ScannerEvidenceViewModel,
+  ScannerKeywordCategory,
+  ScannerKeywordViewModel,
+  ScannerReportTab,
+  ScannerReportViewModel,
+  ScannerRequirementFilter,
+  ScannerRequirementViewModel,
+} from "./domain/scannerReport";
 export { STATUS_CLASSES, STATUS_LABELS, STATUS_STRIP_CLASSES } from "./domain/applicationStatus";
 export { useApplicationStore } from "./state/applicationStore";
 export {
