@@ -6,11 +6,17 @@ import pytest
 
 from app.db.session import async_session
 from app.scanner.extraction import extract_requirements_from_entities
+from app.scanner.freshness import scanner_result_freshness
 from app.scanner.service import ScannerService
 from app.scanner.service import LEXICAL_VERSION, MATCHER_VERSION, fingerprint_scan_inputs
 from app.scanner.pdf_recovery import PDF_ANALYSIS_VERSION
 from app.scanner.quality import QUALITY_VERSION
-from app.scanner.scoring import LEXICAL_SCORE_VERSION, PDF_SCORE_VERSION, SEMANTIC_SCORE_VERSION
+from app.scanner.scoring import (
+    CLASSIFICATION_WARNING_VERSION,
+    LEXICAL_SCORE_VERSION,
+    PDF_SCORE_VERSION,
+    SEMANTIC_SCORE_VERSION,
+)
 from app.services import application as application_service_module
 from app.services import pdf as pdf_service_module
 from app.services.pdf import PDFUnavailableError
@@ -33,6 +39,7 @@ def test_current_result_requires_matching_inputs_and_installed_versions():
             "semantic_score_version": SEMANTIC_SCORE_VERSION,
             "lexical_score_version": LEXICAL_SCORE_VERSION,
             "pdf_score_version": PDF_SCORE_VERSION,
+            "classification_warning_version": CLASSIFICATION_WARNING_VERSION,
         },
     }
 
@@ -55,6 +62,60 @@ def test_current_result_requires_matching_inputs_and_installed_versions():
         cv,
         extractor_version="model@revision",
     )
+
+
+def test_freshness_diagnostics_identify_changed_inputs_and_subsystems():
+    job_description = "Python developer"
+    cv = {"sections": [{"type": "experience", "description": "Built APIs."}]}
+    result = {
+        "schema_version": "scanner-v1",
+        "input_fingerprints": fingerprint_scan_inputs(job_description, cv).model_dump(mode="json"),
+        "versions": {
+            "extractor_version": "model@revision",
+            "matcher_version": MATCHER_VERSION,
+            "lexical_version": LEXICAL_VERSION,
+            "quality_version": QUALITY_VERSION,
+            "pdf_analysis_version": PDF_ANALYSIS_VERSION,
+            "semantic_score_version": SEMANTIC_SCORE_VERSION,
+            "lexical_score_version": LEXICAL_SCORE_VERSION,
+            "pdf_score_version": PDF_SCORE_VERSION,
+            "classification_warning_version": CLASSIFICATION_WARNING_VERSION,
+        },
+    }
+
+    current = scanner_result_freshness(result, job_description, cv, extractor_version="model@revision")
+    assert current == {"current": True, "reasons": []}
+
+    stale = scanner_result_freshness(
+        {**result, "versions": {**result["versions"], "matcher_version": "old-matcher"}},
+        "Updated Python developer",
+        cv,
+        extractor_version="new-model@revision",
+    )
+    assert stale["current"] is False
+    assert stale["reasons"] == [
+        "job_changed",
+        "extractor_version_changed",
+        "matcher_version_changed",
+    ]
+
+    version_reason_cases = [
+        ("lexical_version", "lexical_version_changed"),
+        ("quality_version", "quality_version_changed"),
+        ("pdf_analysis_version", "pdf_version_changed"),
+        ("semantic_score_version", "semantic_score_version_changed"),
+        ("lexical_score_version", "lexical_score_version_changed"),
+        ("pdf_score_version", "pdf_score_version_changed"),
+        ("classification_warning_version", "classification_warning_version_changed"),
+    ]
+    for version_field, reason in version_reason_cases:
+        old_version = {
+            **result,
+            "versions": {**result["versions"], version_field: "old-version"},
+        }
+        assert scanner_result_freshness(old_version, job_description, cv)["reasons"] == [reason]
+
+    assert scanner_result_freshness({}, job_description, cv)["reasons"] == ["malformed_result"]
 
 
 class _FixtureExtractor:
@@ -141,6 +202,7 @@ async def test_backfill_is_idempotent_and_leaves_legacy_fields_untouched(client,
         "ScannerService",
         lambda: ScannerService(extractor=_FixtureExtractor()),
     )
+    monkeypatch.setattr(scanner_backfill, "_configured_extractor_version", lambda: "gliner2.5-structured-v6")
 
     dry_run = await scanner_backfill.run_backfill(
         session_factory=async_session,

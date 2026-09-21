@@ -1,0 +1,111 @@
+[
+  {
+    "application_id": "app-a",
+    "freshness": {"current": true, "reasons": []},
+    "scanner_result": {
+      "schema_version": "scanner-v1",
+      "versions": {
+        "extractor_version": "extractor-v6",
+        "matcher_version": "matcher-v4",
+        "lexical_version": "lexical-v4",
+        "quality_version": "quality-v1",
+        "pdf_analysis_version": "pdf-v2",
+        "semantic_score_version": "job-fit-v2",
+        "lexical_score_version": "term-visibility-v1",
+        "pdf_score_version": "pdf-score-v1",
+        "classification_warning_version": "classification-warning-v1"
+      },
+      "requirement_extraction": {"warnings": ["candidate_eligibility_low_confidence"]},
+      "semantic": {
+        "summary": {
+          "job_fit": 0.8,
+          "classified_fraction": 0.9,
+          "evidence_scorable_fraction": 1.0,
+          "partial_requirement_count": 1,
+          "not_evidenced_requirement_count": 1,
+          "conflicting_requirement_count": 0,
+          "unverifiable_component_count": 2,
+          "required_constraint_conflicts": 0
+        },
+        "requirements": [
+          {"status": "supported"},
+          {"status": "supported"},
+          {"status": "partial"},
+          {"status": "not_evidenced"}
+        ]
+      },
+      "lexical": {
+        "summary": {"visibility_score": 0.6},
+        "terms": [
+          {"visibility": "exact"},
+          {"visibility": "exact"},
+          {"visibility": "absent"}
+        ]
+      },
+      "pdf_recovery": {"status": "pass"}
+    }
+  },
+  {
+    "application_id": "app-b",
+    "freshness": {"current": true, "reasons": []},
+    "scanner_result": {
+      "schema_version": "scanner-v1",
+      "versions": {
+        "extractor_version": "extractor-v6",
+        "matcher_version": "matcher-v4",
+        "lexical_version": "lexical-v4",
+        "quality_version": "quality-v1",
+        "pdf_analysis_version": "pdf-v2",
+        "semantic_score_version": "job-fit-v2",
+        "lexical_score_version": "term-visibility-v1",
+        "pdf_score_version": "pdf-score-v1",
+        "classification_warning_version": "classification-warning-v1"
+      },
+      "requirement_extraction": {"warnings": ["candidate_eligibility_low_confidence", "unknown_section_context"]},
+      "semantic": {
+        "summary": {
+          "job_fit": 0.4,
+          "classified_fraction": 0.5,
+          "evidence_scorable_fraction": 0.8,
+          "partial_requirement_count": 2,
+          "not_evidenced_requirement_count": 3,
+          "conflicting_requirement_count": 1,
+          "unverifiable_component_count": 1,
+          "required_constraint_conflicts": 1
+        },
+        "requirements": [
+          {"status": "partial"},
+          {"status": "partial"},
+          {"status": "not_evidenced"},
+          {"status": "not_evidenced"},
+          {"status": "not_evidenced"},
+          {"status": "conflicting"},
+          {"status": "unverifiable"}
+        ]
+      },
+      "lexical": {
+        "summary": {"visibility_score": 0.5},
+        "terms": [
+          {"visibility": "normalized"},
+          {"visibility": "variant"},
+          {"visibility": "absent"},
+          {"visibility": "unverifiable"}
+        ]
+      },
+      "pdf_recovery": {"status": "warning"}
+    }
+  },
+  {
+    "application_id": "app-stale",
+    "freshness": {"current": false, "reasons": ["job_changed", "matcher_version_changed"]},
+    "scanner_result": {
+      "schema_version": "scanner-v1",
+      "versions": {"extractor_version": "extractor-v5", "matcher_version": "matcher-v3"},
+      "semantic": {"summary": {"job_fit": 0.99}},
+      "lexical": {"summary": {"visibility_score": 0.99}},
+      "requirement_extraction": {"warnings": []},
+      "pdf_recovery": {"status": "fail"}
+    }
+  },
+  {"application_id": "app-never-scanned", "scanner_result": null, "freshness": {"current": false, "reasons": ["missing_result"]}}
+]
