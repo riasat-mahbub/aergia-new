@@ -1,6 +1,6 @@
 """Whole-document local-agent tailoring and review lifecycle.
 
-Protocol v2 intentionally has one write primitive: a complete CV candidate.
+Protocol v4 intentionally has one write primitive: a complete CV candidate.
 The candidate is rendered and stored as an ordinary, unlinked CV draft.  The
 browser owner later accepts or rejects it; the scoped capability can neither
 change application linkage nor perform that review action.
@@ -13,6 +13,7 @@ import copy
 import hashlib
 import json
 import secrets
+import asyncio
 from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -24,7 +25,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import hash_token
 from app.document_schema.capabilities import LIMITS, capabilities_hash, renderer_capabilities
 from app.document_schema.models import SectionInstance, TemplateManifest
-from app.http_schemas.application import JobRequirement
 from app.http_schemas.cv import CVCreate
 from app.http_schemas.tailoring import (
     PROTOCOL_VERSION,
@@ -41,6 +41,7 @@ from app.http_schemas.tailoring import (
     TailoringSection,
     TailoringSessionCreateResponse,
     TailoringSessionStatusResponse,
+    TailoringScannerContext,
     TailoringSubmitRequest,
     TailoringSubmitResponse,
     TailoringTemplate,
@@ -52,17 +53,15 @@ from app.models.library import Library, LibraryEntry
 from app.models.tailoring_session import TailoringSession
 from app.models.template import Template
 from app.models.user import User
+from app.scanner.freshness import configured_extractor_version, scanner_result_freshness
+from app.scanner.requirements import RequirementExtraction
+from app.scanner.results import ScanResult
+from app.scanner.service import ScannerService, canonicalize_scanner_cv, scanner_versions_for_extraction
 from app.services.cv import CVService, coerce_customizations
 from app.services.pdf import PDFService, pdf_page_count
 from app.services.profile import ProfileService
-from app.services.quality import evaluate_cv_quality
 from app.services.renderer.html import HTMLDocumentRenderer
 from app.services.renderer.pipeline import prepare_render_source, resolve_source
-from app.services.relevance import (
-    REQUIREMENT_ALGORITHM_VERSION,
-    evaluate_requirement_relevance,
-    extract_requirements,
-)
 from app.services.rich_text import normalize_rich_text_ids
 from app.services.tailoring_validation import CandidateValidationError, validate_section_payload
 
@@ -137,25 +136,23 @@ def library_entry_content_hash(entry: LibraryEntry | Mapping[str, Any]) -> str:
     return _content_hash({"id": entry_id, "kind": kind, "payload": payload})
 
 
-def requirements_snapshot_hash(requirements: list[JobRequirement]) -> str:
-    return _content_hash([requirement.model_dump(mode="json") for requirement in requirements])
+def requirements_snapshot_hash(requirements: Any) -> str:
+    """Hash frozen scanner requirements or a complete extraction snapshot."""
+
+    if isinstance(requirements, RequirementExtraction):
+        payload = requirements.model_dump(mode="json")
+    elif hasattr(requirements, "model_dump"):
+        payload = requirements.model_dump(mode="json")
+    else:
+        payload = [
+            item.model_dump(mode="json") if hasattr(item, "model_dump") else item
+            for item in requirements
+        ]
+    return _content_hash(payload)
 
 
 def profile_snapshot_hash(profile: Mapping[str, Any]) -> str:
     return _content_hash(dict(profile))
-
-
-def _candidate_preview_feedback(
-    requirements: list[JobRequirement],
-    sections: list[dict[str, Any]],
-    profile: Mapping[str, Any],
-    page_count: int,
-) -> tuple[dict[str, Any], list[str]]:
-    """Use the same advisory checks for preview and persisted draft results."""
-
-    relevance = evaluate_requirement_relevance(requirements, sections, profile=profile)
-    quality = evaluate_cv_quality(sections, page_count=page_count)
-    return relevance.model_dump(mode="json"), [issue.message for issue in quality.issues[:50]]
 
 
 def _bounded_label(value: str, limit: int) -> str:
@@ -255,30 +252,6 @@ def _application_context_snapshot(application: Application) -> dict[str, Any]:
     }
 
 
-def _requirements_from_application(application: Application) -> list[JobRequirement]:
-    """Read the persisted snapshot, with deterministic extraction for older apps."""
-
-    relevance = application.relevance if isinstance(application.relevance, dict) else {}
-    raw_matches = relevance.get("requirements")
-    if isinstance(raw_matches, list):
-        parsed: list[JobRequirement] = []
-        try:
-            for raw_match in raw_matches:
-                if not isinstance(raw_match, Mapping):
-                    continue
-                raw = raw_match.get("requirement", raw_match)
-                if isinstance(raw, Mapping):
-                    parsed.append(JobRequirement.model_validate(raw))
-        except ValidationError:
-            parsed = []
-        if parsed:
-            return parsed
-    try:
-        return extract_requirements(application.role, application.job_description)
-    except Exception:
-        return []
-
-
 def _template_manifest(template: Template) -> dict[str, Any] | None:
     if not isinstance(template.manifest, dict):
         return None
@@ -293,6 +266,7 @@ class TailoringService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+        self.scanner_service = ScannerService()
 
     async def _owned_application(self, application_id: str, user_id: str) -> Application | None:
         result = await self.db.execute(
@@ -321,7 +295,7 @@ class TailoringService:
         result = await self.db.execute(select(Template).order_by(Template.created_at.asc(), Template.id.asc()))
         return list(result.scalars().all())
 
-    async def _context_parts(self, session: TailoringSession) -> dict[str, Any]:
+    async def _context_resources(self, session: TailoringSession) -> dict[str, Any]:
         application = await self._owned_application(session.application_id, session.user_id)
         if application is None:
             raise TailoringConflictError("Tailoring application is no longer available")
@@ -333,7 +307,6 @@ class TailoringService:
             raise TailoringUnauthorizedError("Invalid tailoring session owner")
         profile = await ProfileService(self.db).get_profile(user)
         profile_data = _profile_payload(profile)
-        requirements = _requirements_from_application(application)
         libraries = await self._library_entries(session.user_id)
         templates = await self._templates()
         capabilities = renderer_capabilities(HTMLDocumentRenderer.support)
@@ -368,28 +341,130 @@ class TailoringService:
                 }
             except (ValidationError, ValueError, KeyError):
                 effective = {"template_id": source_cv.template_id, "unavailable": True}
-        context_basis = {
-            "application": _application_context_snapshot(application),
-            "profile": profile_data,
-            "source_cv": cv_snapshot_hash(source_cv),
-            "library": {entry.id: library_entry_content_hash(entry) for entry in libraries},
-            "requirements": [requirement.model_dump(mode="json") for requirement in requirements],
-            "templates": manifest_by_id,
-            "capabilities": capabilities_hash(capabilities),
-        }
         return {
             "application": application,
             "source_cv": source_cv,
             "profile": profile,
             "profile_data": profile_data,
-            "requirements": requirements,
             "libraries": libraries,
             "templates": templates,
             "manifest_by_id": manifest_by_id,
             "selected_template_id": selected_template_id,
             "capabilities": capabilities,
             "effective": effective,
-            "context_hash": _content_hash(context_basis),
+        }
+
+    async def _render_cv_pdf(self, cv: CV) -> bytes | None:
+        try:
+            return await PDFService(self.db).render_payload(
+                cv.template_id,
+                cv.sections or [],
+                cv.customizations or {},
+            )
+        except Exception:  # noqa: BLE001 - scanner branches remain useful without PDF recovery
+            return None
+
+    async def _freeze_scanner_context(self, resources: Mapping[str, Any]) -> TailoringScannerContext:
+        application: Application = resources["application"]
+        source_cv: CV | None = resources["source_cv"]
+        if source_cv is None:
+            extraction = await asyncio.to_thread(
+                self.scanner_service.extract_requirements,
+                application.job_description,
+            )
+            return TailoringScannerContext(
+                versions=scanner_versions_for_extraction(extraction),
+                requirement_extraction=extraction,
+                source_scan=None,
+            )
+
+        source_scan: ScanResult | None = None
+        existing = application.scanner_result
+        if existing is not None:
+            freshness = scanner_result_freshness(
+                existing,
+                application.job_description,
+                source_cv,
+                extractor_version=configured_extractor_version(),
+            )
+            if freshness["current"]:
+                try:
+                    source_scan = ScanResult.model_validate(existing)
+                except ValidationError:
+                    source_scan = None
+
+        if source_scan is None:
+            pdf_bytes = await self._render_cv_pdf(source_cv)
+            source_scan = await asyncio.to_thread(
+                self.scanner_service.scan,
+                application.job_description,
+                source_cv,
+                pdf_bytes=pdf_bytes,
+            )
+            application.scanner_result = source_scan.model_dump(mode="json")
+            application.scanner_rescan_required = False
+            application.updated_at = _utcnow()
+            await self.db.flush()
+
+        return TailoringScannerContext(
+            versions=source_scan.versions,
+            requirement_extraction=source_scan.requirement_extraction,
+            source_scan=source_scan,
+        )
+
+    @staticmethod
+    def _context_basis(resources: Mapping[str, Any], scanner_context: TailoringScannerContext) -> dict[str, Any]:
+        application: Application = resources["application"]
+        source_cv: CV | None = resources["source_cv"]
+        libraries: list[LibraryEntry] = resources["libraries"]
+        manifest_by_id: dict[str, dict[str, Any]] = resources["manifest_by_id"]
+        capabilities: dict[str, Any] = resources["capabilities"]
+        return {
+            "application": _application_context_snapshot(application),
+            "profile": resources["profile_data"],
+            "source_cv": cv_snapshot_hash(source_cv),
+            "library": {entry.id: library_entry_content_hash(entry) for entry in libraries},
+            "scanner": scanner_context.model_dump(mode="json"),
+            "templates": manifest_by_id,
+            "capabilities": capabilities_hash(capabilities),
+        }
+
+    async def _context_parts(
+        self,
+        session: TailoringSession,
+        *,
+        initialize: bool = False,
+    ) -> dict[str, Any]:
+        resources = await self._context_resources(session)
+        if not session.context_snapshot:
+            if not initialize:
+                raise TailoringStaleError("This tailoring session predates protocol v4; start a new session")
+            scanner_context = await self._freeze_scanner_context(resources)
+            basis = self._context_basis(resources, scanner_context)
+            session.context_snapshot = {
+                "schema_version": "tailoring-v4",
+                "scanner": scanner_context.model_dump(mode="json"),
+                "basis": basis,
+            }
+        else:
+            try:
+                snapshot = session.context_snapshot
+                scanner_context = TailoringScannerContext.model_validate(snapshot["scanner"])
+                frozen_basis = snapshot["basis"]
+            except (KeyError, TypeError, ValidationError) as exc:
+                raise TailoringStaleError("The tailoring scanner context is invalid; start a new session") from exc
+            current_basis = self._context_basis(resources, scanner_context)
+            if _content_hash(current_basis) != _content_hash(frozen_basis):
+                raise TailoringStaleError("The tailoring context changed; start a new session")
+
+        context_snapshot = session.context_snapshot
+        scanner_context = TailoringScannerContext.model_validate(context_snapshot["scanner"])
+        basis = self._context_basis(resources, scanner_context)
+        return {
+            **resources,
+            "scanner_context": scanner_context,
+            "requirements": scanner_context.requirement_extraction.requirements,
+            "context_hash": _content_hash(basis),
         }
 
     async def create_session(
@@ -438,13 +513,14 @@ class TailoringService:
             application_id=application.id,
             cv_id=application.cv_id,
             code_hash=hash_token(code),
+            protocol_version=PROTOCOL_VERSION,
             status=TAILORING_SESSION_CREATED,
             expires_at=now + TAILORING_SESSION_TTL,
         )
         self.db.add(session)
         await self.db.flush()
         # Context construction also checks for a renderable template.
-        parts = await self._context_parts(session)
+        parts = await self._context_parts(session, initialize=True)
         session.context_hash = parts["context_hash"]
         await self.db.flush()
         public_origin = session_url_base.rstrip("/") if session_url_base else ""
@@ -514,7 +590,7 @@ class TailoringService:
                     session.status = TAILORING_SESSION_STALE
                     session.updated_at = now
                     await self.db.flush()
-            except (TailoringConflictError, TailoringUnavailableError):
+            except (TailoringConflictError, TailoringUnavailableError, TailoringStaleError):
                 session.status = TAILORING_SESSION_STALE
                 session.updated_at = now
                 await self.db.flush()
@@ -679,6 +755,7 @@ class TailoringService:
             profile=copy.deepcopy(parts["profile_data"]),
             previous_cv=previous,
             library=library,
+            scanner=parts["scanner_context"],
             requirements=[requirement.model_dump(mode="json") for requirement in parts["requirements"]],
             templates=templates,
             selected_template_id=parts["selected_template_id"],
@@ -702,10 +779,14 @@ class TailoringService:
             source_cv.sections or [],
             source_cv.customizations or {},
         )
+        source_scan = parts["scanner_context"].source_scan
+        if source_scan is None:
+            raise TailoringCandidateError("This session has no source scanner analysis")
         return TailoringPreviewResponse(
             pdf_base64=base64.b64encode(pdf).decode("ascii"),
             page_count=pdf_page_count(pdf),
             candidate_hash=cv_snapshot_hash(source_cv) or _content_hash({}),
+            scanner_result=source_scan,
         )
 
     @staticmethod
@@ -788,6 +869,21 @@ class TailoringService:
     def _candidate_hash(candidate: Mapping[str, Any]) -> str:
         return _content_hash(candidate)
 
+    async def _scan_candidate(
+        self,
+        parts: Mapping[str, Any],
+        candidate: Mapping[str, Any],
+        pdf: bytes | None,
+    ) -> ScanResult:
+        application: Application = parts["application"]
+        return await asyncio.to_thread(
+            self.scanner_service.scan_with_extraction,
+            application.job_description,
+            canonicalize_scanner_cv(candidate),
+            parts["scanner_context"].requirement_extraction,
+            pdf_bytes=pdf,
+        )
+
     async def candidate_preview(
         self,
         capability: str | None,
@@ -804,18 +900,12 @@ class TailoringService:
             candidate["customizations"],
         )
         page_count = pdf_page_count(pdf)
-        relevance, warnings = _candidate_preview_feedback(
-            parts["requirements"],
-            sections,
-            parts["profile"].model_dump(mode="json", exclude_none=True),
-            page_count,
-        )
+        scanner_result = await self._scan_candidate(parts, candidate, pdf)
         return TailoringPreviewResponse(
             pdf_base64=base64.b64encode(pdf).decode("ascii"),
             page_count=page_count,
             candidate_hash=self._candidate_hash(candidate),
-            relevance=relevance,
-            warnings=warnings,
+            scanner_result=scanner_result,
         )
 
     async def submit(
@@ -844,13 +934,7 @@ class TailoringService:
             sections,
             candidate["customizations"],
         )
-        page_count = pdf_page_count(pdf)
-        relevance, warnings = _candidate_preview_feedback(
-            parts["requirements"],
-            sections,
-            parts["profile"].model_dump(mode="json", exclude_none=True),
-            page_count,
-        )
+        scanner_result = await self._scan_candidate(parts, candidate, pdf)
         source_cv_id = source_cv.id if source_cv else None
         candidate_hash = self._candidate_hash(candidate)
         # The service reserves a quota slot and creates an application-owned
@@ -883,8 +967,7 @@ class TailoringService:
             "draft_cv_id": new_cv.id,
             "candidate_hash": candidate_hash,
             "candidate": candidate,
-            "relevance": relevance,
-            "warnings": warnings,
+            "scanner_result": scanner_result.model_dump(mode="json"),
             "review_notes": request.review_notes,
         }
         update_result = await self.db.execute(
@@ -917,8 +1000,7 @@ class TailoringService:
             draft_cv_id=new_cv.id,
             candidate_hash=candidate_hash,
             candidate=TailoringCandidateCV.model_validate(candidate),
-            relevance=relevance,
-            warnings=warnings,
+            scanner_result=scanner_result,
             review_notes=request.review_notes,
         )
 
@@ -930,22 +1012,34 @@ class TailoringService:
         draft = await self._owned_cv(session.draft_cv_id, user_id)
         if application is None or draft is None or draft.application_id != application.id:
             raise TailoringConflictError("Tailoring draft is no longer available")
+        parts = await self._current_context(session)
+        stored_result = (session.result or {}).get("scanner_result") if isinstance(session.result, dict) else None
+        try:
+            scanner_result = ScanResult.model_validate(stored_result)
+        except (ValidationError, TypeError) as exc:
+            raise TailoringConflictError("The tailoring draft has no valid scanner result") from exc
+        freshness = scanner_result_freshness(
+            scanner_result.model_dump(mode="json"),
+            application.job_description,
+            draft,
+            extractor_version=configured_extractor_version(),
+        )
+        if not freshness["current"] or scanner_result.requirement_extraction != parts["scanner_context"].requirement_extraction:
+            session.status = TAILORING_SESSION_STALE
+            session.reviewed_at = _utcnow()
+            session.updated_at = _utcnow()
+            await self.db.flush()
+            raise TailoringConflictError("The tailoring draft scanner result is stale; review it again")
         # Compare-and-swap protects a CV selected after the agent began.
         source_condition = Application.cv_id.is_(None) if session.cv_id is None else Application.cv_id == session.cv_id
         now = _utcnow()
-        requirements = _requirements_from_application(application)
-        relevance = evaluate_requirement_relevance(requirements, draft.sections or [])
-        quality = evaluate_cv_quality(draft.sections or [])
         result = await self.db.execute(
             update(Application)
             .where(Application.id == application.id, Application.user_id == user_id, source_condition)
             .values(
                 cv_id=draft.id,
-                scanner_result=None,
-                relevance=relevance.model_dump(mode="json"),
-                quality=quality.model_dump(mode="json"),
-                extracted_keywords=[],
-                algorithm_version=REQUIREMENT_ALGORITHM_VERSION,
+                scanner_result=scanner_result.model_dump(mode="json"),
+                scanner_rescan_required=False,
                 updated_at=now,
             )
         )
@@ -957,7 +1051,7 @@ class TailoringService:
             raise TailoringConflictError("The application changed; review this draft against the current CV")
         session.status = TAILORING_SESSION_ACCEPTED
         if isinstance(session.result, dict):
-            session.result = {**session.result, "relevance": relevance.model_dump(mode="json")}
+            session.result = {**session.result, "scanner_result": scanner_result.model_dump(mode="json")}
         session.reviewed_at = now
         session.updated_at = now
         await self.db.flush()
@@ -969,7 +1063,7 @@ class TailoringService:
             source_cv_id=session.cv_id,
             draft_cv_id=draft.id,
             cv_id=draft.id,
-            relevance=relevance.model_dump(mode="json"),
+            scanner_result=scanner_result,
         )
 
     async def reject_draft(self, session_id: str, user_id: str) -> TailoringReviewResponse:
@@ -998,7 +1092,9 @@ class TailoringService:
             source_cv_id=session.cv_id,
             draft_cv_id=draft_id,
             cv_id=None,
-            relevance=(session.result or {}).get("relevance"),
+            scanner_result=ScanResult.model_validate((session.result or {}).get("scanner_result"))
+            if isinstance(session.result, dict) and session.result.get("scanner_result")
+            else None,
         )
 
 
