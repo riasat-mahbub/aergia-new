@@ -16,7 +16,7 @@ from app.scanner.results import (
     LexicalVisibility,
     PDFRecoveryStatus,
 )
-from app.scanner.service import ScannerService
+from app.scanner.service import ScannerService, fingerprint_scan_inputs
 from app.services.parser._extract_pdfplumber import extract_with_pdfplumber
 
 
@@ -309,3 +309,40 @@ def test_scanner_service_keeps_four_independent_branches_and_versions_them() -> 
     assert terms["monitoring"].visibility is LexicalVisibility.ABSENT
     assert terms["monitoring"].semantic_support is EvidenceStatus.NOT_EVIDENCED
     assert len(result.input_fingerprints.cv_content_sha256) == 64
+
+
+def test_scanner_can_evaluate_against_frozen_extraction_without_reextracting() -> None:
+    job = "Qualifications\nPython experience."
+    extraction = extract_requirements_from_entities(job, {"entities": {}})
+
+    class _ExplodingExtractor:
+        def extract(self, _job: str):
+            raise AssertionError("frozen evaluation must not invoke the extractor")
+
+    result = ScannerService(extractor=_ExplodingExtractor()).scan_with_extraction(
+        job,
+        _cv_fixture(),
+        extraction,
+    )
+
+    assert result.requirement_extraction == extraction
+
+
+def test_scanner_cv_fingerprint_ignores_identity_and_lifecycle_metadata() -> None:
+    document = {
+        "sections": _cv_fixture()["sections"],
+        "template_id": "minimal",
+        "customizations": {"accent_color": "#123456"},
+    }
+    orm_like = {
+        **document,
+        "id": "cv-1",
+        "title": "Draft",
+        "description": "ignored",
+        "revision": 7,
+        "is_active": True,
+    }
+
+    assert fingerprint_scan_inputs("Build APIs", document).cv_content_sha256 == fingerprint_scan_inputs(
+        "Build APIs", orm_like
+    ).cv_content_sha256
