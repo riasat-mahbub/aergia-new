@@ -7,6 +7,7 @@ from app.scanner.requirements import (
     Concept,
     Expectation,
     ExpectationKind,
+    ExamplesExpression,
     MinimumYearsConstraint,
     Requirement,
     RequirementFamily,
@@ -159,8 +160,13 @@ def _requirement(
 
 
 def _walk_leaves(node: Any) -> list[RequirementLeaf]:
-    if node.kind == "leaf":
+    if isinstance(node, RequirementLeaf):
         return [node]
+    if isinstance(node, ExamplesExpression):
+        return [
+            *_walk_leaves(node.subject),
+            *[leaf for item in node.examples for leaf in _walk_leaves(item)],
+        ]
     return [leaf for child in node.children for leaf in _walk_leaves(child)]
 
 
@@ -270,9 +276,51 @@ def test_developmental_interest_is_supported_by_practical_tool_use() -> None:
     result = evaluate_semantic_coverage([requirement], _cv_fixture(), as_of=date(2026, 9, 20))
 
     assert result.requirements[0].status is EvidenceStatus.SUPPORTED
-    for leaf in _walk_leaves(requirement.expression):
+    assert isinstance(requirement.expression, ExamplesExpression)
+    example_leaves = [
+        leaf
+        for example in requirement.expression.examples
+        for leaf in _walk_leaves(example)
+    ]
+    for leaf in example_leaves:
         leaf_evidence = [item for item in result.evidence if item.id.startswith(f"ev-{leaf.id}-")]
         assert any(item.expectation_status is EvidenceStatus.SUPPORTED for item in leaf_evidence)
+
+
+def test_interest_in_ai_does_not_satisfy_proactive_day_to_day_application() -> None:
+    job = (FIXTURE_DIR / "job_description.txt").read_text(encoding="utf-8")
+    extraction = extract_requirements_from_entities(job, {"entities": {}})
+    requirement = next(
+        item
+        for item in extraction.requirements
+        if item.source.original_text.startswith("Demonstrated interest in AI tools")
+    )
+
+    result = evaluate_semantic_coverage([requirement], _cv_fixture(), as_of=date(2026, 9, 20))
+    by_leaf = {leaf.id: leaf for leaf in _walk_leaves(requirement.expression)}
+    evidence_by_leaf = {
+        leaf_id: [item for item in result.evidence if item.id.startswith(f"ev-{leaf_id}-")]
+        for leaf_id in by_leaf
+    }
+
+    assert result.requirements[0].status is EvidenceStatus.PARTIAL
+    assert len(by_leaf) == 2
+    interest_leaf_id = next(
+        leaf_id for leaf_id, leaf in by_leaf.items() if leaf.expectation.kind is ExpectationKind.INTEREST
+    )
+    application_leaf_id = next(
+        leaf_id
+        for leaf_id, leaf in by_leaf.items()
+        if leaf.expectation.kind is ExpectationKind.DEMONSTRATED_APPLICATION
+    )
+    assert any(
+        item.expectation_status is EvidenceStatus.PARTIAL
+        for item in evidence_by_leaf[interest_leaf_id]
+    )
+    assert not any(
+        item.expectation_status is EvidenceStatus.SUPPORTED
+        for item in evidence_by_leaf[application_leaf_id]
+    )
 
 
 def test_skill_listing_alone_does_not_establish_developmental_interest() -> None:

@@ -3,7 +3,15 @@ from pathlib import Path
 from typing import Any
 
 from app.scanner.extraction import candidate_facing_segments, extract_requirements_from_entities
-from app.scanner.requirements import AllExpression, AnyExpression, RequirementImportance, RequirementLeaf, SectionPurpose
+from app.scanner.requirements import (
+    AllExpression,
+    AnyExpression,
+    ExamplesExpression,
+    ExpectationKind,
+    RequirementImportance,
+    RequirementLeaf,
+    SectionPurpose,
+)
 
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "scanner" / "alayacare"
@@ -146,6 +154,36 @@ def test_explicit_at_least_one_requirement_builds_any_and_keeps_examples() -> No
     assert requirement.expression.children[0].expectation.kind.value == "familiarity"
 
 
+def test_such_as_list_is_an_umbrella_with_nonmandatory_examples() -> None:
+    source = "What You’ll Do\nParticipate in team rituals such as standups, demos, and retrospectives.\n"
+    result = extract_requirements_from_entities(source, {"entities": {}})
+
+    expression = result.requirements[0].expression
+    assert isinstance(expression, ExamplesExpression)
+    assert isinstance(expression.subject, RequirementLeaf)
+    assert expression.subject.concept.name == "team rituals"
+    assert [item.concept.name for item in expression.examples] == ["standups", "demos", "retrospectives"]
+    assert all(item.modifiers.optional for item in expression.examples)
+    assert expression.min_supporting_examples == 2
+
+
+def test_demonstrated_ai_interest_preserves_the_application_expectation() -> None:
+    source = (
+        "What You Bring\n"
+        "Demonstrated interest in AI tools, with a proactive mindset toward integrating them into day-to-day work to drive efficiency and innovation.\n"
+    )
+    result = extract_requirements_from_entities(source, {"entities": {}})
+
+    expression = result.requirements[0].expression
+    assert isinstance(expression, AllExpression)
+    assert [item.expectation.kind for item in expression.children] == [
+        ExpectationKind.INTEREST,
+        ExpectationKind.DEMONSTRATED_APPLICATION,
+    ]
+    assert all(item.concept.name == "AI tools" for item in expression.children)
+    assert "day-to-day work" in expression.children[1].expectation.qualifier
+
+
 def test_asset_language_phrase_is_preferred_and_languages_get_constraints() -> None:
     source = "What You Bring to the Team\nBilingual in French and English is considered an asset.\n"
     result = extract_requirements_from_entities(
@@ -261,4 +299,9 @@ def test_alayacare_compound_and_importance_regressions_normalize_without_model_s
 def _walk_leaves(expression: Any) -> list[RequirementLeaf]:
     if isinstance(expression, RequirementLeaf):
         return [expression]
+    if isinstance(expression, ExamplesExpression):
+        return [
+            *_walk_leaves(expression.subject),
+            *[leaf for item in expression.examples for leaf in _walk_leaves(item)],
+        ]
     return [leaf for child in expression.children for leaf in _walk_leaves(child)]

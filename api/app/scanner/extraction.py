@@ -28,7 +28,9 @@ from app.scanner.requirements import (
     DegreeConstraint,
     Expectation,
     ExpectationKind,
+    ExamplesExpression,
     ExpressionModifiers,
+    ExpressionNode,
     GeographicEligibilityConstraint,
     ImportanceEvidence,
     ImportanceEvidenceKind,
@@ -54,7 +56,8 @@ from app.services.requirement_extractor import (
 
 logger = logging.getLogger(__name__)
 
-SCANNER_EXTRACTOR_VERSION = "gliner2.5-structured-v3"
+SCANNER_EXTRACTOR_VERSION = "gliner2.5-structured-v4"
+_EXAMPLE_LIST_RE = re.compile(r"(?<!\w)(?:such\s+as|e\.g\.?|for\s+example)(?!\w)", re.I)
 _REQUIREMENT_LABELS = frozenset({"candidate_requirement", "requirement", "preferred_requirement"})
 _CONCEPT_LABELS = frozenset(
     {
@@ -856,6 +859,41 @@ def _expectation_for(sentence: _Sentence, component: _Component) -> Expectation:
     return Expectation(kind=ExpectationKind.OTHER, source_text=sentence.text, confidence=0.35)
 
 
+def _expectations_for(sentence: _Sentence, component: _Component) -> list[Expectation]:
+    """Keep distinct expectations when one concept has multiple predicates."""
+
+    interest = re.search(r"\bdemonstrated\s+interest\s+in\s+(?P<concept>[^,.;]+)", sentence.text, re.I)
+    integration = re.search(
+        r"\b(?P<application>(?:with\s+)?(?:a\s+)?(?:proactive|active)\s+mindset\b.{0,100}"
+        r"\bintegrat(?:e|ing)\b.{0,100}\b(?:day[- ]to[- ]day|daily)\s+work\b[^.;]*)",
+        sentence.text,
+        re.I,
+    )
+    component_start = component.start - sentence.start
+    if (
+        interest
+        and integration
+        and interest.start("concept") <= component_start <= interest.end("concept")
+    ):
+        interest_text = interest.group(0).strip()
+        application_text = integration.group("application").strip(" ,")
+        return [
+            Expectation(
+                kind=ExpectationKind.INTEREST,
+                qualifier=interest_text,
+                source_text="demonstrated interest",
+                confidence=0.90,
+            ),
+            Expectation(
+                kind=ExpectationKind.DEMONSTRATED_APPLICATION,
+                qualifier=application_text,
+                source_text=application_text[:200],
+                confidence=0.88,
+            ),
+        ]
+    return [_expectation_for(sentence, component)]
+
+
 def _contextual_modifiers_for(sentence: _Sentence) -> list[RequirementContextualModifier]:
     modifiers: list[RequirementContextualModifier] = []
     for kind, pattern, confidence in _CONTEXTUAL_MODIFIER_PATTERNS:
@@ -997,12 +1035,12 @@ def _importance(sentence: _Sentence, spans: Sequence[_EntitySpan]) -> tuple[Requ
 def _relation_tree(
     sentence: _Sentence,
     components: Sequence[_Component],
-    leaves: Sequence[RequirementLeaf],
+    component_nodes: Sequence[ExpressionNode],
     requirement_id: str,
     confidence: float,
-) -> Any:
-    if len(leaves) == 1:
-        return leaves[0]
+) -> ExpressionNode:
+    if len(component_nodes) == 1:
+        return component_nodes[0]
     connectors: list[str] = []
     for left, right in zip(components, components[1:], strict=False):
         gap = sentence.text[max(0, left.end - sentence.start) : max(0, right.start - sentence.start)]
@@ -1014,23 +1052,20 @@ def _relation_tree(
             connectors.append("comma")
 
     explicit_one_of = bool(re.search(r"\b(?:at\s+least\s+one|one\s+of|either)\b", sentence.text, re.I))
-    examples = bool(
-        re.search(r"\b(?:e\.g\.|such as|for example|or similar)\b", sentence.text, re.I)
-        and not re.search(r"\bincluding\b", sentence.text, re.I)
-    )
-    if explicit_one_of or examples:
+    has_example_marker = _EXAMPLE_LIST_RE.search(sentence.text) is not None
+    if explicit_one_of:
         return AnyExpression(
             kind="any",
             id=f"{requirement_id}-any",
-            children=list(leaves),
-            modifiers=ExpressionModifiers(list_semantics="examples" if examples else "unknown"),
+            children=list(component_nodes),
+            modifiers=ExpressionModifiers(list_semantics="examples" if has_example_marker else "unknown"),
             confidence=confidence,
         )
 
-    groups: list[list[RequirementLeaf]] = []
-    current: list[RequirementLeaf] = [leaves[0]]
+    groups: list[list[ExpressionNode]] = []
+    current: list[ExpressionNode] = [component_nodes[0]]
     for index, connector in enumerate(connectors):
-        next_leaf = leaves[index + 1]
+        next_leaf = component_nodes[index + 1]
         if connector == "and":
             groups.append(current)
             current = [next_leaf]
@@ -1050,7 +1085,7 @@ def _relation_tree(
                     kind="any",
                     id=f"{requirement_id}-any-{index + 1}",
                     children=group,
-                    modifiers=ExpressionModifiers(list_semantics="examples" if examples else "unknown"),
+                    modifiers=ExpressionModifiers(list_semantics="examples" if has_example_marker else "unknown"),
                     confidence=confidence,
                 )
             )
@@ -1102,27 +1137,143 @@ def _requirement_family(sentence: _Sentence, components: Sequence[_Component]) -
     return RequirementFamily.OTHER
 
 
+def _component_node(
+    sentence: _Sentence,
+    component: _Component,
+    requirement_id: str,
+    component_index: int,
+    confidence: float,
+    *,
+    is_example: bool = False,
+) -> ExpressionNode:
+    node_id = f"{requirement_id}-component-{component_index:02d}"
+    local_start = max(0, component.start - sentence.start)
+    local_end = min(len(sentence.text), component.end - sentence.start)
+    local_text = sentence.text[max(0, local_start - 32) : min(len(sentence.text), local_end + 48)]
+    optional = is_example or bool(re.search(r"\b(?:optional(?:ly)?|optionally)\b", local_text, re.I))
+    expectations = _expectations_for(sentence, component)
+    leaves = [
+        RequirementLeaf(
+            kind="leaf",
+            id=node_id if len(expectations) == 1 else f"{node_id}-expectation-{expectation_index:02d}",
+            concept=component.concept,
+            expectation=expectation,
+            constraints=(
+                _constraint_for(sentence, component, node_id)
+                if expectation_index == 1
+                else []
+            ),
+            modifiers=ExpressionModifiers(
+                optional=optional,
+                list_semantics="examples" if is_example else "unknown",
+            ),
+            confidence=min(confidence, component.concept.confidence),
+        )
+        for expectation_index, expectation in enumerate(expectations, start=1)
+    ]
+    if len(leaves) == 1:
+        return leaves[0]
+    return AllExpression(
+        kind="all",
+        id=f"{node_id}-expectations",
+        children=leaves,
+        confidence=min(confidence, component.concept.confidence),
+    )
+
+
+def _example_subject_component(
+    sentence: _Sentence,
+    marker: re.Match[str],
+    examples: Sequence[_Component],
+) -> _Component | None:
+    marker_start = marker.start()
+    cue_ends = [
+        match.end()
+        for pattern, _kind, _confidence in _EXPECTATION_CUES
+        for match in pattern.finditer(sentence.text)
+        if match.end() <= marker_start
+    ]
+    phrase_start = max(cue_ends, default=0)
+    leading = re.compile(
+        r"^\s*(?:(?:at\s+least\s+one|one\s+of)|(?:with|in|of|for|about|to|the|a|an))\b[\s,:-]*",
+        re.I,
+    )
+    raw_phrase = sentence.text[phrase_start:marker_start]
+    while prefix := leading.match(raw_phrase):
+        phrase_start += prefix.end()
+        raw_phrase = sentence.text[phrase_start:marker_start]
+    phrase = raw_phrase.strip(" ,:;()")
+    if not phrase:
+        return None
+    phrase_start += len(raw_phrase) - len(raw_phrase.lstrip(" ,:;()"))
+    phrase = phrase[:200].strip()
+    if not phrase:
+        return None
+
+    families = {item.concept.family for item in examples}
+    family = next(iter(families)) if len(families) == 1 else "other"
+    normalized = _normalize(phrase).replace(" ", "_")
+    return _Component(
+        concept=Concept(
+            name=phrase,
+            canonical_id=f"scanner:umbrella_{normalized}"[:200],
+            family=family,
+            source_text=phrase,
+            confidence=min(0.65, max(0.45, sum(item.concept.confidence for item in examples) / len(examples))),
+        ),
+        start=sentence.start + phrase_start,
+        end=sentence.start + phrase_start + len(phrase),
+        label="derived_example_umbrella",
+    )
+
+
+def _examples_expression(
+    sentence: _Sentence,
+    components: Sequence[_Component],
+    requirement_id: str,
+    confidence: float,
+) -> tuple[ExamplesExpression, list[_Component]] | None:
+    marker = _EXAMPLE_LIST_RE.search(sentence.text)
+    if marker is None or re.search(r"\b(?:at\s+least\s+one|one\s+of|either)\b", sentence.text, re.I):
+        return None
+    marker_end = sentence.start + marker.end()
+    example_components = [item for item in components if item.start >= marker_end]
+    if not example_components:
+        return None
+    subject_component = _example_subject_component(sentence, marker, example_components)
+    if subject_component is None:
+        return None
+
+    subject_node = _component_node(sentence, subject_component, requirement_id, 1, confidence)
+    example_nodes = [
+        _component_node(sentence, item, requirement_id, index + 1, confidence, is_example=True)
+        for index, item in enumerate(example_components, start=1)
+    ]
+    expression = ExamplesExpression(
+        kind="examples",
+        id=f"{requirement_id}-examples",
+        subject=subject_node,
+        examples=example_nodes,
+        min_supporting_examples=2,
+        modifiers=ExpressionModifiers(list_semantics="examples"),
+        confidence=confidence,
+    )
+    return expression, [subject_component, *example_components]
+
+
 def _build_requirement(sentence: _Sentence, spans: Sequence[_EntitySpan], index: int, version: str, confidence: float, signals: list[CandidateFacingSignal]) -> Requirement:
     requirement_id = f"req-{index:03d}"
     components = _components_for(sentence, spans)
-    leaves: list[RequirementLeaf] = []
-    for leaf_index, component in enumerate(components, start=1):
-        node_id = f"{requirement_id}-component-{leaf_index:02d}"
-        expectation = _expectation_for(sentence, component)
-        leaves.append(
-            RequirementLeaf(
-                kind="leaf",
-                id=node_id,
-                concept=component.concept,
-                expectation=expectation,
-                constraints=_constraint_for(sentence, component, node_id),
-                modifiers=ExpressionModifiers(
-                    optional=bool(re.search(r"\b(?:optional(?:ly)?|optionally)\b", sentence.text[max(0, component.start - sentence.start - 32) : min(len(sentence.text), component.end - sentence.start + 48)], re.I))
-                ),
-                confidence=min(confidence, component.concept.confidence),
-            )
-        )
-    expression = _relation_tree(sentence, components, leaves, requirement_id, confidence)
+    examples_result = _examples_expression(sentence, components, requirement_id, confidence)
+    if examples_result is not None:
+        expression, family_components = examples_result
+    else:
+        component_nodes = [
+            _component_node(sentence, item, requirement_id, index, confidence)
+            for index, item in enumerate(components, start=1)
+        ]
+        expression = _relation_tree(sentence, components, component_nodes, requirement_id, confidence)
+        family_components = components
     importance, importance_confidence, importance_evidence = _importance(sentence, spans)
     section_start = sentence.section.heading_start if sentence.section.heading_start is not None else sentence.section.content_start
     section = SectionContext(
@@ -1147,7 +1298,7 @@ def _build_requirement(sentence: _Sentence, spans: Sequence[_EntitySpan], index:
         importance=importance,
         importance_confidence=importance_confidence,
         importance_evidence=importance_evidence,
-        family=_requirement_family(sentence, components),
+        family=_requirement_family(sentence, family_components),
         weight=1.0,
         expression=expression,
         contextual_modifiers=_contextual_modifiers_for(sentence),
