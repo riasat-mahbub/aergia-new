@@ -202,7 +202,7 @@ async def test_backfill_is_idempotent_and_leaves_legacy_fields_untouched(client,
         "ScannerService",
         lambda: ScannerService(extractor=_FixtureExtractor()),
     )
-    monkeypatch.setattr(scanner_backfill, "_configured_extractor_version", lambda: "gliner2.5-structured-v6")
+    monkeypatch.setattr(scanner_backfill, "_configured_extractor_version", lambda: "gliner2.5-structured-v7")
 
     dry_run = await scanner_backfill.run_backfill(
         session_factory=async_session,

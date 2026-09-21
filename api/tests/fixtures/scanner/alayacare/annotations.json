@@ -200,9 +200,10 @@
       "id": "industry-trends-curiosity",
       "source_text": "Curiosity about current industry trends in technology, performance, and software development practices.",
       "importance": "required",
-      "logical_shape": "all",
+      "logical_shape": "leaf",
+      "scope": "technology, performance, and software development practices",
       "cv_evidence": {
-        "software_development_concept": "supported",
+        "industry_trends_concept": "supported",
         "curiosity_about_current_trends_expectation": "not_evidenced",
         "must_not_be_fully_supported": true
       }

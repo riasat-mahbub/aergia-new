@@ -56,7 +56,7 @@ def test_configured_model_version_includes_requirement_normalization_contract(mo
 
     result = ScannerRequirementExtractor().extract("What You Bring\nFamiliarity with Python.")
 
-    assert SCANNER_EXTRACTOR_VERSION == "gliner2.5-structured-v6"
+    assert SCANNER_EXTRACTOR_VERSION == "gliner2.5-structured-v7"
     assert result.extractor_version == f"example/model@abc123+{SCANNER_EXTRACTOR_VERSION}"
 
 
@@ -200,6 +200,76 @@ def test_one_item_example_list_requires_only_one_example() -> None:
     assert isinstance(expression, ExamplesExpression)
     assert len(expression.examples) == 1
     assert expression.min_supporting_examples == 1
+
+
+def test_scoped_behavioral_domains_form_one_scored_obligation() -> None:
+    source = (
+        "What You Bring\nCuriosity about current industry trends in technology, performance, "
+        "and software development practices.\n"
+    )
+    result = extract_requirements_from_entities(source, {"entities": {}})
+
+    assert len(result.requirements) == 1
+    expression = result.requirements[0].expression
+    assert isinstance(expression, RequirementLeaf)
+    assert expression.concept.name == "industry trends"
+    assert expression.expectation.kind is ExpectationKind.CURIOSITY
+    assert expression.modifiers.scope == "technology, performance, and software development practices"
+
+
+def test_genuine_coordinated_skills_remain_independent_all_obligations() -> None:
+    source = "What You Bring\nExperience with Python, Docker, and PostgreSQL.\n"
+    result = extract_requirements_from_entities(source, {"entities": {}})
+
+    expression = result.requirements[0].expression
+    assert isinstance(expression, AllExpression)
+    assert [leaf.concept.name for leaf in _walk_leaves(expression)] == ["python", "docker", "postgresql"]
+
+
+def test_examples_expression_preserves_independent_preceding_skill() -> None:
+    source = (
+        "What You Bring\nStrong Python skills and familiarity with cloud platforms "
+        "such as AWS and Azure.\n"
+    )
+    result = extract_requirements_from_entities(source, {"entities": {}})
+
+    expression = result.requirements[0].expression
+    assert isinstance(expression, AllExpression)
+    assert isinstance(expression.children[0], RequirementLeaf)
+    assert expression.children[0].concept.name == "python"
+    examples = expression.children[1]
+    assert isinstance(examples, ExamplesExpression)
+    assert examples.subject.concept.name == "cloud platforms"
+    assert [item.concept.name for item in examples.examples] == ["aws", "azure"]
+    assert all(item.modifiers.optional for item in examples.examples)
+
+    source_start = source.index("Strong Python skills")
+    model_output = {
+        "entities": {
+            "hard_skill": [
+                _span(source, "hard_skill", "Python"),
+                _span(source, "hard_skill", "AWS"),
+                _span(source, "hard_skill", "Azure"),
+            ],
+            "domain_knowledge": [
+                {
+                    "text": "cloud platforms",
+                    "start": source.index("cloud platforms", source_start),
+                    "end": source.index("cloud platforms", source_start) + len("cloud platforms"),
+                    "confidence": 0.92,
+                }
+            ],
+        }
+    }
+    typed_result = extract_requirements_from_entities(source, model_output)
+    typed_expression = typed_result.requirements[0].expression
+
+    assert isinstance(typed_expression, AllExpression)
+    assert isinstance(typed_expression.children[0], RequirementLeaf)
+    assert typed_expression.children[0].concept.name == "python"
+    typed_examples = typed_expression.children[1]
+    assert isinstance(typed_examples, ExamplesExpression)
+    assert typed_examples.subject.concept.name == "cloud platforms"
 
 
 def _including_requirement(source: str, concepts: list[str]):
