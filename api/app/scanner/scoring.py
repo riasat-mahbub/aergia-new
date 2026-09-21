@@ -37,7 +37,7 @@ from app.scanner.results import (
 
 SEMANTIC_SCORE_VERSION = "job-fit-v2"
 CLASSIFICATION_WARNING_VERSION = "classification-coverage-warning-v1"
-LEXICAL_SCORE_VERSION = "term-visibility-v1"
+LEXICAL_SCORE_VERSION = "term-visibility-v2"
 PDF_SCORE_VERSION = "pdf-recovery-score-v1"
 MINIMUM_JOB_FIT_SCORABLE_FRACTION = 0.70
 MINIMUM_CLASSIFICATION_COVERAGE_WARNING_FRACTION = 0.70
@@ -400,12 +400,19 @@ def _lexical_term_weight(term: LexicalTerm) -> float:
     return max(weights, default=0.35 if term.importance is RequirementImportance.PREFERRED else 0.40)
 
 
+def _is_illustrative_example(term: LexicalTerm) -> bool:
+    return term.illustrative_example and bool(term.source_locations) and all(
+        location.illustrative_example for location in term.source_locations
+    )
+
+
 def score_lexical_analysis(analysis: LexicalAnalysis) -> LexicalScoreSummary:
     """Score only literal visibility; semantic support never adds lexical credit."""
 
     counts = {visibility: 0 for visibility in LexicalVisibility}
     for term in analysis.terms:
-        counts[term.visibility] += 1
+        if not _is_illustrative_example(term):
+            counts[term.visibility] += 1
     if analysis.status is not AnalysisStatus.EVALUATED:
         return LexicalScoreSummary(
             status=ScoreStatus.UNAVAILABLE,
@@ -421,6 +428,8 @@ def score_lexical_analysis(analysis: LexicalAnalysis) -> LexicalScoreSummary:
     scorable_weight = 0.0
     earned = 0.0
     for term in analysis.terms:
+        if _is_illustrative_example(term):
+            continue
         weight = _lexical_term_weight(term)
         weighted_total += weight
         value = _LEXICAL_VALUES.get(term.visibility)

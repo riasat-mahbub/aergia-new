@@ -218,7 +218,9 @@ export interface ScannerLexicalTerm {
     section_title: string | null;
     section_purpose: string | null;
     importance: ScannerImportance;
+    illustrative_example: boolean;
   }>;
+  illustrative_example: boolean;
   visibility: "exact" | "normalized" | "variant" | "absent" | "unverifiable";
   evidence: Array<{ location: ScannerCVLocation; matched_text: string; visibility: "exact" | "normalized" | "variant" }>;
   semantic_support?: ScannerEvidenceStatus | null;

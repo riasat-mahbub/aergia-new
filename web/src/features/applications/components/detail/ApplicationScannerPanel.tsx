@@ -246,11 +246,14 @@ function LexicalAnalysis({ result }: { result: ScanResult }) {
             <li key={term.id} className="flex flex-wrap items-start justify-between gap-2 border-b border-app-rule-soft pb-2 last:border-0 last:pb-0">
               <div>
                 <p className="text-sm font-medium text-app-ink">{term.term}</p>
-                {(term.evidence.length > 0 || term.importance !== "unknown") && (
+                {(term.illustrative_example || term.evidence.length > 0 || term.importance !== "unknown") && (
                   <p className="mt-1 text-xs text-app-ink-3">
-                    {term.importance !== "unknown" && `${labelFor(term.importance)} · `}
+                    {term.illustrative_example ? "Illustrative example · " : term.importance !== "unknown" ? `${labelFor(term.importance)} · ` : ""}
                     {term.evidence.map((item) => `Found as “${item.matched_text}”`).join(" · ")}
                   </p>
+                )}
+                {term.illustrative_example && (
+                  <p className="mt-1 text-xs text-app-ink-3">Shown for the employer’s vocabulary; excluded from Term Visibility.</p>
                 )}
                 {term.visibility === "absent" && term.semantic_support && (
                   <p className="mt-1 text-xs text-app-ink-2">

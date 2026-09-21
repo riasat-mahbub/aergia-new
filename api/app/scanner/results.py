@@ -112,6 +112,7 @@ class JobTextLocation(ScannerModel):
     section_title: str | None = Field(default=None, max_length=500)
     section_purpose: str | None = Field(default=None, max_length=100)
     importance: RequirementImportance = RequirementImportance.UNKNOWN
+    illustrative_example: bool = False
 
 
 class LexicalVisibility(StrEnum):
@@ -135,6 +136,7 @@ class LexicalTerm(ScannerModel):
     variants: list[str] = Field(default_factory=list, max_length=100)
     importance: RequirementImportance = RequirementImportance.UNKNOWN
     source_locations: list[JobTextLocation] = Field(min_length=1, max_length=100)
+    illustrative_example: bool = False
     visibility: LexicalVisibility
     evidence: list[LexicalEvidence] = Field(default_factory=list, max_length=100)
     semantic_support: EvidenceStatus | None = None

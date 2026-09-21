@@ -9,6 +9,7 @@ from app.scanner.pdf_recovery import (
     analyze_pdf_recovery,
 )
 from app.scanner.quality import analyze_presentation_quality
+from app.scanner.scoring import score_lexical_analysis
 from app.scanner.results import (
     BulletEvidenceClass,
     EvidenceStatus,
@@ -103,6 +104,78 @@ def test_lexical_variants_are_surface_forms_not_semantic_equivalents() -> None:
     assert terms["automated testing"].visibility is LexicalVisibility.ABSENT
 
 
+def test_illustrative_examples_remain_visible_but_do_not_lower_term_visibility() -> None:
+    job = "What You’ll Do\nParticipate in team rituals such as standups, demos, and retrospectives.\n"
+    extraction = extract_requirements_from_entities(job, {"entities": {}})
+
+    result = analyze_lexical_visibility(job, {"sections": []}, requirements=extraction.requirements)
+    terms = {term.term.casefold(): term for term in result.terms}
+    summary = score_lexical_analysis(result)
+
+    assert terms["team rituals"].visibility is LexicalVisibility.ABSENT
+    assert terms["team rituals"].illustrative_example is False
+    for example in ("standups", "demos", "retrospectives"):
+        assert terms[example].visibility is LexicalVisibility.ABSENT
+        assert terms[example].illustrative_example is True
+    assert summary.absent_count == 1
+    assert summary.scorable_fraction == 1.0
+    assert summary.visibility_score == 0.0
+
+
+def test_exhaustive_lists_and_explicit_any_alternatives_remain_scored_terms() -> None:
+    exhaustive_job = "Qualifications\nMust know Python, JavaScript, and SQL.\n"
+    exhaustive = extract_requirements_from_entities(exhaustive_job, {"entities": {}})
+    exhaustive_lexical = analyze_lexical_visibility(
+        exhaustive_job,
+        {"sections": []},
+        requirements=exhaustive.requirements,
+    )
+    exhaustive_terms = {term.term.casefold(): term for term in exhaustive_lexical.terms}
+    for term in ("python", "javascript", "sql"):
+        assert exhaustive_terms[term].illustrative_example is False
+        assert exhaustive_terms[term].visibility is LexicalVisibility.ABSENT
+    assert score_lexical_analysis(exhaustive_lexical).absent_count == 3
+
+    any_job = "Qualifications\nFamiliarity with at least one of Python, Java, or C#.\n"
+    any_extraction = extract_requirements_from_entities(any_job, {"entities": {}})
+    any_lexical = analyze_lexical_visibility(any_job, {"sections": []}, requirements=any_extraction.requirements)
+    any_terms = {term.term.casefold(): term for term in any_lexical.terms}
+    for term in ("python", "java", "c#"):
+        assert any_terms[term].illustrative_example is False
+    assert score_lexical_analysis(any_lexical).absent_count == 3
+
+
+def test_required_occurrence_of_an_example_term_keeps_it_in_the_score() -> None:
+    job = "Qualifications\nAWS experience is required. Cloud platforms such as AWS and Azure are useful.\n"
+    example_sentence = "Cloud platforms such as AWS and Azure are useful."
+    example_start = job.index(example_sentence)
+    extraction = extract_requirements_from_entities(
+        job,
+        {
+            "entities": {
+                "candidate_requirement": [
+                    {
+                        "text": example_sentence,
+                        "start": example_start,
+                        "end": example_start + len(example_sentence),
+                        "confidence": 0.95,
+                    }
+                ]
+            }
+        },
+    )
+
+    result = analyze_lexical_visibility(job, {"sections": []}, requirements=extraction.requirements)
+    aws = next(term for term in result.terms if term.term.casefold() == "aws")
+
+    assert len(aws.source_locations) == 2
+    assert sorted(location.illustrative_example for location in aws.source_locations) == [False, True]
+    assert aws.illustrative_example is False
+    assert score_lexical_analysis(result).absent_count == sum(
+        not term.illustrative_example for term in result.terms
+    )
+
+
 def test_presentation_classifies_bullets_without_requiring_metrics() -> None:
     result = analyze_presentation_quality(_cv_fixture())
 
@@ -182,9 +255,9 @@ def test_scanner_service_keeps_four_independent_branches_and_versions_them() -> 
     assert result.pdf_recovery.status is PDFRecoveryStatus.UNAVAILABLE
     assert result.versions.extractor_version == "gliner2.5-structured-v7"
     assert result.versions.matcher_version == "requirement-match-v4"
-    assert result.versions.lexical_version == "ats-lexical-v4"
+    assert result.versions.lexical_version == "ats-lexical-v5"
     assert result.versions.semantic_score_version == "job-fit-v2"
-    assert result.versions.lexical_score_version == "term-visibility-v1"
+    assert result.versions.lexical_score_version == "term-visibility-v2"
     assert result.versions.pdf_score_version == "pdf-recovery-score-v1"
     assert result.semantic.summary is not None
     assert result.lexical.summary is not None

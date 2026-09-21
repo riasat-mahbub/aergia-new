@@ -483,6 +483,31 @@ def test_lexical_score_is_independent_of_semantic_support() -> None:
     assert score_lexical_analysis(supported_semantics).visibility_score == 0.4
 
 
+def test_illustrative_example_terms_are_excluded_from_lexical_score_and_counts() -> None:
+    umbrella = _lexical_term("rituals", "team rituals", LexicalVisibility.ABSENT)
+    example = _lexical_term("standups", "standups", LexicalVisibility.ABSENT).model_copy(
+        update={
+            "illustrative_example": True,
+            "source_locations": [
+                _lexical_term("standups", "standups", LexicalVisibility.ABSENT).source_locations[0].model_copy(
+                    update={"illustrative_example": True}
+                )
+            ],
+        }
+    )
+    analysis = LexicalAnalysis(
+        status=AnalysisStatus.EVALUATED,
+        terms=[umbrella, example],
+    )
+
+    summary = score_lexical_analysis(analysis)
+
+    assert len(analysis.terms) == 2
+    assert summary.absent_count == 1
+    assert summary.scorable_fraction == 1.0
+    assert summary.visibility_score == 0.0
+
+
 def test_lexical_term_can_show_semantic_support_without_changing_visibility() -> None:
     requirement = _requirement("ai-tools", _leaf("ai-tools-leaf", "AI tools"))
     evaluation = _leaf_result(requirement.expression, EvidenceStatus.PARTIAL)
