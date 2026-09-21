@@ -358,6 +358,13 @@ export default function ApplicationScannerPanel({
   const [error, setError] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
   const result = application.scanner_result ?? null;
+  const scannerStatus = application.scanner_status ?? (result ? "current" : "not_scanned");
+  const scannerStatusLabel = {
+    current: "Current",
+    stale: "Stale",
+    not_scanned: "Not scanned",
+    needs_rescan: "Needs rescan",
+  }[scannerStatus];
   const linkableCVs = availableCVs.filter(
     (cv) => cv.id === application.cv_id || !cv.application || cv.application.id === application.id,
   );
@@ -392,6 +399,7 @@ export default function ApplicationScannerPanel({
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-app-ink-3">Scanner analysis</h2>
           <p className="mt-1 text-xs text-app-ink-3">Job fit, term visibility, presentation quality, and PDF recovery are reported separately.</p>
+          <p className="mt-1 text-xs text-app-ink-2">Status: {scannerStatusLabel}</p>
           {result && <p className="mt-1 text-xs text-app-ink-3">Last run: {new Date(result.created_at).toLocaleString()}</p>}
         </div>
         <button
@@ -401,7 +409,7 @@ export default function ApplicationScannerPanel({
           className="inline-flex items-center gap-2 rounded-md border border-app-primary-soft px-3 py-2 text-sm font-medium text-app-primary hover:bg-app-primary-soft disabled:cursor-not-allowed disabled:opacity-50"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${isScanning ? "animate-spin" : ""}`} />
-          {isScanning ? "Scanning…" : result ? "Run scanner again" : "Run scanner"}
+          {isScanning ? "Scanning…" : scannerStatus === "current" ? "Run scanner again" : "Run scanner"}
         </button>
       </div>
       <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -422,7 +430,9 @@ export default function ApplicationScannerPanel({
       {linkError && <p role="alert" className="mt-2 text-sm text-app-danger">{linkError}</p>}
       {error && <p role="alert" className="mt-3 rounded-md bg-app-danger-soft px-3 py-2 text-sm text-app-danger">{error}</p>}
       {!application.cv_id && <p className="mt-3 text-sm text-app-ink-2">Link a CV to this application before running the scanner.</p>}
-      {!result && application.cv_id && <p className="mt-3 text-sm text-app-ink-2">No scanner result yet. Run the scanner to evaluate the linked CV against this job description.</p>}
+      {scannerStatus === "needs_rescan" && <p className="mt-3 text-sm text-app-warning">The linked CV or job description changed. Run the scanner to refresh this analysis.</p>}
+      {scannerStatus === "stale" && <p className="mt-3 text-sm text-app-warning">This result was produced with older inputs or scanner rules. Run the scanner to refresh it.</p>}
+      {scannerStatus === "not_scanned" && application.cv_id && <p className="mt-3 text-sm text-app-ink-2">No scanner result yet. Run the scanner to evaluate the linked CV against this job description.</p>}
       {result && (
         <div className="mt-4 grid gap-3 xl:grid-cols-2">
           <JobFit result={result} />

@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import Date, DateTime, ForeignKey, Index, JSON, String, Text
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -29,6 +29,7 @@ class Application(Base):
     # scanner_result is the current versioned contract. `relevance` and
     # `quality` remain legacy snapshots until scanner cutover completes.
     scanner_result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    scanner_rescan_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     relevance: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     quality: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     algorithm_version: Mapped[str] = mapped_column(String(64), nullable=False, default="gliner2.5-small-v1")

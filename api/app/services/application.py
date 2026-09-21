@@ -56,7 +56,7 @@ class ApplicationService:
     async def get_application(self, application_id: str, user_id: str) -> Application | None:
         result = await self.db.execute(
             select(Application)
-            .options(selectinload(Application.status_history))
+            .options(selectinload(Application.status_history), selectinload(Application.cv))
             .where(Application.id == application_id, Application.user_id == user_id)
         )
         application = result.scalar_one_or_none()
@@ -137,8 +137,12 @@ class ApplicationService:
             if previous_cv is not None and previous_cv.application_id == application.id:
                 previous_cv.application_id = None
             application.cv_id = new_cv_id
+            application.cv = next_cv
             if next_cv is not None:
                 next_cv.application_id = application.id
+            application.scanner_rescan_required = (
+                application.scanner_result is not None or application.scanner_rescan_required
+            )
             application.scanner_result = None
         if "job_url" in update_data:
             value = update_data["job_url"]
@@ -167,6 +171,9 @@ class ApplicationService:
         if job_description_changed:
             # Keep the previous scanner result from being mistaken for an
             # evaluation of the newly edited posting.
+            application.scanner_rescan_required = (
+                application.scanner_result is not None or application.scanner_rescan_required
+            )
             application.scanner_result = None
         await self.db.flush()
 
@@ -224,6 +231,7 @@ class ApplicationService:
             pdf_bytes=pdf_bytes,
         )
         application.scanner_result = result.model_dump(mode="json")
+        application.scanner_rescan_required = False
         application.updated_at = datetime.now(timezone.utc)
         await self.db.flush()
         return application

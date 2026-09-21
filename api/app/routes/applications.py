@@ -7,6 +7,7 @@ from app.core.deps import get_current_user
 from app.core.rate_limit import limiter
 from app.db.session import get_db
 from app.models.user import User
+from app.scanner.freshness import application_scanner_status, configured_extractor_version
 from app.http_schemas.application import (
     ApplicationCreate,
     ApplicationListItem,
@@ -29,7 +30,15 @@ router = APIRouter()
 
 
 def _response(application) -> ApplicationResponse:
-    return ApplicationResponse.model_validate(application)
+    response = ApplicationResponse.model_validate(application)
+    response.scanner_status = application_scanner_status(
+        application.scanner_result,
+        application.job_description,
+        application.cv,
+        rescan_required=application.scanner_rescan_required,
+        extractor_version=configured_extractor_version(),
+    )
+    return response
 
 
 @router.get("", response_model=list[ApplicationListItem])
