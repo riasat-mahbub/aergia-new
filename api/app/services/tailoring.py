@@ -108,6 +108,22 @@ def _content_hash(value: Any) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def _strip_none_values(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {key: _strip_none_values(child) for key, child in value.items() if child is not None}
+    if isinstance(value, list):
+        return [_strip_none_values(child) for child in value]
+    return value
+
+
+def _candidate_content_for_comparison(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Canonical candidate fields used to verify a persisted draft."""
+
+    candidate = copy.deepcopy(dict(value))
+    candidate.pop("id", None)
+    return _strip_none_values(candidate)
+
+
 def cv_snapshot_hash(cv: CV | None) -> str | None:
     if cv is None:
         return None
@@ -435,6 +451,8 @@ class TailoringService:
         *,
         initialize: bool = False,
     ) -> dict[str, Any]:
+        if session.protocol_version != PROTOCOL_VERSION:
+            raise TailoringStaleError("This tailoring session uses an older protocol; start a new session")
         resources = await self._context_resources(session)
         if not session.context_snapshot:
             if not initialize:
@@ -443,12 +461,15 @@ class TailoringService:
             basis = self._context_basis(resources, scanner_context)
             session.context_snapshot = {
                 "schema_version": "tailoring-v4",
+                "protocol_version": PROTOCOL_VERSION,
                 "scanner": scanner_context.model_dump(mode="json"),
                 "basis": basis,
             }
         else:
             try:
                 snapshot = session.context_snapshot
+                if snapshot.get("protocol_version") != PROTOCOL_VERSION:
+                    raise TailoringStaleError("The tailoring session protocol is no longer supported")
                 scanner_context = TailoringScannerContext.model_validate(snapshot["scanner"])
                 frozen_basis = snapshot["basis"]
             except (KeyError, TypeError, ValidationError) as exc:
@@ -1040,6 +1061,23 @@ class TailoringService:
             scanner_result = ScanResult.model_validate(stored_result)
         except (ValidationError, TypeError) as exc:
             raise TailoringConflictError("The tailoring draft has no valid scanner result") from exc
+        stored_candidate = (session.result or {}).get("candidate") if isinstance(session.result, dict) else None
+        stored_candidate_hash = (session.result or {}).get("candidate_hash") if isinstance(session.result, dict) else None
+        if not isinstance(stored_candidate, Mapping) or not isinstance(stored_candidate_hash, str):
+            raise TailoringConflictError("The tailoring draft has no valid candidate binding")
+        if self._candidate_hash(stored_candidate) != stored_candidate_hash:
+            raise TailoringConflictError("The tailoring draft candidate binding is invalid")
+        persisted_candidate = {
+            "title": draft.title,
+            "description": draft.description,
+            "template_id": draft.template_id,
+            "sections": draft.sections or [],
+            "customizations": draft.customizations or {},
+        }
+        if _content_hash(_candidate_content_for_comparison(stored_candidate)) != _content_hash(
+            _candidate_content_for_comparison(persisted_candidate)
+        ):
+            raise TailoringConflictError("The tailoring draft changed after submission; review it again")
         freshness = scanner_result_freshness(
             scanner_result.model_dump(mode="json"),
             application.job_description,
