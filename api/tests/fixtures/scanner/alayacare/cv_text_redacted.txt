@@ -1,0 +1,47 @@
+[REDACTED NAME]
+[REDACTED EMAIL] | [REDACTED PHONE] | Halifax, Nova Scotia, Canada · Open to relocation | [REDACTED URL] ↗
+LinkedIn GitHub
+Full-stack developer with professional experience shipping Angular, Laravel, and Ionic features and current projects built with
+React, TypeScript, FastAPI, Python, and SQL. Wrote unit and integration tests, deployed Dockerized applications through CI/CD,
+and built coding-agent and RAG workflows.
+Technical Skills
+Languages: Python, TypeScript, JavaScript, PHP, SQL, C#
+Full Stack: React, TanStack Start, Angular, Ionic, FastAPI, Laravel, SQLAlchemy, REST APIs, HTML/CSS
+Data & AI: PostgreSQL, SQLite, pgvector, RAG, Ollama, PyTorch, Pandas
+Testing & Tooling: Unit Testing, Integration Testing, Git, Docker, GitHub Actions, CI/CD, Linux
+Experience
+Associate Software Engineer July 2022 – August 2023
+Brain Station 23
+Shipped full-stack web and mobile features with Angular, Laravel, and Ionic, including custom Moodle and WordPress
+plugins.
+Wrote unit and integration tests across legacy and new codebases to improve reliability and reduce technical debt.
+Provisioned Linux environments and deployed Dockerized applications through Git and CI/CD pipelines.
+Research Assistant September 2023 – October 2025
+Dalhousie University
+Built repository-mining and static-analysis pipelines across 482 open-source repositories for code-quality and refactoring
+studies presented at IEEE SCAM 2024 and TRB 2026.
+Extended legacy C#/.NET simulation software by diagnosing code-quality issues and implementing product features.
+Selected Projects
+Aergia CV Builder GitHub ↗
+April 2026
+Built a self-hosted CV and application platform with React, TanStack Start, FastAPI, SQLAlchemy, SQLite,
+Playwright, and Docker.
+Developed requirement-analysis and coding-agent workflows that compose, render, and critique
+editable CV drafts while keeping the user in control of final approval.
+Kept the React editor and Python document renderer on one validated model so live previews and
+exported PDFs remain consistent.
+React TypeScript FastAPI SQLAlchemy SQLite Playwright Docker
+MBuddy GitHub ↗
+August 2026
+Built a Python ingestion CLI for five GraphQL and REST data sources with rate limits, retries, async
+concurrency, checkpoint/resume, and structured logs.
+Created a FastAPI recommendation system backed by PostgreSQL and pgvector across 289,000+
+manga and anime titles.
+Combined semantic embeddings, metadata signals, and text search in a RAG pipeline for context-aware
+recommendations.
+Python FastAPI PostgreSQL pgvector SQLAlchemy REST GraphQL RAG
+Education
+Master of Computer Science September 2023 – October 2025
+Dalhousie University
+Bachelor of Computer Science and Engineering January 2018 – January 2022
+BRAC University
