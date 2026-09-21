@@ -238,6 +238,7 @@ export interface ScannerSemanticScoreSummary {
   scorable_fraction: number;
   classified_fraction?: number | null;
   evidence_scorable_fraction?: number | null;
+  classification_warning_code?: "low_requirement_classification_coverage" | null;
   qualification_fit: ScannerScoreBucketSummary;
   responsibility_alignment: ScannerScoreBucketSummary;
   preferred_fit: ScannerScoreBucketSummary;

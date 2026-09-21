@@ -219,6 +219,7 @@ class SemanticScoreSummary(ScannerModel):
     scorable_fraction: float = Field(ge=0.0, le=1.0)
     classified_fraction: float | None = Field(default=None, ge=0.0, le=1.0)
     evidence_scorable_fraction: float | None = Field(default=None, ge=0.0, le=1.0)
+    classification_warning_code: Literal["low_requirement_classification_coverage"] | None = None
     qualification_fit: ScoreBucketSummary
     responsibility_alignment: ScoreBucketSummary
     preferred_fit: ScoreBucketSummary
@@ -266,6 +267,7 @@ class ScannerVersions(ScannerModel):
     semantic_score_version: str | None = Field(default=None, max_length=100)
     lexical_score_version: str | None = Field(default=None, max_length=100)
     pdf_score_version: str | None = Field(default=None, max_length=100)
+    classification_warning_version: str | None = Field(default=None, max_length=100)
 
 
 class ScanInputFingerprints(ScannerModel):

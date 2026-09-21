@@ -150,6 +150,11 @@ function JobFit({ result }: { result: ScanResult }) {
           <p className="mt-1 text-xs text-app-ink-3">
             {supportedRequirements} supported requirements · {partialRequirements} partial · {notEvidencedRequirements} not evidenced · {conflictingRequirements} conflicting · {unverifiableRequirements} unverifiable requirements
           </p>
+          {summary.classification_warning_code === "low_requirement_classification_coverage" && (
+            <p className="mt-2 text-xs text-app-warning" role="note">
+              Low requirement-classification coverage — interpret this score cautiously.
+            </p>
+          )}
           {summary.unverifiable_component_count !== null && summary.unverifiable_component_count !== undefined && (
             <p className="mt-1 text-xs text-app-ink-3">
               {summary.unverifiable_component_count} unverifiable components
