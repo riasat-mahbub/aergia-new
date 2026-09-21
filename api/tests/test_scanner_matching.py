@@ -5,6 +5,7 @@ from typing import Any
 from app.scanner.matching import evaluate_semantic_coverage, flatten_cv_text
 from app.scanner.requirements import (
     Concept,
+    DegreeConstraint,
     Expectation,
     ExpectationKind,
     ExamplesExpression,
@@ -548,3 +549,36 @@ def test_structured_years_contradiction_is_conflicting_not_missing() -> None:
 
     assert result.requirements[0].status is EvidenceStatus.CONFLICTING
     assert result.evidence[0].constraints[0].status is EvidenceStatus.CONFLICTING
+
+
+def test_constraint_evidence_without_concept_match_does_not_raise() -> None:
+    degree = DegreeConstraint(
+        id="minimum-degree",
+        kind="degree",
+        level="bachelor",
+        source_text="bachelor's degree",
+        confidence=0.9,
+    )
+    requirement = _requirement(
+        "python-and-degree",
+        "Python",
+        ExpectationKind.PRIOR_EXPERIENCE,
+        constraints=[degree],
+    )
+    cv = {
+        "sections": [
+            {
+                "id": "education",
+                "type": "education",
+                "fields": [],
+                "entries": [{"id": "degree", "fields": [_field("degree", "Master of Computer Science")]}],
+            }
+        ]
+    }
+
+    result = evaluate_semantic_coverage([requirement], cv, as_of=date(2026, 9, 20))
+
+    assert result.requirements[0].status is EvidenceStatus.PARTIAL
+    assert result.evidence[0].concept_status is EvidenceStatus.NOT_EVIDENCED
+    assert result.evidence[0].constraints[0].status is EvidenceStatus.SUPPORTED
+    assert result.evidence[0].confidence <= 0.64

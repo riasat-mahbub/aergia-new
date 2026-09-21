@@ -32,7 +32,7 @@ from app.scanner.scoring import (
 )
 from app.services.requirement_extractor import RequirementExtractionError
 
-MATCHER_VERSION = "requirement-match-v3"
+MATCHER_VERSION = "requirement-match-v4"
 LEXICAL_VERSION = "ats-lexical-v4"
 
 

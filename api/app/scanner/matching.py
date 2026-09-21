@@ -840,7 +840,9 @@ def _evidence_for_leaf(
                 expectation_status=expectation_status,
                 constraints=constraint_evidence,
                 confidence=min(
-                    concept_hit.status is EvidenceStatus.SUPPORTED and 0.92 or 0.64,
+                    0.92
+                    if concept_hit is not None and concept_hit.status is EvidenceStatus.SUPPORTED
+                    else 0.64,
                     leaf.expectation.confidence if expectation_status is EvidenceStatus.SUPPORTED else 0.62,
                 ),
                 method=concept_hit.method if concept_hit else EvidenceMethod.SEMANTIC_RULE,
