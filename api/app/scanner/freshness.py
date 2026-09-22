@@ -84,12 +84,15 @@ def scanner_result_freshness(
                 reasons.append("job_changed")
             if fingerprints.get("cv_content_sha256") != current.cv_content_sha256:
                 reasons.append("cv_changed")
-            if (
-                (pdf_bytes is not None or render_manifest is not None)
-                and fingerprints.get("render_input_sha256") is not None
-                and fingerprints.get("render_input_sha256") != current.render_input_sha256
-            ):
-                reasons.append("render_input_changed")
+            if pdf_bytes is not None or render_manifest is not None:
+                stored_render_input = fingerprints.get("render_input_sha256")
+                if stored_render_input is None:
+                    # Results created before render-input provenance was
+                    # introduced cannot prove that their PDF branch used the
+                    # current renderer/template inputs.
+                    reasons.append("render_input_missing")
+                elif stored_render_input != current.render_input_sha256:
+                    reasons.append("render_input_changed")
             if pdf_bytes is not None and fingerprints.get("pdf_sha256") != current.pdf_sha256:
                 reasons.append("pdf_changed")
 

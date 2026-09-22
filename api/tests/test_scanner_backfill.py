@@ -71,9 +71,11 @@ def test_current_result_requires_matching_inputs_and_installed_versions():
 def test_freshness_diagnostics_identify_changed_inputs_and_subsystems():
     job_description = "Python developer"
     cv = {"sections": [{"type": "experience", "description": "Built APIs."}]}
+    fingerprints = fingerprint_scan_inputs(job_description, cv).model_dump(mode="json")
+    fingerprints.pop("render_input_sha256", None)
     result = {
         "schema_version": "scanner-v1",
-        "input_fingerprints": fingerprint_scan_inputs(job_description, cv).model_dump(mode="json"),
+        "input_fingerprints": fingerprints,
         "versions": {
             "extractor_version": "model@revision",
             "matcher_version": MATCHER_VERSION,
@@ -174,6 +176,38 @@ def test_freshness_can_check_pdf_and_render_input_fingerprints():
         render_manifest={"name": "Changed", "manifest_version": 2},
     )
     assert stale_manifest["reasons"] == ["render_input_changed"]
+
+
+def test_freshness_marks_pre_render_provenance_results_stale_when_manifest_is_available():
+    job_description = "Python developer"
+    cv = {"sections": [{"type": "experience", "description": "Built APIs."}]}
+    fingerprints = fingerprint_scan_inputs(job_description, cv).model_dump(mode="json")
+    fingerprints.pop("render_input_sha256", None)
+    result = {
+        "schema_version": "scanner-v1",
+        "input_fingerprints": fingerprints,
+        "versions": {
+            "extractor_version": "model@revision",
+            "matcher_version": MATCHER_VERSION,
+            "lexical_version": LEXICAL_VERSION,
+            "quality_version": QUALITY_VERSION,
+            "pdf_analysis_version": PDF_ANALYSIS_VERSION,
+            "semantic_score_version": SEMANTIC_SCORE_VERSION,
+            "lexical_score_version": LEXICAL_SCORE_VERSION,
+            "pdf_score_version": PDF_SCORE_VERSION,
+            "classification_warning_version": CLASSIFICATION_WARNING_VERSION,
+        },
+    }
+
+    freshness = scanner_result_freshness(
+        result,
+        job_description,
+        cv,
+        extractor_version="model@revision",
+        render_manifest={"manifest_version": 2},
+    )
+
+    assert freshness == {"current": False, "reasons": ["render_input_missing"]}
 
 
 class _FixtureExtractor:
