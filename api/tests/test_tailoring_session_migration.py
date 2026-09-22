@@ -17,8 +17,17 @@ _MIGRATION = runpy.run_path(
         / "m8n9o0p1_remove_tailoring_v1_session_state.py"
     )
 )
+_V5_MIGRATION = runpy.run_path(
+    str(
+        Path(__file__).parents[1]
+        / "alembic"
+        / "versions"
+        / "s4t5u6v7_tailoring_v5_evaluation.py"
+    )
+)
 compact_tailoring_session_table = _MIGRATION["compact_tailoring_session_table"]
 downgrade = _MIGRATION["downgrade"]
+v5_upgrade = _V5_MIGRATION["upgrade"]
 
 
 def test_cleanup_drops_patch_columns_and_preserves_reviewable_draft_state():
@@ -87,3 +96,21 @@ def test_cleanup_drops_patch_columns_and_preserves_reviewable_draft_state():
 def test_cutover_downgrade_requires_restoring_a_database_backup():
     with pytest.raises(RuntimeError, match="restore a database backup"):
         downgrade()
+
+
+def test_v5_migration_changes_only_the_default_and_leaves_historical_rows_untouched():
+    engine = sa.create_engine("sqlite:///:memory:")
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "CREATE TABLE tailoring_sessions (id VARCHAR(36) PRIMARY KEY, protocol_version INTEGER NOT NULL DEFAULT 4)"
+        )
+        connection.exec_driver_sql("INSERT INTO tailoring_sessions (id, protocol_version) VALUES ('legacy', 4)")
+
+        v5_upgrade.__globals__["op"] = Operations(MigrationContext.configure(connection))
+        v5_upgrade()
+
+        column = next(column for column in sa.inspect(connection).get_columns("tailoring_sessions") if column["name"] == "protocol_version")
+        row = connection.execute(sa.text("SELECT protocol_version FROM tailoring_sessions WHERE id = 'legacy'")).scalar_one()
+
+    assert str(column["default"]).strip("'") == "5"
+    assert row == 4
