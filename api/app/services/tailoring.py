@@ -1,6 +1,6 @@
 """Whole-document local-agent tailoring and review lifecycle.
 
-Protocol v4 intentionally has one write primitive: a complete CV candidate.
+Protocol v5 intentionally has one write primitive: a complete CV candidate.
 The candidate is rendered and stored as an ordinary, unlinked CV draft.  The
 browser owner later accepts or rejects it; the scoped capability can neither
 change application linkage nor perform that review action.
@@ -14,7 +14,7 @@ import hashlib
 import json
 import secrets
 import asyncio
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -47,6 +47,11 @@ from app.http_schemas.tailoring import (
     TailoringTemplate,
     TailoringCodeExchange,
 )
+from app.http_schemas.tailoring_evaluation import (
+    TAILORING_EVALUATION_VERSION,
+    TailoringEvaluation,
+    TailoringInferenceNote,
+)
 from app.models.application import Application
 from app.models.cv import CV
 from app.models.library import Library, LibraryEntry
@@ -64,6 +69,7 @@ from app.services.renderer.html import HTMLDocumentRenderer
 from app.services.renderer.pipeline import prepare_render_source, resolve_source
 from app.services.rich_text import normalize_rich_text_ids
 from app.services.tailoring_validation import CandidateValidationError, validate_section_payload
+from app.services.tailoring_evaluation import evaluate_tailoring
 
 
 TAILORING_SESSION_TTL = timedelta(hours=1)
@@ -182,9 +188,9 @@ def build_tailoring_prompt(session_url: str, code: str, skill_url: str) -> str:
         f"One-time session code: {code}\n\n"
         "The skill will give your coding agent the job, profile, Library, "
         "optional previous CV, templates, and effective styles. Compose one "
-        "complete candidate, render and critique it, revise until it passes "
-        "the bounded review or reaches its fallback limit, then submit it "
-        "for my review. "
+        "complete candidate, render it through Aergia's server evaluator, "
+        "perform an unscored editorial review, revise only when that improves "
+        "the draft, and submit it for my review when the bounded loop allows. "
         "Never accept or reject the draft through the agent capability.\n\n"
         "If the aergia-tailor skill is missing or incompatible, ask for my "
         "approval to download and install this official bundle:\n\n"
@@ -265,6 +271,7 @@ def _application_context_snapshot(application: Application) -> dict[str, Any]:
         "role": application.role,
         "job_url": application.job_url,
         "description": application.job_description,
+        "user_instructions": getattr(application, "notes", None),
     }
 
 
@@ -443,6 +450,7 @@ class TailoringService:
             "scanner": scanner_context.model_dump(mode="json"),
             "templates": manifest_by_id,
             "capabilities": capabilities_hash(capabilities),
+            "evaluation_version": TAILORING_EVALUATION_VERSION,
         }
 
     async def _context_parts(
@@ -456,12 +464,13 @@ class TailoringService:
         resources = await self._context_resources(session)
         if not session.context_snapshot:
             if not initialize:
-                raise TailoringStaleError("This tailoring session predates protocol v4; start a new session")
+                raise TailoringStaleError("This tailoring session predates protocol v5; start a new session")
             scanner_context = await self._freeze_scanner_context(resources)
             basis = self._context_basis(resources, scanner_context)
             session.context_snapshot = {
-                "schema_version": "tailoring-v4",
+                "schema_version": "tailoring-v5",
                 "protocol_version": PROTOCOL_VERSION,
+                "evaluation_version": TAILORING_EVALUATION_VERSION,
                 "scanner": scanner_context.model_dump(mode="json"),
                 "basis": basis,
             }
@@ -470,6 +479,8 @@ class TailoringService:
                 snapshot = session.context_snapshot
                 if snapshot.get("protocol_version") != PROTOCOL_VERSION:
                     raise TailoringStaleError("The tailoring session protocol is no longer supported")
+                if snapshot.get("evaluation_version") != TAILORING_EVALUATION_VERSION:
+                    raise TailoringStaleError("The tailoring evaluation contract changed; start a new session")
                 scanner_context = TailoringScannerContext.model_validate(snapshot["scanner"])
                 frozen_basis = snapshot["basis"]
             except (KeyError, TypeError, ValidationError) as exc:
@@ -583,7 +594,9 @@ class TailoringService:
     @staticmethod
     def _status_response(session: TailoringSession) -> TailoringSessionStatusResponse:
         return TailoringSessionStatusResponse(
-            protocol_version=PROTOCOL_VERSION,
+            # Historical v4 drafts remain readable/reviewable.  New session
+            # creation and agent exchange use the current v5 constant.
+            protocol_version=session.protocol_version or PROTOCOL_VERSION,
             session_id=session.id,
             application_id=session.application_id,
             source_cv_id=session.cv_id,
@@ -730,6 +743,181 @@ class TailoringService:
             raise TailoringStaleError("The tailoring context changed; start a new session")
         return parts
 
+    @staticmethod
+    def _evaluation_state(session: TailoringSession) -> dict[str, Any] | None:
+        snapshot = session.context_snapshot
+        if not isinstance(snapshot, dict):
+            return None
+        state = snapshot.get("evaluation_state")
+        return state if isinstance(state, dict) else None
+
+    @classmethod
+    def _evaluation_history(cls, session: TailoringSession) -> list[dict[str, Any]]:
+        snapshot = session.context_snapshot
+        if not isinstance(snapshot, dict):
+            return []
+        history = snapshot.get("evaluation_history")
+        if not isinstance(history, list):
+            return []
+        return [item for item in history if isinstance(item, dict)][-5:]
+
+    @classmethod
+    def _parsed_previous_evaluation(
+        cls,
+        session: TailoringSession,
+    ) -> tuple[ScanResult, TailoringEvaluation, str, list[TailoringInferenceNote]] | None:
+        state = cls._evaluation_state(session)
+        if state is None:
+            return None
+        return cls._parse_evaluation_record(state)
+
+    @classmethod
+    def _evaluation_record_for_candidate(
+        cls,
+        session: TailoringSession,
+        candidate_hash: str,
+    ) -> tuple[int, tuple[ScanResult, TailoringEvaluation, str, list[TailoringInferenceNote]]] | None:
+        """Find a reviewed pass so bounded fallback can submit an earlier best draft.
+
+        The latest evaluation is normally the one that must bind submission.
+        After the finite loop stops, however, the skill may deliberately select
+        an earlier non-blocked candidate.  That candidate is still server-
+        reviewed and must remain submit-able without spending a sixth preview.
+        """
+
+        history = cls._evaluation_history(session)
+        for index in range(len(history) - 1, -1, -1):
+            record = history[index]
+            if record.get("candidate_hash") != candidate_hash:
+                continue
+            parsed = cls._parse_evaluation_record(record)
+            if parsed is not None:
+                return index, parsed
+        return None
+
+    @staticmethod
+    def _parse_evaluation_record(
+        state: Mapping[str, Any],
+    ) -> tuple[ScanResult, TailoringEvaluation, str, list[TailoringInferenceNote]] | None:
+        try:
+            scanner = ScanResult.model_validate(state["scanner_result"])
+            evaluation = TailoringEvaluation.model_validate(state["evaluation"])
+            candidate_hash = str(state["candidate_hash"])
+            notes = [TailoringInferenceNote.model_validate(item) for item in state.get("inference_notes", [])]
+        except (KeyError, TypeError, ValueError, ValidationError):
+            return None
+        if evaluation.candidate_hash != candidate_hash or scanner.schema_version != "scanner-v1":
+            return None
+        return scanner, evaluation, candidate_hash, notes
+
+    @classmethod
+    def _fallback_available(
+        cls,
+        session: TailoringSession,
+        evaluation: TailoringEvaluation,
+    ) -> bool:
+        history = cls._evaluation_history(session)
+        if len(history) >= 5:
+            return True
+        hashes = [str(item.get("candidate_hash")) for item in history]
+        if any(hashes.count(candidate_hash) > 1 for candidate_hash in set(hashes)):
+            return True
+        if len(history) < 3:
+            return False
+        try:
+            previous = TailoringEvaluation.model_validate(history[-2]["evaluation"])
+            latest = TailoringEvaluation.model_validate(history[-1]["evaluation"])
+        except (KeyError, TypeError, ValueError, ValidationError):
+            return False
+        def action_ids(item: TailoringEvaluation) -> tuple[str, ...]:
+            return tuple(
+                sorted(
+                    issue.id
+                    for issues in (
+                        item.blockers,
+                        item.review_items,
+                        item.recommendations,
+                        item.regressions,
+                        item.non_actionable_gaps,
+                    )
+                    for issue in issues
+                )
+            )
+        # The stop condition belongs to the evaluated history, not to the
+        # candidate selected as fallback.  The best candidate may be an older
+        # pass whose issue set is intentionally better than the latest pass.
+        return action_ids(previous) == action_ids(latest)
+
+    @classmethod
+    def _record_evaluation(
+        cls,
+        session: TailoringSession,
+        scanner_result: ScanResult,
+        evaluation: TailoringEvaluation,
+        inference_notes: Sequence[TailoringInferenceNote],
+    ) -> None:
+        snapshot = copy.deepcopy(session.context_snapshot or {})
+        record = {
+            "candidate_hash": evaluation.candidate_hash,
+            "scanner_result": scanner_result.model_dump(mode="json"),
+            "evaluation": evaluation.model_dump(mode="json"),
+            "inference_notes": [item.model_dump(mode="json") for item in inference_notes],
+        }
+        history = snapshot.get("evaluation_history")
+        prior_history = history if isinstance(history, list) else []
+        snapshot["evaluation_history"] = [*prior_history, record][-5:]
+        snapshot["evaluation_state"] = record
+        session.context_snapshot = snapshot
+
+    async def _evaluate_candidate(
+        self,
+        session: TailoringSession,
+        parts: Mapping[str, Any],
+        candidate: Mapping[str, Any],
+        pdf: bytes | None,
+        *,
+        render_warnings: Sequence[str] = (),
+        inference_notes: Sequence[TailoringInferenceNote] = (),
+        record: bool = True,
+        reviewed_record: tuple[int, tuple[ScanResult, TailoringEvaluation, str, list[TailoringInferenceNote]]] | None = None,
+    ) -> tuple[ScanResult, TailoringEvaluation]:
+        scanner_result = await self._scan_candidate(parts, candidate, pdf)
+        previous = self._parsed_previous_evaluation(session)
+        history = self._evaluation_history(session)
+        pass_number = min(5, len(history) + 1)
+        # Submit re-runs the authoritative branches for the exact last
+        # preview. Compare it against the pass before that so the server's
+        # result remains the same pass-bound evaluation the agent reviewed.
+        if not record:
+            reviewed = reviewed_record
+            if reviewed is None and history and history[-1].get("candidate_hash") == self._candidate_hash(candidate):
+                parsed = self._parse_evaluation_record(history[-1])
+                if parsed is not None:
+                    reviewed = (len(history) - 1, parsed)
+            if reviewed is not None:
+                reviewed_index, reviewed_value = reviewed
+                pass_number = reviewed_value[1].pass_number
+                previous = self._parse_evaluation_record(history[reviewed_index - 1]) if reviewed_index > 0 else None
+        evaluation = evaluate_tailoring(
+            parts["scanner_context"].requirement_extraction,
+            scanner_result,
+            self._candidate_hash(candidate),
+            source_scan=parts["scanner_context"].source_scan,
+            previous_candidate_scan=previous[0] if previous else None,
+            previous_candidate_hash=previous[2] if previous else None,
+            previous_evaluation=previous[1] if previous else None,
+            current_candidate=candidate,
+            source_cv=parts["source_cv"],
+            render_warnings=render_warnings,
+            inference_notes=inference_notes,
+            user_instructions=parts["application"].notes,
+            pass_number=pass_number,
+        )
+        if record:
+            self._record_evaluation(session, scanner_result, evaluation, inference_notes)
+            await self.db.flush()
+        return scanner_result, evaluation
+
     async def context(self, capability: str | None) -> TailoringContextResponse:
         session = await self._session_for_capability(capability)
         parts = await self._current_context(session)
@@ -778,6 +966,7 @@ class TailoringService:
                 role=application.role,
                 job_url=application.job_url,
                 description=application.job_description,
+                user_instructions=application.notes,
             ),
             profile=copy.deepcopy(parts["profile_data"]),
             previous_cv=previous,
@@ -793,6 +982,7 @@ class TailoringService:
             capabilities_hash=capabilities_hash(parts["capabilities"]),
             effective_appearance=parts["effective"],
             rendered_source=TailoringRenderArtifact(endpoint="/api/v1/tailoring/source-preview") if source_cv else None,
+            evaluation_version=TAILORING_EVALUATION_VERSION,
         )
 
     async def source_preview(self, capability: str | None) -> TailoringPreviewResponse:
@@ -809,11 +999,22 @@ class TailoringService:
         source_scan = parts["scanner_context"].source_scan
         if source_scan is None:
             raise TailoringCandidateError("This session has no source scanner analysis")
+        source_hash = cv_snapshot_hash(source_cv) or _content_hash({})
+        source_evaluation = evaluate_tailoring(
+            parts["scanner_context"].requirement_extraction,
+            source_scan,
+            source_hash,
+            source_scan=source_scan,
+            current_candidate=source_cv,
+            source_cv=source_cv,
+            user_instructions=parts["application"].notes,
+        )
         return TailoringPreviewResponse(
             pdf_base64=base64.b64encode(pdf).decode("ascii"),
             page_count=pdf_page_count(pdf),
-            candidate_hash=cv_snapshot_hash(source_cv) or _content_hash({}),
+            candidate_hash=source_hash,
             scanner_result=source_scan,
+            evaluation=source_evaluation,
         )
 
     @staticmethod
@@ -942,6 +1143,8 @@ class TailoringService:
         parts = await self._current_context(session)
         if request.context_hash != parts["context_hash"]:
             raise TailoringStaleError("The tailoring context changed; start a new session")
+        if len(self._evaluation_history(session)) >= 5:
+            raise TailoringConflictError("The tailoring evaluation loop reached its five-pass limit")
         candidate, sections = self._normalize_candidate(request.candidate, parts)
         pdf = await PDFService(self.db).render_payload(
             candidate["template_id"],
@@ -949,12 +1152,19 @@ class TailoringService:
             candidate["customizations"],
         )
         page_count = pdf_page_count(pdf)
-        scanner_result = await self._scan_candidate(parts, candidate, pdf)
+        scanner_result, evaluation = await self._evaluate_candidate(
+            session,
+            parts,
+            candidate,
+            pdf,
+            inference_notes=request.inference_notes,
+        )
         return TailoringPreviewResponse(
             pdf_base64=base64.b64encode(pdf).decode("ascii"),
             page_count=page_count,
             candidate_hash=self._candidate_hash(candidate),
             scanner_result=scanner_result,
+            evaluation=evaluation,
         )
 
     async def submit(
@@ -967,8 +1177,41 @@ class TailoringService:
         if request.context_hash != parts["context_hash"]:
             raise TailoringStaleError("The tailoring context changed; start a new session")
         candidate, sections = self._normalize_candidate(request.candidate, parts)
-        if request.expected_candidate_hash is not None and request.expected_candidate_hash != self._candidate_hash(candidate):
+        candidate_hash = self._candidate_hash(candidate)
+        reviewed_state = self._evaluation_state(session)
+        if reviewed_state is None:
+            raise TailoringStaleError("Render and review the candidate before submitting")
+        if request.expected_candidate_hash is None or request.expected_candidate_hash != candidate_hash:
             raise TailoringStaleError("The candidate changed after preview; render the current candidate before submitting")
+        reviewed_record = None
+        if reviewed_state.get("candidate_hash") != candidate_hash:
+            if not request.allow_bounded_fallback:
+                raise TailoringStaleError("The candidate changed after preview; render the current candidate before submitting")
+            reviewed_record = self._evaluation_record_for_candidate(session, candidate_hash)
+            if reviewed_record is None:
+                raise TailoringStaleError("The candidate has no reviewed server evaluation; render the current candidate before submitting")
+            reviewed_state = self._evaluation_history(session)[reviewed_record[0]]
+        else:
+            reviewed_record = self._evaluation_record_for_candidate(session, candidate_hash)
+        if reviewed_record is None:
+            raise TailoringStaleError("The candidate has no reviewed server evaluation; render the current candidate before submitting")
+        try:
+            reviewed_evaluation = TailoringEvaluation.model_validate(reviewed_state.get("evaluation"))
+        except (ValidationError, TypeError) as exc:
+            raise TailoringStaleError("The preview evaluation is invalid; render the candidate again") from exc
+        reviewed_notes = [TailoringInferenceNote.model_validate(item) for item in reviewed_state.get("inference_notes", [])]
+        if [item.model_dump(mode="json") for item in reviewed_notes] != [
+            item.model_dump(mode="json") for item in request.inference_notes
+        ]:
+            raise TailoringStaleError("Inference notes changed after preview; render and review the current candidate again")
+        if request.editorial_review is None:
+            raise TailoringConflictError("An unscored editorial review is required before submission")
+        if request.editorial_review.candidate_hash != candidate_hash:
+            raise TailoringStaleError("The editorial review belongs to a different candidate")
+        if request.editorial_review.pass_number != reviewed_evaluation.pass_number:
+            raise TailoringStaleError("The editorial review belongs to a different evaluated pass")
+        if request.editorial_review.inference_notes != request.inference_notes:
+            raise TailoringStaleError("The editorial review inference notes do not match the evaluated candidate")
         application: Application = parts["application"]
         source_cv: CV | None = parts["source_cv"]
         # Quota reservation starts a SQLite write transaction by rolling back
@@ -983,9 +1226,26 @@ class TailoringService:
             sections,
             candidate["customizations"],
         )
-        scanner_result = await self._scan_candidate(parts, candidate, pdf)
+        scanner_result, evaluation = await self._evaluate_candidate(
+            session,
+            parts,
+            candidate,
+            pdf,
+            inference_notes=request.inference_notes,
+            record=False,
+            reviewed_record=reviewed_record,
+        )
+        if evaluation.readiness.status == "blocked":
+            raise TailoringConflictError(
+                "The candidate is blocked by a critical server finding; resolve it before submitting"
+            )
+        if evaluation.readiness.status == "revise" and not (
+            request.allow_bounded_fallback and self._fallback_available(session, evaluation)
+        ):
+            raise TailoringConflictError(
+                "The candidate still has fixable issues; revise it or reach the bounded fallback before submitting"
+            )
         source_cv_id = source_cv.id if source_cv else None
-        candidate_hash = self._candidate_hash(candidate)
         # The service reserves a quota slot and creates an application-owned
         # candidate. It does not change application.cv_id until owner review.
         new_cv = await CVService(self.db).create_cv(
@@ -1000,7 +1260,11 @@ class TailoringService:
                     "tailoring_mode": "complete_candidate",
                     "tailoring_session_id": session.id,
                     "source_cv_id": source_cv_id,
+                    "candidate_hash": candidate_hash,
                     "review_notes": request.review_notes,
+                    "inference_notes": [item.model_dump(mode="json") for item in request.inference_notes],
+                    "editorial_review": request.editorial_review.model_dump(mode="json"),
+                    "tailoring_evaluation": evaluation.model_dump(mode="json"),
                 },
             ),
             application_id=application_id,
@@ -1017,6 +1281,10 @@ class TailoringService:
             "candidate_hash": candidate_hash,
             "candidate": candidate,
             "scanner_result": scanner_result.model_dump(mode="json"),
+            "tailoring_evaluation": evaluation.model_dump(mode="json"),
+            "inference_notes": [item.model_dump(mode="json") for item in request.inference_notes],
+            "editorial_review": request.editorial_review.model_dump(mode="json"),
+            "render_warnings": evaluation.render_warnings,
             "review_notes": request.review_notes,
         }
         update_result = await self.db.execute(
@@ -1050,6 +1318,10 @@ class TailoringService:
             candidate_hash=candidate_hash,
             candidate=TailoringCandidateCV.model_validate(candidate),
             scanner_result=scanner_result,
+            evaluation=evaluation,
+            inference_notes=request.inference_notes,
+            editorial_review=request.editorial_review,
+            render_warnings=evaluation.render_warnings,
             review_notes=request.review_notes,
         )
 
@@ -1061,15 +1333,21 @@ class TailoringService:
         draft = await self._owned_cv(session.draft_cv_id, user_id)
         if application is None or draft is None or draft.application_id != application.id:
             raise TailoringConflictError("Tailoring draft is no longer available")
-        try:
-            parts = await self._current_context(session)
-        except TailoringStaleError as exc:
-            now = _utcnow()
-            session.status = TAILORING_SESSION_STALE
-            session.reviewed_at = now
-            session.updated_at = now
-            await self.db.flush()
-            raise TailoringConflictError("The tailoring context changed; start a new session") from exc
+        parts: dict[str, Any] | None
+        if session.protocol_version == PROTOCOL_VERSION:
+            try:
+                parts = await self._current_context(session)
+            except TailoringStaleError as exc:
+                now = _utcnow()
+                session.status = TAILORING_SESSION_STALE
+                session.reviewed_at = now
+                session.updated_at = now
+                await self.db.flush()
+                raise TailoringConflictError("The tailoring context changed; start a new session") from exc
+        else:
+            # Historical v4 drafts remain owner-reviewable, but an exchanged
+            # v4 session cannot resume under the v5 context contract.
+            parts = None
         stored_result = (session.result or {}).get("scanner_result") if isinstance(session.result, dict) else None
         try:
             scanner_result = ScanResult.model_validate(stored_result)
@@ -1081,6 +1359,16 @@ class TailoringService:
             raise TailoringConflictError("The tailoring draft has no valid candidate binding")
         if self._candidate_hash(stored_candidate) != stored_candidate_hash:
             raise TailoringConflictError("The tailoring draft candidate binding is invalid")
+        stored_evaluation: TailoringEvaluation | None = None
+        if session.protocol_version == PROTOCOL_VERSION:
+            try:
+                stored_evaluation = TailoringEvaluation.model_validate(
+                    (session.result or {}).get("tailoring_evaluation")
+                )
+            except (ValidationError, TypeError) as exc:
+                raise TailoringConflictError("The tailoring draft has no valid tailoring evaluation") from exc
+            if stored_evaluation.candidate_hash != stored_candidate_hash:
+                raise TailoringConflictError("The tailoring draft evaluation binding is invalid")
         persisted_candidate = {
             "title": draft.title,
             "description": draft.description,
@@ -1098,16 +1386,23 @@ class TailoringService:
             draft,
             extractor_version=configured_extractor_version(),
         )
-        if (
-            not freshness["current"]
-            or scanner_result.requirement_extraction != parts["scanner_context"].requirement_extraction
-            or scanner_result.versions != parts["scanner_context"].versions
-        ):
+        if not freshness["current"]:
             session.status = TAILORING_SESSION_STALE
             session.reviewed_at = _utcnow()
             session.updated_at = _utcnow()
             await self.db.flush()
             raise TailoringConflictError("The tailoring draft scanner result is stale; review it again")
+        if parts is not None and (
+            scanner_result.requirement_extraction != parts["scanner_context"].requirement_extraction
+            or scanner_result.versions != parts["scanner_context"].versions
+            or stored_evaluation is None
+            or stored_evaluation.version != TAILORING_EVALUATION_VERSION
+        ):
+            session.status = TAILORING_SESSION_STALE
+            session.reviewed_at = _utcnow()
+            session.updated_at = _utcnow()
+            await self.db.flush()
+            raise TailoringConflictError("The tailoring draft evaluation is stale; review it again")
         # Compare-and-swap protects a CV selected after the agent began.
         source_condition = Application.cv_id.is_(None) if session.cv_id is None else Application.cv_id == session.cv_id
         now = _utcnow()
@@ -1134,7 +1429,7 @@ class TailoringService:
         session.updated_at = now
         await self.db.flush()
         return TailoringReviewResponse(
-            protocol_version=PROTOCOL_VERSION,
+            protocol_version=session.protocol_version,
             session_id=session.id,
             application_id=application.id,
             status="accepted",
@@ -1163,7 +1458,7 @@ class TailoringService:
         session.updated_at = now
         await self.db.flush()
         return TailoringReviewResponse(
-            protocol_version=PROTOCOL_VERSION,
+            protocol_version=session.protocol_version,
             session_id=session.id,
             application_id=application.id,
             status="rejected",

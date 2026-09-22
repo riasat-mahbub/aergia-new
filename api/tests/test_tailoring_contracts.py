@@ -1,4 +1,4 @@
-"""Pure protocol-v4 contract tests (no database or browser runtime)."""
+"""Pure protocol-v5 contract tests (no database or browser runtime)."""
 
 import asyncio
 from datetime import datetime, timedelta, timezone
@@ -20,6 +20,7 @@ from app.http_schemas.tailoring import (
     TailoringSessionStatusResponse,
     TailoringSubmitRequest,
 )
+from app.http_schemas.tailoring_evaluation import TAILORING_EVALUATION_VERSION
 from app.models.tailoring_session import TailoringSession
 from app.services.tailoring import (
     TailoringConflictError,
@@ -27,6 +28,7 @@ from app.services.tailoring import (
     _application_context_snapshot,
     fresh_tailoring_sections,
 )
+from app.services.tailoring_evaluation import evaluate_tailoring
 
 
 def _candidate() -> TailoringCandidateCV:
@@ -67,9 +69,9 @@ def _scanner_result() -> tuple[dict, object]:
     return result.model_dump(mode="json"), result
 
 
-def test_protocol_v4_is_complete_candidate_only():
+def test_protocol_v5_is_complete_candidate_only():
     candidate = _candidate()
-    assert PROTOCOL_VERSION == 4
+    assert PROTOCOL_VERSION == 5
     assert candidate.customizations.accent_color == "#123456"
     assert candidate.sections[0].style is not None
     with pytest.raises(ValidationError):
@@ -83,7 +85,8 @@ def test_protocol_v4_is_complete_candidate_only():
 
 
 def test_preview_scanner_result_and_expected_candidate_hash_are_part_of_the_tailoring_contract():
-    scanner_result, _ = _scanner_result()
+    scanner_result, scanner_model = _scanner_result()
+    evaluation = evaluate_tailoring(scanner_model.requirement_extraction, scanner_model, "b" * 64)
     preview = TailoringPreviewResponse.model_validate(
         {
             "format": "pdf",
@@ -91,6 +94,7 @@ def test_preview_scanner_result_and_expected_candidate_hash_are_part_of_the_tail
             "page_count": 1,
             "candidate_hash": "b" * 64,
             "scanner_result": scanner_result,
+            "evaluation": evaluation.model_dump(mode="json"),
             "render_warnings": ["Review length for the target role."],
         }
     )
@@ -103,11 +107,14 @@ def test_preview_scanner_result_and_expected_candidate_hash_are_part_of_the_tail
     )
 
     assert preview.scanner_result.schema_version == "scanner-v1"
+    assert preview.scanner_result.versions.semantic_score_version == "job-fit-v2"
+    assert preview.evaluation.version == TAILORING_EVALUATION_VERSION
+    assert preview.evaluation.candidate_hash == preview.candidate_hash
     assert preview.render_warnings == ["Review length for the target role."]
     assert request.expected_candidate_hash == preview.candidate_hash
 
 
-def test_context_and_status_contracts_are_v4_and_do_not_expose_capabilities():
+def test_context_and_status_contracts_are_v5_and_do_not_expose_capabilities():
     capabilities = renderer_capabilities()
     assert capabilities["version"] == 2
     assert capabilities["tailoring"]["mode"] == "complete_candidate"
@@ -126,13 +133,13 @@ def test_context_and_status_contracts_are_v4_and_do_not_expose_capabilities():
     scanner_result, result_model = _scanner_result()
     context = TailoringContextResponse.model_validate(
         {
-            "protocol_version": 4,
+            "protocol_version": 5,
             "session_id": "session",
             "application_id": "application",
             "source_cv_id": None,
             "expires_at": datetime.now(timezone.utc),
             "context_hash": "a" * 64,
-            "job": {"company": "Example", "role": "Engineer", "description": "Build APIs"},
+            "job": {"company": "Example", "role": "Engineer", "description": "Build APIs", "user_instructions": None},
             "profile": {"name": "Ada"},
             "previous_cv": None,
             "library": [],
@@ -148,10 +155,12 @@ def test_context_and_status_contracts_are_v4_and_do_not_expose_capabilities():
             "selected_template_manifest": {},
             "capabilities": capabilities,
             "capabilities_hash": capabilities_hash(capabilities),
+            "evaluation_version": TAILORING_EVALUATION_VERSION,
         }
     )
     assert context.previous_cv is None
-    assert context.protocol_version == 4
+    assert context.protocol_version == 5
+    assert context.evaluation_version == TAILORING_EVALUATION_VERSION
     assert context.scanner.source_scan is None
     assert context.scanner.requirement_extraction.extractor_version
     with pytest.raises(ValidationError):
@@ -229,6 +238,30 @@ def test_ready_draft_remains_reviewable_after_agent_capability_expiry():
     status = asyncio.run(TailoringService(_DB()).session_status("session", "user"))
     assert status.status == "draft_ready"
     assert status.draft_cv_id == "draft"
+
+
+def test_historical_v4_status_remains_readable_while_new_protocol_is_v5():
+    now = datetime.now(timezone.utc)
+    session = TailoringSession(
+        id="legacy-session",
+        user_id="user",
+        application_id="application",
+        code_hash="code-hash",
+        protocol_version=4,
+        status="draft_ready",
+        draft_cv_id="draft",
+        expires_at=now,
+        created_at=now,
+        updated_at=now,
+        attempts=1,
+        result={"protocol_version": 4, "draft_cv_id": "draft"},
+    )
+
+    status = TailoringService._status_response(session)
+
+    assert status.protocol_version == 4
+    assert status.result["protocol_version"] == 4
+    assert PROTOCOL_VERSION == 5
 
 
 def test_expired_agent_draft_still_blocks_a_second_session_until_reviewed():
