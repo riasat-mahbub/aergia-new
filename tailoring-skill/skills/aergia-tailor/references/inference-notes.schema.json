@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aergia.local/contracts/tailoring-inference-notes-v1.schema.json",
+  "title": "Aergia tailoring inference notes v1",
+  "type": "array",
+  "maxItems": 20,
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["claim", "basis", "confidence", "review_recommended"],
+    "properties": {
+      "claim": {"type": "string", "minLength": 1, "maxLength": 500},
+      "basis": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"type": "string", "minLength": 1, "maxLength": 500}},
+      "confidence": {"enum": ["entailed", "strong", "reasonable", "speculative"]},
+      "section_id": {"type": "string", "maxLength": 128},
+      "item_id": {"type": "string", "maxLength": 128},
+      "field_path": {"type": "string", "maxLength": 256},
+      "review_recommended": {"type": "boolean"}
+    }
+  }
+}
