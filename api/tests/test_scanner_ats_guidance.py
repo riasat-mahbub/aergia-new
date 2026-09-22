@@ -136,6 +136,18 @@ def test_unsupported_keyword_guidance_does_not_recommend_invention():
     assert all(item.severity == "info" for item in findings)
 
 
+def test_illustrative_lexical_examples_are_not_ats_gap_findings():
+    result = _scan(
+        "Responsibilities\nParticipate in team rituals such as standups, demos, and retrospectives.",
+        _cv(_section("profile", "profile", "Profile", {"name": "Ada"})),
+    )
+    titles = {item.title for item in result.ats_guidance.common_findings}
+
+    assert "Standups" not in titles
+    assert "Demos" not in titles
+    assert "Retrospectives" not in titles
+
+
 def test_common_finding_rule_ids_are_registered():
     result = _scan(
         "Qualifications\nProject Management Professional (PMP).",
