@@ -44,6 +44,8 @@ def scanner_result_freshness(
     cv: object | None,
     *,
     extractor_version: str | None = None,
+    pdf_bytes: bytes | None = None,
+    render_manifest: object | None = None,
 ) -> ScannerFreshness:
     """Explain whether a stored result matches current inputs and subsystem versions.
 
@@ -69,7 +71,12 @@ def scanner_result_freshness(
 
     if isinstance(job_description, str) and job_description.strip() and cv is not None:
         try:
-            current = fingerprint_scan_inputs(job_description, cv)
+            current = fingerprint_scan_inputs(
+                job_description,
+                cv,
+                pdf_bytes=pdf_bytes,
+                render_manifest=render_manifest,
+            )
         except (TypeError, ValueError):
             reasons.append("malformed_result")
         else:
@@ -77,6 +84,14 @@ def scanner_result_freshness(
                 reasons.append("job_changed")
             if fingerprints.get("cv_content_sha256") != current.cv_content_sha256:
                 reasons.append("cv_changed")
+            if (
+                (pdf_bytes is not None or render_manifest is not None)
+                and fingerprints.get("render_input_sha256") is not None
+                and fingerprints.get("render_input_sha256") != current.render_input_sha256
+            ):
+                reasons.append("render_input_changed")
+            if pdf_bytes is not None and fingerprints.get("pdf_sha256") != current.pdf_sha256:
+                reasons.append("pdf_changed")
 
     expected_versions = {
         "matcher_version": MATCHER_VERSION,
@@ -112,6 +127,8 @@ def application_scanner_status(
     *,
     rescan_required: bool = False,
     extractor_version: str | None = None,
+    pdf_bytes: bytes | None = None,
+    render_manifest: object | None = None,
 ) -> ApplicationScannerStatus:
     """Return the user-facing scanner lifecycle state for an application."""
 
@@ -122,6 +139,8 @@ def application_scanner_status(
         job_description,
         cv,
         extractor_version=extractor_version,
+        pdf_bytes=pdf_bytes,
+        render_manifest=render_manifest,
     )
     return "current" if freshness["current"] else "stale"
 

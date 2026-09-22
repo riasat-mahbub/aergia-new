@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.application import Application
+from app.models.template import Template
 from app.scanner.freshness import configured_extractor_version, scanner_result_freshness
 from app.services.application import ApplicationService
 
@@ -42,6 +43,8 @@ def scanner_result_is_current(
     cv: object,
     *,
     extractor_version: str | None = None,
+    pdf_bytes: bytes | None = None,
+    render_manifest: object | None = None,
 ) -> bool:
     """Check whether a stored scanner-v1 result describes these JD/CV inputs."""
     return scanner_result_freshness(
@@ -49,6 +52,8 @@ def scanner_result_is_current(
         job_description,
         cv,
         extractor_version=extractor_version,
+        pdf_bytes=pdf_bytes,
+        render_manifest=render_manifest,
     )["current"]
 
 
@@ -135,6 +140,9 @@ async def _process_application(
                 report.unscannable_applications.append({"application_id": application_id, "reason": reason})
                 return
 
+            template = await session.get(Template, cv.template_id)
+            render_manifest = template.manifest if template is not None else None
+
             existing_result = application.scanner_result
             if existing_result is not None:
                 freshness = scanner_result_freshness(
@@ -142,6 +150,7 @@ async def _process_application(
                     application.job_description,
                     cv,
                     extractor_version=extractor_version,
+                    render_manifest=render_manifest,
                 )
                 if not freshness["current"]:
                     report.stale_results.append(

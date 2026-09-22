@@ -19,6 +19,7 @@ from app.services.application import (
     ApplicationCVLinkError,
     ApplicationService,
 )
+from app.services.cv import CVService
 from app.services.relevance import (
     KEYWORD_EXTRACTION_ERROR,
     REQUIREMENT_EXTRACTION_ERROR,
@@ -29,14 +30,20 @@ from app.services.quotas import QuotaExceededError, QuotaResource
 router = APIRouter()
 
 
-def _response(application) -> ApplicationResponse:
+async def _response(application, db: AsyncSession) -> ApplicationResponse:
     response = ApplicationResponse.model_validate(application)
+    render_manifest = None
+    if application.cv is not None:
+        template_data = await CVService(db).get_template_data(application.cv.template_id)
+        if template_data:
+            render_manifest = template_data.get("manifest")
     response.scanner_status = application_scanner_status(
         application.scanner_result,
         application.job_description,
         application.cv,
         rescan_required=application.scanner_rescan_required,
         extractor_version=configured_extractor_version(),
+        render_manifest=render_manifest,
     )
     return response
 
@@ -70,7 +77,7 @@ async def create_application(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=REQUIREMENT_EXTRACTION_ERROR,
         ) from exc
-    return _response(application)
+    return await _response(application, db)
 
 
 @router.get("/{application_id}", response_model=ApplicationResponse)
@@ -82,7 +89,7 @@ async def get_application(
     application = await ApplicationService(db).get_application(application_id, current_user.id)
     if application is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=APPLICATION_NOT_FOUND)
-    return _response(application)
+    return await _response(application, db)
 
 
 @router.patch("/{application_id}", response_model=ApplicationResponse)
@@ -108,7 +115,7 @@ async def update_application(
         raise
     if application is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=APPLICATION_NOT_FOUND)
-    return _response(application)
+    return await _response(application, db)
 
 
 @router.delete("/{application_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -143,7 +150,7 @@ async def recompute_application_relevance(
         raise
     if application is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=APPLICATION_NOT_FOUND)
-    return _response(application)
+    return await _response(application, db)
 
 
 @router.post("/{application_id}/scan", response_model=ApplicationResponse)
@@ -164,4 +171,4 @@ async def scan_application(
         raise
     if application is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=APPLICATION_NOT_FOUND)
-    return _response(application)
+    return await _response(application, db)
