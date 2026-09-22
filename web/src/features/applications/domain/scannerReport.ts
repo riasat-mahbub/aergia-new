@@ -6,6 +6,8 @@ import type {
   ScannerExpressionEvaluation,
   ScannerExpressionNode,
   ScannerLexicalTerm,
+  ScannerAtsFinding,
+  ScannerAtsGuidance,
   ScannerRequirement,
   ScannerRequirementEvaluation,
 } from "../types";
@@ -91,6 +93,29 @@ export interface ScannerAtsCheckViewModel {
   explanation: string;
 }
 
+export interface ScannerAtsFindingViewModel extends ScannerAtsFinding {
+  severityLabel: string;
+  categoryLabel: string;
+}
+
+export interface ScannerAtsGuidanceViewModel {
+  available: boolean;
+  commonFindings: ScannerAtsFindingViewModel[];
+  platformSensitiveFindings: ScannerAtsFindingViewModel[];
+  platforms: Record<string, {
+    id: string;
+    name: string;
+    findings: ScannerAtsFindingViewModel[];
+    tips: ScannerAtsFindingViewModel[];
+    source_ids: string[];
+  }>;
+  headingConventions: NonNullable<ScannerAtsGuidance>["heading_conventions"];
+  dateCompatibility: NonNullable<ScannerAtsGuidance>["date_compatibility"];
+  acronymCoverage: NonNullable<ScannerAtsGuidance>["acronym_coverage"];
+  entryCompleteness: NonNullable<ScannerAtsGuidance>["entry_completeness"];
+  summary: NonNullable<ScannerAtsGuidance>["summary"] | null;
+}
+
 export interface ScannerQualityFindingViewModel {
   code: string;
   label: string;
@@ -149,6 +174,7 @@ export interface ScannerReportViewModel {
     status: "looks_good" | "needs_attention" | "at_risk" | "unavailable";
     statusLabel: string;
     checks: ScannerAtsCheckViewModel[];
+    guidance: ScannerAtsGuidanceViewModel;
   };
   quality: {
     status: "looks_good" | "needs_attention" | "at_risk" | "unavailable";
@@ -197,6 +223,18 @@ const CHECK_LABELS: Record<string, string> = {
   section_heading_recovery: "Section structure",
   entry_recovery: "Entry recognition",
   link_recovery: "Links",
+};
+
+const ATS_CATEGORY_LABELS: Record<string, string> = {
+  parsing: "Parsing",
+  headings: "Headings",
+  keywords: "Keywords",
+  acronyms: "Acronyms",
+  dates: "Dates",
+  experience: "Experience",
+  education: "Education",
+  links: "Links",
+  application_fields: "Application fields",
 };
 
 const STATUS_PRIORITY: Record<ScannerEvidenceStatus, number> = {
@@ -449,6 +487,53 @@ function buildCheckViewModel(check: ScanResult["pdf_recovery"]["checks"][number]
   };
 }
 
+function buildAtsFindingViewModel(finding: ScannerAtsFinding): ScannerAtsFindingViewModel {
+  return {
+    ...finding,
+    severityLabel: finding.severity === "pass"
+      ? "Pass"
+      : finding.severity === "warning"
+        ? "Needs attention"
+        : finding.severity === "recommendation"
+          ? "Recommendation"
+          : "Information",
+    categoryLabel: ATS_CATEGORY_LABELS[finding.category] ?? humanize(finding.category),
+  };
+}
+
+function buildAtsGuidanceViewModel(guidance: ScanResult["ats_guidance"]): ScannerAtsGuidanceViewModel {
+  if (!guidance) {
+    return {
+      available: false,
+      commonFindings: [],
+      platformSensitiveFindings: [],
+      platforms: {},
+      headingConventions: [],
+      dateCompatibility: [],
+      acronymCoverage: [],
+      entryCompleteness: [],
+      summary: null,
+    };
+  }
+  return {
+    available: true,
+    commonFindings: guidance.common_findings.map(buildAtsFindingViewModel),
+    platformSensitiveFindings: guidance.platform_sensitive_findings.map(buildAtsFindingViewModel),
+      platforms: Object.fromEntries(
+        Object.entries(guidance.platforms).map(([id, platform]) => [id, {
+          ...platform,
+          findings: platform.findings.map(buildAtsFindingViewModel),
+          tips: platform.tips.map(buildAtsFindingViewModel),
+        }]),
+      ),
+    headingConventions: guidance.heading_conventions,
+    dateCompatibility: guidance.date_compatibility,
+    acronymCoverage: guidance.acronym_coverage,
+    entryCompleteness: guidance.entry_completeness,
+    summary: guidance.summary,
+  };
+}
+
 function qualityStatus(result: ScanResult): ScannerReportViewModel["quality"]["status"] {
   if (result.presentation_quality.status !== "evaluated") return "unavailable";
   if (result.presentation_quality.findings.some((finding) => finding.severity === "error")) return "at_risk";
@@ -465,6 +550,7 @@ function atsStatus(result: ScanResult): ScannerReportViewModel["ats"]["status"] 
   if (statuses.length === 0 || statuses.every((status) => status === "unavailable")) return "unavailable";
   if (statuses.some((status) => status === "fail")) return "at_risk";
   if (statuses.some((status) => status === "warning" || status === "unavailable")) return "needs_attention";
+  if (result.ats_guidance?.common_findings.some((finding) => finding.severity === "warning" || finding.severity === "recommendation")) return "needs_attention";
   return "looks_good";
 }
 
@@ -525,6 +611,7 @@ export function buildScannerReportViewModel(result: ScanResult, application: App
   const gaps = sortedNeeds.filter((requirement) => requirement.status !== "supported");
   const score = summary?.job_fit ?? null;
   const ats = atsStatus(result);
+  const atsGuidance = buildAtsGuidanceViewModel(result.ats_guidance);
   const quality = qualityStatus(result);
   return {
     badge: statusForBadge(application),
@@ -566,6 +653,7 @@ export function buildScannerReportViewModel(result: ScanResult, application: App
       status: ats,
       statusLabel: ats === "looks_good" ? "Looks good" : ats === "at_risk" ? "At risk" : ats === "unavailable" ? "Unavailable" : "Needs attention",
       checks: pdfChecks,
+      guidance: atsGuidance,
     },
     quality: {
       status: quality,

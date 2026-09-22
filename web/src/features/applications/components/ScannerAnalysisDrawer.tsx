@@ -20,6 +20,7 @@ import {
   formatScannerPercent,
   scannerStatusLabel,
   type ScannerComponentViewModel,
+  type ScannerAtsFindingViewModel,
   type ScannerKeywordViewModel,
   type ScannerReportTab,
   type ScannerReportViewModel,
@@ -337,13 +338,67 @@ function Keywords({ report }: { report: ScannerReportViewModel }) {
   );
 }
 
+function guidanceStatus(status: ScannerAtsFindingViewModel["severity"]): "pass" | "warning" | "fail" | "info" {
+  if (status === "pass") return "pass";
+  if (status === "warning") return "warning";
+  if (status === "recommendation") return "info";
+  return "info";
+}
+
+function GuidanceCard({ finding }: { finding: ScannerAtsFindingViewModel }) {
+  const status = guidanceStatus(finding.severity);
+  return (
+    <article className="rounded-xl border border-app-rule bg-app-surface p-4 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusMark status={status} label={finding.severityLabel} />
+            <h4 className="text-sm font-semibold text-app-ink">{finding.title}</h4>
+          </div>
+          <p className="mt-2 text-sm leading-6 text-app-ink-2">{finding.explanation}</p>
+          {finding.action && <p className="mt-2 rounded-md bg-app-canvas px-3 py-2 text-xs leading-5 text-app-ink-2"><span className="font-semibold text-app-ink">Action:</span> {finding.action}</p>}
+        </div>
+        <span className="text-xs text-app-ink-3">{finding.categoryLabel}</span>
+      </div>
+      {finding.affected_items.length > 0 && <p className="mt-3 text-xs text-app-ink-3">Affected: {finding.affected_items.join(" · ")}</p>}
+      {finding.missing_items.length > 0 && <p className="mt-2 text-xs text-app-danger">Missing: {finding.missing_items.join(" · ")}</p>}
+    </article>
+  );
+}
+
 function AtsReadiness({ report }: { report: ScannerReportViewModel }) {
+  const guidance = report.ats.guidance;
+  const nonPass = guidance.commonFindings.filter((finding) => finding.severity !== "pass");
+  const platformEntries = Object.values(guidance.platforms);
   return (
     <div className="space-y-4">
       <PanelSection title="ATS Readiness" description="These checks cover structural signals that commonly affect machine parsing. Actual ATS behavior varies by system.">
         <div className="flex items-center gap-3"><StatusMark status={report.ats.status === "looks_good" ? "pass" : report.ats.status === "at_risk" ? "fail" : report.ats.status === "unavailable" ? "unavailable" : "warning"} label={report.ats.statusLabel} /><Search className="ml-auto h-6 w-6 text-app-primary" aria-hidden="true" /></div>
       </PanelSection>
-      <div className="space-y-2">{report.ats.checks.map((check) => <CheckCard key={check.code} check={check} />)}</div>
+      <PanelSection title="Core compatibility" description="Observed recovery facts from the rendered PDF. These checks describe Aergia's parser, not every ATS product.">
+        <div className="space-y-2">{report.ats.checks.map((check) => <CheckCard key={check.code} check={check} />)}</div>
+      </PanelSection>
+      {guidance.available && <>
+        <PanelSection title="Common ATS checks" description="Additional structure checks reuse the semantic section model and rendered fields. They do not create another ATS score.">
+          {nonPass.length > 0 ? <div className="space-y-2">{nonPass.map((finding) => <GuidanceCard key={finding.id} finding={finding} />)}</div> : <p className="text-sm text-app-ink-2">No additional compatibility findings.</p>}
+        </PanelSection>
+        <PanelSection title="Platform guidance" description="The same deterministic facts are interpreted for each supported platform. Selecting a platform never reruns the scanner.">
+          <div className="space-y-2">
+            {platformEntries.map((platform) => {
+              const platformIssues = platform.findings.filter((finding) => finding.severity !== "pass");
+              return <details key={platform.id} className="group rounded-lg border border-app-rule-soft bg-app-canvas">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-3 text-sm font-medium text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary focus-visible:ring-inset">
+                  <span>{platform.name}</span>
+                  <span className="text-xs text-app-ink-3">{platformIssues.length === 0 ? "Core checks apply" : `${platformIssues.length} finding${platformIssues.length === 1 ? "" : "s"}`} <ChevronDown className="ml-1 inline h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" /></span>
+                </summary>
+                <div className="space-y-2 border-t border-app-rule-soft px-3 pb-3 pt-3">
+                  {platformIssues.length > 0 ? platformIssues.slice(0, 3).map((finding) => <GuidanceCard key={finding.id} finding={finding} />) : <p className="text-xs leading-5 text-app-ink-3">No separate platform-specific warning is asserted. Review the core compatibility checks above.</p>}
+                </div>
+              </details>;
+            })}
+          </div>
+        </PanelSection>
+      </>}
     </div>
   );
 }
@@ -352,7 +407,7 @@ function CheckCard({ check }: { check: ScannerAnalysisCheck }) {
   return (
     <details className="group rounded-xl border border-app-rule bg-app-surface shadow-sm">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary focus-visible:ring-inset"><span className="flex items-center gap-3"><StatusMark status={check.status} label={check.statusLabel} /><span className="text-sm font-medium text-app-ink">{check.label}</span></span><span className="flex items-center gap-2 text-xs text-app-ink-3">{check.value !== null && percentage(check.value)}<ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" /></span></summary>
-      <div className="border-t border-app-rule-soft px-4 pb-4 pt-3"><p className="text-xs leading-5 text-app-ink-2">{check.explanation}</p>{check.expectedCount !== null && check.recoveredCount !== null && <p className="mt-2 text-xs font-medium text-app-ink-2">{check.recoveredCount} / {check.expectedCount} recovered</p>}</div>
+      <div className="border-t border-app-rule-soft px-4 pb-4 pt-3"><p className="text-xs leading-5 text-app-ink-2">{check.explanation}</p>{check.affectedItems.length > 0 && <p className="mt-3 text-xs text-app-danger"><span className="font-semibold">Affected:</span> {check.affectedItems.join(" · ")}</p>}{check.missingItems.length > 0 && <p className="mt-2 text-xs text-app-danger"><span className="font-semibold">Missing:</span> {check.missingItems.join(" · ")}</p>}{check.recoveredItems.length > 0 && <details className="mt-3"><summary className="cursor-pointer text-xs font-medium text-app-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary">View recovered items ({check.recoveredItems.length})</summary><ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-app-ink-2">{check.recoveredItems.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul></details>}{check.expectedCount !== null && check.recoveredCount !== null && <p className="mt-3 text-xs font-medium text-app-ink-2">{check.recoveredCount} / {check.expectedCount} recovered</p>}</div>
     </details>
   );
 }
