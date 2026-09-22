@@ -149,6 +149,10 @@ def _check_status(ratio: float, code: str | None = None) -> PDFRecoveryStatus:
 
     if ratio >= 0.96:
         return PDFRecoveryStatus.PASS
+    if code == "contact_recovery" and ratio > 0:
+        # A partially recovered contact set is actionable, but it is not the
+        # same as losing every primary contact field.
+        return PDFRecoveryStatus.WARNING
     if ratio >= 0.80:
         return PDFRecoveryStatus.WARNING
     if code not in _CRITICAL_CHECKS:
