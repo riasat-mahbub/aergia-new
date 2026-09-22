@@ -114,6 +114,36 @@ def _content_hash(value: Any) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def _tailoring_action_signature(evaluation: TailoringEvaluation) -> tuple[str, ...]:
+    """Return stable actionable issue state without generated prose."""
+
+    fields = (
+        "id",
+        "kind",
+        "category",
+        "priority",
+        "importance",
+        "code",
+        "requirement_id",
+        "term_id",
+    )
+    signatures: list[str] = []
+    for bucket in (
+        evaluation.blockers,
+        evaluation.review_items,
+        evaluation.recommendations,
+        evaluation.regressions,
+        evaluation.non_actionable_gaps,
+    ):
+        for issue in bucket:
+            values = {
+                field: getattr(getattr(issue, field, None), "value", getattr(issue, field, None))
+                for field in fields
+            }
+            signatures.append(json.dumps(values, sort_keys=True, separators=(",", ":")))
+    return tuple(sorted(signatures))
+
+
 def _strip_none_values(value: Any) -> Any:
     if isinstance(value, Mapping):
         return {key: _strip_none_values(child) for key, child in value.items() if child is not None}
@@ -500,6 +530,17 @@ class TailoringService:
         basis = self._context_basis(resources, scanner_context)
         return {
             **resources,
+            # The context hash freezes these rows for the session. Pass a
+            # serialized copy into the pure evaluator rather than exposing
+            # database/ORM access to tailoring_evaluation.py.
+            "authoritative_library": [
+                {
+                    "id": entry.id,
+                    "kind": entry.kind,
+                    "payload": copy.deepcopy(entry.payload or []),
+                }
+                for entry in resources["libraries"]
+            ],
             "scanner_context": scanner_context,
             "requirements": scanner_context.requirement_extraction.requirements,
             "context_hash": _content_hash(basis),
@@ -829,24 +870,10 @@ class TailoringService:
             latest = TailoringEvaluation.model_validate(history[-1]["evaluation"])
         except (KeyError, TypeError, ValueError, ValidationError):
             return False
-        def action_ids(item: TailoringEvaluation) -> tuple[str, ...]:
-            return tuple(
-                sorted(
-                    issue.id
-                    for issues in (
-                        item.blockers,
-                        item.review_items,
-                        item.recommendations,
-                        item.regressions,
-                        item.non_actionable_gaps,
-                    )
-                    for issue in issues
-                )
-            )
         # The stop condition belongs to the evaluated history, not to the
         # candidate selected as fallback.  The best candidate may be an older
         # pass whose issue set is intentionally better than the latest pass.
-        return action_ids(previous) == action_ids(latest)
+        return _tailoring_action_signature(previous) == _tailoring_action_signature(latest)
 
     @classmethod
     def _record_evaluation(
@@ -908,6 +935,7 @@ class TailoringService:
             previous_evaluation=previous[1] if previous else None,
             current_candidate=candidate,
             source_cv=parts["source_cv"],
+            library=parts["authoritative_library"],
             render_warnings=render_warnings,
             inference_notes=inference_notes,
             user_instructions=parts["application"].notes,
@@ -1007,6 +1035,7 @@ class TailoringService:
             source_scan=source_scan,
             current_candidate=source_cv,
             source_cv=source_cv,
+            library=parts["authoritative_library"],
             user_instructions=parts["application"].notes,
         )
         return TailoringPreviewResponse(
@@ -1212,6 +1241,10 @@ class TailoringService:
             raise TailoringStaleError("The editorial review belongs to a different evaluated pass")
         if request.editorial_review.inference_notes != request.inference_notes:
             raise TailoringStaleError("The editorial review inference notes do not match the evaluated candidate")
+        if any(finding.severity == "blocking" for finding in request.editorial_review.findings):
+            raise TailoringConflictError(
+                "The editorial review still contains a blocking finding; revise the candidate before submitting"
+            )
         application: Application = parts["application"]
         source_cv: CV | None = parts["source_cv"]
         # Quota reservation starts a SQLite write transaction by rolling back
