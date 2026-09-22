@@ -285,6 +285,7 @@ export interface ScanResult {
     job_description_sha256: string;
     cv_content_sha256: string;
     pdf_sha256: string | null;
+    render_input_sha256?: string | null;
   };
   versions: {
     extractor_version: string;
@@ -327,7 +328,18 @@ export interface ScanResult {
   pdf_recovery: {
     status: "pass" | "warning" | "fail" | "unavailable";
     page_count: number | null;
-    checks: Array<{ code: string; status: "pass" | "warning" | "fail" | "unavailable"; expected_count: number | null; recovered_count: number | null; evidence: string[]; explanation: string | null }>;
+    checks: Array<{
+      code: string;
+      status: "pass" | "warning" | "fail" | "unavailable";
+      expected_count: number | null;
+      recovered_count: number | null;
+      evidence: string[];
+      expected_items?: string[];
+      recovered_items?: string[];
+      missing_items?: string[];
+      affected_items?: string[];
+      explanation: string | null;
+    }>;
     summary?: ScannerPDFScoreSummary | null;
   };
 }
