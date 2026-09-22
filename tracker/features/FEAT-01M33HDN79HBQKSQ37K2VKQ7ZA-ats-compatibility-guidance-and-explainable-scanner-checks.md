@@ -91,3 +91,18 @@ Add sourced platform-specific rules only after verifying vendor or independent
 evidence. Keep ATS guidance separate from Job Fit, Term Visibility, Resume
 Quality, and PDF recovery scores; no per-ATS score or universal ATS claim was
 introduced.
+
+## Correction update — 2026-09-22
+
+Shared ATS advice is emitted once in `common_findings`. The fourteen platform
+records are deliberately delta-only and currently contain no copied common
+findings or unsourced tips. This keeps a general recommendation from being
+mistaken for fourteen independent platform claims. Entry completeness now
+handles renderer field aliases (including project `name`) through explicit
+alias groups. Commit `a45cae1` added these changes and regression coverage.
+
+The persisted corpus was force-rescanned after the correction: 28 scanned, 0
+failed, and 0 unscannable. Audit reports 28 current, 0 stale, and 0 missing
+results; all 28 have fourteen platform IDs and zero non-empty platform delta
+lists. Focused ATS/scanner tests pass (139 tests); the full API suite passes
+(668 passed, 1 skipped). Legacy relevance and tailoring remain unchanged.
