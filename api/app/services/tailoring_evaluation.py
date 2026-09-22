@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import json
 import re
-from hashlib import sha256
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
+from hashlib import sha256
 from typing import Any
 
 from app.http_schemas.tailoring_evaluation import (
@@ -150,34 +151,107 @@ def _user_forbidden_terms(instructions: str | None) -> list[tuple[str, str]]:
     return unique[:20]
 
 
-def _section_rows(document: object, section_types: set[str]) -> list[Mapping[str, Any]]:
-    source = _dump(document)
-    sections = _value(source, "sections", [])
-    rows: list[Mapping[str, Any]] = []
-    if not isinstance(sections, Sequence) or isinstance(sections, (str, bytes, bytearray)):
-        return rows
-    for section in sections:
-        section_type = str(_value(section, "type", ""))
-        if section_type not in section_types:
-            continue
-        data = _value(section, "data", [])
-        if isinstance(data, Mapping):
-            data = [data]
-        if not isinstance(data, Sequence) or isinstance(data, (str, bytes, bytearray)):
-            continue
-        rows.extend(item for item in data if isinstance(item, Mapping))
-    return rows
+_EMPLOYER_FIELDS = ("company", "company_name", "employer", "organization", "organisation")
+_JOB_TITLE_FIELDS = ("position", "job_title", "title", "role")
+_INSTITUTION_FIELDS = ("institution", "school", "university", "college")
+_DEGREE_FIELDS = ("degree", "qualification")
+_CERTIFICATION_FIELDS = ("certification", "certificate", "name", "title")
+_DATE_FIELDS = ("start_date", "end_date", "date", "issued_date", "completion_date", "year")
+
+
+def _normalize_fact(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = " ".join(value.casefold().split())
+    return normalized or None
+
+
+def _add_fact_values(target: set[str], row: Mapping[str, Any], fields: Sequence[str]) -> None:
+    for field_name in fields:
+        value = _normalize_fact(row.get(field_name))
+        if value:
+            target.add(value)
+
+
+@dataclass(frozen=True)
+class AuthoritativeFactIndex:
+    """Facts that the tailoring evaluator may treat as supplied evidence.
+
+    The index is deliberately built from values passed by the service layer.
+    It has no database or session dependency, which keeps high-risk fact
+    validation reusable without making the pure evaluator reach into storage.
+    """
+
+    employers: frozenset[str] = field(default_factory=frozenset)
+    job_titles: frozenset[str] = field(default_factory=frozenset)
+    institutions: frozenset[str] = field(default_factory=frozenset)
+    degrees: frozenset[str] = field(default_factory=frozenset)
+    certifications: frozenset[str] = field(default_factory=frozenset)
+    dates: frozenset[str] = field(default_factory=frozenset)
+
+
+def build_authoritative_fact_index(
+    *,
+    source_cv: object | None = None,
+    library: Sequence[object] = (),
+    user_confirmed_facts: Sequence[Mapping[str, Any]] = (),
+) -> AuthoritativeFactIndex:
+    """Index high-risk facts from all authoritative supplied evidence.
+
+    ``library`` is expected to be the serialized, frozen session evidence
+    supplied by the service layer.  Accepting generic mappings/objects keeps
+    this helper usable in pure tests and leaves room for additional evidence
+    sources without repeating source-CV-only checks.
+    """
+
+    facts: dict[str, set[str]] = {
+        "employers": set(),
+        "job_titles": set(),
+        "institutions": set(),
+        "degrees": set(),
+        "certifications": set(),
+        "dates": set(),
+    }
+
+    def collect_row(row: Mapping[str, Any], kind: str | None = None) -> None:
+        _add_fact_values(facts["employers"], row, _EMPLOYER_FIELDS)
+        _add_fact_values(facts["job_titles"], row, _JOB_TITLE_FIELDS)
+        _add_fact_values(facts["dates"], row, _DATE_FIELDS)
+        if kind in {None, "education"}:
+            _add_fact_values(facts["institutions"], row, _INSTITUTION_FIELDS)
+            _add_fact_values(facts["degrees"], row, _DEGREE_FIELDS)
+        if kind in {None, "certification"}:
+            _add_fact_values(facts["certifications"], row, _CERTIFICATION_FIELDS)
+
+    source = _dump(source_cv) if source_cv is not None else None
+    sections = _value(source, "sections", []) if source is not None else []
+    if isinstance(sections, Sequence) and not isinstance(sections, (str, bytes, bytearray)):
+        for section in sections:
+            section_type = str(_value(section, "type", ""))
+            data = _value(section, "data", [])
+            if isinstance(data, Mapping):
+                collect_row(data, section_type)
+            elif isinstance(data, Sequence) and not isinstance(data, (str, bytes, bytearray)):
+                for row in data:
+                    if isinstance(row, Mapping):
+                        collect_row(row, section_type)
+
+    for entry in library:
+        kind = str(_value(entry, "kind", "")) or None
+        payload = _value(entry, "payload", [])
+        if isinstance(payload, Sequence) and not isinstance(payload, (str, bytes, bytearray)):
+            for row in payload:
+                if isinstance(row, Mapping):
+                    collect_row(row, kind)
+
+    for row in user_confirmed_facts:
+        collect_row(row)
+
+    return AuthoritativeFactIndex(**{key: frozenset(value) for key, value in facts.items()})
 
 
 def _employers(document: object) -> set[str]:
-    result: set[str] = set()
-    for row in _section_rows(document, {"experience", "work_experience"}):
-        for key in ("company", "employer", "organization"):
-            value = row.get(key)
-            if isinstance(value, str) and value.strip():
-                result.add(" ".join(value.casefold().split()))
-                break
-    return result
+    return set(build_authoritative_fact_index(source_cv=document).employers)
 
 
 def _requirement_label(requirement: object) -> str:
@@ -422,6 +496,8 @@ def evaluate_tailoring(
     previous_evaluation: TailoringEvaluation | None = None,
     current_candidate: object | None = None,
     source_cv: object | None = None,
+    library: Sequence[object] = (),
+    user_confirmed_facts: Sequence[Mapping[str, Any]] = (),
     render_warnings: Sequence[str] = (),
     inference_notes: Sequence[TailoringInferenceNote] = (),
     user_instructions: str | None = None,
@@ -845,21 +921,24 @@ def evaluate_tailoring(
                 ),
             )
 
-    if source_cv is not None:
-        source_employers = _employers(source_cv)
-        candidate_employers = _employers(current_candidate) if current_candidate is not None else set()
-        for employer in sorted(candidate_employers - source_employers):
-            _add_issue(
-                blockers,
-                _issue(
-                    issue_id=f"fabricated-employer-{re.sub(r'[^a-z0-9]+', '-', employer).strip('-')[:120]}",
-                    kind="blocker",
-                    category="fabrication",
-                    message=f"Candidate employer '{employer}' is not present in the supplied source CV.",
-                    detail="Employer identity is a high-risk factual claim; add it only when authoritative evidence supports it.",
-                    priority="high",
-                ),
-            )
+    authoritative_facts = build_authoritative_fact_index(
+        source_cv=source_cv,
+        library=library,
+        user_confirmed_facts=user_confirmed_facts,
+    )
+    candidate_employers = _employers(current_candidate) if current_candidate is not None else set()
+    for employer in sorted(candidate_employers - authoritative_facts.employers):
+        _add_issue(
+            blockers,
+            _issue(
+                issue_id=f"fabricated-employer-{re.sub(r'[^a-z0-9]+', '-', employer).strip('-')[:120]}",
+                kind="blocker",
+                category="fabrication",
+                message=f"Candidate employer '{employer}' is not present in the supplied authoritative evidence.",
+                detail="Employer identity is a high-risk factual claim; add it only when authoritative evidence supports it.",
+                priority="high",
+            ),
+        )
 
     source_comparison = TailoringSourceComparison(
         available=source_scan is not None,
@@ -961,4 +1040,4 @@ def evaluate_tailoring(
     )
 
 
-__all__ = ["evaluate_tailoring"]
+__all__ = ["AuthoritativeFactIndex", "build_authoritative_fact_index", "evaluate_tailoring"]
