@@ -45,10 +45,14 @@ async def collect_scanner_audit(session_factory: Callable[[], AsyncSession]) -> 
                 "freshness": scanner_result_freshness(
                     application.scanner_result,
                     application.job_description,
-                application.cv,
-                extractor_version=extractor_version,
-                render_manifest=(templates.get(application.cv.template_id) if application.cv is not None else None),
-            ),
+                    application.cv,
+                    extractor_version=extractor_version,
+                    render_manifest=(
+                        templates.get(application.cv.template_id)
+                        if application.cv is not None
+                        else None
+                    ),
+                ),
             }
         )
     return build_scanner_audit(records, total_applications=len(applications))
