@@ -117,3 +117,12 @@ def test_unsupported_keyword_guidance_does_not_recommend_invention():
     assert findings
     assert all(item.action and "accurate" in item.action for item in findings)
     assert all(item.severity == "info" for item in findings)
+
+
+def test_common_finding_rule_ids_are_registered():
+    result = _scan(
+        "Qualifications\nProject Management Professional (PMP).",
+        _cv(_section("profile", "profile", "Profile", {"name": "Ada"})),
+    )
+
+    assert all(item.rule_id in ATS_RULES for item in result.ats_guidance.common_findings)

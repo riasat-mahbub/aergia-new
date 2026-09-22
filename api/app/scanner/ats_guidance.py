@@ -346,6 +346,14 @@ def _acronym_coverage(job_description: str, cv: object, lexical: LexicalAnalysis
 
 
 def _pdf_findings(pdf: PDFTextRecoveryAnalysis) -> list[AtsFinding]:
+    rule_ids = {
+        "text_retention": "searchable_text",
+        "reading_order": "structural_reading_order",
+        "contact_recovery": "readable_contacts",
+        "section_heading_recovery": "visible_section_recovery",
+        "entry_recovery": "entry_recovery",
+        "link_recovery": "clickable_link_recovery",
+    }
     findings: list[AtsFinding] = []
     for check in pdf.checks:
         if check.status is PDFRecoveryStatus.PASS:
@@ -359,7 +367,7 @@ def _pdf_findings(pdf: PDFTextRecoveryAnalysis) -> list[AtsFinding]:
         findings.append(
             AtsFinding(
                 id=f"pdf-{check.code}",
-                rule_id=check.code,
+                rule_id=rule_ids.get(check.code, "pdf_recovery_diagnostic"),
                 title=check.code.replace("_", " ").title(),
                 category="parsing" if check.code in {"text_retention", "reading_order"} else "links" if check.code == "link_recovery" else "parsing",
                 scope="common",
@@ -529,6 +537,12 @@ ATS_RULES: dict[str, AtsRule] = {
     ),
     "entry_recovery": AtsRule(
         id="entry_recovery", title="Entry recovery", description="Rendered entry anchors should survive PDF extraction.", category="parsing", scope="common", severity="pass"
+    ),
+    "clickable_link_recovery": AtsRule(
+        id="clickable_link_recovery", title="Clickable link recovery", description="Clickable PDF annotations may survive export without being universal ATS requirements.", category="links", scope="common", severity="recommendation"
+    ),
+    "pdf_recovery_diagnostic": AtsRule(
+        id="pdf_recovery_diagnostic", title="PDF recovery diagnostic", description="A bounded PDF recovery diagnostic was recorded.", category="parsing", scope="common", severity="info"
     ),
     "conventional_section_headings": AtsRule(
         id="conventional_section_headings", title="Conventional section headings", description="Section labels should be recognizable for their semantic section type.", category="headings", scope="common", severity="recommendation"
