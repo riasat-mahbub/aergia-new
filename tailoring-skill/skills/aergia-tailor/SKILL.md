@@ -99,6 +99,37 @@ the underlying evidence first. Prioritize relevant evidence, readable density, n
 conventional headings, and a coherent visual system. A genuine missing qualification is allowed to
 remain missing.
 
+## Mandatory target-strategy pass
+
+Before composing candidate-facing content, build a compact editorial strategy for the target role
+from the full job description and supplied evidence. This is a semantic planning exercise, not a
+keyword-extraction exercise. Consolidate overlapping wording into approximately 5–10 meaningful
+target themes representing the role's most important responsibilities, technologies, domain signals,
+working style, and differentiators.
+For each target theme:
+
+1. Identify the strongest explicit evidence available from the candidate's experience, projects,
+research, education, skills, or other supplied sources.
+2. Consider defensible ecosystem or professional inference only under the evidence-and-inference
+rules.
+3. Mark the theme as a genuine gap when no defensible evidence exists. Do not fabricate coverage.
+4. Decide where the evidence would be most persuasive and natural in the final CV: profile,
+experience, project, skills, or another supported section.
+5. Identify the strongest target-facing framing of that evidence. Prefer concrete responsibilities,
+accomplishments, technologies, outcomes, and working context over generic claims.
+6. Note important employer terminology that accurately describes the evidence and can be reused
+naturally.
+
+Use this strategy to shape the whole document rather than optimizing entries independently. The
+strategy should influence the profile narrative; experience and project selection; bullet selection
+and ordering; which aspects of each role or project receive emphasis; skill grouping and ordering;
+section ordering; and terminology used throughout the candidate.
+Do not convert the job description into a vocabulary checklist. Coverage is semantic, not lexical.
+A target theme usually needs to be demonstrated clearly once or twice, not repeated throughout the
+document. After drafting, verify that the strongest supported target themes are represented where a
+recruiter would naturally encounter them. A theme is not adequately addressed merely because a
+related word appears somewhere in the document.
+
 ## Mandatory evidence-first re-authoring pass
 
 Library entries and previous-CV entries are evidence sources, not reusable copy. For every selected
@@ -107,25 +138,29 @@ a target-specific re-authoring pass before the first render. Do not assume the s
 emphasis, or skill grouping should survive into the candidate. Use this order:
 
 1. Extract the factual claims, technologies, responsibilities, outcomes, dates, identities, links,
-   and other usable evidence from all relevant supplied sources.
+and other usable evidence from all relevant supplied sources.
 2. Identify the angle that matters for this job and rank the available evidence by target relevance
-   and strength.
+and strength.
 3. Decide what to omit. A fact can be true and still be low-value for this application. When space
-   is limited, remove peripheral technologies, routine responsibilities, and redundant context
-   before compressing stronger evidence.
+is limited, remove peripheral technologies, routine responsibilities, and redundant context
+before compressing stronger evidence.
 4. Rebuild the candidate-facing entry from that ranked evidence. Write new descriptions and bullets
-   when that produces a stronger result; do not preserve source sentence structure merely because
-   natural prose already exists.
+when that produces a stronger result; do not preserve source sentence structure merely because
+natural prose already exists.
 5. Re-evaluate presentation fields: section title, entry ordering, entry title/name, secondary
-   fields, description, bullet order, skill labels, skill grouping, technology list, links, dates,
-   and location visibility where the schema supports them.
+fields, description, bullet order, skill labels, skill grouping, technology list, links, dates,
+and location visibility where the schema supports them.
 6. Verify the rebuilt entry against the evidence. Preserve factual identities and high-risk facts
-   such as employer names, institutions, official role titles, dates, certifications, publications,
-   and URLs unless authoritative supplied evidence supports a correction or normalization.
+such as employer names, institutions, official role titles, dates, certifications, publications,
+and URLs unless authoritative supplied evidence supports a correction or normalization.
 7. Only after the content is rebuilt, use existing candidate-authored prose as a voice reference for
-   vocabulary, directness, density, and rhythm. Source prose is a style reference, not a textual
-   template.
-
+vocabulary, directness, density, and rhythm. Source prose is a style reference, not a textual
+template.
+For every retained experience, project, or research entry, compare its proposed framing against the
+target strategy before considering it complete. Ask whether another truthful framing of the same
+evidence would expose substantially more relevant responsibilities, technologies, outcomes, or
+working context for this role. Do not settle for a generally strong description when the evidence
+supports a materially stronger target-specific description.
 Descriptions for experience, projects, and research should normally be authored from the evidence
 for the target job rather than copied and lightly edited. Leaving a selected entry substantially
 unchanged is acceptable only when its existing presentation is already one of the strongest ways to
@@ -147,6 +182,13 @@ Tailor skills from the evidence instead of copying stored skill groups verbatim.
 rename categories, remove low-relevance items, and add supported or defensibly inferred skill labels
 when useful. Apply the evidence hierarchy and inference-note rules to any non-explicit skill claim.
 
+Use the target strategy to determine which technical skills and practices deserve prominence. Prefer
+concise groups of concrete technologies, practices, or defensible capabilities. Do not create skill
+categories from behavioral fragments, employer slogans, responsibilities, or isolated job-description
+phrases merely to improve lexical coverage. Concepts such as communication, collaboration, quality,
+ownership, documentation, or client delivery are usually stronger when demonstrated through
+experience or project evidence than listed as keyword collections.
+
 Secondary fields such as employer/workplace, institution, publication venue, issuer, dates, and
 location are also part of the candidate presentation, but their factual values are not creative
 copy. Review their visibility and placement without renaming or altering authoritative facts simply
@@ -158,53 +200,58 @@ The v5 evaluation changes who owns objective checks; it does not remove the comp
 keep a draft useful and reviewable. Apply the full guidance in `references/cv-composition.md`, while
 preserving these protocol expectations:
 
-- Keep valid, useful supporting links when they help verify important work. Remove links only for a
-  concrete reason such as a broken, private, unsafe, unrelated, misleading, unsupported, or
-  genuinely layout-conflicting target.
+- Keep valid, useful supporting links when they help verify important work. Remove links only for a concrete reason such as a broken, private, unsafe, unrelated, misleading, unsupported, or genuinely layout-conflicting target.
 - Disclose location conservatively. Prefer city/region over street-level disclosure unless there is
-  a concrete local reason to keep the full supplied address. Never invent residence or willingness
-  to relocate.
+a concrete local reason to keep the full supplied address. Never invent residence or willingness
+to relocate.
 - Prefer a restrained, readable visual system, the simplest suitable template, consistent
-  typography, conventional headings, coherent spacing, stable date treatment, and readable
-  link/bullet presentation.
+typography, conventional headings, coherent spacing, stable date treatment, and readable
+link/bullet presentation.
 - Keep comparable experience and project entries structurally coherent while allowing unequal bullet
-  depth when relevance and evidence justify it.
+depth when relevance and evidence justify it.
 - Treat page count as a discrete content budget rather than a magic threshold. For non-academic,
-  early-career applications, strongly prefer one page when all important target-relevant evidence can
-  fit without harming readability. Research, academic, senior, publication-heavy, or genuinely
-  evidence-heavy candidates may justify two or more pages. Do not force a lower page count by making
-  the document cramped, tiny, or difficult to scan.
+early-career applications, strongly prefer one page when all important target-relevant evidence can
+fit without harming readability. Research, academic, senior, publication-heavy, or genuinely
+evidence-heavy candidates may justify two or more pages. Do not force a lower page count by making
+the document cramped, tiny, or difficult to scan.
 - After the first complete render, choose the smallest appropriate page count for the candidate and
-  target role, then deliberately maximize the value and visual use of that page budget. Once a draft
-  genuinely needs two or more pages, optimize those pages instead of treating the extra page as empty
-  overflow that should remain sparse.
+target role, then deliberately maximize the value and visual use of that page budget. Once a draft
+genuinely needs two or more pages, optimize those pages instead of treating the extra page as empty
+overflow that should remain sparse.
 - Within the chosen page count, use available space in this order: first restore or add strong,
-  relevant, defensible evidence that was omitted for space; then improve useful detail, specificity,
-  or supporting links; only after the content is strong should you increase whitespace, section or
-  entry spacing, and supported font sizes to make the document comfortably fill the available pages.
-  Never add filler, duplicate evidence, or low-value facts merely to occupy space.
+relevant, defensible evidence that was omitted for space; then improve useful detail, specificity,
+or supporting links; only after the content is strong should you increase whitespace, section or
+entry spacing, and supported font sizes to make the document comfortably fill the available pages.
+Never add filler, duplicate evidence, or low-value facts merely to occupy space.
 - If a one-page candidate has substantial unused space, do not submit a visibly underfilled page when
-  relevant evidence or a more readable presentation can use that space. Conversely, if one more
-  worthwhile line would create a second page, prefer editing, prioritization, or modest spacing/font
-  adjustments when the complete high-value candidate can still remain readable on one page.
+relevant evidence or a more readable presentation can use that space. Conversely, if one more
+worthwhile line would create a second page, prefer editing, prioritization, or modest spacing/font
+adjustments when the complete high-value candidate can still remain readable on one page.
 - Re-render after material content or layout changes and inspect the actual PDF. Page optimization is
-  visual and evidence-aware: avoid orphaned headings, large dead areas, crowded sections, tiny text,
-  and sparse final pages. Do not optimize page utilization by violating renderer limits or sacrificing
-  ATS readability and accessibility.
+visual and evidence-aware: avoid orphaned headings, large dead areas, crowded sections, tiny text,
+and sparse final pages. Do not optimize page utilization by violating renderer limits or sacrificing
+ATS readability and accessibility.
 - Write specific, economical, natural prose in the candidate's voice. Use existing prose to learn
-  voice, not to constrain content selection or sentence structure. Avoid formulaic keyword stuffing
-  and never optimize for an AI-detector score.
+voice, not to constrain content selection or sentence structure. Avoid formulaic keyword stuffing
+and never optimize for an AI-detector score.
+- Do not avoid employer terminology merely because it appears in the job description. When a job
+term accurately and naturally describes supported evidence, prefer that terminology when it makes
+the candidate's relevance clearer. Keyword stuffing means unsupported, repetitive, awkward, or
+list-like insertion of employer language; accurate target terminology integrated into substantive
+candidate evidence is desirable tailoring.
 - Recompose, split, and reframe work freely when provenance remains clear. Relevance pruning is
-  expected: omit lower-value source details when they do not strengthen the target application or
-  when stronger evidence needs the space. Do not duplicate one accomplishment, artificially inflate
-  scope, or erase important evidence solely to improve a scanner signal.
+expected: omit lower-value source details when they do not strengthen the target application or
+when stronger evidence needs the space. Do not duplicate one accomplishment, artificially inflate
+scope, or erase important evidence solely to improve a scanner signal.
 - Explain only meaningful exceptions and trade-offs in review notes; routine rewriting, ordering,
-  and formatting changes do not need commentary.
-
-When these rules conflict, prioritize explicit user instructions and factual defensibility, then
-readability/accessibility, evidence quality, natural writing, target relevance, ATS compatibility,
-and visual polish. Non-blocking server recommendations do not override editorial judgment. A server
-`blocked` state remains a mechanical safety gate and cannot be submitted.
+and formatting changes do not need commentary.
+When these rules conflict, prioritize explicit user instructions and factual defensibility first.
+Among otherwise defensible choices, prioritize target relevance and evidence selection, then evidence
+quality, readability/accessibility, natural writing, ATS compatibility, and visual polish. Natural
+writing governs how relevant evidence is expressed; it should not cause strong target-relevant
+evidence to be omitted or generalized unnecessarily. Non-blocking server recommendations do not
+override editorial judgment. A server `blocked` state remains a mechanical safety gate and cannot
+be submitted.
 
 ## Mandatory page-budget optimization pass
 
@@ -212,21 +259,20 @@ After the first complete candidate render, explicitly optimize the document agai
 budget before treating the draft as compositionally finished.
 
 1. Determine the smallest appropriate page count from the role and evidence. For a non-academic,
-   early-career CV, use one page when all important evidence can fit readably. Do not force one page
-   when doing so would remove important evidence or require cramped typography.
+early-career CV, use one page when all important evidence can fit readably. Do not force one page
+when doing so would remove important evidence or require cramped typography.
 2. If the candidate fits within that page count with room remaining, improve the document before
-   merely accepting the whitespace. First add or restore relevant evidence, useful specificity, or
-   supported details that strengthen the target application.
+merely accepting the whitespace. First add or restore relevant evidence, useful specificity, or
+supported details that strengthen the target application.
 3. If the content is already complete, use supported typography and spacing controls to make the
-   pages visually full and comfortable: adjust font sizes, section spacing, entry spacing, and other
-   renderer-supported presentation values without hurting readability or ATS recovery.
+pages visually full and comfortable: adjust font sizes, section spacing, entry spacing, and other
+renderer-supported presentation values without hurting readability or ATS recovery.
 4. If the draft crosses into an additional page because of low-value material, prune or rewrite that
-   material first. If the additional page is genuinely justified by strong evidence, keep it and then
-   optimize the full multi-page budget rather than leaving the new or final page sparse.
+material first. If the additional page is genuinely justified by strong evidence, keep it and then
+optimize the full multi-page budget rather than leaving the new or final page sparse.
 5. Re-render and inspect the PDF after each material page-budget change. Stop when the chosen page
-   count is well utilized, the strongest evidence is present, and further filling would add noise or
-   reduce readability.
-
+count is well utilized, the strongest evidence is present, and further filling would add noise or
+reduce readability.
 The objective is not the fewest pages at any cost and not the most text possible. The objective is
 the strongest defensible CV that uses its chosen number of pages efficiently.
 
@@ -270,9 +316,25 @@ Generic vendor layout advice is informational when Aergia's observed PDF recover
 Critical observed text retention, reading order, contact recovery, render, or explicit-user-constraint
 failures can block.
 
-Then perform a small independent editorial review. Judge evidence selection, framing, impact,
-clarity, natural writing, and visual balance. Apply `references/natural-writing.md`,
-`references/evidence-and-inference.md`, and `references/cv-composition.md` during this review.
+Then perform a small independent editorial review. Judge evidence selection, target differentiation,
+framing, impact, clarity, natural writing, and visual balance. Apply
+`references/natural-writing.md`, `references/evidence-and-inference.md`, and
+`references/cv-composition.md` during this review.
+As part of target differentiation, explicitly review:
+- which target-strategy themes are most important and supported;
+- whether the strongest available evidence for each important supported theme is visible;
+- whether that evidence is placed where a recruiter is likely to notice it;
+- whether the profile establishes a narrative appropriate to this particular role;
+- whether experience and project entries emphasize the aspects most relevant to this employer;
+- whether any strong target-relevant facts remain expressed in unnecessarily generic language;
+- whether useful employer terminology is being avoided despite accurately describing the evidence;
+and
+- whether any job-description wording has been inserted without meaningful candidate evidence behind
+it.
+
+Finally ask whether the candidate could be submitted substantially unchanged to many unrelated jobs
+of the same broad occupation. A broadly reusable CV is not automatically defective. However, if
+substantial target-specific evidence or framing remains unused, tailoring is not complete.
 
 Do not reclassify every scanner requirement. Do not use a score, point budget, `requirement_review`,
 or an 80-point gate.
@@ -296,20 +358,22 @@ counts as progress. A score falling slightly, failing to rise, or remaining low 
 cause or stop revision. The server readiness states mean:
 
 - `ready`: no meaningful server issue remains; submit is allowed;
-- `ready_with_review`: mechanically sound with reviewable inferences, recommendations, intentional
-  trade-offs, informational ATS notes, or genuine gaps; submit is allowed;
+- `ready_with_review`: mechanically sound with reviewable inferences, recommendations, intentional trade-offs, informational ATS notes, or genuine gaps; submit is allowed;
 - `revise`: concrete fixable issues remain; make a reasonable attempt, but the bounded fallback may
-  submit the best reviewed non-blocked candidate; and
+submit the best reviewed non-blocked candidate; and
 - `blocked`: a non-negotiable defect remains; do not submit.
 
 At the limit or an early-stop condition, the helper selects deterministically by readiness and
 concrete issue state: non-blocked status, fewer blockers, fewer important regressions, fewer
 error-level quality/PDF issues, fewer high-priority recommendations, fewer remaining issues, latest
 evaluated pass, then candidate hash only if the pass number is tied.
-
-It does not select the highest Job Fit. A `ready` or `ready_with_review` candidate may submit
-immediately. A `revise` candidate may submit only as the bounded fallback and receives a concise
-review note. A blocked candidate is never submitted automatically.
+It does not select the highest Job Fit. A `ready` or `ready_with_review` candidate is mechanically
+eligible for submission, but server readiness does not establish that editorial tailoring is
+complete. Before submission, the candidate must also have passed the independent editorial review,
+including target differentiation. Do not perform additional revisions merely to chase scanner
+scores, but do revise when the editorial review identifies strong target-relevant evidence or framing
+that remains materially underused. A `revise` candidate may submit only as the bounded fallback and
+receives a concise review note. A blocked candidate is never submitted automatically.
 
 ## Submission and user review
 
