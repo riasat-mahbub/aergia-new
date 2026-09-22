@@ -238,8 +238,13 @@ function issueList(evaluation, key) {
   return Array.isArray(evaluation?.[key]) ? evaluation[key] : [];
 }
 
-function issueIds(evaluation, keys) {
-  return keys.flatMap((key) => issueList(evaluation, key).map((item) => typeof item === "string" ? item : item?.id)).filter(Boolean).sort();
+const ISSUE_STATE_FIELDS = ["id", "kind", "category", "priority", "importance", "code", "requirement_id", "term_id"];
+
+function issueStateSignature(items) {
+  return items.map((item) => {
+    if (typeof item === "string") return JSON.stringify({ id: item });
+    return JSON.stringify(Object.fromEntries(ISSUE_STATE_FIELDS.map((field) => [field, item?.[field] ?? null])));
+  }).sort();
 }
 
 function issueCount(evaluation) {
@@ -266,17 +271,31 @@ function isBetterAttempt(current, best) {
   if (currentErrors !== bestErrors) return currentErrors < bestErrors;
   if (highPriorityRecommendations(current.evaluation) !== highPriorityRecommendations(best.evaluation)) return highPriorityRecommendations(current.evaluation) < highPriorityRecommendations(best.evaluation);
   if (issueCount(current.evaluation) !== issueCount(best.evaluation)) return issueCount(current.evaluation) < issueCount(best.evaluation);
+  if (current.passNumber !== best.passNumber) return current.passNumber > best.passNumber;
   return current.candidateHash < best.candidateHash;
 }
 
 function actionSignature(evaluation) {
   return JSON.stringify({
-    blockers: issueIds(evaluation, ["blockers"]),
-    review_items: issueIds(evaluation, ["review_items"]),
-    recommendations: issueIds(evaluation, ["recommendations"]),
-    regressions: issueIds(evaluation, ["regressions"]),
-    gaps: issueIds(evaluation, ["non_actionable_gaps"]),
+    blockers: issueStateSignature(issueList(evaluation, "blockers")),
+    review_items: issueStateSignature(issueList(evaluation, "review_items")),
+    recommendations: issueStateSignature(issueList(evaluation, "recommendations")),
+    regressions: issueStateSignature(issueList(evaluation, "regressions")),
+    gaps: issueStateSignature(issueList(evaluation, "non_actionable_gaps")),
   });
+}
+
+function hasEditorialBlockingFinding(review) {
+  return review?.findings?.some((finding) => finding.severity === "blocking") === true;
+}
+
+function isEligibleFallback(attempt, editorialBlockedCandidateHashes) {
+  return Boolean(
+    attempt
+      && attempt.evaluation.readiness.status !== "blocked"
+      && !editorialBlockedCandidateHashes.has(attempt.candidateHash)
+      && !hasEditorialBlockingFinding(attempt.editorialReview),
+  );
 }
 
 function fallbackReviewNote(attempt, passCount, stopReason) {
@@ -303,6 +322,7 @@ async function waitForCandidate(paths, context, origin, capability) {
   let stopReason = null;
   let unchangedActionRevisions = 0;
   let unchangedBlockerRevisions = 0;
+  const editorialBlockedCandidateHashes = new Set();
 
   await writeSessionStatus(paths, { state: "awaiting_candidate", pass_number: 0, max_passes: MAX_EVALUATED_PASSES });
   while (Date.now() < Date.parse(context.expires_at)) {
@@ -312,7 +332,7 @@ async function waitForCandidate(paths, context, origin, capability) {
       await unlink(reviewFilePath).catch(() => undefined);
       await unlink(resolve(paths.output, "editorial-review-result.json")).catch(() => undefined);
       if (passCount >= MAX_EVALUATED_PASSES) {
-        fallbackReady = Boolean(bestAttempt && bestAttempt.evaluation.readiness.status !== "blocked");
+        fallbackReady = isEligibleFallback(bestAttempt, editorialBlockedCandidateHashes);
         stopReason = "max_passes";
         await writeSessionStatus(paths, { state: fallbackReady ? "fallback_available" : "blocked", pass_number: passCount, max_passes: MAX_EVALUATED_PASSES, stop_reason: stopReason });
         continue;
@@ -321,6 +341,13 @@ async function waitForCandidate(paths, context, origin, capability) {
         const raw = JSON.parse(await readFile(candidatePath, "utf8"));
         validateCandidate(raw, context);
         const candidate = materializeCandidate(raw);
+        if (
+          latestRender
+          && editorialBlockedCandidateHashes.has(latestRender.candidateHash)
+          && candidateInputHash(candidate) === latestRender.candidateInputHash
+        ) {
+          throw new Error("The candidate has an editorial blocking finding; make a material candidate revision before rendering again");
+        }
         await replaceProtectedJson(resolve(paths.output, "normalized-candidate.json"), candidate);
         const passNumber = passCount + 1;
         const rendered = await renderCandidate(paths, origin, capability, context, candidate, passNumber);
@@ -348,6 +375,30 @@ async function waitForCandidate(paths, context, origin, capability) {
         if (candidateInputHash(currentCandidate) !== latestRender.candidateInputHash) throw new Error("The candidate changed after evaluation; render the current candidate again before reviewing it");
         const rawReview = JSON.parse(await readFile(reviewFilePath, "utf8"));
         const review = validateEditorialReview(rawReview, { candidateHash: latestRender.candidateHash, passNumber: latestRender.passNumber, candidate: latestRender.candidate });
+        if (hasEditorialBlockingFinding(review)) {
+          editorialBlockedCandidateHashes.add(review.candidate_hash);
+          latestReview = null;
+          const message = "The editorial review contains a blocking finding; revise the candidate before submission";
+          await writeEditorialReviewResult(paths, {
+            valid: true,
+            submission_allowed: false,
+            review_version: EDITORIAL_REVIEW_VERSION,
+            candidate_hash: review.candidate_hash,
+            pass_number: review.pass_number,
+            error: message,
+            findings: review.findings,
+          });
+          await writeSessionStatus(paths, {
+            state: "editorial_revision_required",
+            pass_number: passCount,
+            max_passes: MAX_EVALUATED_PASSES,
+            candidate_hash: review.candidate_hash,
+            readiness: latestRender.evaluation.readiness,
+            error: message,
+          });
+          process.stderr.write(`${message}. Make a material candidate revision, then create RENDER.\n`);
+          continue;
+        }
         latestReview = review;
         const evaluation = latestRender.evaluation;
         await writeEditorialReviewResult(paths, { valid: true, review_version: EDITORIAL_REVIEW_VERSION, candidate_hash: review.candidate_hash, pass_number: review.pass_number, readiness: evaluation.readiness, blockers: evaluation.blockers ?? [], review_items: evaluation.review_items ?? [], recommendations: evaluation.recommendations ?? [], non_actionable_gaps: evaluation.non_actionable_gaps ?? [], inference_notes: evaluation.inference_notes ?? [], findings: review.findings });
@@ -355,8 +406,8 @@ async function waitForCandidate(paths, context, origin, capability) {
         const previousAttempt = attempts.at(-1);
         if (previousAttempt && previousAttempt.candidateHash !== attempt.candidateHash) {
           unchangedActionRevisions = actionSignature(previousAttempt.evaluation) === actionSignature(attempt.evaluation) ? unchangedActionRevisions + 1 : 0;
-          const previousBlockers = issueIds(previousAttempt.evaluation, ["blockers"]);
-          const currentBlockers = issueIds(attempt.evaluation, ["blockers"]);
+          const previousBlockers = issueStateSignature(issueList(previousAttempt.evaluation, "blockers"));
+          const currentBlockers = issueStateSignature(issueList(attempt.evaluation, "blockers"));
           unchangedBlockerRevisions = previousAttempt.evaluation.readiness?.status === "blocked"
             && attempt.evaluation.readiness?.status === "blocked"
             && currentBlockers.length > 0
@@ -382,7 +433,7 @@ async function waitForCandidate(paths, context, origin, capability) {
         } else if (evaluation.readiness.status === "blocked") {
           const repeatedBlockers = unchangedBlockerRevisions >= 2;
           fallbackReady = (repeatedBlockers || passCount >= MAX_EVALUATED_PASSES)
-            && Boolean(bestAttempt && bestAttempt.evaluation.readiness.status !== "blocked");
+            && isEligibleFallback(bestAttempt, editorialBlockedCandidateHashes);
           stopReason = repeatedBlockers ? "unchanged_blockers" : passCount >= MAX_EVALUATED_PASSES ? "max_passes" : null;
           await writeSessionStatus(paths, { state: fallbackReady ? "fallback_available" : "blocked", pass_number: passCount, max_passes: MAX_EVALUATED_PASSES, candidate_hash: attempt.candidateHash, readiness: evaluation.readiness, ...(stopReason ? { stop_reason: stopReason } : {}) });
           if (fallbackReady) process.stderr.write(`Server evaluation is blocked, but a reviewed non-blocked fallback is available (${stopReason}).\n`);
@@ -422,12 +473,13 @@ async function waitForCandidate(paths, context, origin, capability) {
         // A normal ready submission must use the exact candidate currently
         // present in candidate.json.  Selecting a prior best attempt is only
         // a bounded-fallback behavior after the loop has explicitly stopped.
-        if (!selectedAttempt && fallbackReady && bestAttempt && bestAttempt.evaluation.readiness.status !== "blocked") selectedAttempt = bestAttempt;
+        if (!selectedAttempt && fallbackReady && isEligibleFallback(bestAttempt, editorialBlockedCandidateHashes)) selectedAttempt = bestAttempt;
         if (!selectedAttempt) throw new Error("No exact reviewed non-blocked candidate is available for submission");
         const readinessStatus = selectedAttempt.evaluation.readiness.status;
         const fallback = fallbackReady;
         if (readinessStatus === "revise" && !fallbackReady) throw new Error("The server still requests revision; reach the bounded fallback before submitting");
         if (readinessStatus === "blocked") throw new Error("Blocked candidates cannot be submitted");
+        if (hasEditorialBlockingFinding(selectedAttempt.editorialReview)) throw new Error("Editorial review contains a blocking finding; revise the candidate before submitting");
         if (JSON.stringify(currentInferenceNotes) !== JSON.stringify(selectedAttempt.inferenceNotes ?? [])) throw new Error("inference-notes.json changed after the selected candidate was reviewed");
         const finalNotes = fallback ? await appendReviewNote(notes, fallbackReviewNote(selectedAttempt, passCount, stopReason)) : notes;
         await replaceProtectedJson(resolve(paths.output, "normalized-candidate.json"), selectedAttempt.candidate);
