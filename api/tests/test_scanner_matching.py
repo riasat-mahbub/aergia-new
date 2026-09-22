@@ -9,6 +9,7 @@ from app.scanner.requirements import (
     Expectation,
     ExpectationKind,
     ExamplesExpression,
+    ExperienceDurationConstraint,
     MinimumYearsConstraint,
     Requirement,
     RequirementFamily,
@@ -16,7 +17,7 @@ from app.scanner.requirements import (
     RequirementLeaf,
     RequirementSource,
 )
-from app.scanner.results import EvidenceMethod, EvidenceStatus
+from app.scanner.results import EvidenceMethod, EvidenceStatus, EvidenceStrength
 from app.scanner.extraction import extract_requirements_from_entities
 
 
@@ -490,9 +491,12 @@ def test_alayacare_compound_has_three_supported_components_and_monitoring_missin
     result = evaluate_semantic_coverage([compound], _cv_fixture(), as_of=date(2026, 9, 20))
     evaluation = result.requirements[0]
 
-    assert evaluation.status is EvidenceStatus.PARTIAL
-    assert (evaluation.expression.mandatory_supported, evaluation.expression.mandatory_total) == (2, 4)
-    assert evaluation.expression.children[0].status is EvidenceStatus.PARTIAL
+    assert evaluation.status is EvidenceStatus.SUPPORTED
+    assert isinstance(compound.expression, ExamplesExpression)
+    assert evaluation.expression.mandatory_supported == 1
+    assert evaluation.expression.mandatory_total == 1
+    assert evaluation.expression.children[0].status is EvidenceStatus.NOT_EVIDENCED
+    assert evaluation.expression.children[2].status is EvidenceStatus.SUPPORTED
     assert evaluation.expression.children[-1].status is EvidenceStatus.NOT_EVIDENCED
 
 
@@ -590,3 +594,189 @@ def test_constraint_evidence_without_concept_match_does_not_raise() -> None:
     assert result.evidence[0].concept_status is EvidenceStatus.NOT_EVIDENCED
     assert result.evidence[0].constraints[0].status is EvidenceStatus.SUPPORTED
     assert result.evidence[0].confidence <= 0.64
+
+
+def test_research_documentation_transfers_to_documentation_but_keeps_client_context_partial() -> None:
+    requirement = _requirement(
+        "as-built-documentation",
+        "documentation",
+        ExpectationKind.ABILITY_TO_PERFORM,
+        qualifier="Create as-built documentation for client solutions",
+    )
+    cv = {
+        "sections": [
+            {
+                "id": "experience",
+                "type": "experience",
+                "fields": [],
+                "entries": [
+                    {
+                        "id": "research",
+                        "fields": [_field("description", "Documented empirical methods and findings in peer-reviewed research.")],
+                    }
+                ],
+            }
+        ]
+    }
+
+    result = evaluate_semantic_coverage([requirement], cv)
+
+    assert result.requirements[0].status is EvidenceStatus.PARTIAL
+    assert result.evidence[0].concept_status is EvidenceStatus.SUPPORTED
+    assert result.evidence[0].expectation_status is EvidenceStatus.PARTIAL
+    assert result.evidence[0].strength is EvidenceStrength.PARTIAL_TRANSFER
+
+
+def test_team_software_development_supports_collaboration_but_not_proactive_blocker_reporting() -> None:
+    collaboration = _requirement("collaboration", "collaboration", ExpectationKind.ABILITY_TO_PERFORM)
+    blockers = _requirement(
+        "blockers",
+        "proactive blocker communication",
+        ExpectationKind.ABILITY_TO_PERFORM,
+        qualifier="Communicate questions, blockers, risks, or delays early",
+    )
+    cv = {
+        "sections": [
+            {
+                "id": "experience",
+                "type": "experience",
+                "fields": [],
+                "entries": [
+                    {
+                        "id": "job",
+                        "fields": [_field("description", "Worked alongside developers and designers using Agile software development practices.")],
+                    }
+                ],
+            }
+        ]
+    }
+
+    result = evaluate_semantic_coverage([collaboration, blockers], cv)
+
+    assert result.requirements[0].status is EvidenceStatus.SUPPORTED
+    assert result.evidence[0].strength is EvidenceStrength.DIRECT_DEMONSTRATION
+    assert result.requirements[1].status is EvidenceStatus.NOT_EVIDENCED
+    assert not any(item.id.startswith("ev-blockers") for item in result.evidence)
+
+
+def test_skill_list_supports_azure_familiarity_but_not_demonstrated_application() -> None:
+    familiarity = _requirement("azure-familiarity", "Azure", ExpectationKind.FAMILIARITY)
+    application = _requirement("azure-application", "Azure", ExpectationKind.PRIOR_EXPERIENCE)
+    cv = {
+        "sections": [
+            {
+                "id": "skills",
+                "type": "skills",
+                "fields": [],
+                "entries": [{"id": "cloud", "fields": [_field("items", "Azure")] }],
+            }
+        ]
+    }
+
+    result = evaluate_semantic_coverage([familiarity, application], cv)
+
+    assert result.requirements[0].status is EvidenceStatus.SUPPORTED
+    assert result.evidence[0].strength is EvidenceStrength.STRONG_RELATED_EVIDENCE
+    assert result.requirements[1].status is EvidenceStatus.PARTIAL
+    assert result.evidence[1].strength is EvidenceStrength.PARTIAL_TRANSFER
+
+
+def test_summary_interest_is_valid_direct_evidence_without_becoming_experience() -> None:
+    interest = _requirement(
+        "cloud-interest",
+        "Microsoft cloud technologies",
+        ExpectationKind.INTEREST,
+        qualifier="Interest in Microsoft cloud technologies",
+    )
+    cv = {
+        "sections": [
+            {
+                "id": "profile",
+                "type": "profile",
+                "fields": [_field("summary", "Interested in Microsoft cloud and Power Platform solutions.")],
+                "entries": [],
+            }
+        ]
+    }
+
+    result = evaluate_semantic_coverage([interest], cv)
+
+    assert result.requirements[0].status is EvidenceStatus.SUPPORTED
+    assert result.evidence[0].strength is EvidenceStrength.DIRECT_DEMONSTRATION
+
+
+def test_approximate_duration_above_range_is_reported_as_an_observation_not_missing_evidence() -> None:
+    duration = ExperienceDurationConstraint(
+        id="software-years",
+        kind="experience_duration",
+        min_years=0,
+        max_years=2,
+        approximate=True,
+        source_text="Approximately 0–2 years",
+        confidence=0.95,
+    )
+    requirement = _requirement(
+        "software-years",
+        "software development experience",
+        ExpectationKind.PRIOR_EXPERIENCE,
+        constraints=[duration],
+    )
+    cv = {
+        "sections": [
+            {
+                "id": "experience",
+                "type": "experience",
+                "fields": [],
+                "entries": [
+                    {
+                        "id": "job",
+                        "fields": [
+                            _field("start_date", "2020-01"),
+                            _field("end_date", "2025-01"),
+                            _field("description", "Developed software applications."),
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+
+    result = evaluate_semantic_coverage([requirement], cv, as_of=date(2026, 9, 20))
+
+    assert result.requirements[0].status is EvidenceStatus.SUPPORTED
+    observations = [item.observation for evidence in result.evidence for item in evidence.constraints]
+    assert "above_approximate_range" in observations
+
+
+def test_duration_unknown_is_distinct_from_no_concept_evidence() -> None:
+    duration = ExperienceDurationConstraint(
+        id="software-years",
+        kind="experience_duration",
+        min_years=0,
+        max_years=2,
+        approximate=True,
+        source_text="Approximately 0–2 years",
+        confidence=0.95,
+    )
+    requirement = _requirement(
+        "software-years-unknown",
+        "software development experience",
+        ExpectationKind.PRIOR_EXPERIENCE,
+        constraints=[duration],
+    )
+    cv = {
+        "sections": [
+            {
+                "id": "skills",
+                "type": "skills",
+                "fields": [],
+                "entries": [{"id": "software", "fields": [_field("items", "Software development")]}],
+            }
+        ]
+    }
+
+    result = evaluate_semantic_coverage([requirement], cv)
+
+    assert result.requirements[0].status is EvidenceStatus.PARTIAL
+    assert result.evidence[0].constraints[0].status is EvidenceStatus.UNVERIFIABLE
+    assert result.evidence[0].constraints[0].observation == "duration_unknown"

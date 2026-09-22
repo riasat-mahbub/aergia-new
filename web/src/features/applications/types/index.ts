@@ -146,6 +146,7 @@ export interface CVQualityResult {
 }
 
 export type ScannerEvidenceStatus = "supported" | "partial" | "not_evidenced" | "conflicting" | "unverifiable";
+export type ScannerEvidenceStrength = "direct_demonstration" | "strong_related_evidence" | "partial_transfer" | "weak_context" | "unsupported";
 export type ScannerAnalysisStatus = "evaluated" | "not_evaluated" | "failed";
 export type ScannerImportance = "required" | "preferred" | "unknown";
 export type ScannerScoreStatus = "available" | "insufficient_scorable_evidence" | "unavailable";
@@ -181,6 +182,8 @@ export interface ScannerRequirement {
   importance: ScannerImportance;
   family: string;
   weight: number;
+  classification?: string;
+  concept_group_id?: string | null;
   expression: ScannerExpressionNode;
   contextual_modifiers: Array<{
     kind: "guidance" | "supervision" | "learning_purpose";
@@ -390,6 +393,8 @@ export interface ScanResult {
       expectation_status: ScannerEvidenceStatus;
       confidence: number;
       method: string;
+      strength?: ScannerEvidenceStrength;
+      constraints?: Array<{ constraint_id: string; status: ScannerEvidenceStatus; evidence_text: string | null; observation?: string | null }>;
     }>;
     summary?: ScannerSemanticScoreSummary | null;
   };

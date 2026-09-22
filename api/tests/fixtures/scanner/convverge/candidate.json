@@ -1,0 +1,270 @@
+{
+  "title": "Junior Software Developer — Converge",
+  "description": "Role-focused CV emphasizing C#/.NET, full-stack delivery, testing, and software quality.",
+  "template_id": "generic-minimal",
+  "sections": [
+    {
+      "id": "profile",
+      "type": "profile",
+      "title": "Profile",
+      "enabled": true,
+      "data": {
+        "name": "Riasat Mahbub",
+        "title": "",
+        "email": "riasat1998@gmail.com",
+        "email_link": true,
+        "phone": "7824094525",
+        "location": "Halifax, Nova Scotia",
+        "site_text": "",
+        "site_url": "https://rmahbub.com",
+        "summary": [
+          {
+            "type": "paragraph",
+            "items": [
+              {
+                "text": "Software developer with hands-on software development experience in full-stack, mobile, and C#/.NET systems. Brings testing, Git, Docker, CI/CD, databases, and code-quality research; interested in Microsoft cloud and Power Platform solutions."
+              }
+            ]
+          }
+        ],
+        "social_links": [
+          {
+            "label": "LinkedIn",
+            "url": "https://www.linkedin.com/in/riasat-m-70682b115/",
+            "icon": "linkedin"
+          },
+          {
+            "label": "GitHub",
+            "url": "https://github.com/riasat-mahbub",
+            "icon": "github"
+          }
+        ]
+      }
+    },
+    {
+      "id": "experience",
+      "type": "experience",
+      "title": "Experience",
+      "enabled": true,
+      "data": [
+        {
+          "id": "sec_5a2768da",
+          "position": "Research Assistant",
+          "company": "Dalhousie University",
+          "location": "",
+          "start_date": "2023-09",
+          "end_date": "2025-10",
+          "current": false,
+          "description": [
+            {
+              "type": "bullet_list",
+              "items": [
+                {
+                  "text": "Implemented features and addressed code-quality issues in in-house simulation software built with legacy C# and .NET."
+                },
+                {
+                  "text": "Built and ran static-analysis and repository-mining workflows across 482 open-source repositories to study code smells, refactoring patterns, and software complexity."
+                },
+                {
+                  "text": "Documented empirical methods and findings through research co-authored for IEEE SCAM 2024 and the 2026 TRB Annual Meeting."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "exp_1788989928209_z3mz",
+          "position": "Associate Software Engineer",
+          "company": "Brain Station 23",
+          "location": "",
+          "start_date": "2022-07",
+          "end_date": "2023-08",
+          "current": false,
+          "description": [
+            {
+              "type": "bullet_list",
+              "items": [
+                {
+                  "text": "Engineered and shipped full-stack web and mobile features with Angular, Laravel, and Ionic across multiple projects."
+                },
+                {
+                  "text": "Provisioned Linux environments and deployed containerized applications using Docker, Git, and CI/CD pipelines."
+                },
+                {
+                  "text": "Developed Moodle and WordPress plugins, including an Ionic mobile interface that parsed and structured Moodle HTML output."
+                },
+                {
+                  "text": "Authored unit and integration test suites across legacy and new codebases to improve reliability and reduce technical debt."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "skills",
+      "type": "skills",
+      "title": "Technical Skills",
+      "enabled": true,
+      "data": [
+        {
+          "id": "skills-languages",
+          "category": "Languages",
+          "items": [
+            "C#",
+            "Python",
+            "TypeScript",
+            "JavaScript",
+            "PHP",
+            "SQL"
+          ]
+        },
+        {
+          "id": "skills-web",
+          "category": "Web & APIs",
+          "items": [
+            "Angular",
+            "React",
+            "Ionic",
+            "Laravel",
+            "FastAPI",
+            ".NET",
+            "HTML/CSS"
+          ]
+        },
+        {
+          "id": "skills-data",
+          "category": "Data",
+          "items": [
+            "PostgreSQL",
+            "MySQL",
+            "SQLite",
+            "MongoDB"
+          ]
+        },
+        {
+          "id": "skills-delivery",
+          "category": "Delivery & Quality",
+          "items": [
+            "Git",
+            "Docker",
+            "GitHub Actions",
+            "CI/CD",
+            "Linux",
+            "Unit Testing",
+            "Integration Testing"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "projects",
+      "type": "projects",
+      "title": "Selected Projects",
+      "enabled": true,
+      "data": [
+        {
+          "id": "proj_1788989618759_h74n",
+          "name": "Aergia CV Builder",
+          "url": "https://github.com/riasat-mahbub/aergia-new",
+          "link_text": "GitHub",
+          "start_date": "2026-04",
+          "end_date": "",
+          "description": [
+            {
+              "type": "bullet_list",
+              "items": [
+                {
+                  "text": "Built a self-hosted full-stack CV platform for a reusable career library, application tracking, PDF import/export, and tailored resume generation with TanStack Start, React, FastAPI, and Playwright."
+                },
+                {
+                  "text": "Developed a customizable document engine with drag-and-drop editing, multiple templates, and synchronized live preview and PDF rendering."
+                },
+                {
+                  "text": "Implemented the application end to end with SQLAlchemy, SQLite, Docker, and a local requirement-analysis pipeline."
+                }
+              ]
+            }
+          ],
+          "tech_stack": [
+            "React",
+            "FastAPI",
+            "SQLAlchemy",
+            "Playwright",
+            "SQLite",
+            "Docker",
+            "TypeScript"
+          ]
+        },
+        {
+          "id": "sec_a13c89e6",
+          "name": "Project Tracker Extension",
+          "url": "https://github.com/riasat-mahbub/project-tracker-skill",
+          "link_text": "GitHub",
+          "start_date": "2026-01",
+          "end_date": "",
+          "description": [
+            {
+              "type": "bullet_list",
+              "items": [
+                {
+                  "text": "Built a persistent knowledge graph linking bugs, features, tasks, decisions, affected files, dependencies, and backlinks across a codebase."
+                },
+                {
+                  "text": "Developed a Python CLI for creating, updating, searching, validating, rebuilding, and repairing project state, with generated dashboards and machine-readable graph output."
+                },
+                {
+                  "text": "Implemented BM25, fuzzy, regex, and exact-phrase search to retrieve relevant project context before code changes."
+                }
+              ]
+            }
+          ],
+          "tech_stack": [
+            "Python",
+            "Information Retrieval",
+            "BM25",
+            "Knowledge Graphs",
+            "PyYAML",
+            "JSON"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "education",
+      "type": "education",
+      "title": "Education",
+      "enabled": true,
+      "data": [
+        {
+          "id": "sec_c775869e",
+          "degree": "Master of Computer Science",
+          "institution": "Dalhousie University",
+          "start_date": "2023-09",
+          "end_date": "2025-10",
+          "current": false,
+          "gpa": "",
+          "summary": ""
+        },
+        {
+          "id": "b895cb66-306b-4d06-8bf7-67dd7dfab255",
+          "degree": "Bachelor of Computer Science and Engineering",
+          "institution": "BRAC University",
+          "start_date": "2018-01",
+          "end_date": "2022-01",
+          "current": false,
+          "gpa": "",
+          "summary": ""
+        }
+      ]
+    }
+  ],
+  "customizations": {
+    "accent_color": "#111827",
+    "body_font": "sans-serif",
+    "heading_font": "sans-serif",
+    "default_text_align": "left",
+    "spacing": "none"
+  }
+}

@@ -18,6 +18,7 @@ from app.scanner.requirements import (
     DegreeConstraint,
     Expectation,
     ExpectationKind,
+    ExperienceDurationConstraint,
     ExamplesExpression,
     GeographicEligibilityConstraint,
     LanguageProficiencyConstraint,
@@ -31,6 +32,7 @@ from app.scanner.results import (
     ConstraintEvidence,
     Evidence,
     EvidenceMethod,
+    EvidenceStrength,
     EvidenceStatus,
     RequirementEvaluation,
     SemanticAnalysis,
@@ -44,7 +46,8 @@ _PREDICATE_ACTION_RE = re.compile(
     r"\b(?:built|build|developed|develop|wrote|write|implemented|implement|shipped|"
     r"delivered|created|maintained|deployed|provisioned|extended|diagnosed|investigated|"
     r"resolved|tested|used|integrated|designed|led|participated|collaborated|"
-    r"contributed|configured|authored|automated)\b",
+    r"contributed|configured|authored|co-authored|documented|documenting|published|"
+    r"worked|partnered|automated)\b",
     re.I,
 )
 _INTEREST_LANGUAGE_RE = re.compile(
@@ -212,6 +215,55 @@ _SEMANTIC_ALIASES: dict[str, tuple[_AliasHint, ...]] = {
         _AliasHint("FastAPI", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
         _AliasHint("Laravel", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
     ),
+    "documentation": (
+        _AliasHint("documentation", EvidenceStatus.SUPPORTED, EvidenceMethod.EXACT),
+        _AliasHint("technical documentation", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
+        _AliasHint("documented", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
+        _AliasHint("documenting", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
+        _AliasHint("authored", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
+    ),
+    "collaboration": (
+        _AliasHint("collaboration", EvidenceStatus.SUPPORTED, EvidenceMethod.EXACT),
+        _AliasHint("collaborated", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
+        _AliasHint("worked alongside", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
+        _AliasHint("worked with", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
+        _AliasHint("cross-functional", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
+    ),
+    "independent work": (
+        _AliasHint("independently", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
+        _AliasHint("owned", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
+        _AliasHint("end-to-end", EvidenceStatus.PARTIAL, EvidenceMethod.SEMANTIC_RULE),
+        _AliasHint("end to end", EvidenceStatus.PARTIAL, EvidenceMethod.SEMANTIC_RULE),
+    ),
+    "team environment": (
+        _AliasHint("team environment", EvidenceStatus.SUPPORTED, EvidenceMethod.EXACT),
+        _AliasHint("team", EvidenceStatus.PARTIAL, EvidenceMethod.SEMANTIC_RULE),
+    ),
+    "agile": (
+        _AliasHint("Agile", EvidenceStatus.SUPPORTED, EvidenceMethod.EXACT),
+        _AliasHint("Agile software development", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
+    ),
+    "microsoft cloud technologies": (
+        _AliasHint("Microsoft cloud", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
+        _AliasHint("Microsoft cloud technologies", EvidenceStatus.SUPPORTED, EvidenceMethod.EXACT),
+        _AliasHint("Power Platform", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
+        _AliasHint("Azure", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
+    ),
+    "proactive blocker communication": (
+        _AliasHint("proactive blocker communication", EvidenceStatus.SUPPORTED, EvidenceMethod.EXACT),
+    ),
+    "software development experience": (
+        _AliasHint("software development experience", EvidenceStatus.SUPPORTED, EvidenceMethod.EXACT),
+        _AliasHint("software development", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
+        _AliasHint("full-stack", EvidenceStatus.PARTIAL, EvidenceMethod.SEMANTIC_RULE),
+        _AliasHint("software developer", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
+    ),
+    "testing and quality assurance": (
+        _AliasHint("testing", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
+        _AliasHint("quality assurance", EvidenceStatus.SUPPORTED, EvidenceMethod.EXACT),
+        _AliasHint("unit testing", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
+        _AliasHint("integration testing", EvidenceStatus.SUPPORTED, EvidenceMethod.SEMANTIC_RULE),
+    ),
 }
 
 _SEMANTIC_PATTERNS: dict[str, tuple[tuple[re.Pattern[str], EvidenceStatus], ...]] = {
@@ -238,6 +290,29 @@ _SEMANTIC_PATTERNS: dict[str, tuple[tuple[re.Pattern[str], EvidenceStatus], ...]
     ),
     "bug resolution": (
         (re.compile(r"\b(?:fix|fixed|fixing|resolve|resolved|resolving|repair|repaired|repairing)\b.{0,50}\b(?:bugs?|defects?|errors?|issues?)\b", re.I), EvidenceStatus.SUPPORTED),
+    ),
+    "documentation": (
+        (re.compile(r"\b(?:documented|documenting|authored|co-authored|published)\b.{0,100}\b(?:methods?|findings?|research|technical|documentation|report|paper)s?\b", re.I), EvidenceStatus.SUPPORTED),
+    ),
+    "collaboration": (
+        (re.compile(r"\b(?:worked|work|partnered|collaborated)\b.{0,45}\b(?:alongside|with|across|team|developers?|designers?|engineers?)\b", re.I), EvidenceStatus.SUPPORTED),
+    ),
+    "independent work": (
+        (re.compile(r"\b(?:owned|independently|solely)\b.{0,70}\b(?:project|implementation|development|work|delivery)?\b", re.I), EvidenceStatus.SUPPORTED),
+        (re.compile(r"\bend[- ]to[- ]end\b", re.I), EvidenceStatus.PARTIAL),
+    ),
+    "agile": (
+        (re.compile(r"\bagile\b", re.I), EvidenceStatus.SUPPORTED),
+    ),
+    "team environment": (
+        (re.compile(r"\b(?:team|cross-functional)\b", re.I), EvidenceStatus.PARTIAL),
+    ),
+    "software development experience": (
+        (re.compile(r"\b(?:develop(?:ed|ing)?|implement(?:ed|ing)?|engineer(?:ed|ing)?|ship(?:ped|ping)?)\b.{0,90}\b(?:software|web|mobile|features?|applications?|systems?)\b", re.I), EvidenceStatus.SUPPORTED),
+        (re.compile(r"\bfull[- ]stack\b", re.I), EvidenceStatus.PARTIAL),
+    ),
+    "testing and quality assurance": (
+        (re.compile(r"\b(?:unit|integration|automated)\s+(?:and\s+(?:unit|integration|automated)\s+)?tests?\b", re.I), EvidenceStatus.SUPPORTED),
     ),
 }
 
@@ -564,9 +639,30 @@ def _expectation_support(expectation: Expectation, concept: object, fields: Sequ
     experience = _is_experience_context(matched_fields)
     has_action = bool(_PREDICATE_ACTION_RE.search(text))
     normalized_concept = _normalize(str(_value(concept, "name", "")))
+    qualifier = _normalize(expectation.qualifier or "")
 
     if concept_hit.status is EvidenceStatus.PARTIAL:
         return EvidenceStatus.PARTIAL, matched_fields
+
+    if normalized_concept in {"proactive blocker communication", "open progress sharing", "asking thoughtful questions"}:
+        if re.search(r"\b(?:blockers?|risks?|delays?)\b", text, re.I) and re.search(
+            r"\b(?:early|proactively|escalat|raise|share)\b", text, re.I
+        ):
+            return EvidenceStatus.SUPPORTED, matched_fields
+        return EvidenceStatus.NOT_EVIDENCED, []
+
+    if normalized_concept == "documentation" and re.search(
+        r"\b(?:as[- ]built|support|client\s+solution|internal\s+team)\b", qualifier, re.I
+    ):
+        # Research/publication documentation transfers to technical
+        # documentation, but it does not prove the posting's client-solution
+        # or support-documentation context.
+        return EvidenceStatus.PARTIAL, matched_fields
+
+    if any(field.section_type == "education" for field in matched_fields) and normalized_concept not in {
+        "equivalent practical experience",
+    }:
+        return EvidenceStatus.SUPPORTED, matched_fields
 
     if kind is ExpectationKind.FAMILIARITY:
         if any(field.section_type == "skills" for field in matched_fields):
@@ -588,7 +684,6 @@ def _expectation_support(expectation: Expectation, concept: object, fields: Sequ
             return (EvidenceStatus.SUPPORTED, matched_fields) if _AI_CODING_USE_RE.search(text) else (EvidenceStatus.NOT_EVIDENCED, [])
         return (EvidenceStatus.SUPPORTED if experience and has_action else EvidenceStatus.PARTIAL), matched_fields
     if kind is ExpectationKind.DEMONSTRATED_APPLICATION:
-        qualifier = _normalize(expectation.qualifier or "")
         if normalized_concept in {"genai", "ai tools", "ai-assisted development"} or re.search(
             r"\b(?:day[- ]to[- ]day|daily)\s+work\b", qualifier
         ):
@@ -669,7 +764,17 @@ def _year_intervals(fields: Sequence[CVTextField], concept: object, as_of: date)
     aliases = [item.phrase for item in _concept_aliases(concept)]
     for group in _entry_groups(fields, {"experience", "work_experience"}):
         text = " ".join(field.text for field in group)
-        if not any(_contains_phrase(text, alias) for alias in aliases):
+        concept_name = _normalize(str(_value(concept, "name", "")))
+        software_experience_context = (
+            (
+                str(_value(concept, "family", "")) == "experience"
+                or "experience" in concept_name
+                or "software development" in concept_name
+            )
+            and bool(re.search(r"\b(?:software|developer|development|engineering|programming|full[- ]stack)\b", text, re.I))
+            and bool(_PREDICATE_ACTION_RE.search(text) or re.search(r"\bexperience\b", text, re.I))
+        )
+        if not any(_contains_phrase(text, alias) for alias in aliases) and not software_experience_context:
             continue
         values = {field.field_key.casefold(): field.text.strip() for field in group}
         start = _parse_date(values.get("start_date", values.get("start", "")))
@@ -697,6 +802,7 @@ def _merged_years(intervals: Sequence[tuple[date, date]]) -> float:
 def _constraint_result(constraint: Constraint, fields: Sequence[CVTextField], concept: object, as_of: date) -> _ConstraintResult:
     status = EvidenceStatus.UNVERIFIABLE
     evidence_text: str | None = None
+    observation: str | None = None
     matched_fields: list[CVTextField] = []
     if isinstance(constraint, MinimumYearsConstraint):
         intervals, matched_fields = _year_intervals(fields, concept, as_of)
@@ -705,8 +811,46 @@ def _constraint_result(constraint: Constraint, fields: Sequence[CVTextField], co
             met = years > constraint.years if constraint.operator == "gt" else years >= constraint.years
             status = EvidenceStatus.SUPPORTED if met else EvidenceStatus.CONFLICTING
             evidence_text = f"{years:.1f} documented years; requirement is {constraint.operator} {constraint.years:g} years."
+            observation = "meets_minimum" if met else "below_minimum"
         else:
             status = EvidenceStatus.UNVERIFIABLE
+            observation = "duration_unknown"
+    elif isinstance(constraint, ExperienceDurationConstraint):
+        intervals, matched_fields = _year_intervals(fields, concept, as_of)
+        if intervals:
+            years = _merged_years(intervals)
+            minimum_met = (
+                constraint.min_years is None
+                or years > constraint.min_years
+                if constraint.min_operator == "gt"
+                else constraint.min_years is None
+                or years >= constraint.min_years
+            )
+            maximum_met = (
+                constraint.max_years is None
+                or years < constraint.max_years
+                if constraint.max_operator == "lt"
+                else constraint.max_years is None
+                or years <= constraint.max_years
+            )
+            if not minimum_met:
+                status = EvidenceStatus.CONFLICTING
+                observation = "below_minimum"
+            elif not maximum_met and constraint.approximate:
+                # An approximate upper range is an observation about the
+                # posting, not evidence absence or a contradiction in the CV.
+                status = EvidenceStatus.SUPPORTED
+                observation = "above_approximate_range"
+            elif not maximum_met:
+                status = EvidenceStatus.CONFLICTING
+                observation = "above_maximum"
+            else:
+                status = EvidenceStatus.SUPPORTED
+                observation = "within_range"
+            evidence_text = f"{years:.1f} documented years; posting range is {constraint.min_years:g}–{constraint.max_years:g} years." if constraint.min_years is not None and constraint.max_years is not None else f"{years:.1f} documented years."
+        else:
+            status = EvidenceStatus.UNVERIFIABLE
+            observation = "duration_unknown"
     elif isinstance(constraint, DegreeConstraint):
         candidates = [
             field
@@ -769,7 +913,12 @@ def _constraint_result(constraint: Constraint, fields: Sequence[CVTextField], co
         else:
             status = EvidenceStatus.NOT_EVIDENCED
     return _ConstraintResult(
-        evidence=ConstraintEvidence(constraint_id=constraint.id, status=status, evidence_text=evidence_text),
+        evidence=ConstraintEvidence(
+            constraint_id=constraint.id,
+            status=status,
+            evidence_text=evidence_text,
+            observation=observation,
+        ),
         fields=tuple(matched_fields),
     )
 
@@ -809,6 +958,40 @@ def concepts_semantically_overlap(left: object, right: object) -> bool:
     return bool(left_aliases & right_aliases)
 
 
+def _evidence_strength(
+    leaf: RequirementLeaf,
+    expectation_status: EvidenceStatus,
+    concept_hit: _ConceptHit | None,
+    fields: Sequence[CVTextField],
+) -> EvidenceStrength:
+    if concept_hit is None or expectation_status is EvidenceStatus.NOT_EVIDENCED:
+        return EvidenceStrength.UNSUPPORTED
+    if expectation_status is EvidenceStatus.CONFLICTING:
+        return EvidenceStrength.UNSUPPORTED
+    if concept_hit.status is EvidenceStatus.PARTIAL:
+        return EvidenceStrength.PARTIAL_TRANSFER
+    if expectation_status is EvidenceStatus.PARTIAL:
+        return EvidenceStrength.PARTIAL_TRANSFER
+    context = "\n".join(field.text for field in fields)
+    if any(field.section_type == "education" for field in fields):
+        return EvidenceStrength.DIRECT_DEMONSTRATION
+    if leaf.expectation.kind is ExpectationKind.INTEREST and _INTEREST_LANGUAGE_RE.search(context):
+        return EvidenceStrength.DIRECT_DEMONSTRATION
+    if _is_experience_context(fields) and _PREDICATE_ACTION_RE.search(context):
+        return EvidenceStrength.DIRECT_DEMONSTRATION
+    if any(field.section_type == "projects" for field in fields) and _PREDICATE_ACTION_RE.search(context):
+        return EvidenceStrength.DIRECT_DEMONSTRATION
+    if any(field.section_type == "skills" for field in fields):
+        if leaf.expectation.kind in {
+            ExpectationKind.FAMILIARITY,
+            ExpectationKind.KNOWLEDGE,
+            ExpectationKind.INTEREST,
+        }:
+            return EvidenceStrength.STRONG_RELATED_EVIDENCE
+        return EvidenceStrength.PARTIAL_TRANSFER
+    return EvidenceStrength.STRONG_RELATED_EVIDENCE
+
+
 def _evidence_for_leaf(
     leaf: RequirementLeaf,
     fields: Sequence[CVTextField],
@@ -827,18 +1010,33 @@ def _evidence_for_leaf(
         concept_status = concept_hit.status if concept_hit else EvidenceStatus.NOT_EVIDENCED
         relevant_fields = list(group) if concept_hit else []
         relevant_fields.extend(expectation_fields)
-        relevant_fields.extend(global_constraint_fields)
+        relevant_fields.extend(
+            field
+            for field in global_constraint_fields
+            if group and _group_key(field) == _group_key(group[0])
+        )
         relevant_fields = list({field.field_path: field for field in relevant_fields}.values())
         if not relevant_fields:
             continue
         evidence_index += 1
+        group_constraints = [
+            item.evidence
+            for item in constraint_results
+            if any(group and _group_key(field) == _group_key(group[0]) for field in item.fields)
+        ]
+        strength = _evidence_strength(
+            leaf,
+            expectation_status,
+            concept_hit,
+            relevant_fields,
+        )
         results.append(
             Evidence(
                 id=f"ev-{leaf.id}-{evidence_index:03d}",
                 locations=_locations(relevant_fields),
                 concept_status=concept_status,
                 expectation_status=expectation_status,
-                constraints=constraint_evidence,
+                constraints=group_constraints,
                 confidence=min(
                     0.92
                     if concept_hit is not None and concept_hit.status is EvidenceStatus.SUPPORTED
@@ -846,6 +1044,7 @@ def _evidence_for_leaf(
                     leaf.expectation.confidence if expectation_status is EvidenceStatus.SUPPORTED else 0.62,
                 ),
                 method=concept_hit.method if concept_hit else EvidenceMethod.SEMANTIC_RULE,
+                strength=strength,
             )
         )
     if not results and global_constraint_fields:
@@ -858,8 +1057,23 @@ def _evidence_for_leaf(
                 constraints=constraint_evidence,
                 confidence=0.6,
                 method=EvidenceMethod.STRUCTURED,
+                strength=EvidenceStrength.STRONG_RELATED_EVIDENCE,
             )
         )
+    elif results and constraint_evidence:
+        attached = {
+            item.constraint_id
+            for result in results
+            for item in result.constraints
+        }
+        missing_constraints = [
+            item for item in constraint_evidence
+            if item.constraint_id not in attached
+        ]
+        if missing_constraints:
+            results[0] = results[0].model_copy(
+                update={"constraints": [*results[0].constraints, *missing_constraints]}
+            )
     return results
 
 

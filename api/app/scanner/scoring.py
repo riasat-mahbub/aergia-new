@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from app.scanner.requirements import (
     AllExpression,
     AnyExpression,
+    CandidateFacingKind,
     ExamplesExpression,
     ExpressionNode,
     Requirement,
@@ -186,6 +187,8 @@ def _count_unverifiable_components(
 
 
 def _bucket_for(requirement: Requirement) -> str | None:
+    if requirement.classification == CandidateFacingKind.CANDIDATE_EXPECTATION:
+        return "qualification"
     if requirement.importance is RequirementImportance.UNKNOWN:
         return None
     if requirement.importance is RequirementImportance.PREFERRED:
@@ -279,13 +282,23 @@ def score_semantic_analysis(
     classified_requirement_weight = 0.0
     evidence_scorable_weight = 0.0
     unverifiable_component_count = 0
+    concept_group_counts: dict[tuple[str, str], int] = {}
     for requirement in requirements:
-        total_requirement_weight += requirement.weight
         bucket_name = _bucket_for(requirement)
+        if bucket_name and requirement.concept_group_id:
+            key = (bucket_name, requirement.concept_group_id)
+            concept_group_counts[key] = concept_group_counts.get(key, 0) + 1
+
+    for requirement in requirements:
+        bucket_name = _bucket_for(requirement)
+        effective_weight = requirement.weight
+        if bucket_name and requirement.concept_group_id:
+            effective_weight /= concept_group_counts[(bucket_name, requirement.concept_group_id)]
+        total_requirement_weight += effective_weight
         if bucket_name is None:
             unclassified += 1
         else:
-            classified_requirement_weight += requirement.weight
+            classified_requirement_weight += effective_weight
 
         evaluation = evaluation_by_id.get(requirement.id)
         if evaluation is not None:
@@ -301,9 +314,9 @@ def score_semantic_analysis(
             if evaluation is not None
             else _status_projection(EvidenceStatus.UNVERIFIABLE)
         )
-        evidence_scorable_weight += requirement.weight * projection.scorable_fraction
+        evidence_scorable_weight += effective_weight * projection.scorable_fraction
         buckets[bucket_name].add(
-            requirement.weight,
+            effective_weight,
             projection,
         )
 
