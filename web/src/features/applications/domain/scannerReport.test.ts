@@ -179,3 +179,41 @@ test("keeps badge states explicit for current, stale, and not-scanned applicatio
   assert.match(scannerBadgeState(application(result, "stale")).label, /Update needed/);
   assert.equal(scannerBadgeState(application(null)).label, "Analyze CV");
 });
+
+test("maps ATS guidance into explainable common and platform findings", () => {
+  const result = makeResult();
+  result.ats_guidance = {
+    schema_version: "ats-guidance-v1",
+    version: "ats-guidance-v1",
+    common_findings: [{
+      id: "heading-experience",
+      rule_id: "conventional_section_headings",
+      title: "Conventional section heading",
+      category: "headings",
+      scope: "common",
+      severity: "warning",
+      explanation: "Use a conventional label.",
+      action: "Review the heading.",
+      affected_items: ["What I did"],
+      recovered_items: [],
+      missing_items: [],
+      applies_to: [],
+      source_ids: [],
+    }],
+    platform_sensitive_findings: [],
+    platforms: {
+      workday: { id: "workday", name: "Workday", findings: [], tips: [], source_ids: [] },
+    },
+    heading_conventions: [],
+    date_compatibility: [],
+    acronym_coverage: [],
+    entry_completeness: [],
+    summary: { platforms_checked: 14, common_pass_count: 1, common_warning_count: 1, recommendation_count: 0, informational_count: 0 },
+  };
+  const report = buildScannerReportViewModel(result, application(result));
+
+  assert.equal(report.ats.guidance.available, true);
+  assert.equal(report.ats.guidance.commonFindings[0]?.severityLabel, "Needs attention");
+  assert.equal(report.ats.guidance.commonFindings[0]?.affected_items[0], "What I did");
+  assert.equal(report.ats.guidance.summary?.platforms_checked, 14);
+});
