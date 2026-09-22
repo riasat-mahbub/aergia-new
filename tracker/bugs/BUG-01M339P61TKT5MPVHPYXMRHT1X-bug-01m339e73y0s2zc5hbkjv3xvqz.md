@@ -76,8 +76,9 @@ renderer model. It formats dates and honors hidden/disabled section policy,
 uses project-name and education-institution fallbacks, canonicalizes hrefs,
 matches duplicate occurrences one-for-one, compares structural anchors with
 an LIS-based order check, and uses Unicode-aware technical-token matching.
-Freshness fingerprints include render inputs and optional PDF bytes;
-application routes, backfill, and audit pass the current template manifest.
+Freshness fingerprints include render inputs, renderer behavior version, and
+optional PDF bytes; application routes, backfill, and audit pass the current
+template manifest.
 The result contract carries expected/recovered/missing/affected items. A
 forced backfill replaced all 28 current scanner results without touching
 legacy relevance or tailoring snapshots.
@@ -85,7 +86,7 @@ legacy relevance or tailoring snapshots.
 
 ## Verification
 
-Focused PDF/scanner suites: 75 passed. Full API suite: 654 passed, 1
+Focused PDF/scanner suites: 76 passed. Full API suite: 655 passed, 1
 skipped, 1 failure in the unprivileged environment (`test_smoke_render`;
 Playwright driver connection closed); the isolated test passes in the
 approved Chromium runtime. Ruff passes. Frontend typecheck, architecture
