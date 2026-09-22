@@ -10,7 +10,7 @@ from app.db.session import async_session
 from app.scanner.extraction import extract_requirements_from_entities
 from app.scanner.freshness import scanner_result_freshness
 from app.scanner.service import ScannerService
-from app.scanner.service import LEXICAL_VERSION, MATCHER_VERSION, fingerprint_scan_inputs
+from app.scanner.service import LEXICAL_VERSION, MATCHER_VERSION, PDF_RENDERER_VERSION, fingerprint_scan_inputs
 from app.scanner.pdf_recovery import PDF_ANALYSIS_VERSION
 from app.scanner.quality import QUALITY_VERSION
 from app.scanner.results import PDFCheck, PDFRecoveryStatus, PDFTextRecoveryAnalysis
@@ -208,6 +208,25 @@ def test_freshness_marks_pre_render_provenance_results_stale_when_manifest_is_av
     )
 
     assert freshness == {"current": False, "reasons": ["render_input_missing"]}
+
+
+def test_render_fingerprint_includes_renderer_behavior_version(monkeypatch):
+    base = fingerprint_scan_inputs(
+        "Python developer",
+        {"sections": []},
+        render_manifest={"manifest_version": 2},
+    ).render_input_sha256
+
+    monkeypatch.setattr("app.scanner.service.PDF_RENDERER_VERSION", "aergia-pdf-render-v2")
+
+    changed = fingerprint_scan_inputs(
+        "Python developer",
+        {"sections": []},
+        render_manifest={"manifest_version": 2},
+    ).render_input_sha256
+
+    assert base != changed
+    assert PDF_RENDERER_VERSION == "aergia-pdf-render-v1"
 
 
 class _FixtureExtractor:
