@@ -278,6 +278,83 @@ export interface ScannerPDFScoreSummary {
   unavailable_check_count: number;
 }
 
+export type AtsFindingSeverity = "pass" | "info" | "recommendation" | "warning";
+export type AtsHeadingStatus = "standard" | "recognizable" | "ambiguous" | "nonstandard";
+export type AtsDateStatus = "conventional" | "potentially_ambiguous" | "nonstandard";
+export type AtsAcronymStatus = "both" | "acronym_only" | "expanded_only" | "absent";
+
+export interface ScannerAtsFinding {
+  id: string;
+  rule_id: string;
+  title: string;
+  category: string;
+  scope: "common" | "ats_family" | "platform_specific";
+  severity: AtsFindingSeverity;
+  explanation: string;
+  action: string | null;
+  affected_items: string[];
+  recovered_items: string[];
+  missing_items: string[];
+  applies_to: string[];
+  source_ids: string[];
+}
+
+export interface ScannerAtsGuidance {
+  schema_version: "ats-guidance-v1";
+  version: string;
+  common_findings: ScannerAtsFinding[];
+  platform_sensitive_findings: ScannerAtsFinding[];
+  platforms: Record<string, {
+    id: string;
+    name: string;
+    findings: ScannerAtsFinding[];
+    tips: ScannerAtsFinding[];
+    source_ids: string[];
+  }>;
+  heading_conventions: Array<{
+    section_id: string;
+    section_type: string;
+    visible_heading: string;
+    canonical_section: string;
+    status: AtsHeadingStatus;
+    explanation: string;
+  }>;
+  date_compatibility: Array<{
+    section_id: string;
+    entry_id: string;
+    rendered_text: string;
+    status: AtsDateStatus;
+    explanation: string;
+  }>;
+  acronym_coverage: Array<{
+    concept: string;
+    acronym: string;
+    expanded_form: string;
+    job_uses_acronym: boolean;
+    job_uses_expanded: boolean;
+    cv_uses_acronym: boolean;
+    cv_uses_expanded: boolean;
+    status: AtsAcronymStatus;
+    semantic_support: ScannerEvidenceStatus | null;
+  }>;
+  entry_completeness: Array<{
+    section_id: string;
+    entry_id: string;
+    section_type: string;
+    label: string;
+    status: "complete" | "incomplete" | "ambiguous";
+    missing_fields: string[];
+    explanation: string;
+  }>;
+  summary: {
+    platforms_checked: number;
+    common_pass_count: number;
+    common_warning_count: number;
+    recommendation_count: number;
+    informational_count: number;
+  };
+}
+
 export interface ScanResult {
   schema_version: "scanner-v1";
   created_at: string;
@@ -296,6 +373,7 @@ export interface ScanResult {
     semantic_score_version?: string | null;
     lexical_score_version?: string | null;
     pdf_score_version?: string | null;
+    ats_guidance_version?: string | null;
   };
   requirement_extraction: {
     status: "evaluated" | "partial" | "failed";
@@ -342,6 +420,7 @@ export interface ScanResult {
     }>;
     summary?: ScannerPDFScoreSummary | null;
   };
+  ats_guidance?: ScannerAtsGuidance | null;
 }
 
 export interface Application {
