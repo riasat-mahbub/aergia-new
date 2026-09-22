@@ -102,6 +102,8 @@ async def test_scanner_endpoint_persists_new_result_separately_from_legacy_relev
     assert body["scanner_result"]["semantic"]["status"] == "evaluated"
     assert body["scanner_result"]["lexical"]["terms"][0]["term"] == "Python"
     assert body["scanner_result"]["pdf_recovery"]["status"] == "unavailable"
+    assert body["scanner_result"]["ats_guidance"]["summary"]["platforms_checked"] == 14
+    assert len(body["scanner_result"]["ats_guidance"]["platforms"]) == 14
     assert body["scanner_status"] == "current"
     assert body["relevance"] == linked.json()["relevance"]
 

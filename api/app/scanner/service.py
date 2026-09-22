@@ -9,6 +9,7 @@ from datetime import date, datetime, timezone
 from typing import Protocol
 
 from app.scanner.analysis_links import link_lexical_semantic_support
+from app.scanner.ats_guidance import ATS_GUIDANCE_VERSION, analyze_ats_guidance
 from app.scanner.extraction import ScannerRequirementExtractor
 from app.scanner.lexical import analyze_lexical_visibility
 from app.scanner.matching import evaluate_semantic_coverage
@@ -105,6 +106,7 @@ def scanner_versions_for_extraction(extraction: RequirementExtraction) -> Scanne
         lexical_score_version=LEXICAL_SCORE_VERSION,
         pdf_score_version=PDF_SCORE_VERSION,
         classification_warning_version=CLASSIFICATION_WARNING_VERSION,
+        ats_guidance_version=ATS_GUIDANCE_VERSION,
     )
 
 
@@ -237,6 +239,15 @@ class ScannerService:
         pdf_recovery = pdf_recovery.model_copy(
             update={"summary": score_pdf_recovery(pdf_recovery)}
         )
+        ats_guidance = analyze_ats_guidance(
+            job_description,
+            cv,
+            extraction=extraction,
+            semantic=semantic,
+            lexical=lexical,
+            pdf_recovery=pdf_recovery,
+            render_manifest=render_manifest,
+        )
         return ScanResult(
             created_at=datetime.now(timezone.utc),
             input_fingerprints=fingerprint_scan_inputs(
@@ -251,6 +262,7 @@ class ScannerService:
             lexical=lexical,
             presentation_quality=presentation,
             pdf_recovery=pdf_recovery,
+            ats_guidance=ats_guidance,
         )
 
 
@@ -258,6 +270,7 @@ __all__ = [
     "LEXICAL_VERSION",
     "MATCHER_VERSION",
     "PDF_RENDERER_VERSION",
+    "ATS_GUIDANCE_VERSION",
     "ScannerService",
     "canonicalize_scanner_cv",
     "fingerprint_scan_inputs",

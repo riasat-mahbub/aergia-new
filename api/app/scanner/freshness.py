@@ -7,6 +7,7 @@ from typing import Literal, TypedDict
 
 from app.scanner.extraction import configured_scanner_extractor_version
 from app.scanner.pdf_recovery import PDF_ANALYSIS_VERSION
+from app.scanner.ats_guidance import ATS_GUIDANCE_VERSION
 from app.scanner.quality import QUALITY_VERSION
 from app.scanner.scoring import (
     CLASSIFICATION_WARNING_VERSION,
@@ -35,6 +36,7 @@ _VERSION_REASON_NAMES = (
     ("lexical_score_version", "lexical_score_version_changed"),
     ("pdf_score_version", "pdf_score_version_changed"),
     ("classification_warning_version", "classification_warning_version_changed"),
+    ("ats_guidance_version", "ats_guidance_version_changed"),
 )
 
 
@@ -105,6 +107,7 @@ def scanner_result_freshness(
         "lexical_score_version": LEXICAL_SCORE_VERSION,
         "pdf_score_version": PDF_SCORE_VERSION,
         "classification_warning_version": CLASSIFICATION_WARNING_VERSION,
+        "ats_guidance_version": ATS_GUIDANCE_VERSION,
     }
     if extractor_version is not None:
         expected_versions["extractor_version"] = extractor_version
@@ -112,6 +115,11 @@ def scanner_result_freshness(
     for name, reason in _VERSION_REASON_NAMES:
         expected = expected_versions.get(name)
         if expected is not None and versions.get(name) != expected:
+            # Pre-ATS scanner-v1 rows predate the guidance branch. They remain
+            # readable and are refreshed by the explicit ATS backfill, while
+            # results that already carry the branch are checked normally.
+            if name == "ats_guidance_version" and "ats_guidance_version" not in versions and result.get("ats_guidance") is None:
+                continue
             reasons.append(reason)
 
     return {"current": not reasons, "reasons": reasons}

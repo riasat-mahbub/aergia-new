@@ -13,6 +13,7 @@ from app.scanner.requirements import (
     RequirementImportance,
     ScannerModel,
 )
+from app.scanner.ats_results import AtsGuidance
 
 
 class EvidenceStatus(StrEnum):
@@ -278,6 +279,7 @@ class ScannerVersions(ScannerModel):
     lexical_score_version: str | None = Field(default=None, max_length=100)
     pdf_score_version: str | None = Field(default=None, max_length=100)
     classification_warning_version: str | None = Field(default=None, max_length=100)
+    ats_guidance_version: str | None = Field(default=None, max_length=100)
 
 
 class ScanInputFingerprints(ScannerModel):
@@ -297,6 +299,9 @@ class ScanResult(ScannerModel):
     lexical: LexicalAnalysis
     presentation_quality: PresentationQualityAnalysis
     pdf_recovery: PDFTextRecoveryAnalysis
+    # New scans always populate this branch.  It remains optional so existing
+    # scanner-v1 snapshots can still be read until their next forced scan.
+    ats_guidance: AtsGuidance | None = None
 
 
 ExpressionEvaluation.model_rebuild()
@@ -337,4 +342,5 @@ __all__ = [
     "SemanticScoreSummary",
     "ScannerVersions",
     "SemanticAnalysis",
+    "AtsGuidance",
 ]
