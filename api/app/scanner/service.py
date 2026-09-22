@@ -35,6 +35,9 @@ from app.services.requirement_extractor import RequirementExtractionError
 
 MATCHER_VERSION = "requirement-match-v4"
 LEXICAL_VERSION = "ats-lexical-v5"
+# Bump when renderer code changes in a way that can alter PDF output while
+# the canonical CV payload and template manifest remain unchanged.
+PDF_RENDERER_VERSION = "aergia-pdf-render-v1"
 
 
 class RequirementExtractor(Protocol):
@@ -121,6 +124,7 @@ def fingerprint_scan_inputs(
     render_input = {
         "cv": canonicalize_scanner_cv(cv),
         "manifest": render_manifest,
+        "renderer_version": PDF_RENDERER_VERSION,
     }
     render_bytes = json.dumps(
         render_input,
@@ -253,6 +257,7 @@ class ScannerService:
 __all__ = [
     "LEXICAL_VERSION",
     "MATCHER_VERSION",
+    "PDF_RENDERER_VERSION",
     "ScannerService",
     "canonicalize_scanner_cv",
     "fingerprint_scan_inputs",
