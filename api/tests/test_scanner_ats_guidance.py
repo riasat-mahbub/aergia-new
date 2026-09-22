@@ -67,7 +67,10 @@ def test_rendered_date_compatibility_does_not_flag_safe_renderer_formats():
         _cv(
             _section(
                 "work", "experience", "Experience",
-                [{"id": "w1", "position": "Engineer", "company": "Acme", "start_date": "2024-01", "current": True}],
+                [
+                    {"id": "w1", "position": "Engineer", "company": "Acme", "start_date": "2024-01", "current": True},
+                    {"id": "w2", "position": "Developer", "company": "Beta", "start_date": "2022-07", "end_date": "2023-08"},
+                ],
             ),
             _section(
                 "research", "research", "Research",
@@ -78,6 +81,7 @@ def test_rendered_date_compatibility_does_not_flag_safe_renderer_formats():
     dates = {(item.entry_id, item.rendered_text): item.status for item in result.ats_guidance.date_compatibility}
 
     assert dates[("w1", "January 2024 – Present")] == "conventional"
+    assert dates[("w2", "July 2022 – August 2023")] == "conventional"
     assert dates[("r1", "Spring 2024")] == "potentially_ambiguous"
 
 
