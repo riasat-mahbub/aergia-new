@@ -101,6 +101,7 @@ def test_contact_recovery_reports_missing_contact_types(monkeypatch) -> None:
     result = analyze_pdf_recovery(b"pdf", cv)
     contacts = next(check for check in result.checks if check.code == "contact_recovery")
 
+    assert contacts.status is PDFRecoveryStatus.WARNING
     assert contacts.recovered_count == 1
     assert contacts.evidence == ["email"]
     assert contacts.missing_items == ["phone"]
