@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.application import Application
+from app.models.template import Template
 from app.scanner.audit import build_scanner_audit, format_scanner_audit
 from app.scanner.freshness import configured_extractor_version, scanner_result_freshness
 
@@ -28,6 +29,11 @@ async def collect_scanner_audit(session_factory: Callable[[], AsyncSession]) -> 
             .order_by(Application.id)
         )
         applications = list(result.all())
+        template_ids = {application.cv.template_id for application in applications if application.cv is not None}
+        templates = {}
+        if template_ids:
+            template_rows = await session.scalars(select(Template).where(Template.id.in_(template_ids)))
+            templates = {template.id: template.manifest for template in template_rows.all()}
 
     extractor_version = configured_extractor_version()
     records = []
@@ -39,9 +45,10 @@ async def collect_scanner_audit(session_factory: Callable[[], AsyncSession]) -> 
                 "freshness": scanner_result_freshness(
                     application.scanner_result,
                     application.job_description,
-                    application.cv,
-                    extractor_version=extractor_version,
-                ),
+                application.cv,
+                extractor_version=extractor_version,
+                render_manifest=(templates.get(application.cv.template_id) if application.cv is not None else None),
+            ),
             }
         )
     return build_scanner_audit(records, total_applications=len(applications))

@@ -216,6 +216,10 @@ class ApplicationService:
         if cv is None:
             raise ValueError("Application's linked CV is unavailable")
         pdf_bytes: bytes | None = None
+        render_manifest = None
+        template_data = await self.cv_service.get_template_data(cv.template_id)
+        if template_data:
+            render_manifest = template_data.get("manifest")
         try:
             pdf_bytes = await self.pdf_service.render_payload(
                 cv.template_id,
@@ -229,6 +233,7 @@ class ApplicationService:
             application.job_description,
             cv,
             pdf_bytes=pdf_bytes,
+            render_manifest=render_manifest,
         )
         application.scanner_result = result.model_dump(mode="json")
         application.scanner_rescan_required = False

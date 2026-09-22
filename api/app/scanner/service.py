@@ -110,6 +110,7 @@ def fingerprint_scan_inputs(
     cv: object,
     *,
     pdf_bytes: bytes | None = None,
+    render_manifest: object | None = None,
 ) -> ScanInputFingerprints:
     """Return stable fingerprints for the inputs consumed by scanner branches."""
 
@@ -117,10 +118,22 @@ def fingerprint_scan_inputs(
         raise ValueError("job_description must not be blank")
     if cv is None:
         raise ValueError("cv must be provided")
+    render_input = {
+        "cv": canonicalize_scanner_cv(cv),
+        "manifest": render_manifest,
+    }
+    render_bytes = json.dumps(
+        render_input,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    ).encode("utf-8")
     return ScanInputFingerprints(
         job_description_sha256=_sha256(job_description.encode("utf-8")),
         cv_content_sha256=_sha256(_canonical_json(cv)),
         pdf_sha256=_sha256(pdf_bytes) if pdf_bytes else None,
+        render_input_sha256=_sha256(render_bytes),
     )
 
 
@@ -154,6 +167,7 @@ class ScannerService:
         cv: object,
         *,
         pdf_bytes: bytes | None = None,
+        render_manifest: object | None = None,
         as_of: date | None = None,
     ) -> ScanResult:
         if not job_description or not job_description.strip():
@@ -162,7 +176,14 @@ class ScannerService:
             raise ValueError("cv must be provided")
 
         extraction = self.extract_requirements(job_description)
-        return self.scan_with_extraction(job_description, cv, extraction, pdf_bytes=pdf_bytes, as_of=as_of)
+        return self.scan_with_extraction(
+            job_description,
+            cv,
+            extraction,
+            pdf_bytes=pdf_bytes,
+            render_manifest=render_manifest,
+            as_of=as_of,
+        )
 
     def scan_with_extraction(
         self,
@@ -171,6 +192,7 @@ class ScannerService:
         extraction: RequirementExtraction,
         *,
         pdf_bytes: bytes | None = None,
+        render_manifest: object | None = None,
         as_of: date | None = None,
     ) -> ScanResult:
         """Evaluate a CV against an already-frozen requirement extraction.
@@ -200,7 +222,7 @@ class ScannerService:
             requirements=extraction.requirements,
         )
         presentation = analyze_presentation_quality(cv)
-        pdf_recovery = analyze_pdf_recovery(pdf_bytes, cv)
+        pdf_recovery = analyze_pdf_recovery(pdf_bytes, cv, render_manifest=render_manifest)
         semantic = semantic.model_copy(
             update={
                 "summary": score_semantic_analysis(semantic, extraction.requirements),
@@ -213,7 +235,12 @@ class ScannerService:
         )
         return ScanResult(
             created_at=datetime.now(timezone.utc),
-            input_fingerprints=fingerprint_scan_inputs(job_description, cv, pdf_bytes=pdf_bytes),
+            input_fingerprints=fingerprint_scan_inputs(
+                job_description,
+                cv,
+                pdf_bytes=pdf_bytes,
+                render_manifest=render_manifest,
+            ),
             versions=scanner_versions_for_extraction(extraction),
             requirement_extraction=extraction,
             semantic=semantic,
