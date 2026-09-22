@@ -519,7 +519,7 @@ def _acronym_guidance(coverage: Sequence[AcronymCoverage]) -> list[AtsFinding]:
 def _semantic_keyword_guidance(lexical: LexicalAnalysis) -> list[AtsFinding]:
     findings: list[AtsFinding] = []
     for term in lexical.terms:
-        if term.visibility.value != "absent":
+        if term.visibility.value != "absent" or term.illustrative_example:
             continue
         if term.semantic_support in {EvidenceStatus.SUPPORTED, EvidenceStatus.PARTIAL}:
             severity: AtsFindingSeverity = "recommendation"
