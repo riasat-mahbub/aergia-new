@@ -213,6 +213,7 @@ test("maps ATS guidance into explainable common and platform findings", () => {
   const report = buildScannerReportViewModel(result, application(result));
 
   assert.equal(report.ats.guidance.available, true);
+  assert.equal(report.ats.status, "needs_attention");
   assert.equal(report.ats.guidance.commonFindings[0]?.severityLabel, "Needs attention");
   assert.equal(report.ats.guidance.commonFindings[0]?.affected_items[0], "What I did");
   assert.equal(report.ats.guidance.summary?.platforms_checked, 14);

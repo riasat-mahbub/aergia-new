@@ -547,7 +547,8 @@ function pdfStatus(result: ScanResult): ScannerReportViewModel["pdf"]["status"] 
 
 function atsStatus(result: ScanResult): ScannerReportViewModel["ats"]["status"] {
   const statuses = result.pdf_recovery.checks.map((check) => check.status);
-  if (statuses.length === 0 || statuses.every((status) => status === "unavailable")) return "unavailable";
+  const hasGuidance = Boolean(result.ats_guidance);
+  if ((statuses.length === 0 || statuses.every((status) => status === "unavailable")) && !hasGuidance) return "unavailable";
   if (statuses.some((status) => status === "fail")) return "at_risk";
   if (statuses.some((status) => status === "warning" || status === "unavailable")) return "needs_attention";
   if (result.ats_guidance?.common_findings.some((finding) => finding.severity === "warning" || finding.severity === "recommendation")) return "needs_attention";
