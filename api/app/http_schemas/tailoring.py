@@ -1,4 +1,4 @@
-"""HTTP contracts for whole-document local-agent tailoring (protocol v4).
+"""HTTP contracts for whole-document local-agent tailoring (protocol v5).
 
 The agent authors one complete CV candidate. There is deliberately no patch
 or evidence-reference model here: the exchanged context is read-only input,
@@ -16,9 +16,15 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.document_schema.models import Customizations, SectionInstance
 from app.scanner.requirements import RequirementExtraction
 from app.scanner.results import ScanResult, ScannerVersions
+from app.http_schemas.tailoring_evaluation import (
+    TAILORING_EVALUATION_VERSION,
+    TailoringEditorialReview,
+    TailoringEvaluation,
+    TailoringInferenceNote,
+)
 
 
-TAILORING_PROTOCOL_VERSION = 4
+TAILORING_PROTOCOL_VERSION = 5
 PROTOCOL_VERSION = TAILORING_PROTOCOL_VERSION
 
 
@@ -75,7 +81,9 @@ TailoringSessionState = Literal[
 
 
 class TailoringSessionStatusResponse(_StrictModel):
-    protocol_version: Literal[PROTOCOL_VERSION] = PROTOCOL_VERSION
+    # Historical v4 drafts remain owner-reviewable. New exchanges and active
+    # agent contexts are v5 only.
+    protocol_version: Literal[4, PROTOCOL_VERSION] = PROTOCOL_VERSION
     session_id: str
     application_id: str
     source_cv_id: str | None = None
@@ -98,6 +106,9 @@ class TailoringJob(_StrictModel):
     role: str
     job_url: str | None = None
     description: str
+    # Existing application notes are the one user-owned instruction channel
+    # exposed to tailoring; job text and evidence remain untrusted data.
+    user_instructions: str | None = Field(default=None, max_length=20_000)
 
 
 class TailoringSection(SectionInstance):
@@ -167,10 +178,11 @@ class TailoringContextResponse(_StrictModel):
     capabilities_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
     effective_appearance: dict = Field(default_factory=dict, max_length=100)
     rendered_source: TailoringRenderArtifact | None = None
+    evaluation_version: Literal[TAILORING_EVALUATION_VERSION] = TAILORING_EVALUATION_VERSION
 
 
 class TailoringCandidateCV(_StrictModel):
-    """The only document write value accepted by protocol v4."""
+    """The only document write value accepted by protocol v5."""
 
     id: str | None = None
     title: str = Field(min_length=1, max_length=255)
@@ -191,6 +203,7 @@ class TailoringCandidateCV(_StrictModel):
 class TailoringPreviewRequest(_StrictModel):
     context_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
     candidate: TailoringCandidateCV
+    inference_notes: list[TailoringInferenceNote] = Field(default_factory=list, max_length=20)
 
 
 class TailoringPreviewResponse(_StrictModel):
@@ -199,6 +212,7 @@ class TailoringPreviewResponse(_StrictModel):
     page_count: int = Field(ge=0)
     candidate_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
     scanner_result: ScanResult
+    evaluation: TailoringEvaluation
     render_warnings: list[str] = Field(default_factory=list, max_length=50)
 
 
@@ -207,6 +221,9 @@ class TailoringSubmitRequest(_StrictModel):
     expected_candidate_hash: str | None = Field(default=None, min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
     candidate: TailoringCandidateCV
     review_notes: list[str] = Field(default_factory=list, max_length=20)
+    inference_notes: list[TailoringInferenceNote] = Field(default_factory=list, max_length=20)
+    editorial_review: TailoringEditorialReview | None = None
+    allow_bounded_fallback: bool = False
 
     @field_validator("review_notes")
     @classmethod
@@ -229,12 +246,15 @@ class TailoringSubmitResponse(_StrictModel):
     candidate_hash: str
     candidate: TailoringCandidateCV
     scanner_result: ScanResult
+    evaluation: TailoringEvaluation
+    inference_notes: list[TailoringInferenceNote] = Field(default_factory=list, max_length=20)
+    editorial_review: TailoringEditorialReview | None = None
     render_warnings: list[str] = Field(default_factory=list, max_length=50)
     review_notes: list[str] = Field(default_factory=list, max_length=20)
 
 
 class TailoringReviewResponse(_StrictModel):
-    protocol_version: Literal[PROTOCOL_VERSION] = PROTOCOL_VERSION
+    protocol_version: Literal[4, PROTOCOL_VERSION] = PROTOCOL_VERSION
     session_id: str
     application_id: str
     status: Literal["accepted", "rejected"]
@@ -247,13 +267,17 @@ class TailoringReviewResponse(_StrictModel):
 __all__ = [
     "PROTOCOL_VERSION",
     "TAILORING_PROTOCOL_VERSION",
+    "TAILORING_EVALUATION_VERSION",
     "TailoringCandidateCV",
     "TailoringCodeExchange",
     "TailoringContextResponse",
     "TailoringCV",
+    "TailoringEditorialReview",
+    "TailoringEvaluation",
     "TailoringExchangeResponse",
     "TailoringJob",
     "TailoringLibraryEntry",
+    "TailoringInferenceNote",
     "TailoringPreviewRequest",
     "TailoringPreviewResponse",
     "TailoringRenderArtifact",
