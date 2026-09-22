@@ -43,8 +43,13 @@ compared unnormalised links, discovered arbitrary URL-shaped metadata,
 allowed any failed check to veto the document, applied one threshold to
 different check types, omitted PDF/render inputs from cheap freshness, and
 used ASCII-centric tokenisation. The old AlayaCare 15% order result was a
-combination of source/storage order and the early-termination word matcher;
-it was not a faithful measure of the rendered document's structural order.
+combination of source/storage order, non-rendered social metadata, and the
+early-termination word matcher; it was not a faithful measure of the rendered
+document's structural order. In the AlayaCare CV, persisted flattening put
+the summary before social labels while the resolved renderer placed social
+labels before the summary, and flattening added internal `linkedin`/`github`
+tokens that were not visible. The greedy matcher eventually reached the
+missing social token and stopped at 52, producing the 15% result.
 
 Chromium smoke passes in the approved runtime. The ordinary pytest run has
 one environment-only Playwright driver failure; the same test passes in the
