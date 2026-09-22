@@ -84,6 +84,10 @@ export interface ScannerAtsCheckViewModel {
   value: number | null;
   recoveredCount: number | null;
   expectedCount: number | null;
+  expectedItems: string[];
+  recoveredItems: string[];
+  missingItems: string[];
+  affectedItems: string[];
   explanation: string;
 }
 
@@ -437,6 +441,10 @@ function buildCheckViewModel(check: ScanResult["pdf_recovery"]["checks"][number]
     value: checkValue(check),
     recoveredCount: check.recovered_count,
     expectedCount: check.expected_count,
+    expectedItems: check.expected_items ?? [],
+    recoveredItems: check.recovered_items ?? [],
+    missingItems: check.missing_items ?? [],
+    affectedItems: check.affected_items ?? [],
     explanation: check.explanation ?? "No additional details are available.",
   };
 }
