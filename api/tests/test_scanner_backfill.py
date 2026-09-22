@@ -3,6 +3,8 @@ from __future__ import annotations
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.db.session import async_session
 from app.scanner.extraction import extract_requirements_from_entities
@@ -11,6 +13,8 @@ from app.scanner.service import ScannerService
 from app.scanner.service import LEXICAL_VERSION, MATCHER_VERSION, fingerprint_scan_inputs
 from app.scanner.pdf_recovery import PDF_ANALYSIS_VERSION
 from app.scanner.quality import QUALITY_VERSION
+from app.scanner.results import PDFCheck, PDFRecoveryStatus, PDFTextRecoveryAnalysis
+from app.scanner.service import ScannerService as RealScannerService
 from app.scanner.scoring import (
     CLASSIFICATION_WARNING_VERSION,
     LEXICAL_SCORE_VERSION,
@@ -116,6 +120,60 @@ def test_freshness_diagnostics_identify_changed_inputs_and_subsystems():
         assert scanner_result_freshness(old_version, job_description, cv)["reasons"] == [reason]
 
     assert scanner_result_freshness({}, job_description, cv)["reasons"] == ["malformed_result"]
+
+
+def test_freshness_can_check_pdf_and_render_input_fingerprints():
+    job_description = "Python developer"
+    cv = {"sections": [{"type": "experience", "description": "Built APIs."}]}
+    manifest = {"name": "Minimal", "manifest_version": 2}
+    fingerprints = fingerprint_scan_inputs(
+        job_description,
+        cv,
+        pdf_bytes=b"old-pdf",
+        render_manifest=manifest,
+    ).model_dump(mode="json")
+    result = {
+        "schema_version": "scanner-v1",
+        "input_fingerprints": fingerprints,
+        "versions": {
+            "extractor_version": "model@revision",
+            "matcher_version": MATCHER_VERSION,
+            "lexical_version": LEXICAL_VERSION,
+            "quality_version": QUALITY_VERSION,
+            "pdf_analysis_version": PDF_ANALYSIS_VERSION,
+            "semantic_score_version": SEMANTIC_SCORE_VERSION,
+            "lexical_score_version": LEXICAL_SCORE_VERSION,
+            "pdf_score_version": PDF_SCORE_VERSION,
+            "classification_warning_version": CLASSIFICATION_WARNING_VERSION,
+        },
+    }
+
+    assert scanner_result_freshness(
+        result,
+        job_description,
+        cv,
+        extractor_version="model@revision",
+        pdf_bytes=b"old-pdf",
+        render_manifest=manifest,
+    )["current"]
+    stale_pdf = scanner_result_freshness(
+        result,
+        job_description,
+        cv,
+        extractor_version="model@revision",
+        pdf_bytes=b"new-pdf",
+        render_manifest=manifest,
+    )
+    assert stale_pdf["reasons"] == ["pdf_changed"]
+    stale_manifest = scanner_result_freshness(
+        result,
+        job_description,
+        cv,
+        extractor_version="model@revision",
+        pdf_bytes=b"old-pdf",
+        render_manifest={"name": "Changed", "manifest_version": 2},
+    )
+    assert stale_manifest["reasons"] == ["render_input_changed"]
 
 
 class _FixtureExtractor:
@@ -254,6 +312,81 @@ async def test_backfill_is_idempotent_and_leaves_legacy_fields_untouched(client,
 
 
 @pytest.mark.asyncio
+async def test_forced_backfill_replaces_pre_fix_pdf_values(client, monkeypatch):
+    headers = await _auth_headers(client)
+
+    async def no_pdf(self, template_id, sections, customizations):
+        raise PDFUnavailableError("test render skipped")
+
+    monkeypatch.setattr(pdf_service_module.PDFService, "render_payload", no_pdf)
+    application_id, _cv_id = await _create_application_with_cv(
+        client,
+        headers,
+        role="Python Developer",
+        description="What You Bring\nFamiliarity with Python.",
+    )
+
+    async with async_session() as session:
+        application = await session.scalar(
+            select(application_service_module.Application)
+            .options(selectinload(application_service_module.Application.cv))
+            .where(application_service_module.Application.id == application_id)
+        )
+        assert application is not None and application.cv is not None
+        baseline = RealScannerService(extractor=_FixtureExtractor()).scan(
+            application.job_description,
+            application.cv,
+        )
+        old_pdf = PDFTextRecoveryAnalysis(
+            status=PDFRecoveryStatus.FAIL,
+            checks=[
+                PDFCheck(code="reading_order", status=PDFRecoveryStatus.FAIL, expected_count=346, recovered_count=52),
+                PDFCheck(code="section_heading_recovery", status=PDFRecoveryStatus.WARNING, expected_count=5, recovered_count=4),
+            ],
+        )
+        application.scanner_result = baseline.model_copy(update={"pdf_recovery": old_pdf}).model_dump(mode="json")
+        await session.commit()
+
+    calls = 0
+
+    class _CorrectedScanner:
+        def scan(self, job_description, cv, *, pdf_bytes=None, render_manifest=None):
+            nonlocal calls
+            calls += 1
+            corrected = RealScannerService(extractor=_FixtureExtractor()).scan(
+                job_description,
+                cv,
+                pdf_bytes=pdf_bytes,
+                render_manifest=render_manifest,
+            )
+            corrected_pdf = PDFTextRecoveryAnalysis(
+                status=PDFRecoveryStatus.PASS,
+                checks=[
+                    PDFCheck(code="reading_order", status=PDFRecoveryStatus.PASS, expected_count=4, recovered_count=4),
+                    PDFCheck(code="section_heading_recovery", status=PDFRecoveryStatus.PASS, expected_count=1, recovered_count=1),
+                ],
+            )
+            return corrected.model_copy(update={"pdf_recovery": corrected_pdf})
+
+    monkeypatch.setattr(application_service_module, "ScannerService", _CorrectedScanner)
+    report = await scanner_backfill.run_backfill(
+        session_factory=async_session,
+        batch_size=1,
+        application_id=application_id,
+        force=True,
+    )
+
+    assert report.scanned == 1
+    assert report.failed == 0
+    assert calls == 1
+    stored = (await client.get(f"/api/v1/applications/{application_id}", headers=headers)).json()
+    checks = {check["code"]: check for check in stored["scanner_result"]["pdf_recovery"]["checks"]}
+    assert checks["reading_order"]["recovered_count"] == 4
+    assert checks["section_heading_recovery"]["recovered_count"] == 1
+    assert checks["reading_order"]["recovered_count"] != 52
+
+
+@pytest.mark.asyncio
 async def test_backfill_continues_after_one_application_fails(client, monkeypatch):
     headers = await _auth_headers(client)
 
@@ -276,10 +409,15 @@ async def test_backfill_continues_after_one_application_fails(client, monkeypatc
     )
 
     class _SelectiveScanner:
-        def scan(self, job_description, cv, *, pdf_bytes=None):
+        def scan(self, job_description, cv, *, pdf_bytes=None, render_manifest=None):
             if "Docker" in job_description:
                 raise RuntimeError("fixture failure")
-            return ScannerService(extractor=_FixtureExtractor()).scan(job_description, cv, pdf_bytes=pdf_bytes)
+            return ScannerService(extractor=_FixtureExtractor()).scan(
+                job_description,
+                cv,
+                pdf_bytes=pdf_bytes,
+                render_manifest=render_manifest,
+            )
 
     monkeypatch.setattr(application_service_module, "ScannerService", _SelectiveScanner)
 
