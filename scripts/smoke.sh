@@ -195,7 +195,7 @@ skill_headers="$TMP_DIR/tailoring-skill.headers"
 skill_archive="$TMP_DIR/aergia-tailor.zip"
 curl -fsS -D "$skill_headers" -o "$skill_archive" "$WEB_URL/api/v1/tailoring/skill.zip"
 grep -qi '^content-type: application/zip' "$skill_headers"
-grep -qi '^x-aergia-skill-protocol-version: 2' "$skill_headers"
+grep -qi '^x-aergia-skill-protocol-version: 5' "$skill_headers"
 "$VENV/bin/python" -c \
   'import sys, zipfile; archive = zipfile.ZipFile(sys.argv[1]); names = set(archive.namelist()); assert "aergia-tailor/SKILL.md" in names; assert "aergia-tailor/scripts/session.mjs" in names; assert "aergia-tailor/scripts/validate-candidate.mjs" in names; assert not any(name.endswith("validate-patch.mjs") for name in names)' \
   "$skill_archive"
