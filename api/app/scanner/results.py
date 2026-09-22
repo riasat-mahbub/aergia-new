@@ -195,6 +195,14 @@ class PDFCheck(ScannerModel):
     expected_count: int | None = Field(default=None, ge=0)
     recovered_count: int | None = Field(default=None, ge=0)
     evidence: list[str] = Field(default_factory=list, max_length=100)
+    # Human-readable identities make recovery failures actionable without
+    # exposing the raw renderer model.  These fields are optional so older
+    # scanner-v1 snapshots remain readable while corrected scans populate
+    # them.
+    expected_items: list[str] = Field(default_factory=list, max_length=100)
+    recovered_items: list[str] = Field(default_factory=list, max_length=100)
+    missing_items: list[str] = Field(default_factory=list, max_length=100)
+    affected_items: list[str] = Field(default_factory=list, max_length=100)
     explanation: str | None = Field(default=None, max_length=2_000)
 
 
@@ -276,6 +284,7 @@ class ScanInputFingerprints(ScannerModel):
     job_description_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     cv_content_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     pdf_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    render_input_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 
 class ScanResult(ScannerModel):

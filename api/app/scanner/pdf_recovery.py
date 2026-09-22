@@ -12,16 +12,20 @@ import subprocess
 import sys
 import threading
 import unicodedata
+from bisect import bisect_left
 from collections import Counter
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
-from app.scanner.matching import CVTextField, flatten_cv_text
+from app.core.safe_url import normalize_url
+from app.scanner.matching import flatten_cv_text
 from app.scanner.results import (
     PDFCheck,
     PDFRecoveryStatus,
     PDFTextRecoveryAnalysis,
 )
+from app.services.renderer.pipeline import prepare_render_source, resolve_source
 
 
 PDF_ANALYSIS_VERSION = "aergia-pdf-recovery-v2"
@@ -34,9 +38,53 @@ PDF_WORKER_MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 PDF_WORKER_MAX_CONCURRENCY = 2
 PDF_WORKER_MEMORY_LIMIT_BYTES = 1_500_000_000
 _PDF_WORKER_SLOTS = threading.BoundedSemaphore(PDF_WORKER_MAX_CONCURRENCY)
-_TOKEN_RE = re.compile(r"[a-z0-9+#./-]+", re.I)
+# Keep technical tokens intact while allowing all Unicode word characters.
+# ``\w`` is Unicode-aware in Python's default regex mode; the punctuation
+# alternatives preserve common CV terms such as C++, C#, .NET, CI/CD, and
+# Node.js.
+_TOKEN_RE = re.compile(
+    r"(?:\.[^\W_][\w+#.-]*|[^\W_][\w]*(?:[+#]+|(?:[./-][\w+#]+)+)*)",
+    re.UNICODE,
+)
 _DASHES = str.maketrans({char: "-" for char in "‐‑‒–—―−﹘﹣－"})
-_URL_KEYS = frozenset({"url", "link", "site_url", "paper_url", "credential_url"})
+
+_CRITICAL_CHECKS = frozenset({"text_retention", "reading_order", "contact_recovery"})
+_ENTRY_LABEL_FIELDS: dict[str, tuple[str, ...]] = {
+    "experience": ("position", "company"),
+    "work_experience": ("position", "company"),
+    "projects": ("project", "name"),
+    "project": ("project", "name"),
+    "research": ("paper", "title", "venue"),
+    "education": ("degree", "institution"),
+    "certifications": ("certification", "issuer"),
+}
+_ENTRY_RECOVERY_TYPES = frozenset(_ENTRY_LABEL_FIELDS)
+
+
+@dataclass(frozen=True, slots=True)
+class _RenderAnchor:
+    """One structural text anchor in the renderer's intended order."""
+
+    identity: str
+    text: str
+    kind: str
+    section_type: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class _RenderLink:
+    identity: str
+    target: str
+
+
+@dataclass(frozen=True, slots=True)
+class _RenderExpectations:
+    visible_text: tuple[str, ...]
+    headings: tuple[_RenderAnchor, ...]
+    entries: tuple[_RenderAnchor, ...]
+    ordered_anchors: tuple[_RenderAnchor, ...]
+    contacts: tuple[str, ...]
+    links: tuple[_RenderLink, ...]
 
 
 def _value(obj: object, key: str, default: object = None) -> object:
@@ -67,63 +115,213 @@ def _tokens(value: str) -> list[str]:
 
 
 def _ordered_match_count(expected: Sequence[str], recovered: Sequence[str]) -> int:
-    """Count how much expected text survives as an ordered subsequence."""
+    """Count an ordered subsequence without consuming a missing token.
 
+    The previous greedy scan advanced through all recovered tokens while
+    looking for a missing expected token and then terminated.  Matching from
+    per-token positions skips that missing token and still preserves order.
+    """
+
+    positions: dict[str, list[int]] = {}
+    for index, token in enumerate(recovered):
+        positions.setdefault(token, []).append(index)
     cursor = 0
     count = 0
     for token in expected:
-        while cursor < len(recovered) and recovered[cursor] != token:
-            cursor += 1
-        if cursor == len(recovered):
-            break
+        candidates = positions.get(token)
+        if not candidates:
+            continue
+        position_index = bisect_left(candidates, cursor)
+        if position_index == len(candidates):
+            continue
+        cursor = candidates[position_index] + 1
         count += 1
-        cursor += 1
     return count
 
 
-def _urls(value: object) -> list[str]:
-    found: list[str] = []
-    if isinstance(value, Mapping):
-        for key, item in value.items():
-            if (str(key) in _URL_KEYS or str(key).endswith("_url")) and isinstance(item, str) and item.strip():
-                found.append(item.strip())
-            found.extend(_urls(item))
-    elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
-        for item in value:
-            found.extend(_urls(item))
-    return found
+def _check_status(ratio: float, code: str | None = None) -> PDFRecoveryStatus:
+    """Map a check ratio to status using check-specific severity.
 
+    Text/order/contact failures are critical.  Headings, entries, and links
+    still report a warning when substantially incomplete, but cannot by
+    themselves mark the whole PDF as unusable.
+    """
 
-def _entry_titles(cv: object, allowed_types: set[str]) -> list[tuple[str, str]]:
-    fields = flatten_cv_text(cv)
-    grouped: dict[tuple[str, str], list[CVTextField]] = {}
-    for field in fields:
-        if field.section_type not in allowed_types or not field.entry_id:
-            continue
-        grouped.setdefault((field.section_type, field.entry_id), []).append(field)
-    titles: list[tuple[str, str]] = []
-    for (section_type, _entry_id), entry_fields in grouped.items():
-        title = next(
-            (
-                field.text.strip()
-                for field in entry_fields
-                if field.field_key.casefold()
-                in {"position", "title", "degree", "program", "organization", "company"}
-                and field.text.strip()
-            ),
-            "",
-        )
-        if title:
-            titles.append((section_type, title))
-    return titles[:500]
-
-
-def _check_status(ratio: float) -> PDFRecoveryStatus:
     if ratio >= 0.96:
         return PDFRecoveryStatus.PASS
     if ratio >= 0.80:
         return PDFRecoveryStatus.WARNING
+    if code not in _CRITICAL_CHECKS:
+        return PDFRecoveryStatus.WARNING
     return PDFRecoveryStatus.FAIL
+
+
+def _field_visible_text(field: object) -> str:
+    blocks = _value(field, "blocks")
+    if isinstance(blocks, Sequence) and not isinstance(blocks, (str, bytes, bytearray)) and blocks:
+        parts: list[str] = []
+        for block in blocks:
+            items = _value(block, "items", [])
+            if isinstance(items, Sequence) and not isinstance(items, (str, bytes, bytearray)):
+                parts.extend(
+                    str(text).strip()
+                    for item in items
+                    if (text := _value(item, "text")) is not None and str(text).strip()
+                )
+        return " ".join(parts)
+    runs = _value(field, "runs", [])
+    if not isinstance(runs, Sequence) or isinstance(runs, (str, bytes, bytearray)):
+        return ""
+    return " ".join(
+        str(text).strip()
+        for run in runs
+        if (text := _value(run, "text")) is not None and str(text).strip()
+    )
+
+
+def _section_policy_visible(section: object) -> bool:
+    if _value(section, "enabled", True) is False:
+        return False
+    policy = _value(section, "policy")
+    if policy is None:
+        style = _value(section, "style")
+        policy = _value(style, "policy") if style is not None else None
+    if policy is not None:
+        return _value(policy, "show_title", True) is not False
+    section_type = str(_value(section, "type", ""))
+    # Keep this fallback aligned with the canonical renderer defaults.
+    return section_type != "profile"
+
+
+def _entry_label(section_type: str, entry: object) -> str:
+    fields = _value(entry, "fields", [])
+    if not isinstance(fields, Sequence) or isinstance(fields, (str, bytes, bytearray)):
+        return ""
+    allowed = _ENTRY_LABEL_FIELDS.get(section_type, ("title", "name", "category"))
+    for key in allowed:
+        for field in fields:
+            if str(_value(field, "key", "")).casefold() == key.casefold():
+                text = _field_visible_text(field).strip()
+                if text:
+                    return text
+    return ""
+
+
+def _render_expectations(cv: object, render_manifest: object | None = None) -> _RenderExpectations | None:
+    """Build recovery expectations from the canonical renderer model.
+
+    Wire CV data is transformed by the same builders and policies used for
+    HTML/PDF output.  This prevents raw dates, hidden headings, metadata, and
+    arbitrary URL-shaped fields from becoming false recovery obligations.
+    """
+
+    source = _dump(cv)
+    sections = _value(source, "sections", [])
+    if not isinstance(sections, Sequence) or isinstance(sections, (str, bytes, bytearray)):
+        return None
+    try:
+        prepared = prepare_render_source(
+            sections,
+            render_manifest,
+            _value(source, "customizations", {}) or {},
+        )
+        model = resolve_source(prepared)
+    except (TypeError, ValueError, AttributeError, KeyError):
+        return None
+
+    visible_text: list[str] = []
+    headings: list[_RenderAnchor] = []
+    entries: list[_RenderAnchor] = []
+    contacts: list[str] = []
+    links: list[_RenderLink] = []
+    ordered_anchors: list[_RenderAnchor] = []
+
+    for zone in model.zones:
+        for section_id in zone.section_ids:
+            section = model.sections.get(section_id)
+            if section is None or not section.enabled:
+                continue
+            if section.policy is None or section.policy.show_title:
+                title = str(section.title or "").strip()
+                if title:
+                    anchor = _RenderAnchor(f"heading:{section.id}", title, "heading", section.type)
+                    headings.append(anchor)
+                    ordered_anchors.append(anchor)
+                    visible_text.append(title)
+            for entry in section.entries:
+                label = _entry_label(section.type, entry)
+                if label and section.type in _ENTRY_RECOVERY_TYPES:
+                    anchor = _RenderAnchor(f"entry:{section.id}:{entry.id}", label, "entry", section.type)
+                    entries.append(anchor)
+                    ordered_anchors.append(anchor)
+                for field in entry.fields:
+                    text = _field_visible_text(field)
+                    if text:
+                        visible_text.append(text)
+                    if section.type == "profile" and field.key.casefold() in {"email", "phone", "telephone"}:
+                        contacts.append(field.key)
+                    for run in field.runs:
+                        target = _value(_value(run, "style"), "link")
+                        normalized = normalize_url(target)
+                        if normalized:
+                            links.append(_RenderLink(f"{section.id}:{entry.id}:{field.key}", normalized))
+
+    return _RenderExpectations(
+        visible_text=tuple(visible_text),
+        headings=tuple(headings),
+        entries=tuple(entries),
+        ordered_anchors=tuple(ordered_anchors),
+        contacts=tuple(dict.fromkeys(contacts)),
+        links=tuple(dict.fromkeys(links)),
+    )
+
+
+def _fallback_expectations(cv: object) -> _RenderExpectations:
+    """Best-effort expectations for legacy AST-shaped test/input objects."""
+
+    source = _dump(cv)
+    fields = flatten_cv_text(cv)
+    visible_text = [field.text for field in fields]
+    headings: list[_RenderAnchor] = []
+    entries: list[_RenderAnchor] = []
+    contacts: list[str] = []
+    source_sections = _value(source, "sections", [])
+    if isinstance(source_sections, Sequence) and not isinstance(source_sections, (str, bytes, bytearray)):
+        for section in source_sections:
+            if not _section_policy_visible(section):
+                continue
+            title = str(_value(section, "title", "") or "").strip()
+            section_id = str(_value(section, "id", "") or "")
+            section_type = str(_value(section, "type", "other"))
+            if title:
+                headings.append(_RenderAnchor(f"heading:{section_id}", title, "heading", section_type))
+            data = _value(section, "data", [])
+            if isinstance(data, Sequence) and not isinstance(data, (str, bytes, bytearray)):
+                for index, row in enumerate(data):
+                    if not isinstance(row, Mapping):
+                        continue
+                    label = next((str(row[key]).strip() for key in _ENTRY_LABEL_FIELDS.get(section_type, ("title", "name")) if row.get(key)), "")
+                    if label:
+                        entries.append(_RenderAnchor(f"entry:{section_id}:{row.get('id', index)}", label, "entry", section_type))
+            if section_type == "profile" and isinstance(data, Mapping):
+                contacts.extend(key for key in ("email", "phone", "telephone") if data.get(key))
+    return _RenderExpectations(
+        visible_text=tuple(visible_text),
+        headings=tuple(headings),
+        entries=tuple(entries),
+        ordered_anchors=tuple([*headings, *entries]),
+        contacts=tuple(dict.fromkeys(contacts)),
+        links=(),
+    )
+
+
+def _expectations_for(cv: object, render_manifest: object | None = None) -> _RenderExpectations:
+    return _render_expectations(cv, render_manifest) or _fallback_expectations(cv)
+
+
+def _entry_titles(cv: object, allowed_types: set[str]) -> list[tuple[str, str]]:
+    expectations = _expectations_for(cv)
+    return [(item.section_type, item.text) for item in expectations.entries if item.section_type in allowed_types][:500]
 
 
 def _run_bounded_pdf_worker(pdf_bytes: bytes) -> dict[str, object]:
@@ -210,7 +408,143 @@ def _worker_failure(code: str) -> PDFTextRecoveryAnalysis:
     )
 
 
-def analyze_pdf_recovery(pdf_bytes: bytes | None, cv: object) -> PDFTextRecoveryAnalysis:
+def _line_token_spans(text: str) -> list[tuple[str, int, int]]:
+    """Return normalized line text and its token span in the full document."""
+
+    spans: list[tuple[str, int, int]] = []
+    cursor = 0
+    for line in text.splitlines():
+        tokens = _tokens(line)
+        if tokens:
+            spans.append((_normalize(line), cursor, cursor + len(tokens)))
+            cursor += len(tokens)
+    return spans
+
+
+def _find_token_occurrence(
+    tokens: Sequence[str],
+    pattern: Sequence[str],
+    used: set[int],
+    *,
+    candidates: Sequence[int] | None = None,
+) -> tuple[int, int] | None:
+    if not pattern:
+        return None
+    starts = candidates if candidates is not None else range(max(0, len(tokens) - len(pattern) + 1))
+    for start in starts:
+        end = start + len(pattern)
+        if end > len(tokens) or any(index in used for index in range(start, end)):
+            continue
+        if list(tokens[start:end]) == list(pattern):
+            return start, end
+    return None
+
+
+def _anchor_matches(
+    anchors: Sequence[_RenderAnchor],
+    recovered_text: str,
+) -> tuple[list[_RenderAnchor], list[str], list[str], list[str]]:
+    """Match structural anchors with occurrence accounting.
+
+    Headings use exact extracted lines to avoid counting a body mention. Entry
+    labels use token occurrences because a parser may place adjacent fields on
+    one line. One token occurrence can satisfy only one anchor.
+    """
+
+    tokens = _tokens(recovered_text)
+    line_spans = _line_token_spans(recovered_text)
+    used: set[int] = set()
+    recovered: list[_RenderAnchor] = []
+    missing: list[str] = []
+    positions: list[int] = []
+    for anchor in anchors:
+        pattern = _tokens(anchor.text)
+        candidates: list[int] | None = None
+        if anchor.kind == "heading":
+            candidates = [start for line, start, end in line_spans if _tokens(line) == pattern and end - start == len(pattern)]
+        match = _find_token_occurrence(tokens, pattern, used, candidates=candidates)
+        if match is None:
+            missing.append(anchor.text)
+            continue
+        start, end = match
+        used.update(range(start, end))
+        positions.append(start)
+        recovered.append(anchor)
+
+    if len(positions) < 2:
+        ordered_count = len(positions)
+    else:
+        # Longest increasing subsequence over recovered positions identifies
+        # how many matched anchors retain their intended relative order.
+        tails: list[int] = []
+        for position in positions:
+            index = bisect_left(tails, position)
+            if index == len(tails):
+                tails.append(position)
+            else:
+                tails[index] = position
+        ordered_count = len(tails)
+    affected: list[str] = []
+    if ordered_count < len(positions):
+        for index, current_position in enumerate(positions):
+            for previous_index in range(index):
+                if positions[previous_index] <= current_position:
+                    continue
+                # A compact explanation is enough for the UI; detailed
+                # positions remain available through anchor identities in
+                # diagnostics.
+                affected.append(f"{recovered[previous_index].text} ↔ {recovered[index].text}")
+                if len(affected) >= 20:
+                    break
+            if len(affected) >= 20:
+                break
+    return recovered, missing, affected[:20], [f"{ordered_count}/{len(positions)} matched anchors remain ordered"]
+
+
+def _check(
+    *,
+    code: str,
+    status: PDFRecoveryStatus,
+    expected_count: int | None = None,
+    recovered_count: int | None = None,
+    evidence: Sequence[str] = (),
+    expected_items: Sequence[str] = (),
+    recovered_items: Sequence[str] = (),
+    missing_items: Sequence[str] = (),
+    affected_items: Sequence[str] = (),
+    explanation: str,
+) -> PDFCheck:
+    return PDFCheck(
+        code=code,
+        status=status,
+        expected_count=expected_count,
+        recovered_count=recovered_count,
+        evidence=list(evidence)[:100],
+        expected_items=list(dict.fromkeys(expected_items))[:100],
+        recovered_items=list(dict.fromkeys(recovered_items))[:100],
+        missing_items=list(dict.fromkeys(missing_items))[:100],
+        affected_items=list(dict.fromkeys(affected_items))[:100],
+        explanation=explanation,
+    )
+
+
+def _overall_status(checks: Sequence[PDFCheck]) -> PDFRecoveryStatus:
+    statuses = [check.status for check in checks if check.status is not PDFRecoveryStatus.UNAVAILABLE]
+    if not statuses:
+        return PDFRecoveryStatus.UNAVAILABLE
+    if any(check.status is PDFRecoveryStatus.FAIL and check.code in _CRITICAL_CHECKS for check in checks):
+        return PDFRecoveryStatus.FAIL
+    if any(check.status in {PDFRecoveryStatus.FAIL, PDFRecoveryStatus.WARNING} for check in checks):
+        return PDFRecoveryStatus.WARNING
+    return PDFRecoveryStatus.PASS
+
+
+def analyze_pdf_recovery(
+    pdf_bytes: bytes | None,
+    cv: object,
+    *,
+    render_manifest: object | None = None,
+) -> PDFTextRecoveryAnalysis:
     """Compare CV source text and important fields with Aergia PDF extraction."""
 
     if not pdf_bytes:
@@ -257,39 +591,61 @@ def analyze_pdf_recovery(pdf_bytes: bytes | None, cv: object) -> PDFTextRecovery
                 )
             ],
         )
-    recovered_text = extracted["plain_text"]
-    recovered_links = extracted["links"]
+    recovered_text = str(extracted["plain_text"])
+    recovered_links = [str(link) for link in extracted["links"]]
     text_truncated = extracted.get("text_truncated") is True
-    fields = flatten_cv_text(cv)
-    expected_tokens = _tokens("\n".join(field.text for field in fields))
+    expectations = _expectations_for(cv, render_manifest)
+    expected_tokens = _tokens("\n".join(expectations.visible_text))
     recovered_tokens = _tokens(recovered_text)
     expected_counts = Counter(expected_tokens)
     recovered_counts = Counter(recovered_tokens)
     retained = sum(min(count, recovered_counts[token]) for token, count in expected_counts.items())
-    retention = retained / max(1, len(expected_tokens))
-    ordered = _ordered_match_count(expected_tokens, recovered_tokens)
-    order_ratio = ordered / max(1, len(expected_tokens))
+    retention = retained / len(expected_tokens) if expected_tokens else 0.0
+    text_status = _check_status(retention, "text_retention") if expected_tokens else PDFRecoveryStatus.UNAVAILABLE
+    recovered_anchors, missing_anchors, affected_anchors, order_evidence = _anchor_matches(
+        expectations.ordered_anchors,
+        recovered_text,
+    )
+    matched_anchor_count = len(recovered_anchors)
+    ordered_anchor_count = int(order_evidence[0].split("/", 1)[0]) if order_evidence else 0
+    order_ratio = (
+        ordered_anchor_count / matched_anchor_count
+        if matched_anchor_count
+        else 0.0
+    )
+    order_status = (
+        _check_status(order_ratio, "reading_order")
+        if expectations.ordered_anchors
+        else PDFRecoveryStatus.UNAVAILABLE
+    )
     checks: list[PDFCheck] = [
-        PDFCheck(
+        _check(
             code="text_retention",
-            status=_check_status(retention),
-            expected_count=len(expected_tokens),
-            recovered_count=retained,
-            evidence=[f"{retention:.1%} of source words recovered"],
-            explanation="Compares visible CV text with text recovered by Aergia's PDF parser.",
+            status=text_status,
+            expected_count=len(expected_tokens) if expected_tokens else None,
+            recovered_count=retained if expected_tokens else None,
+            evidence=[f"{retention:.1%} of rendered words recovered"] if expected_tokens else (),
+            expected_items=expectations.visible_text,
+            explanation="Compares visible text intended by the renderer with text recovered by Aergia's PDF parser.",
         ),
-        PDFCheck(
+        _check(
             code="reading_order",
-            status=_check_status(order_ratio),
-            expected_count=len(expected_tokens),
-            recovered_count=ordered,
-            evidence=[f"{order_ratio:.1%} of source words remain in order"],
-            explanation="Checks whether the recovered word sequence follows the CV source order.",
+            status=order_status,
+            # Missing anchors are a text-recovery issue.  The numeric order
+            # check is scored only over anchors that were actually found.
+            expected_count=matched_anchor_count if matched_anchor_count else None,
+            recovered_count=ordered_anchor_count if matched_anchor_count else None,
+            evidence=order_evidence,
+            expected_items=[anchor.text for anchor in expectations.ordered_anchors],
+            recovered_items=[anchor.text for anchor in recovered_anchors],
+            missing_items=missing_anchors,
+            affected_items=affected_anchors,
+            explanation="Compares the relative order of rendered section and entry anchors; missing text is reported by text retention.",
         ),
     ]
     if text_truncated:
         checks.append(
-            PDFCheck(
+            _check(
                 code="text_limit",
                 status=PDFRecoveryStatus.WARNING,
                 expected_count=MAX_EXTRACTED_TEXT_CHARS,
@@ -298,92 +654,121 @@ def analyze_pdf_recovery(pdf_bytes: bytes | None, cv: object) -> PDFTextRecovery
             )
         )
 
-    contact_fields = [
-        field
-        for field in fields
-        if field.section_type == "profile" and field.field_key.casefold() in {"email", "phone", "telephone"}
+    recovered_text_normalized = _normalize(recovered_text)
+    recovered_contacts = [
+        contact
+        for contact in expectations.contacts
+        if contact.casefold() in {"email", "phone", "telephone"}
+        and any(
+            field.field_key.casefold() == contact.casefold()
+            and _normalize(field.text) in recovered_text_normalized
+            for field in flatten_cv_text(cv)
+        )
     ]
-    contact_recovered = [field for field in contact_fields if _normalize(field.text) in _normalize(recovered_text)]
+    missing_contacts = [contact for contact in expectations.contacts if contact not in recovered_contacts]
+    contact_status = (
+        PDFRecoveryStatus.UNAVAILABLE
+        if not expectations.contacts
+        else _check_status(
+            len(recovered_contacts) / len(expectations.contacts),
+            "contact_recovery",
+        )
+    )
     checks.append(
-        PDFCheck(
+        _check(
             code="contact_recovery",
-            status=(
-                PDFRecoveryStatus.PASS
-                if len(contact_recovered) == len(contact_fields)
-                else PDFRecoveryStatus.WARNING
-                if contact_recovered or not contact_fields
-                else PDFRecoveryStatus.FAIL
-            ),
-            expected_count=len(contact_fields),
-            recovered_count=len(contact_recovered),
-            evidence=[field.field_key for field in contact_fields],
-            explanation="Checks whether source contact fields are present in recovered PDF text.",
+            status=contact_status,
+            expected_count=len(expectations.contacts) if expectations.contacts else None,
+            recovered_count=len(recovered_contacts) if expectations.contacts else None,
+            evidence=recovered_contacts,
+            expected_items=expectations.contacts,
+            recovered_items=recovered_contacts,
+            missing_items=missing_contacts,
+            explanation="Checks whether visible source contact fields are present in recovered PDF text.",
         )
     )
 
-    source = _dump(cv)
-    sections = _value(source, "sections", [])
-    expected_headings = [
-        str(title).strip()
-        for section in sections if isinstance(sections, Sequence) and not isinstance(sections, (str, bytes, bytearray))
-        if _value(section, "enabled", True) is not False
-        if (title := _value(section, "title")) and str(title).strip()
-    ] if isinstance(sections, Sequence) and not isinstance(sections, (str, bytes, bytearray)) else []
-    recovered_headings = [title for title in expected_headings if _normalize(title) in _normalize(recovered_text)]
+    recovered_heading_anchors, missing_headings, _heading_affected, _ = _anchor_matches(
+        expectations.headings,
+        recovered_text,
+    )
     checks.append(
-        PDFCheck(
+        _check(
             code="section_heading_recovery",
             status=(
-                _check_status(len(recovered_headings) / len(expected_headings))
-                if expected_headings
+                _check_status(len(recovered_heading_anchors) / len(expectations.headings), "section_heading_recovery")
+                if expectations.headings
                 else PDFRecoveryStatus.UNAVAILABLE
             ),
-            expected_count=len(expected_headings),
-            recovered_count=len(recovered_headings),
-            evidence=recovered_headings[:100],
-            explanation="Checks visible source section titles against recovered text.",
+            expected_count=len(expectations.headings) if expectations.headings else None,
+            recovered_count=len(recovered_heading_anchors) if expectations.headings else None,
+            evidence=[anchor.text for anchor in recovered_heading_anchors],
+            expected_items=[anchor.text for anchor in expectations.headings],
+            recovered_items=[anchor.text for anchor in recovered_heading_anchors],
+            missing_items=missing_headings,
+            explanation="Checks effective visible section titles against extracted lines, with occurrence-aware matching.",
         )
     )
 
-    entry_titles = _entry_titles(cv, {"experience", "work_experience", "projects", "project", "research", "education"})
-    recovered_entries = [title for _section_type, title in entry_titles if _normalize(title) in _normalize(recovered_text)]
+    recovered_entry_anchors, missing_entries, _entry_affected, _ = _anchor_matches(
+        expectations.entries,
+        recovered_text,
+    )
     checks.append(
-        PDFCheck(
+        _check(
             code="entry_recovery",
-            status=_check_status(len(recovered_entries) / len(entry_titles)) if entry_titles else PDFRecoveryStatus.UNAVAILABLE,
-            expected_count=len(entry_titles),
-            recovered_count=len(recovered_entries),
-            evidence=[f"{section_type}: {title[:160]}" for section_type, title in entry_titles[:100] if title in recovered_entries],
-            explanation="Checks whether experience, project, research, and education entry labels survive extraction.",
+            status=(
+                _check_status(len(recovered_entry_anchors) / len(expectations.entries), "entry_recovery")
+                if expectations.entries
+                else PDFRecoveryStatus.UNAVAILABLE
+            ),
+            expected_count=len(expectations.entries) if expectations.entries else None,
+            recovered_count=len(recovered_entry_anchors) if expectations.entries else None,
+            evidence=[f"{anchor.section_type}: {anchor.text[:160]}" for anchor in recovered_entry_anchors],
+            expected_items=[anchor.text for anchor in expectations.entries],
+            recovered_items=[anchor.text for anchor in recovered_entry_anchors],
+            missing_items=missing_entries,
+            explanation="Checks renderer-defined experience, project, research, education, and certification anchors.",
         )
     )
 
-    expected_urls = list(dict.fromkeys(_urls(source)))
-    recovered_urls = list(dict.fromkeys(str(link) for link in recovered_links))
-    retained_urls = [url for url in expected_urls if any(_normalize(url) == _normalize(link) for link in recovered_urls)]
+    normalized_recovered_urls = [normalize_url(link) for link in recovered_links]
+    retained_links: list[_RenderLink] = []
+    missing_links: list[str] = []
+    used_link_indexes: set[int] = set()
+    for expected_link in expectations.links:
+        match_index = next(
+            (
+                index
+                for index, recovered_url in enumerate(normalized_recovered_urls)
+                if index not in used_link_indexes and recovered_url == expected_link.target
+            ),
+            None,
+        )
+        if match_index is None:
+            missing_links.append(expected_link.identity)
+        else:
+            used_link_indexes.add(match_index)
+            retained_links.append(expected_link)
     checks.append(
-        PDFCheck(
+        _check(
             code="link_recovery",
             status=(
-                _check_status(len(retained_urls) / len(expected_urls))
-                if expected_urls
+                _check_status(len(retained_links) / len(expectations.links), "link_recovery")
+                if expectations.links
                 else PDFRecoveryStatus.UNAVAILABLE
             ),
-            expected_count=len(expected_urls),
-            recovered_count=len(retained_urls),
-            evidence=["link targets recovered" for _ in retained_urls],
-            explanation="Checks whether source URL targets are attached to extracted PDF text blocks.",
+            expected_count=len(expectations.links) if expectations.links else None,
+            recovered_count=len(retained_links) if expectations.links else None,
+            evidence=[link.identity for link in retained_links],
+            expected_items=[link.identity for link in expectations.links],
+            recovered_items=[link.identity for link in retained_links],
+            missing_items=missing_links,
+            explanation="Checks clickable links emitted by the renderer using canonical href values; visible link text is covered by text recovery.",
         )
     )
 
-    statuses = [check.status for check in checks if check.status is not PDFRecoveryStatus.UNAVAILABLE]
-    overall = (
-        PDFRecoveryStatus.FAIL
-        if PDFRecoveryStatus.FAIL in statuses
-        else PDFRecoveryStatus.WARNING
-        if PDFRecoveryStatus.WARNING in statuses
-        else PDFRecoveryStatus.PASS
-    )
+    overall = _overall_status(checks)
     return PDFTextRecoveryAnalysis(status=overall, page_count=page_count, checks=checks)
 
 
