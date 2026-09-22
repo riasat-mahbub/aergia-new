@@ -73,8 +73,14 @@ class _RenderAnchor:
 
 @dataclass(frozen=True, slots=True)
 class _RenderLink:
-    identity: str
+    label: str
     target: str
+
+    @property
+    def identity(self) -> str:
+        """Human-readable link identity used by persisted recovery checks."""
+
+        return self.label
 
 
 @dataclass(frozen=True, slots=True)
@@ -268,7 +274,17 @@ def _render_expectations(cv: object, render_manifest: object | None = None) -> _
                         target = _value(_value(run, "style"), "link")
                         normalized = normalize_url(target)
                         if normalized:
-                            links.append(_RenderLink(f"{section.id}:{entry.id}:{field.key}", normalized))
+                            text = _field_visible_text(field).strip()
+                            label = text if text and not normalize_url(text) else ""
+                            if not label:
+                                label = (
+                                    _entry_label(section.type, entry)
+                                    or ("Portfolio" if section.type == "profile" and field.key == "site" else "Link")
+                                )
+                            prior = sum(item.label.split(" (", 1)[0] == label for item in links)
+                            if prior:
+                                label = f"{label} ({prior + 1})"
+                            links.append(_RenderLink(label, normalized))
 
     return _RenderExpectations(
         visible_text=tuple(visible_text),
