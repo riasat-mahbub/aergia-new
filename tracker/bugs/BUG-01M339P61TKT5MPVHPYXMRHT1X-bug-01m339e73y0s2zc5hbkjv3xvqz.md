@@ -63,7 +63,8 @@ source. Keep semantic Job Fit, lexical matching, tailoring, and the public
 `aergia-pdf-recovery-v2` / `pdf-recovery-score-v1` versions unchanged.
 Structural checks expose actionable expected/recovered/missing/affected
 items. Critical text/order/contact failures can fail the analysis; headings,
-entries, and link annotation loss produce warnings. Force-rescan current
+entries, partial contact recovery, and link annotation loss produce warnings.
+Force-rescan current
 application results rather than patching stored numbers.
 
 
@@ -84,7 +85,7 @@ legacy relevance or tailoring snapshots.
 
 ## Verification
 
-Focused PDF/scanner suites: 74 passed. Full API suite: 652 passed, 1
+Focused PDF/scanner suites: 75 passed. Full API suite: 654 passed, 1
 skipped, 1 failure in the unprivileged environment (`test_smoke_render`;
 Playwright driver connection closed); the isolated test passes in the
 approved Chromium runtime. Ruff passes. Frontend typecheck, architecture
