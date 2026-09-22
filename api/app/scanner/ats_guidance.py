@@ -388,8 +388,16 @@ def _heading_guidance(findings: Sequence[HeadingConventionFinding]) -> list[AtsF
         result.append(
             AtsFinding(
                 id=f"heading-{finding.section_id}",
-                rule_id="conventional_section_headings",
-                title="Conventional section heading",
+                rule_id=(
+                    "no_ambiguous_combined_headings"
+                    if finding.status == "ambiguous"
+                    else "conventional_section_headings"
+                ),
+                title=(
+                    "Separate section headings"
+                    if finding.status == "ambiguous"
+                    else "Conventional section heading"
+                ),
                 category="headings",
                 scope="common",
                 severity=severity,
@@ -424,20 +432,56 @@ def _date_guidance(findings: Sequence[DateCompatibilityFinding]) -> list[AtsFind
 def _entry_guidance(findings: Sequence[EntryCompletenessFinding]) -> list[AtsFinding]:
     result: list[AtsFinding] = []
     for finding in findings:
-        severity: AtsFindingSeverity = "pass" if finding.status == "complete" else "warning"
-        result.append(
-            AtsFinding(
-                id=f"entry-{finding.section_id}-{finding.entry_id}",
-                rule_id="structured_entry_completeness",
-                title="Structured entry fields",
-                category="experience" if finding.section_type in {"experience", "work_experience"} else "education" if finding.section_type == "education" else "parsing",
-                scope="common",
-                severity=severity,
-                explanation=f"{finding.label}: {finding.explanation}",
-                action="Keep the title, organization, and date fields visually distinct where they apply." if severity == "warning" else None,
-                affected_items=[finding.label] if severity == "warning" else [],
+        category = "experience" if finding.section_type in {"experience", "work_experience"} else "education" if finding.section_type == "education" else "parsing"
+        if finding.status == "ambiguous":
+            result.append(
+                AtsFinding(
+                    id=f"entry-{finding.section_id}-{finding.entry_id}-ambiguous",
+                    rule_id="structured_entry_completeness",
+                    title="Structured entry fields",
+                    category=category,
+                    scope="common",
+                    severity="warning",
+                    explanation=f"{finding.label}: {finding.explanation}",
+                    action="Keep each role in a separate entry when the experience represents multiple positions.",
+                    affected_items=[finding.label],
+                )
             )
-        )
+            continue
+        if not finding.missing_fields:
+            result.append(
+                AtsFinding(
+                    id=f"entry-{finding.section_id}-{finding.entry_id}",
+                    rule_id="structured_entry_completeness",
+                    title="Structured entry fields",
+                    category=category,
+                    scope="common",
+                    severity="pass",
+                    explanation=f"{finding.label}: {finding.explanation}",
+                )
+            )
+            continue
+        rule_by_field = {
+            "title": "experience_has_title",
+            "employer": "experience_has_employer",
+            "dates": "experience_has_dates",
+            "degree or program": "education_has_degree_or_program",
+            "institution": "education_has_institution",
+        }
+        for index, missing in enumerate(finding.missing_fields):
+            result.append(
+                AtsFinding(
+                    id=f"entry-{finding.section_id}-{finding.entry_id}-{index}",
+                    rule_id=rule_by_field.get(missing, "structured_entry_completeness"),
+                    title="Structured entry fields",
+                    category=category,
+                    scope="common",
+                    severity="warning",
+                    explanation=f"{finding.label}: {finding.explanation}",
+                    action="Keep the title, organization, and date fields visually distinct where they apply.",
+                    affected_items=[finding.label],
+                )
+            )
     return result
 
 
@@ -547,11 +591,29 @@ ATS_RULES: dict[str, AtsRule] = {
     "conventional_section_headings": AtsRule(
         id="conventional_section_headings", title="Conventional section headings", description="Section labels should be recognizable for their semantic section type.", category="headings", scope="common", severity="recommendation"
     ),
+    "no_ambiguous_combined_headings": AtsRule(
+        id="no_ambiguous_combined_headings", title="Separate section headings", description="Combined headings can make distinct resume sections harder for parsers to classify.", category="headings", scope="common", severity="warning"
+    ),
     "conventional_dates": AtsRule(
         id="conventional_dates", title="Conventional dates", description="Rendered dates should use common month/year or numeric year formats.", category="dates", scope="common", severity="recommendation"
     ),
     "structured_entry_completeness": AtsRule(
         id="structured_entry_completeness", title="Structured entry completeness", description="Important entry fields should remain visually distinct.", category="experience", scope="common", severity="recommendation"
+    ),
+    "experience_has_title": AtsRule(
+        id="experience_has_title", title="Experience has a title", description="Experience entries should expose a role or title.", category="experience", scope="common", severity="warning"
+    ),
+    "experience_has_employer": AtsRule(
+        id="experience_has_employer", title="Experience has an employer", description="Experience entries should expose an employer or organization.", category="experience", scope="common", severity="warning"
+    ),
+    "experience_has_dates": AtsRule(
+        id="experience_has_dates", title="Experience has dates", description="Experience entries should expose a date range or date.", category="dates", scope="common", severity="warning"
+    ),
+    "education_has_degree_or_program": AtsRule(
+        id="education_has_degree_or_program", title="Education has a degree or program", description="Education entries should expose a degree or program when available.", category="education", scope="common", severity="warning"
+    ),
+    "education_has_institution": AtsRule(
+        id="education_has_institution", title="Education has an institution", description="Education entries should expose the institution.", category="education", scope="common", severity="warning"
     ),
     "important_acronym_coverage": AtsRule(
         id="important_acronym_coverage", title="Acronym coverage", description="Explicit job acronym and expanded forms can be compared without inventing mappings.", category="acronyms", scope="common", severity="recommendation"
