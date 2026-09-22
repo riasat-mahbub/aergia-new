@@ -46,6 +46,7 @@ export default function ApplicationCvPanel({
   const result = tailoringStatus?.result ?? tailoringResult;
   const scannerSummary = result?.scanner_result?.semantic.summary;
   const jobFit = typeof scannerSummary?.job_fit === "number" ? `${Math.round(scannerSummary.job_fit * 100)}%` : "—";
+  const evaluation = result?.evaluation ?? result?.tailoring_evaluation ?? null;
   const draftReady = tailoringStatus?.status === "draft_ready" && result?.draft_cv_id;
   const activeSessionStatus = tailoringStatus?.status ?? tailoringSession?.status;
   const tailoringBlocksNewSession = activeSessionStatus === "created" || activeSessionStatus === "exchanged" || activeSessionStatus === "draft_ready";
@@ -98,6 +99,14 @@ export default function ApplicationCvPanel({
               <p className="mt-1">Scanner Job Fit: {jobFit}</p>
               {(result.render_warnings ?? []).length > 0 && <p className="mt-1">Render checks: {result.render_warnings?.join(" ")}</p>}
               {(result.review_notes ?? []).length > 0 && <div className="mt-2"><p className="font-medium">Agent notes</p><ul className="mt-1 list-disc pl-4">{result.review_notes?.map((note, index) => <li key={`${index}-${note.slice(0, 32)}`}>{note}</li>)}</ul></div>}
+              {evaluation && <div className="mt-3 rounded-md border border-app-rule-soft bg-app-surface px-3 py-3">
+                <p className="font-medium text-app-ink">Review before accepting</p>
+                <p className="mt-1">Server readiness: {evaluation.readiness.status.replace(/_/g, " ")}</p>
+                {evaluation.inference_notes.length > 0 && <div className="mt-2"><p className="font-medium">Inferred — verify</p><ul className="mt-1 list-disc pl-4">{evaluation.inference_notes.slice(0, 5).map((note) => <li key={`${note.claim}-${note.field_path ?? "document"}`}>{note.claim}<span className="text-app-ink-3"> — {note.basis.join("; ")}</span></li>)}</ul></div>}
+                {(evaluation.improvements.length > 0 || evaluation.regressions.length > 0) && <div className="mt-2"><p className="font-medium">Important changes</p><ul className="mt-1 list-disc pl-4">{[...evaluation.improvements.slice(0, 3).map((item) => `Improved: ${item.message}`), ...evaluation.regressions.slice(0, 3).map((item) => `Trade-off to review: ${item.message}`)].map((item) => <li key={item}>{item}</li>)}</ul></div>}
+                {evaluation.non_actionable_gaps.length > 0 && <div className="mt-2"><p className="font-medium">Remaining genuine gaps</p><ul className="mt-1 list-disc pl-4">{evaluation.non_actionable_gaps.slice(0, 5).map((item) => <li key={item.id}>{item.message}</li>)}</ul></div>}
+                {evaluation.recommendations.length > 0 && <div className="mt-2"><p className="font-medium">Recommendations</p><ul className="mt-1 list-disc pl-4">{evaluation.recommendations.slice(0, 4).map((item) => <li key={item.id}>{item.message}</li>)}</ul></div>}
+              </div>}
               <div className="mt-3 flex flex-wrap gap-2">
                 <Link to="/builder/$id" params={{ id: result.draft_cv_id }} search={{ application: application.id }} className="inline-flex items-center gap-1 rounded-md bg-app-primary px-3 py-2 text-xs font-medium text-white hover:bg-app-primary-hover"><Pencil className="h-3.5 w-3.5" /> Open/Edit draft</Link>
                 <button type="button" onClick={onAcceptDraft} className="inline-flex items-center gap-1 rounded-md border border-app-primary-soft px-3 py-2 text-xs font-medium text-app-primary hover:bg-app-primary-soft"><Check className="h-3.5 w-3.5" /> Accept draft</button>
