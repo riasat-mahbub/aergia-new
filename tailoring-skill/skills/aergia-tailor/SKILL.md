@@ -224,8 +224,10 @@ judgment calls.
 
 The helper permits at most five evaluated candidate passes. It stops early
 when the candidate hash repeats or when two meaningful revisions leave the
-same actionable server issue IDs unchanged. A score falling slightly, failing
-to rise, or remaining low does not by itself cause or stop revision.
+same actionable server issue state unchanged, including its stable category,
+kind, priority, importance, and code. A severity or state improvement counts
+as progress. A score falling slightly, failing to rise, or remaining low does
+not by itself cause or stop revision.
 
 The server readiness states mean:
 
@@ -240,7 +242,8 @@ The server readiness states mean:
 At the limit or an early-stop condition, the helper selects deterministically
 by readiness and concrete issue state: non-blocked status, fewer blockers,
 fewer important regressions, fewer error-level quality/PDF issues, fewer
-high-priority recommendations, fewer remaining issues, then candidate hash.
+high-priority recommendations, fewer remaining issues, latest evaluated pass,
+then candidate hash only if the pass number is tied.
 
 It does not select the highest Job Fit. A `ready` or `ready_with_review`
 candidate may submit immediately. A `revise` candidate may submit only as the
