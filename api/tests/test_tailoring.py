@@ -25,6 +25,9 @@ def test_tailoring_skill_bundle_contains_current_candidate_workflow():
         assert "aergia-tailor/scripts/validate-editorial-review.mjs" in names
         assert "aergia-tailor/references/editorial-review.schema.json" in names
         assert "aergia-tailor/references/inference-notes.schema.json" in names
+        assert "aergia-tailor/references/evidence-and-inference.md" in names
+        assert "aergia-tailor/references/cv-composition.md" in names
+        assert "aergia-tailor/references/natural-writing.md" in names
         assert "aergia-tailor/scripts/validate-critique.mjs" not in names
         assert "aergia-tailor/references/critique.schema.json" not in names
         assert not any(name.endswith("validate-patch.mjs") for name in names)
@@ -64,6 +67,15 @@ async def test_tailoring_submit_creates_owned_review_draft_without_promoting_it(
         json={"name": "Ada Lovelace", "email": email, "email_link": True, "social_links": []},
     )
     assert profile.status_code == 200
+    library_entry = await client.post(
+        "/api/v1/library",
+        headers=headers,
+        json={
+            "kind": "experience",
+            "payload": [{"id": "library-experience", "company": "Example", "position": "Engineer"}],
+        },
+    )
+    assert library_entry.status_code == 201
     application = await client.post(
         "/api/v1/applications",
         headers=headers,
@@ -112,6 +124,7 @@ async def test_tailoring_submit_creates_owned_review_draft_without_promoting_it(
     context = await client.get("/api/v1/tailoring/context", headers=capability_headers)
     assert context.status_code == 200
     assert context.json()["job"]["user_instructions"] == "Do not claim AWS; keep the draft user-reviewable."
+    assert context.json()["library"][0]["payload"][0]["company"] == "Example"
 
     async def render_payload(self, template_id, sections, customizations):
         return b"pdf"
@@ -157,6 +170,35 @@ async def test_tailoring_submit_creates_owned_review_draft_without_promoting_it(
     assert preview.json()["scanner_result"]["versions"]["semantic_score_version"] == "job-fit-v2"
     assert preview.json()["evaluation"]["version"] == TAILORING_EVALUATION_VERSION
     assert preview.json()["evaluation"]["candidate_hash"] == preview.json()["candidate_hash"]
+    assert preview.json()["evaluation"]["readiness"]["status"] == "ready_with_review"
+
+    blocking_submission = await client.post(
+        "/api/v1/tailoring/submit",
+        headers=capability_headers,
+        json={
+            "context_hash": context.json()["context_hash"],
+            "expected_candidate_hash": preview.json()["candidate_hash"],
+            "candidate": candidate,
+            "review_notes": [],
+            "inference_notes": [],
+            "editorial_review": {
+                "review_version": "aergia-editorial-review-v1",
+                "candidate_hash": preview.json()["candidate_hash"],
+                "pass_number": preview.json()["evaluation"]["pass_number"],
+                "findings": [{
+                    "category": "framing",
+                    "severity": "blocking",
+                    "section_id": "profile",
+                    "excerpt": "Platform engineer",
+                    "problem": "The factual framing is contradictory.",
+                    "recommended_change": "Revise the candidate before submission.",
+                }],
+                "inference_notes": [],
+            },
+        },
+    )
+    assert blocking_submission.status_code == 409
+    assert "blocking finding" in blocking_submission.json()["detail"]
 
     stale_submission = await client.post(
         "/api/v1/tailoring/submit",
@@ -171,7 +213,21 @@ async def test_tailoring_submit_creates_owned_review_draft_without_promoting_it(
                 "review_version": "aergia-editorial-review-v1",
                 "candidate_hash": preview.json()["candidate_hash"],
                 "pass_number": preview.json()["evaluation"]["pass_number"],
-                "findings": [],
+                "findings": [{
+                    "category": "framing",
+                    "severity": "important",
+                    "section_id": "profile",
+                    "excerpt": "Platform engineer",
+                    "problem": "The target framing could be more direct.",
+                    "recommended_change": "Consider a sharper opening summary.",
+                }, {
+                    "category": "clarity",
+                    "severity": "polish",
+                    "section_id": "profile",
+                    "excerpt": "Platform engineer",
+                    "problem": "The summary could be more concise.",
+                    "recommended_change": "Trim the opening sentence.",
+                }],
                 "inference_notes": [],
             },
         },
@@ -192,7 +248,21 @@ async def test_tailoring_submit_creates_owned_review_draft_without_promoting_it(
                 "review_version": "aergia-editorial-review-v1",
                 "candidate_hash": preview.json()["candidate_hash"],
                 "pass_number": preview.json()["evaluation"]["pass_number"],
-                "findings": [],
+                "findings": [{
+                    "category": "framing",
+                    "severity": "important",
+                    "section_id": "profile",
+                    "excerpt": "Platform engineer",
+                    "problem": "The target framing could be more direct.",
+                    "recommended_change": "Consider a sharper opening summary.",
+                }, {
+                    "category": "clarity",
+                    "severity": "polish",
+                    "section_id": "profile",
+                    "excerpt": "Platform engineer",
+                    "problem": "The summary could be more concise.",
+                    "recommended_change": "Trim the opening sentence.",
+                }],
                 "inference_notes": [],
             },
         },
