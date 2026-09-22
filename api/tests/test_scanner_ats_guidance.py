@@ -111,6 +111,19 @@ def test_entry_completeness_reports_missing_structured_fields():
     assert findings[("education", "e1")].missing_fields == ["institution"]
 
 
+def test_structural_entry_findings_keep_named_common_rule_ids():
+    result = _scan(
+        "Qualifications\nPython",
+        _cv(
+            _section("work", "experience", "Experience", [{"id": "w1", "position": "Engineer"}]),
+            _section("edu", "education", "Education", [{"id": "e1", "degree": "MSc"}]),
+        ),
+    )
+    rule_ids = {item.rule_id for item in result.ats_guidance.common_findings}
+
+    assert {"experience_has_employer", "experience_has_dates", "education_has_institution"} <= rule_ids
+
+
 def test_unsupported_keyword_guidance_does_not_recommend_invention():
     result = _scan(
         "Qualifications\nMonitoring experience required.",
