@@ -56,6 +56,18 @@ const editorialReview = (hash, pass, inferenceNotes = []) => ({
   inference_notes: inferenceNotes,
 });
 
+const blockingEditorialReview = (hash, pass) => ({
+  ...editorialReview(hash, pass),
+  findings: [{
+    category: "framing",
+    severity: "blocking",
+    section_id: "profile",
+    excerpt: "Platform engineer",
+    problem: "The factual framing is contradictory.",
+    recommended_change: "Revise the candidate before submission.",
+  }],
+});
+
 async function waitForJson(path, predicate, timeoutMs = 8_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -241,6 +253,108 @@ test("five revise passes use issue-based best-candidate fallback, not score maxi
     assert.equal(body.allow_bounded_fallback, true);
     assert.ok(body.review_notes.some((note) => /five-pass evaluation limit/.test(note)));
     assert.equal(server.calls.filter((call) => call.url.endsWith("/preview")).length, 5);
+  } finally {
+    server.restore();
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("blocking editorial findings require a material revision before submission", { concurrency: false }, async () => {
+  const { workspace, output, context, candidate } = await makeSessionWorkspace();
+  const server = mockTailoringServer(context);
+  try {
+    await writeFile(join(output, "RENDER"), "");
+    const resultPromise = runSession("https://aergia.example/agent/tailor/session-1", workspace, { code: "code-1234567890123456" });
+    void resultPromise.catch(() => undefined);
+    const firstPreview = await waitForJson(join(output, "candidate-preview.json"), (value) => value.pass_number === 1);
+    await writeFile(join(output, "editorial-review.json"), JSON.stringify(blockingEditorialReview(firstPreview.candidate_hash, 1)));
+    await writeFile(join(output, "EDITORIAL_REVIEW"), "");
+    const editorialRejected = await waitForJson(join(output, "tailoring-status.json"), (value) => value.state === "editorial_revision_required");
+    assert.match(editorialRejected.error, /blocking finding/);
+    await writeFile(join(output, "SUBMIT"), "");
+    const submitRejected = await waitForJson(join(output, "tailoring-status.json"), (value) => value.state === "submit_rejected");
+    assert.match(submitRejected.error, /exact reviewed non-blocked candidate|submission/);
+    assert.equal(server.calls.filter((call) => call.url.endsWith("/submit")).length, 0);
+
+    await writeFile(join(output, "candidate.json"), JSON.stringify({ ...candidate, title: "Materially revised platform engineer" }));
+    await writeFile(join(output, "RENDER"), "");
+    const secondPreview = await waitForJson(join(output, "candidate-preview.json"), (value) => value.pass_number === 2);
+    await writeFile(join(output, "editorial-review.json"), JSON.stringify(editorialReview(secondPreview.candidate_hash, 2)));
+    await writeFile(join(output, "EDITORIAL_REVIEW"), "");
+    await waitForJson(join(output, "tailoring-status.json"), (value) => value.state === "ready_for_submission");
+    await writeFile(join(output, "SUBMIT"), "");
+    await resultPromise;
+    assert.equal(server.calls.filter((call) => call.url.endsWith("/submit")).length, 1);
+  } finally {
+    server.restore();
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("action-state changes count as progress when an issue keeps its ID", { concurrency: false }, async () => {
+  const { workspace, output, context, candidate } = await makeSessionWorkspace();
+  const server = mockTailoringServer(context, ({ pass, hash }) => {
+    const result = evaluation(hash, pass, "revise");
+    result.recommendations = [{
+      id: "recommendation-stable",
+      kind: "recommendation",
+      category: "lexical",
+      message: "Generated prose varies by pass.",
+      detail: null,
+      priority: pass === 1 ? "high" : "normal",
+      requirement_id: null,
+      term_id: null,
+      code: "terminology",
+      importance: null,
+    }];
+    result.readiness.reasons = ["A concrete fixable issue remains."];
+    return result;
+  });
+  try {
+    await writeFile(join(output, "RENDER"), "");
+    const resultPromise = runSession("https://aergia.example/agent/tailor/session-1", workspace, { code: "code-1234567890123456" });
+    void resultPromise.catch(() => undefined);
+    for (let pass = 1; pass <= 4; pass += 1) {
+      const preview = await waitForJson(join(output, "candidate-preview.json"), (value) => value.pass_number === pass);
+      await writeFile(join(output, "editorial-review.json"), JSON.stringify(editorialReview(preview.candidate_hash, pass)));
+      await writeFile(join(output, "EDITORIAL_REVIEW"), "");
+      const status = await waitForJson(join(output, "tailoring-status.json"), (value) => value.pass_number === pass && (pass < 4 ? value.state === "revision_required" : value.state === "fallback_available"));
+      if (pass === 2) assert.equal(status.state, "revision_required");
+      if (pass < 4) {
+        await writeFile(join(output, "candidate.json"), JSON.stringify({ ...candidate, title: `State pass ${pass + 1}` }));
+        await writeFile(join(output, "RENDER"), "");
+      }
+    }
+    assert.equal((await readFile(join(output, "tailoring-status.json"), "utf8")).includes("unchanged_instrumentation"), true);
+    await writeFile(join(output, "SUBMIT"), "");
+    await resultPromise;
+  } finally {
+    server.restore();
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("exact fallback ties prefer the latest evaluated pass", { concurrency: false }, async () => {
+  const { workspace, output, context, candidate } = await makeSessionWorkspace();
+  const server = mockTailoringServer(context, ({ pass, hash }) => evaluation(hash, pass, "revise", 1));
+  try {
+    await writeFile(join(output, "RENDER"), "");
+    const resultPromise = runSession("https://aergia.example/agent/tailor/session-1", workspace, { code: "code-1234567890123456" });
+    void resultPromise.catch(() => undefined);
+    for (let pass = 1; pass <= 3; pass += 1) {
+      const preview = await waitForJson(join(output, "candidate-preview.json"), (value) => value.pass_number === pass);
+      await writeFile(join(output, "editorial-review.json"), JSON.stringify(editorialReview(preview.candidate_hash, pass)));
+      await writeFile(join(output, "EDITORIAL_REVIEW"), "");
+      await waitForJson(join(output, "tailoring-status.json"), (value) => value.pass_number === pass && (pass < 3 ? value.state === "revision_required" : value.state === "fallback_available"));
+      if (pass < 3) {
+        await writeFile(join(output, "candidate.json"), JSON.stringify({ ...candidate, title: `Tie pass ${pass + 1}` }));
+        await writeFile(join(output, "RENDER"), "");
+      }
+    }
+    await writeFile(join(output, "SUBMIT"), "");
+    await resultPromise;
+    const submitCall = server.calls.find((call) => call.url.endsWith("/submit"));
+    assert.equal(JSON.parse(submitCall.options.body).candidate.title, "Tie pass 3");
   } finally {
     server.restore();
     await rm(workspace, { recursive: true, force: true });
