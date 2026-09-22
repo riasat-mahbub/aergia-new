@@ -22,6 +22,7 @@ _VERSION_FIELDS = (
     "lexical_score_version",
     "pdf_score_version",
     "classification_warning_version",
+    "ats_guidance_version",
 )
 _MAX_INTERESTING_APPLICATIONS = 5
 _WARNING_OFFSET_SUFFIX = re.compile(r":\d+$")
