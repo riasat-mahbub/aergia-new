@@ -398,6 +398,39 @@ def test_classification_and_cv_evidence_coverage_are_reported_separately() -> No
     assert summary.unverifiable_requirement_count == 1
 
 
+def test_repeated_source_requirements_share_concept_weight_without_being_merged() -> None:
+    as_built = _requirement("as-built", _leaf("as-built-docs", "documentation"), purpose=SectionPurpose.CANDIDATE_RESPONSIBILITIES)
+    support = _requirement("support-docs", _leaf("support-docs", "documentation"), purpose=SectionPurpose.CANDIDATE_RESPONSIBILITIES)
+    as_built = as_built.model_copy(update={"concept_group_id": "documentation"})
+    support = support.model_copy(update={"concept_group_id": "documentation"})
+    analysis = _semantic(
+        [as_built, support],
+        [
+            _leaf_result(as_built.expression, EvidenceStatus.SUPPORTED),
+            _leaf_result(support.expression, EvidenceStatus.PARTIAL),
+        ],
+    )
+
+    summary = score_semantic_analysis(analysis, [as_built, support])
+
+    assert summary.responsibility_alignment.requirement_count == 2
+    assert summary.responsibility_alignment.total_weight == 1.0
+    assert summary.responsibility_alignment.score == 0.75
+
+
+def test_candidate_expectations_are_scored_as_lower_weight_qualifications() -> None:
+    expectation = _requirement("expectation", _leaf("questions", "asking thoughtful questions")).model_copy(
+        update={"importance": RequirementImportance.UNKNOWN, "classification": "candidate_expectation", "weight": 0.5}
+    )
+    analysis = _semantic([expectation], [_leaf_result(expectation.expression, EvidenceStatus.PARTIAL)])
+
+    summary = score_semantic_analysis(analysis, [expectation])
+
+    assert summary.unclassified_requirement_count == 0
+    assert summary.qualification_fit.total_weight == 0.5
+    assert summary.qualification_fit.score == 0.5
+
+
 def test_required_constraint_conflicts_are_reported_as_a_flag() -> None:
     constraint = MinimumYearsConstraint(
         id="python-years",

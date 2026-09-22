@@ -3,6 +3,7 @@ import type {
   ScanResult,
   ScannerCVLocation,
   ScannerEvidenceStatus,
+  ScannerEvidenceStrength,
   ScannerExpressionEvaluation,
   ScannerExpressionNode,
   ScannerLexicalTerm,
@@ -34,6 +35,7 @@ export interface ScannerEvidenceViewModel {
   excerpt: string;
   sectionLabel: string;
   location: ScannerCVLocation;
+  strength: ScannerEvidenceStrength | null;
 }
 
 export interface ScannerComponentViewModel {
@@ -58,6 +60,8 @@ export interface ScannerRequirementViewModel {
   components: ScannerComponentViewModel[];
   examples: string[];
   relationLabel: string | null;
+  coverageSummary: string;
+  classificationLabel: string;
   evidence: ScannerEvidenceViewModel[];
   explanation: string;
   unclassified: boolean;
@@ -245,6 +249,22 @@ const STATUS_PRIORITY: Record<ScannerEvidenceStatus, number> = {
   supported: 4,
 };
 
+const STRENGTH_PRIORITY: Record<ScannerEvidenceStrength, number> = {
+  direct_demonstration: 5,
+  strong_related_evidence: 4,
+  partial_transfer: 3,
+  weak_context: 2,
+  unsupported: 1,
+};
+
+const STRENGTH_LABELS: Record<ScannerEvidenceStrength, string> = {
+  direct_demonstration: "Direct demonstration",
+  strong_related_evidence: "Strong related evidence",
+  partial_transfer: "Partial transfer",
+  weak_context: "Weak context",
+  unsupported: "Unsupported",
+};
+
 function humanize(value: string): string {
   return value.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
@@ -290,7 +310,52 @@ function bestEvidence(
       excerpt: location.excerpt.trim(),
       sectionLabel: sectionLabel(location),
       location,
+      strength: null,
     }));
+}
+
+function semanticEvidence(
+  records: Array<ScanResult["semantic"]["evidence"][number]>,
+  limit = 3,
+): ScannerEvidenceViewModel[] {
+  const candidates = records.flatMap((record) => record.locations.map((location) => ({
+    excerpt: location.excerpt.trim(),
+    sectionLabel: sectionLabel(location),
+    location,
+    strength: record.strength ?? null,
+  })));
+  const seen = new Set<string>();
+  return candidates
+    .filter((item) => item.excerpt)
+    .sort((left, right) => {
+      const strengthDifference = (right.strength ? STRENGTH_PRIORITY[right.strength] : 0)
+        - (left.strength ? STRENGTH_PRIORITY[left.strength] : 0);
+      return strengthDifference || locationScore(right.location) - locationScore(left.location);
+    })
+    .filter((item) => {
+      const key = `${item.location.field_path}|${item.excerpt.toLocaleLowerCase()}|${item.strength ?? ""}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, limit);
+}
+
+function dedupeEvidence(items: ScannerEvidenceViewModel[], limit = 3): ScannerEvidenceViewModel[] {
+  const seen = new Set<string>();
+  return [...items]
+    .sort((left, right) => {
+      const strengthDifference = (right.strength ? STRENGTH_PRIORITY[right.strength] : 0)
+        - (left.strength ? STRENGTH_PRIORITY[left.strength] : 0);
+      return strengthDifference || locationScore(right.location) - locationScore(left.location);
+    })
+    .filter((item) => {
+      const key = `${item.location.field_path}|${item.excerpt.toLocaleLowerCase()}|${item.strength ?? ""}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, limit);
 }
 
 function nodeTitle(node: ScannerExpressionNode, fallback: string): string {
@@ -307,6 +372,7 @@ function requirementTitle(requirement: ScannerRequirement): string {
 }
 
 function bucketFor(requirement: ScannerRequirement): ScannerRequirementViewModel["bucket"] {
+  if (requirement.classification === "candidate_expectation") return "qualification";
   if (requirement.importance === "preferred") return "preferred";
   if (requirement.importance === "unknown") return "unknown";
   if (requirement.family === "responsibility") return "responsibility";
@@ -365,6 +431,44 @@ function rootRelation(node: ScannerExpressionNode): string | null {
   return node.kind === "all" ? null : relationLabel(node);
 }
 
+function containsKind(node: ScannerExpressionNode, kind: ScannerExpressionNode["kind"]): boolean {
+  if (node.kind === kind) return true;
+  if (node.kind === "examples") {
+    return Boolean(node.subject && containsKind(node.subject, kind))
+      || (node.examples ?? []).some((child) => containsKind(child, kind));
+  }
+  return (node.children ?? []).some((child) => containsKind(child, kind));
+}
+
+function coverageSummary(
+  requirement: ScannerRequirement,
+  components: ScannerComponentViewModel[],
+): string {
+  if (requirement.expression.kind === "examples") {
+    return "The subject is the requirement; the listed technologies are illustrative examples.";
+  }
+  if (requirement.expression.kind === "any") {
+    return requirement.expression.children?.length === 2 && requirement.expression.children[0]?.kind === "any"
+      ? "One education field or equivalent practical experience is enough."
+      : "One supported alternative is enough; the alternatives are not a checklist.";
+  }
+  if (containsKind(requirement.expression, "any")) {
+    return "This compound requirement contains alternatives; one supported option satisfies each alternative group.";
+  }
+  const mandatory = components.filter((component) => !component.illustrative && !component.optional);
+  if (mandatory.length > 1) {
+    const supported = mandatory.filter((component) => component.status === "supported").length;
+    return `${supported} of ${mandatory.length} required components covered.`;
+  }
+  return requirement.source.original_text;
+}
+
+function classificationLabel(requirement: ScannerRequirement): string {
+  const value = requirement.classification;
+  if (!value) return "Candidate-facing requirement";
+  return humanize(value);
+}
+
 function requirementExplanation(status: ScannerEvidenceStatus, components: ScannerComponentViewModel[]): string {
   if (status === "supported") return "Your CV provides evidence for this requirement.";
   if (status === "partial") {
@@ -395,8 +499,10 @@ function buildRequirementViewModel(
   const rootEvaluation = evaluation?.expression ?? fallbackEvaluation;
   const flattened = flattenComponents(requirement.expression, rootEvaluation);
   const components = flattened.map((component) => {
-    const locations = component.evaluation.evidence_ids.flatMap((id) => evidenceById.get(id)?.locations ?? []);
-    const allEvidence = bestEvidence(locations, 100);
+    const records = component.evaluation.evidence_ids
+      .map((id) => evidenceById.get(id))
+      .filter((record): record is ScanResult["semantic"]["evidence"][number] => Boolean(record));
+    const allEvidence = semanticEvidence(records, 100);
     return {
       id: component.node.id,
       title: nodeTitle(component.node, "Requirement component"),
@@ -407,24 +513,27 @@ function buildRequirementViewModel(
       allEvidence,
     };
   });
-  const evidence = bestEvidence(components.flatMap((component) => component.evidence.map((item) => item.location)));
+  const evidence = dedupeEvidence(components.flatMap((component) => component.allEvidence));
   const status = evaluation?.status ?? "not_evidenced";
   const importance = requirement.importance;
+  const expectation = requirement.classification === "candidate_expectation";
   return {
     id: requirement.id,
     title: requirementTitle(requirement),
     sourceText: requirement.source.original_text,
     importance,
-    importanceLabel: importance === "required" ? "Required" : importance === "preferred" ? "Preferred" : "Unclassified",
+    importanceLabel: expectation ? "Expectation" : importance === "required" ? "Required" : importance === "preferred" ? "Preferred" : "Unclassified",
     status,
     statusLabel: statusLabel(status),
     bucket: bucketFor(requirement),
     components,
     examples: exampleNames(requirement.expression),
     relationLabel: rootRelation(requirement.expression),
+    coverageSummary: coverageSummary(requirement, components),
+    classificationLabel: classificationLabel(requirement),
     evidence,
     explanation: requirementExplanation(status, components),
-    unclassified: importance === "unknown",
+    unclassified: importance === "unknown" && !expectation,
   };
 }
 
@@ -683,6 +792,10 @@ export function buildScannerReportViewModel(result: ScanResult, application: App
 
 export function statusText(status: ScannerEvidenceStatus): string {
   return statusLabel(status);
+}
+
+export function evidenceStrengthText(strength: ScannerEvidenceStrength | null | undefined): string | null {
+  return strength ? STRENGTH_LABELS[strength] : null;
 }
 
 export function componentStatusIcon(status: ScannerEvidenceStatus): "check" | "partial" | "missing" | "conflict" | "unknown" {

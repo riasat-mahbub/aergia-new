@@ -22,6 +22,20 @@ class RequirementImportance(StrEnum):
     UNKNOWN = "unknown"
 
 
+class CandidateFacingKind(StrEnum):
+    """How a source sentence participates in candidate Job Fit."""
+
+    CANDIDATE_REQUIREMENT = "candidate_requirement"
+    CANDIDATE_EXPECTATION = "candidate_expectation"
+    CANDIDATE_PREFERENCE = "candidate_preference"
+    JOB_RESPONSIBILITY = "job_responsibility"
+    EMPLOYER_DESCRIPTION = "employer_description"
+    TEAM_DESCRIPTION = "team_description"
+    EMPLOYER_VALUE_PROPOSITION = "employer_value_proposition"
+    BENEFIT = "benefit"
+    COMPANY_VALUE_STATEMENT = "company_value_statement"
+
+
 class RequirementFamily(StrEnum):
     TECHNICAL_SKILL = "technical_skill"
     EXPERIENCE = "experience"
@@ -37,8 +51,12 @@ class RequirementFamily(StrEnum):
 class SectionPurpose(StrEnum):
     CANDIDATE_RESPONSIBILITIES = "candidate_responsibilities"
     CANDIDATE_QUALIFICATIONS = "candidate_qualifications"
+    CANDIDATE_EXPECTATIONS = "candidate_expectations"
     CANDIDATE_PREFERENCES = "candidate_preferences"
     EMPLOYER_INFORMATION = "employer_information"
+    TEAM_DESCRIPTION = "team_description"
+    EMPLOYER_VALUE_PROPOSITION = "employer_value_proposition"
+    COMPANY_VALUE_STATEMENT = "company_value_statement"
     BENEFITS = "benefits"
     LOGISTICS = "logistics"
     APPLICATION_PROCESS = "application_process"
@@ -112,6 +130,7 @@ class ImportanceEvidenceKind(StrEnum):
     SECTION_CONTEXT = "section_context"
     MODEL_LABEL = "model_label"
     NEGATED = "negated"
+    SENTENCE_CLASSIFIER = "sentence_classifier"
 
 
 class ImportanceEvidence(ScannerModel):
@@ -187,6 +206,30 @@ class MinimumYearsConstraint(ConstraintSource):
     operator: Literal["gt", "gte"] = "gte"
 
 
+class ExperienceDurationConstraint(ConstraintSource):
+    """A duration observation attached to one experience concept.
+
+    Bounds and accepted evidence sources describe the experience statement;
+    they are not additional logical children of the requirement.
+    """
+
+    kind: Literal["experience_duration"]
+    min_years: float | None = Field(default=None, ge=0.0)
+    max_years: float | None = Field(default=None, ge=0.0)
+    min_operator: Literal["gt", "gte"] = "gte"
+    max_operator: Literal["lt", "lte"] = "lte"
+    approximate: bool = False
+    allowed_evidence_sources: list[str] = Field(default_factory=list, max_length=20)
+
+    @model_validator(mode="after")
+    def validate_duration(self) -> ExperienceDurationConstraint:
+        if self.min_years is None and self.max_years is None:
+            raise ValueError("experience duration requires at least one bound")
+        if self.min_years is not None and self.max_years is not None and self.min_years > self.max_years:
+            raise ValueError("experience duration bounds must be ordered")
+        return self
+
+
 class DegreeConstraint(ConstraintSource):
     kind: Literal["degree"]
     level: str = Field(min_length=1, max_length=100)
@@ -242,6 +285,7 @@ class OtherConstraint(ConstraintSource):
 
 Constraint: TypeAlias = Annotated[
     MinimumYearsConstraint
+    | ExperienceDurationConstraint
     | DegreeConstraint
     | CertificationConstraint
     | LanguageProficiencyConstraint
@@ -329,6 +373,8 @@ class Requirement(ScannerModel):
     family: RequirementFamily = RequirementFamily.OTHER
     weight: float = Field(ge=0.0)
     expression: ExpressionNode
+    classification: CandidateFacingKind = CandidateFacingKind.CANDIDATE_REQUIREMENT
+    concept_group_id: str | None = Field(default=None, max_length=200)
     contextual_modifiers: list[RequirementContextualModifier] = Field(default_factory=list, max_length=50)
 
 
@@ -344,6 +390,7 @@ __all__ = [
     "AllExpression",
     "AnyExpression",
     "CandidateFacingSignal",
+    "CandidateFacingKind",
     "CandidateSignalKind",
     "CandidateSignalPolarity",
     "CertificationConstraint",
@@ -354,6 +401,7 @@ __all__ = [
     "Expectation",
     "ExpectationKind",
     "ExamplesExpression",
+    "ExperienceDurationConstraint",
     "ExpressionModifiers",
     "ExpressionNode",
     "GeographicEligibilityConstraint",

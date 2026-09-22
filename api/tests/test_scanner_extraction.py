@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from app.scanner.extraction import (
     SCANNER_EXTRACTOR_VERSION,
     ScannerRequirementExtractor,
@@ -11,8 +13,11 @@ from app.scanner.extraction import (
 from app.scanner.requirements import (
     AllExpression,
     AnyExpression,
+    CandidateFacingKind,
     ExamplesExpression,
     ExpectationKind,
+    ExperienceDurationConstraint,
+    MinimumYearsConstraint,
     RequirementImportance,
     RequirementLeaf,
     SectionPurpose,
@@ -149,6 +154,139 @@ def test_nested_any_and_all_structure_is_built_from_conjunction_scope() -> None:
     assert isinstance(react, RequirementLeaf)
     assert react.concept.name == "react"
     assert requirement.source.original_text == source[requirement.source.source_start : requirement.source.source_end]
+
+
+def _logical_requirement(expression_text: str, concepts: list[str]):
+    source = f"Qualifications\nExperience with {expression_text}.\n"
+    sentence_start = source.index(expression_text)
+    spans = []
+    for concept in concepts:
+        start = source.index(concept, sentence_start)
+        spans.append({"text": concept, "start": start, "end": start + len(concept), "confidence": 0.92})
+    return extract_requirements_from_entities(
+        source,
+        {"entities": {"hard_skill": spans}},
+    ).requirements[0]
+
+
+def test_logical_expression_parser_preserves_nested_alternatives_and_groups() -> None:
+    assert isinstance(_logical_requirement("A or B", ["A", "B"]).expression, AnyExpression)
+
+    comma_or = _logical_requirement("A, B, or C", ["A", "B", "C"]).expression
+    assert isinstance(comma_or, AnyExpression)
+    assert [child.concept.name for child in comma_or.children] == ["A", "B", "C"]
+
+    parenthesized_or = _logical_requirement("(A OR B) OR D", ["A", "B", "D"]).expression
+    assert isinstance(parenthesized_or, AnyExpression)
+    assert [child.concept.name for child in parenthesized_or.children] == ["A", "B", "D"]
+
+    and_inside_or = _logical_requirement("(A AND B) OR C", ["A", "B", "C"]).expression
+    assert isinstance(and_inside_or, AnyExpression)
+    assert isinstance(and_inside_or.children[0], AllExpression)
+    assert [child.concept.name for child in and_inside_or.children[0].children] == ["A", "B"]
+
+    or_inside_and = _logical_requirement("A AND (B OR C)", ["A", "B", "C"]).expression
+    assert isinstance(or_inside_and, AllExpression)
+    assert isinstance(or_inside_and.children[1], AnyExpression)
+
+
+def test_education_alternatives_are_nested_and_a_computer_science_degree_can_satisfy_one_branch() -> None:
+    source = (
+        "Qualifications and Experience\n"
+        "Post-secondary education in Computer Science, Software Development, Information Technology, "
+        "or a related program, or equivalent practical experience.\n"
+    )
+    requirement = extract_requirements_from_entities(source, {"entities": {}}).requirements[0]
+
+    assert requirement.family.value == "education"
+    assert isinstance(requirement.expression, AnyExpression)
+    education_fields, equivalent = requirement.expression.children
+    assert isinstance(education_fields, AnyExpression)
+    assert [child.concept.name for child in education_fields.children] == [
+        "Computer Science",
+        "Software Development",
+        "Information Technology",
+        "related program",
+    ]
+    assert equivalent.concept.name == "equivalent practical experience"
+
+
+@pytest.mark.parametrize(
+    ("duration_text", "constraint_type"),
+    [
+        ("0–2 years", ExperienceDurationConstraint),
+        ("approximately 0–2 years", ExperienceDurationConstraint),
+        ("1+ years", MinimumYearsConstraint),
+        ("at least 2 years", MinimumYearsConstraint),
+        ("2–4 years", ExperienceDurationConstraint),
+        ("up to 3 years", ExperienceDurationConstraint),
+        ("less than 5 years", ExperienceDurationConstraint),
+        ("3 years preferred", MinimumYearsConstraint),
+    ],
+)
+def test_numeric_experience_phrases_become_constraints_not_requirement_children(duration_text: str, constraint_type: type) -> None:
+    source = f"Qualifications\n{duration_text} of software development experience.\n"
+    requirement = extract_requirements_from_entities(source, {"entities": {}}).requirements[0]
+    leaves = _walk_leaves(requirement.expression)
+
+    assert len(leaves) == 1
+    assert leaves[0].concept.name == "software development experience"
+    assert len(leaves[0].constraints) == 1
+    assert isinstance(leaves[0].constraints[0], constraint_type)
+
+
+def test_convverge_duration_keeps_bounds_and_allowed_evidence_sources() -> None:
+    source = (
+        "Qualifications\nApproximately 0–2 years of software development experience, including "
+        "internships, co-op placements, academic projects, personal projects, or professional experience.\n"
+    )
+    requirement = extract_requirements_from_entities(source, {"entities": {}}).requirements[0]
+    constraint = _walk_leaves(requirement.expression)[0].constraints[0]
+
+    assert isinstance(constraint, ExperienceDurationConstraint)
+    assert (constraint.min_years, constraint.max_years, constraint.approximate) == (0, 2, True)
+    assert constraint.allowed_evidence_sources == [
+        "internship",
+        "co-op placement",
+        "academic project",
+        "personal project",
+        "professional experience",
+    ]
+
+
+def test_candidate_facing_classifier_separates_employer_copy_and_expectations() -> None:
+    source = (
+        "About Our Team\nYou'll work alongside developers, architects, and designers.\n"
+        "Benefits\nWe offer mentorship and professional development.\n"
+        "About You\nWe are looking for someone who asks thoughtful questions.\n"
+        "What We Expect\nYou bring strong fundamentals.\n"
+        "Key Responsibilities\nYou will be responsible for testing fixes.\n"
+    )
+    requirements = extract_requirements_from_entities(source, {"entities": {}}).requirements
+    by_text = {item.source.original_text: item for item in requirements}
+
+    assert "You'll work alongside developers, architects, and designers." not in by_text
+    assert "We offer mentorship and professional development." not in by_text
+    assert by_text["We are looking for someone who asks thoughtful questions."].classification is CandidateFacingKind.CANDIDATE_REQUIREMENT
+    assert by_text["You bring strong fundamentals."].classification is CandidateFacingKind.CANDIDATE_EXPECTATION
+    assert by_text["You will be responsible for testing fixes."].classification is CandidateFacingKind.JOB_RESPONSIBILITY
+
+
+def test_candidate_expectation_sentence_is_decomposed_into_provenanced_traits() -> None:
+    source = (
+        "What We Expect\nYou may be early in your career, but you bring strong fundamentals, "
+        "a willingness to ask thoughtful questions, and a commitment to building reliable, high-quality work.\n"
+    )
+    requirement = extract_requirements_from_entities(source, {"entities": {}}).requirements[0]
+    leaves = _walk_leaves(requirement.expression)
+
+    assert requirement.classification is CandidateFacingKind.CANDIDATE_EXPECTATION
+    assert [leaf.concept.name for leaf in leaves] == [
+        "strong fundamentals",
+        "a willingness to ask thoughtful questions",
+        "a commitment to building reliable, high-quality work",
+    ]
+    assert all(leaf.concept.source_text for leaf in leaves)
 
 
 def test_explicit_at_least_one_requirement_builds_any_and_keeps_examples() -> None:
@@ -329,21 +467,24 @@ def _including_requirement(source: str, concepts: list[str]):
     return extract_requirements_from_entities(source, {"entities": entities}).requirements[0]
 
 
-def test_including_list_drops_its_umbrella_and_builds_flat_all_expression() -> None:
+def test_including_list_keeps_its_umbrella_and_marks_members_illustrative() -> None:
     source = "What You Bring\nLearn practices, including A, B, and C.\n"
     requirement = _including_requirement(source, ["A", "B", "C"])
 
-    assert isinstance(requirement.expression, AllExpression)
-    assert [child.concept.name for child in requirement.expression.children] == ["A", "B", "C"]
-    assert requirement.expression.modifiers.list_semantics == "exhaustive"
+    assert isinstance(requirement.expression, ExamplesExpression)
+    assert requirement.expression.subject.concept.name == "Learn practices"
+    assert [child.concept.name for child in requirement.expression.examples] == ["A", "B", "C"]
+    assert all(child.modifiers.optional for child in requirement.expression.examples)
+    assert requirement.expression.min_supporting_examples == 1
 
 
-def test_including_list_drops_cloud_umbrella_without_losing_other_concepts() -> None:
+def test_including_list_preserves_independent_prefix_and_cloud_umbrella() -> None:
     source = "What You Bring\nExperience with cloud technologies, including AWS and Azure.\n"
     requirement = _including_requirement(source, ["AWS", "Azure"])
 
-    assert isinstance(requirement.expression, AllExpression)
-    assert [child.concept.name for child in requirement.expression.children] == ["aws", "azure"]
+    assert isinstance(requirement.expression, ExamplesExpression)
+    assert requirement.expression.subject.concept.name == "cloud technologies"
+    assert [child.concept.name for child in requirement.expression.examples] == ["aws", "azure"]
 
     source_with_independent_concept = (
         "What You Bring\nExperience with Python and cloud technologies, including AWS and Azure.\n"
@@ -354,11 +495,10 @@ def test_including_list_drops_cloud_umbrella_without_losing_other_concepts() -> 
     )
 
     assert isinstance(requirement_with_independent_concept.expression, AllExpression)
-    assert [child.concept.name for child in requirement_with_independent_concept.expression.children] == [
-        "python",
-        "aws",
-        "azure",
-    ]
+    prefix, examples = requirement_with_independent_concept.expression.children
+    assert prefix.concept.name == "python"
+    assert isinstance(examples, ExamplesExpression)
+    assert examples.subject.concept.name == "cloud technologies"
 
 
 def test_alayacare_including_span_is_not_a_mandatory_sibling() -> None:
@@ -378,8 +518,9 @@ def test_alayacare_including_span_is_not_a_mandatory_sibling() -> None:
     )
 
     expression = result.requirements[0].expression
-    assert isinstance(expression, AllExpression)
-    assert [leaf.concept.name for leaf in _walk_leaves(expression)] == [
+    assert isinstance(expression, ExamplesExpression)
+    assert expression.subject.concept.name == "modern development practices"
+    assert [leaf.concept.name for leaf in expression.examples] == [
         "AI-assisted development",
         "ci/cd",
         "containerization",
@@ -500,8 +641,8 @@ def test_alayacare_compound_and_importance_regressions_normalize_without_model_s
 
     modern_text = "Learn and apply modern development practices, including Implementing with AI, CI/CD, containerization, and monitoring."
     modern = requirements[modern_text]
-    assert isinstance(modern.expression, AllExpression)
-    modern_names = [leaf.concept.name for leaf in _walk_leaves(modern.expression)]
+    assert isinstance(modern.expression, ExamplesExpression)
+    modern_names = [leaf.concept.name for leaf in modern.expression.examples]
     assert modern_names == ["AI-assisted development", "ci/cd", "containerization", "monitoring"]
 
     asset_text = "Bilingual in French and English is considered an asset."

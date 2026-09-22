@@ -19,6 +19,7 @@ from typing import Any, Protocol
 from app.scanner.requirements import (
     AllExpression,
     AnyExpression,
+    CandidateFacingKind,
     CandidateFacingSignal,
     CandidateSignalKind,
     CandidateSignalPolarity,
@@ -26,6 +27,7 @@ from app.scanner.requirements import (
     Concept,
     ContextualModifierKind,
     DegreeConstraint,
+    ExperienceDurationConstraint,
     Expectation,
     ExpectationKind,
     ExamplesExpression,
@@ -77,6 +79,7 @@ _CONCEPT_LABELS = frozenset(
     }
 )
 _BULLET_RE = re.compile(r"(?m)^[ \t]*[-*•▪‣][ \t]+")
+_INDENTED_BULLET_RE = re.compile(r"(?m)^[ \t]{2,}(?=\S)")
 _SENTENCE_BOUNDARY_RE = re.compile(r"(?<=[.!?])[ \t\r\n]+(?=[A-Z0-9])")
 _NORMALIZE_RE = re.compile(r"[^\w+#./-]+", re.UNICODE)
 
@@ -117,6 +120,18 @@ _COMPANY_COPY_RE = re.compile(
     r"at\s+[^,.]{2,80},\s+you(?:['’]ll|\s+will)\s+help\s+build\s+technology)\b",
     re.IGNORECASE,
 )
+_EMPLOYER_PROSE_RE = re.compile(
+    r"^\s*(?:you(?:['’]ll|\s+will)\s+(?:work\s+alongside|join|receive|find|have\s+access\s+to)|"
+    r"in\s+return\b|(?:we|our\s+team)\s+(?:offer|provide|work|lead|value|believe|celebrate|collaborate|expect|show|are\s+more\s+than)|"
+    r"you(?:['’]ll|\s+will)\s+find\s+(?:a|an|the)\s+(?:team|workplace|company))",
+    re.IGNORECASE,
+)
+_CANDIDATE_EXPECTATION_RE = re.compile(
+    r"\b(?:you\s+(?:bring|enjoy|are\s+curious|are\s+motivated|may\s+be\s+early)|"
+    r"strong\s+fundamentals|willingness\s+to|commitment\s+to|communication\s+skills|"
+    r"willing\s+to|interest\s+in|curious\s+about)\b",
+    re.IGNORECASE,
+)
 
 _DIRECTED_PATTERNS: tuple[tuple[re.Pattern[str], float], ...] = (
     (re.compile(r"\b(?:you(?:['’]ll|\s+will|\s+must|\s+should|\s+have|\s+are|\s+bring|\s+need|\s+can))\b", re.I), 0.82),
@@ -137,6 +152,7 @@ _EXPECTATION_CUES: tuple[tuple[re.Pattern[str], ExpectationKind, float], ...] = 
     (re.compile(r"\b(?:awareness|aware)\s+of\b", re.I), ExpectationKind.KNOWLEDGE, 0.88),
     (re.compile(r"\bbilingual\b|\bfluent\b", re.I), ExpectationKind.PROFICIENCY, 0.90),
     (re.compile(r"\bfamiliarity\b", re.I), ExpectationKind.FAMILIARITY, 0.92),
+    (re.compile(r"\bexposure\s+to\b", re.I), ExpectationKind.FAMILIARITY, 0.86),
     (re.compile(r"\bproficien(?:t|cy)\b", re.I), ExpectationKind.PROFICIENCY, 0.92),
     (re.compile(r"\bexperience\b", re.I), ExpectationKind.PRIOR_EXPERIENCE, 0.90),
     (re.compile(r"\bwilling(?:ness)?\s+to\s+learn\b", re.I), ExpectationKind.WILLINGNESS_TO_LEARN, 0.94),
@@ -154,12 +170,29 @@ _CONTEXTUAL_MODIFIER_PATTERNS: tuple[tuple[ContextualModifierKind, re.Pattern[st
     (ContextualModifierKind.LEARNING_PURPOSE, re.compile(r"\bto\s+learn\s+[^,.;]+", re.I), 0.86),
 )
 
-_YEAR_RE = re.compile(
-    r"\b(?P<qualifier>at\s+least|minimum(?:\s+of)?|more\s+than|over)?\s*"
-    r"(?P<years>\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten)"
-    r"\s*(?:\+|or\s+more)?\s+years?\b",
+_NUMBER_WORDS = {
+    "zero": 0.0,
+    "one": 1.0,
+    "two": 2.0,
+    "three": 3.0,
+    "four": 4.0,
+    "five": 5.0,
+    "six": 6.0,
+    "seven": 7.0,
+    "eight": 8.0,
+    "nine": 9.0,
+    "ten": 10.0,
+}
+_NUMBER_TOKEN = r"(?:\d+(?:\.\d+)?|zero|one|two|three|four|five|six|seven|eight|nine|ten)"
+_DURATION_RE = re.compile(
+    rf"\b(?P<approx>approximately|approx\.?|about|around|roughly)?\s*"
+    rf"(?:(?P<qualifier>at\s+least|minimum(?:\s+of)?|more\s+than|over|up\s+to|less\s+than|fewer\s+than)\s+)?"
+    rf"(?P<minimum>{_NUMBER_TOKEN})\s*"
+    rf"(?:(?P<range>[-–—−]|to)\s*(?P<maximum>{_NUMBER_TOKEN}))?\s*"
+    rf"(?P<plus>\+|or\s+more)?\s+years?\b",
     re.IGNORECASE,
 )
+_YEAR_RE = _DURATION_RE
 _DEGREE_RE = re.compile(
     r"\b(?P<degree>ph\.?d\.?|doctorate|doctoral|master(?:['’]s)?|msc|m\.?s\.?|mba|"
     r"bachelor(?:['’]s)?|bsc|b\.?s\.?|b\.?a\.?|undergraduate|associate(?:['’]s)?)\b",
@@ -168,6 +201,31 @@ _DEGREE_RE = re.compile(
 _LANGUAGE_RE = re.compile(r"\b(?:bilingual|fluent|proficient|native|conversational)\b", re.I)
 _LANGUAGE_NAMES = {"english", "french", "spanish", "german", "portuguese", "mandarin", "chinese", "arabic", "japanese"}
 _CUSTOM_TERMS: tuple[tuple[str, str, str], ...] = (
+    ("post-secondary education", "post-secondary education", "education"),
+    ("software development experience", "software development experience", "experience"),
+    ("microsoft cloud technologies", "Microsoft cloud technologies", "technical_skill"),
+    ("microsoft cloud", "Microsoft cloud technologies", "technical_skill"),
+    ("power platform", "Power Platform", "technical_skill"),
+    ("microsoft 365", "Microsoft 365", "technical_skill"),
+    ("azure devops", "Azure DevOps", "technical_skill"),
+    ("powershell", "PowerShell", "technical_skill"),
+    ("bash", "Bash", "technical_skill"),
+    ("apis", "APIs", "technical_skill"),
+    ("databases", "databases", "technical_skill"),
+    ("web development frameworks", "web development frameworks", "technical_skill"),
+    ("testing and quality assurance", "testing and quality assurance", "responsibility"),
+    ("quality assurance", "quality assurance", "responsibility"),
+    ("independently", "independent work", "behavioral"),
+    ("collaboratively", "collaboration", "behavioral"),
+    ("team environment", "team environment", "behavioral"),
+    ("strong fundamentals", "software-development fundamentals", "behavioral"),
+    ("willingness to ask thoughtful questions", "asking thoughtful questions", "behavioral"),
+    ("commitment to building reliable, high-quality work", "reliable high-quality work", "behavioral"),
+    ("willingness to ask questions", "asking thoughtful questions", "behavioral"),
+    ("share progress openly", "open progress sharing", "behavioral"),
+    ("proactive blocker communication", "proactive blocker communication", "behavioral"),
+    ("client-facing", "client-facing work", "responsibility"),
+    ("team-based", "team-based software work", "responsibility"),
     ("implementing with ai", "AI-assisted development", "technical_skill"),
     ("ai-assisted development", "AI-assisted development", "technical_skill"),
     ("ai tools", "AI tools", "technical_skill"),
@@ -303,8 +361,25 @@ def _purpose_for_heading(value: str | None) -> tuple[SectionPurpose, float]:
     normalized = normalized.replace(" you ll ", " youll ").replace(" you re ", " youre ")
     if normalized in {"what youll do", "responsibilities", "key responsibilities", "your responsibilities", "what you will do", "duties", "about the role"}:
         return SectionPurpose.CANDIDATE_RESPONSIBILITIES, 0.82 if normalized != "about the role" else 0.62
-    if normalized in {"what you bring", "what you bring to the team", "qualifications", "requirements", "candidate requirements", "minimum qualifications", "required qualifications", "skills", "experience", "candidate profile", "your profile", "who you are"}:
+    if normalized in {
+        "what you bring",
+        "what you bring to the team",
+        "qualifications",
+        "qualifications and experience",
+        "requirements",
+        "candidate requirements",
+        "minimum qualifications",
+        "required qualifications",
+        "skills",
+        "experience",
+        "candidate profile",
+        "your profile",
+        "who you are",
+        "about you",
+    }:
         return SectionPurpose.CANDIDATE_QUALIFICATIONS, 0.84
+    if normalized in {"what we expect", "candidate expectations", "expectations"}:
+        return SectionPurpose.CANDIDATE_EXPECTATIONS, 0.80
     if normalized in {"preferred qualifications", "preferred skills", "nice to have", "nice to haves", "bonus qualifications", "desired qualifications", "preferred requirements"}:
         return SectionPurpose.CANDIDATE_PREFERENCES, 0.88
     if normalized in {"benefits", "benefits and perks", "perks", "compensation", "salary", "total rewards"}:
@@ -315,7 +390,13 @@ def _purpose_for_heading(value: str | None) -> tuple[SectionPurpose, float]:
         return SectionPurpose.APPLICATION_PROCESS, 0.88
     if normalized in {"legal", "equal opportunity", "equal employment opportunity", "privacy", "accessibility", "accommodation"}:
         return SectionPurpose.LEGAL, 0.88
-    if normalized.startswith(("about ", "why join", "work with purpose", "grow in a", "inclusive by design", "our mission", "our values", "who we are", "company overview", "company description")):
+    if normalized in {"about our team", "our team", "team", "team environment"}:
+        return SectionPurpose.TEAM_DESCRIPTION, 0.88
+    if normalized in {"what we offer", "why join", "work with purpose", "grow in a high trust culture"}:
+        return SectionPurpose.EMPLOYER_VALUE_PROPOSITION, 0.88
+    if normalized in {"what we value", "our values", "inclusive by design"}:
+        return SectionPurpose.COMPANY_VALUE_STATEMENT, 0.88
+    if normalized.startswith(("about ", "why join", "our mission", "who we are", "company overview", "company description")):
         return SectionPurpose.EMPLOYER_INFORMATION, 0.88
     return SectionPurpose.UNKNOWN, 0.45
 
@@ -372,7 +453,18 @@ def _trimmed_range(source: str, start: int, end: int, *, strip_bullet: bool = Tr
 
 
 def _sentence_ranges(source: str, section: _Section) -> list[_Sentence]:
-    bullets = [match.start() for match in _BULLET_RE.finditer(source, section.content_start, section.end)]
+    bullets = sorted(
+        {
+            *(
+                match.start()
+                for match in _BULLET_RE.finditer(source, section.content_start, section.end)
+            ),
+            *(
+                match.start()
+                for match in _INDENTED_BULLET_RE.finditer(source, section.content_start, section.end)
+            ),
+        }
+    )
     block_boundaries = [section.content_start]
     block_boundaries.extend(position for position in bullets if position > section.content_start)
     block_boundaries.append(section.end)
@@ -490,15 +582,79 @@ def _directed_signal(text: str) -> tuple[str, float] | None:
     return None
 
 
+def _candidate_facing_kind(
+    sentence: _Sentence,
+    spans: Sequence[_EntitySpan],
+) -> CandidateFacingKind:
+    """Classify a sentence before its concepts are promoted.
+
+    Section context is authoritative for employer copy, but an explicit
+    candidate obligation (for example, ``you must``) can still override a
+    generic company section.  This keeps the classifier reusable across
+    postings instead of keying it to one employer's wording.
+    """
+
+    text = sentence.text
+    explicit_requirement = any(
+        span.label in _REQUIREMENT_LABELS and _overlaps(span, sentence)
+        for span in spans
+    )
+    explicit_required_language = bool(_REQUIRED_RE.search(text) or _ELIGIBILITY_RE.search(text))
+    if _HARD_BOILERPLATE_RE.search(text) and not explicit_required_language:
+        return CandidateFacingKind.EMPLOYER_VALUE_PROPOSITION
+    if _EMPLOYER_PROSE_RE.search(text):
+        if text.casefold().startswith("in return"):
+            return CandidateFacingKind.EMPLOYER_VALUE_PROPOSITION
+        if "team" in text.casefold() or "work alongside" in text.casefold():
+            return CandidateFacingKind.TEAM_DESCRIPTION
+        return CandidateFacingKind.EMPLOYER_VALUE_PROPOSITION
+    if re.search(r"\bwe\s+are\s+looking\s+for\s+(?:someone|a\s+candidate)\b|\byou\s+should\s+have\b", text, re.I):
+        return CandidateFacingKind.CANDIDATE_REQUIREMENT
+    if re.search(r"\byou\s+will\s+be\s+responsible\s+for\b", text, re.I):
+        return CandidateFacingKind.JOB_RESPONSIBILITY
+    if sentence.section.purpose is SectionPurpose.CANDIDATE_PREFERENCES:
+        return CandidateFacingKind.CANDIDATE_PREFERENCE
+    if sentence.section.purpose is SectionPurpose.CANDIDATE_RESPONSIBILITIES:
+        return CandidateFacingKind.JOB_RESPONSIBILITY
+    if sentence.section.purpose in {
+        SectionPurpose.CANDIDATE_QUALIFICATIONS,
+        SectionPurpose.CANDIDATE_EXPECTATIONS,
+    }:
+        if _CANDIDATE_EXPECTATION_RE.search(text) or sentence.section.purpose is SectionPurpose.CANDIDATE_EXPECTATIONS:
+            return CandidateFacingKind.CANDIDATE_EXPECTATION
+        return CandidateFacingKind.CANDIDATE_REQUIREMENT
+    if explicit_requirement or explicit_required_language:
+        return CandidateFacingKind.CANDIDATE_REQUIREMENT
+    if _COMPANY_COPY_RE.search(text):
+        return CandidateFacingKind.EMPLOYER_DESCRIPTION
+    if sentence.section.purpose is SectionPurpose.TEAM_DESCRIPTION:
+        return CandidateFacingKind.TEAM_DESCRIPTION
+    if sentence.section.purpose is SectionPurpose.EMPLOYER_VALUE_PROPOSITION:
+        return CandidateFacingKind.EMPLOYER_VALUE_PROPOSITION
+    if sentence.section.purpose is SectionPurpose.COMPANY_VALUE_STATEMENT:
+        return CandidateFacingKind.COMPANY_VALUE_STATEMENT
+    if sentence.section.purpose is SectionPurpose.BENEFITS:
+        return CandidateFacingKind.BENEFIT
+    if sentence.section.purpose is SectionPurpose.EMPLOYER_INFORMATION:
+        return CandidateFacingKind.EMPLOYER_DESCRIPTION
+    return CandidateFacingKind.CANDIDATE_REQUIREMENT
+
+
 def _is_hard_non_candidate(sentence: _Sentence) -> bool:
     return bool(
         _HARD_BOILERPLATE_RE.search(sentence.text)
         or _COMPANY_COPY_RE.search(sentence.text)
+        or (
+            _EMPLOYER_PROSE_RE.search(sentence.text)
+            and not _REQUIRED_RE.search(sentence.text)
+            and not _ELIGIBILITY_RE.search(sentence.text)
+        )
     )
 
 
 def _candidate_eligibility(sentence: _Sentence, spans: Sequence[_EntitySpan]) -> tuple[bool, float, list[CandidateFacingSignal]]:
     purpose = sentence.section.purpose
+    classification = _candidate_facing_kind(sentence, spans)
     explicit = [span for span in spans if span.label in _REQUIREMENT_LABELS and _overlaps(span, sentence)]
     directed = _directed_signal(sentence.text)
     eligibility_language = _ELIGIBILITY_RE.search(sentence.text)
@@ -506,7 +662,13 @@ def _candidate_eligibility(sentence: _Sentence, spans: Sequence[_EntitySpan]) ->
 
     # Hiring, legal, and company boilerplate is excluded by sentence content;
     # a section label by itself is only one contextual signal.
-    if hard_non_candidate:
+    if hard_non_candidate and classification in {
+        CandidateFacingKind.EMPLOYER_DESCRIPTION,
+        CandidateFacingKind.TEAM_DESCRIPTION,
+        CandidateFacingKind.EMPLOYER_VALUE_PROPOSITION,
+        CandidateFacingKind.BENEFIT,
+        CandidateFacingKind.COMPANY_VALUE_STATEMENT,
+    }:
         return False, max(sentence.section.confidence, 0.9), [
             CandidateFacingSignal(
                 kind=CandidateSignalKind.SECTION_CONTEXT,
@@ -542,9 +704,16 @@ def _candidate_eligibility(sentence: _Sentence, spans: Sequence[_EntitySpan]) ->
     if purpose in {
         SectionPurpose.CANDIDATE_RESPONSIBILITIES,
         SectionPurpose.CANDIDATE_QUALIFICATIONS,
+        SectionPurpose.CANDIDATE_EXPECTATIONS,
         SectionPurpose.CANDIDATE_PREFERENCES,
     }:
         positive_scores.append(sentence.section.confidence * 0.65)
+        if sentence.section.confidence >= 0.80:
+            # High-confidence candidate sections are already a strong
+            # sentence-level signal. This admits indented posting bullets
+            # when a model did not emit a span, without admitting prose from
+            # employer/team sections.
+            positive_scores.append(0.60)
         signals.append(
             CandidateFacingSignal(
                 kind=CandidateSignalKind.SECTION_CONTEXT,
@@ -575,6 +744,9 @@ def _candidate_eligibility(sentence: _Sentence, spans: Sequence[_EntitySpan]) ->
 
     if purpose in {
         SectionPurpose.EMPLOYER_INFORMATION,
+        SectionPurpose.TEAM_DESCRIPTION,
+        SectionPurpose.EMPLOYER_VALUE_PROPOSITION,
+        SectionPurpose.COMPANY_VALUE_STATEMENT,
         SectionPurpose.BENEFITS,
         SectionPurpose.LOGISTICS,
         SectionPurpose.APPLICATION_PROCESS,
@@ -757,6 +929,161 @@ def _action_components(sentence: _Sentence, *, ignore_before: int = 0) -> list[_
     return components
 
 
+def _derived_component(
+    sentence: _Sentence,
+    name: str,
+    family: str,
+    start: int,
+    end: int,
+    *,
+    confidence: float = 0.68,
+    source_text: str | None = None,
+) -> _Component:
+    return _Component(
+        concept=Concept(
+            name=name,
+            canonical_id=f"scanner:{_normalize(name).replace(' ', '_')}"[:200],
+            family=family,
+            source_text=source_text or sentence.text[start - sentence.start : end - sentence.start],
+            confidence=confidence,
+        ),
+        start=start,
+        end=end,
+        label="derived_semantic_component",
+    )
+
+
+def _education_components(sentence: _Sentence, *, ignore_before: int = 0) -> list[_Component]:
+    """Extract the field alternatives from a post-secondary education phrase."""
+
+    match = re.search(
+        r"\bpost[- ]secondary\s+education\s+in\s+(?P<fields>.+?)"
+        r"(?:,?\s+or\s+equivalent\s+practical\s+experience|\.)",
+        sentence.text,
+        re.I,
+    )
+    if match is None:
+        return []
+    region = match.group("fields")
+    components: list[_Component] = []
+    cursor = 0
+    for part in re.split(r",|\bor\b", region, flags=re.I):
+        value = part.strip(" \t,:;()")
+        value = re.sub(r"^(?:a|an)\s+", "", value, flags=re.I)
+        if not value:
+            continue
+        local = region.casefold().find(part.casefold(), cursor)
+        if local < 0:
+            continue
+        cursor = local + len(part)
+        leading = len(part) - len(part.lstrip())
+        start = sentence.start + match.start("fields") + local + leading
+        end = start + len(value)
+        if start < sentence.start + ignore_before:
+            continue
+        components.append(_derived_component(sentence, value, "education", start, end, source_text=value))
+    return components
+
+
+def _experience_component(sentence: _Sentence, *, ignore_before: int = 0) -> _Component | None:
+    duration = _DURATION_RE.search(sentence.text)
+    if duration is None:
+        return None
+    phrase = re.search(r"\b(?:software\s+development|software)\s+experience\b", sentence.text, re.I)
+    if phrase is None:
+        return None
+    if phrase.start() < ignore_before:
+        return None
+    return _derived_component(
+        sentence,
+        "software development experience" if "software development" in phrase.group(0).casefold() else "software experience",
+        "experience",
+        sentence.start + phrase.start(),
+        sentence.start + phrase.end(),
+        confidence=0.78,
+    )
+
+
+def _compound_behavior_components(sentence: _Sentence) -> list[_Component]:
+    text = sentence.text
+    components: list[_Component] = []
+    work_style = re.search(
+        r"\b(?P<independent>independently)\s+and\s+(?P<collaborative>collaboratively)\b",
+        text,
+        re.I,
+    )
+    if work_style:
+        components.extend(
+            [
+                _derived_component(
+                    sentence,
+                    "independent work",
+                    "behavioral",
+                    sentence.start + work_style.start("independent"),
+                    sentence.start + work_style.end("independent"),
+                    confidence=0.78,
+                ),
+                _derived_component(
+                    sentence,
+                    "collaboration",
+                    "behavioral",
+                    sentence.start + work_style.start("collaborative"),
+                    sentence.start + work_style.end("collaborative"),
+                    confidence=0.78,
+                ),
+            ]
+        )
+
+    blocker = re.search(
+        r"\b(?:communicate|share)\b[^.?!]*\b(?:questions?|blockers?|risks?|delays?)\b[^.?!]*\bearly\b",
+        text,
+        re.I,
+    )
+    if blocker:
+        components.append(
+            _derived_component(
+                sentence,
+                "proactive blocker communication",
+                "behavioral",
+                sentence.start + blocker.start(),
+                sentence.start + blocker.end(),
+                confidence=0.78,
+                source_text=blocker.group(0),
+            )
+        )
+
+    bring = re.search(r"\byou\s+bring\s+(?P<body>[^.?!]+)", text, re.I)
+    if bring:
+        body = bring.group("body")
+        parts = [
+            part
+            for part in re.split(
+                r",\s*(?=(?:a|an|the)\s)|,\s*and\s+|\band\s+(?=a|an|the)\s+",
+                body,
+            )
+            if part.strip()
+        ]
+        cursor = 0
+        for part in parts:
+            value = part.strip(" ,")
+            local = body.casefold().find(value.casefold(), cursor)
+            if local < 0:
+                continue
+            cursor = local + len(value)
+            components.append(
+                _derived_component(
+                    sentence,
+                    value,
+                    "behavioral",
+                    sentence.start + bring.start("body") + local,
+                    sentence.start + bring.start("body") + local + len(value),
+                    confidence=0.62,
+                    source_text=value,
+                )
+            )
+    return components
+
+
 def _components_for(sentence: _Sentence, spans: Sequence[_EntitySpan]) -> list[_Component]:
     role_preface = re.match(r"\s*as\s+(?:a|an)\s+[^,]{1,120},", sentence.text, re.I)
     ignore_before = role_preface.end() if role_preface else 0
@@ -773,7 +1100,14 @@ def _components_for(sentence: _Sentence, spans: Sequence[_EntitySpan]) -> list[_
         *[item for item in _taxonomy_components(sentence.text, sentence.start) if item.start >= sentence.start + ignore_before],
         *_custom_components(sentence.text, sentence.start, ignore_before=ignore_before),
     ]
-    components = _action_components(sentence, ignore_before=ignore_before)
+    components = [
+        *_action_components(sentence, ignore_before=ignore_before),
+        *_education_components(sentence, ignore_before=ignore_before),
+        *_compound_behavior_components(sentence),
+    ]
+    experience = _experience_component(sentence, ignore_before=ignore_before)
+    if experience is not None:
+        components.append(experience)
     for span in typed:
         local_start = max(span.start or sentence.start, sentence.start)
         local_end = min(span.end or sentence.end, sentence.end)
@@ -1000,6 +1334,13 @@ def _scope_trailing_domains(
 
 
 def _expectation_for(sentence: _Sentence, component: _Component) -> Expectation:
+    if component.concept.family == "education":
+        return Expectation(
+            kind=ExpectationKind.KNOWLEDGE,
+            qualifier=component.concept.source_text or component.concept.name,
+            source_text=component.concept.source_text or component.concept.name,
+            confidence=0.86,
+        )
     relative_start = max(0, component.start - sentence.start)
     cues: list[tuple[int, int, ExpectationKind, float, str]] = []
     for pattern, kind, confidence in _EXPECTATION_CUES:
@@ -1071,19 +1412,59 @@ def _constraint_for(sentence: _Sentence, component: _Component, node_id: str) ->
     constraints: list[Any] = []
     years = _YEAR_RE.search(sentence.text)
     if years and component.concept.family in {"hard_skill", "technical_skill", "experience", "responsibility", "other"}:
-        numbers = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
-        raw_years = years.group("years").casefold()
+        def number_value(value: str) -> float:
+            return _NUMBER_WORDS.get(value.casefold(), float(value) if re.fullmatch(r"\d+(?:\.\d+)?", value) else 0.0)
+
+        raw_years = years.group("minimum").casefold()
+        minimum = number_value(raw_years)
+        raw_maximum = years.group("maximum")
+        maximum = number_value(raw_maximum) if raw_maximum else None
         qualifier = (years.group("qualifier") or "").casefold()
-        constraints.append(
-            MinimumYearsConstraint(
-                id=f"{node_id}-years",
-                kind="minimum_years",
-                years=float(numbers.get(raw_years, raw_years)),
-                operator="gt" if qualifier in {"more than", "over"} else "gte",
-                source_text=sentence.text[years.start() : years.end()].strip(),
-                confidence=0.90,
+        source_text = sentence.text[years.start() : years.end()].strip()
+        is_approximate = bool(years.group("approx"))
+        is_range = maximum is not None
+        is_upper_bound = qualifier in {"up to", "less than", "fewer than"}
+        if is_range or is_approximate or is_upper_bound:
+            duration_minimum = None if is_upper_bound else minimum
+            duration_maximum = maximum if maximum is not None else minimum if is_approximate or is_upper_bound else None
+            allowed_sources: list[str] = []
+            source_context = sentence.text[years.end() :]
+            for phrase, label in (
+                ("internship", "internship"),
+                ("co-op", "co-op placement"),
+                ("co op", "co-op placement"),
+                ("academic project", "academic project"),
+                ("personal project", "personal project"),
+                ("professional experience", "professional experience"),
+            ):
+                if re.search(rf"\b{re.escape(phrase)}s?\b", source_context, re.I):
+                    if label not in allowed_sources:
+                        allowed_sources.append(label)
+            constraints.append(
+                ExperienceDurationConstraint(
+                    id=f"{node_id}-duration",
+                    kind="experience_duration",
+                    min_years=duration_minimum,
+                    max_years=duration_maximum,
+                    min_operator="gte",
+                    max_operator="lte" if is_range or is_approximate or qualifier == "up to" else "lt",
+                    approximate=is_approximate,
+                    allowed_evidence_sources=allowed_sources,
+                    source_text=source_text,
+                    confidence=0.90,
+                )
             )
-        )
+        else:
+            constraints.append(
+                MinimumYearsConstraint(
+                    id=f"{node_id}-years",
+                    kind="minimum_years",
+                    years=minimum,
+                    operator="gt" if qualifier in {"more than", "over"} else "gte",
+                    source_text=source_text,
+                    confidence=0.90,
+                )
+            )
     degree = _DEGREE_RE.search(sentence.text)
     if degree and component.concept.family == "education":
         raw_degree = degree.group("degree").casefold().replace("’", "'").replace(".", "")
@@ -1182,7 +1563,31 @@ def _importance(sentence: _Sentence, spans: Sequence[_EntitySpan]) -> tuple[Requ
     if sentence.section.purpose is SectionPurpose.CANDIDATE_PREFERENCES:
         evidence.append(ImportanceEvidence(kind=ImportanceEvidenceKind.SECTION_CONTEXT, interpretation=RequirementImportance.PREFERRED, source_text=sentence.section.title or "preferred section", confidence=sentence.section.confidence))
         return RequirementImportance.PREFERRED, sentence.section.confidence, evidence
-    if sentence.section.purpose in {SectionPurpose.CANDIDATE_RESPONSIBILITIES, SectionPurpose.CANDIDATE_QUALIFICATIONS}:
+    if sentence.section.purpose is SectionPurpose.CANDIDATE_EXPECTATIONS:
+        evidence.append(
+            ImportanceEvidence(
+                kind=ImportanceEvidenceKind.SECTION_CONTEXT,
+                interpretation=RequirementImportance.UNKNOWN,
+                source_text=sentence.section.title or "candidate expectation",
+                confidence=sentence.section.confidence,
+            )
+        )
+        return RequirementImportance.UNKNOWN, sentence.section.confidence, evidence
+    if _CANDIDATE_EXPECTATION_RE.search(text):
+        evidence.append(
+            ImportanceEvidence(
+                kind=ImportanceEvidenceKind.SENTENCE_CLASSIFIER,
+                interpretation=RequirementImportance.UNKNOWN,
+                source_text=_CANDIDATE_EXPECTATION_RE.search(text).group(0),
+                confidence=0.78,
+            )
+        )
+        return RequirementImportance.UNKNOWN, 0.78, evidence
+    if sentence.section.purpose in {
+        SectionPurpose.CANDIDATE_RESPONSIBILITIES,
+        SectionPurpose.CANDIDATE_QUALIFICATIONS,
+        SectionPurpose.CANDIDATE_EXPECTATIONS,
+    }:
         if sentence.section.confidence < 0.70:
             evidence.append(ImportanceEvidence(kind=ImportanceEvidenceKind.SECTION_CONTEXT, interpretation=RequirementImportance.UNKNOWN, source_text=sentence.section.title or "low-confidence candidate-facing section", confidence=sentence.section.confidence))
             return RequirementImportance.UNKNOWN, sentence.section.confidence, evidence
@@ -1200,16 +1605,6 @@ def _relation_tree(
 ) -> ExpressionNode:
     if len(component_nodes) == 1:
         return component_nodes[0]
-    connectors: list[str] = []
-    for left, right in zip(components, components[1:], strict=False):
-        gap = sentence.text[max(0, left.end - sentence.start) : max(0, right.start - sentence.start)]
-        if re.search(r"\bor\b", gap, re.I):
-            connectors.append("or")
-        elif re.search(r"\band\b", gap, re.I):
-            connectors.append("and")
-        else:
-            connectors.append("comma")
-
     explicit_one_of = bool(re.search(r"\b(?:at\s+least\s+one|one\s+of|either)\b", sentence.text, re.I))
     has_example_marker = _EXAMPLE_LIST_RE.search(sentence.text) is not None
     if explicit_one_of:
@@ -1221,61 +1616,124 @@ def _relation_tree(
             confidence=confidence,
         )
 
-    if _INCLUDING_LIST_RE.search(sentence.text):
+    gaps: list[str] = []
+    for left, right in zip(components, components[1:], strict=False):
+        gaps.append(sentence.text[left.end - sentence.start : right.start - sentence.start])
+    explicit_or = any(re.search(r"\bor\b", gap, re.I) for gap in gaps)
+    explicit_and = any(re.search(r"\band\b", gap, re.I) for gap in gaps)
+
+    connectors: list[str] = []
+    for gap in gaps:
+        if re.search(r"\bor\b|/", gap, re.I):
+            connectors.append("or")
+        elif re.search(r"\band\b", gap, re.I):
+            connectors.append("and")
+        elif explicit_or and not explicit_and:
+            connectors.append("or")
+        elif explicit_or and re.search(r",", gap):
+            connectors.append("or")
+        else:
+            connectors.append("and")
+
+    comma_and_group = explicit_or and any(re.search(r",\s*and\b", gap, re.I) for gap in gaps)
+    tokens: list[ExpressionNode | str] = [
+        *(["("] if comma_and_group else []),
+        component_nodes[0],
+    ]
+    for gap, connector, node in zip(gaps, connectors, component_nodes[1:], strict=True):
+        if comma_and_group and re.search(r",\s*and\b", gap, re.I):
+            tokens.append(")")
+        tokens.extend(")" for _ in re.finditer(r"\)", gap))
+        tokens.append(connector)
+        tokens.extend("(" for _ in re.finditer(r"\(", gap))
+        tokens.append(node)
+    tokens.extend(")" for _ in re.finditer(r"\)", sentence.text[components[-1].end - sentence.start :]))
+
+    # Parentheses in a source list may be attached to the first component.
+    prefix = sentence.text[: components[0].start - sentence.start]
+    opening = len(re.findall(r"\(", prefix)) - len(re.findall(r"\)", prefix))
+    if opening > 0:
+        tokens = [*("(" for _ in range(opening)), *tokens]
+
+    position = 0
+
+    def combine(kind: str, children: list[ExpressionNode], suffix: str) -> ExpressionNode:
+        flattened: list[ExpressionNode] = []
+        for child in children:
+            if kind == "any" and isinstance(child, AnyExpression):
+                flattened.extend(child.children)
+            elif kind == "all" and isinstance(child, AllExpression):
+                flattened.extend(child.children)
+            else:
+                flattened.append(child)
+        expression_modifiers = ExpressionModifiers(
+            list_semantics="examples" if has_example_marker else "unknown"
+        )
+        if kind == "any":
+            return AnyExpression(
+                kind="any",
+                id=f"{requirement_id}-any{suffix}",
+                children=flattened,
+                modifiers=expression_modifiers,
+                confidence=confidence,
+            )
+        return AllExpression(
+            kind="all",
+            id=f"{requirement_id}-all{suffix}",
+            children=flattened,
+            modifiers=expression_modifiers,
+            confidence=confidence,
+        )
+
+    def parse_primary() -> ExpressionNode:
+        nonlocal position
+        if position < len(tokens) and tokens[position] == "(":
+            position += 1
+            value = parse_or()
+            if position < len(tokens) and tokens[position] == ")":
+                position += 1
+            return value
+        value = tokens[position]
+        position += 1
+        if isinstance(value, str):
+            raise ValueError("logical expression parser expected a component")
+        return value
+
+    def parse_and() -> ExpressionNode:
+        nonlocal position
+        values = [parse_primary()]
+        while position < len(tokens) and tokens[position] == "and":
+            position += 1
+            values.append(parse_primary())
+        return values[0] if len(values) == 1 else combine("all", values, f"-{position}")
+
+    def parse_or() -> ExpressionNode:
+        nonlocal position
+        values = [parse_and()]
+        while position < len(tokens) and tokens[position] == "or":
+            position += 1
+            values.append(parse_and())
+        return values[0] if len(values) == 1 else combine("any", values, f"-{position}")
+
+    try:
+        expression = parse_or()
+    except (IndexError, ValueError):
         return AllExpression(
             kind="all",
             id=f"{requirement_id}-all",
             children=list(component_nodes),
-            modifiers=ExpressionModifiers(list_semantics="exhaustive"),
+            modifiers=ExpressionModifiers(list_semantics="unknown"),
             confidence=confidence,
         )
-
-    groups: list[list[ExpressionNode]] = []
-    current: list[ExpressionNode] = [component_nodes[0]]
-    for index, connector in enumerate(connectors):
-        next_leaf = component_nodes[index + 1]
-        if connector == "and":
-            groups.append(current)
-            current = [next_leaf]
-        else:
-            current.append(next_leaf)
-    groups.append(current)
-
-    grouped: list[Any] = []
-    for index, group in enumerate(groups):
-        start_index = sum(len(item) for item in groups[:index])
-        group_connectors = connectors[start_index : start_index + max(0, len(group) - 1)]
-        if len(group) == 1:
-            grouped.append(group[0])
-        elif "or" in group_connectors:
-            grouped.append(
-                AnyExpression(
-                    kind="any",
-                    id=f"{requirement_id}-any-{index + 1}",
-                    children=group,
-                    modifiers=ExpressionModifiers(list_semantics="examples" if has_example_marker else "unknown"),
-                    confidence=confidence,
-                )
-            )
-        else:
-            grouped.append(
-                AllExpression(
-                    kind="all",
-                    id=f"{requirement_id}-all-{index + 1}",
-                    children=group,
-                    modifiers=ExpressionModifiers(list_semantics="exhaustive" if re.search(r"\bincluding\b", sentence.text, re.I) else "unknown"),
-                    confidence=confidence,
-                )
-            )
-    if len(grouped) == 1:
-        return grouped[0]
-    return AllExpression(
-        kind="all",
-        id=f"{requirement_id}-all",
-        children=grouped,
-        modifiers=ExpressionModifiers(list_semantics="exhaustive" if re.search(r"\bincluding\b", sentence.text, re.I) else "unknown"),
-        confidence=confidence,
-    )
+    if position != len(tokens):
+        return AllExpression(
+            kind="all",
+            id=f"{requirement_id}-all",
+            children=list(component_nodes),
+            modifiers=ExpressionModifiers(list_semantics="unknown"),
+            confidence=confidence,
+        )
+    return expression
 
 
 def _requirement_family(sentence: _Sentence, components: Sequence[_Component]) -> RequirementFamily:
@@ -1402,7 +1860,7 @@ def _examples_expression(
     requirement_id: str,
     confidence: float,
 ) -> tuple[ExpressionNode, list[_Component]] | None:
-    marker = _EXAMPLE_LIST_RE.search(sentence.text)
+    marker = _EXAMPLE_LIST_RE.search(sentence.text) or _INCLUDING_LIST_RE.search(sentence.text)
     if marker is None or re.search(r"\b(?:at\s+least\s+one|one\s+of|either)\b", sentence.text, re.I):
         return None
     marker_end = sentence.start + marker.end()
@@ -1412,6 +1870,18 @@ def _examples_expression(
     subject_component = _example_subject_component(sentence, marker, example_components)
     if subject_component is None:
         return None
+    subject_candidates = [
+        item
+        for item in components
+        if item.end <= sentence.start + marker.start()
+        and item.start >= subject_component.start
+        and not any(item.start < example.end and item.end > example.start for example in example_components)
+    ]
+    if subject_candidates:
+        # Keep an independent concept before a trailing umbrella separate:
+        # ``Python and cloud technologies, including AWS`` means Python AND
+        # the cloud-technologies obligation, not one opaque umbrella phrase.
+        subject_component = max(subject_candidates, key=lambda item: (item.end, item.start))
 
     leading_components = [
         item
@@ -1433,7 +1903,10 @@ def _examples_expression(
         id=f"{requirement_id}-examples",
         subject=subject_node,
         examples=example_nodes,
-        min_supporting_examples=min(2, len(example_nodes)),
+        # ``including`` introduces illustrative members of the subject, not
+        # independent obligations.  A directly supported umbrella is enough;
+        # otherwise one related member can provide partial transfer.
+        min_supporting_examples=1 if marker.re.pattern == _INCLUDING_LIST_RE.pattern else min(2, len(example_nodes)),
         modifiers=ExpressionModifiers(list_semantics="examples"),
         confidence=confidence,
     )
@@ -1453,20 +1926,82 @@ def _examples_expression(
     return expression, [*leading_components, subject_component, *example_components]
 
 
+def _equivalent_experience_component(sentence: _Sentence) -> _Component | None:
+    match = re.search(r"\bequivalent\s+practical\s+experience\b", sentence.text, re.I)
+    if match is None:
+        return None
+    return _derived_component(
+        sentence,
+        "equivalent practical experience",
+        "experience",
+        sentence.start + match.start(),
+        sentence.start + match.end(),
+        confidence=0.78,
+        source_text=match.group(0),
+    )
+
+
+def _education_expression(
+    sentence: _Sentence,
+    requirement_id: str,
+    confidence: float,
+) -> tuple[ExpressionNode, list[_Component]] | None:
+    fields = _education_components(sentence)
+    equivalent = _equivalent_experience_component(sentence)
+    if len(fields) < 2 or equivalent is None:
+        return None
+    field_nodes = [
+        _component_node(sentence, item, requirement_id, index, confidence)
+        for index, item in enumerate(fields, start=1)
+    ]
+    field_alternatives = AnyExpression(
+        kind="any",
+        id=f"{requirement_id}-education-any",
+        children=field_nodes,
+        modifiers=ExpressionModifiers(list_semantics="unknown"),
+        confidence=confidence,
+    )
+    equivalent_node = _component_node(sentence, equivalent, requirement_id, len(fields) + 1, confidence)
+    return (
+        AnyExpression(
+            kind="any",
+            id=f"{requirement_id}-education-or-experience",
+            children=[field_alternatives, equivalent_node],
+            modifiers=ExpressionModifiers(list_semantics="unknown"),
+            confidence=confidence,
+        ),
+        [*fields, equivalent],
+    )
+
+
+def _concept_group_id(components: Sequence[_Component]) -> str | None:
+    canonical_ids = {
+        component.concept.canonical_id
+        for component in components
+        if component.concept.canonical_id
+    }
+    return next(iter(canonical_ids)) if len(canonical_ids) == 1 else None
+
+
 def _build_requirement(sentence: _Sentence, spans: Sequence[_EntitySpan], index: int, version: str, confidence: float, signals: list[CandidateFacingSignal]) -> Requirement:
     requirement_id = f"req-{index:03d}"
-    components = _without_including_umbrella(sentence, _components_for(sentence, spans))
-    examples_result = _examples_expression(sentence, components, requirement_id, confidence)
-    if examples_result is not None:
-        expression, family_components = examples_result
+    components = list(_components_for(sentence, spans))
+    education_result = _education_expression(sentence, requirement_id, confidence)
+    if education_result is not None:
+        expression, family_components = education_result
     else:
-        components = _scope_trailing_domains(sentence, components)
-        component_nodes = [
-            _component_node(sentence, item, requirement_id, index, confidence)
-            for index, item in enumerate(components, start=1)
-        ]
-        expression = _relation_tree(sentence, components, component_nodes, requirement_id, confidence)
-        family_components = components
+        examples_result = _examples_expression(sentence, components, requirement_id, confidence)
+        if examples_result is not None:
+            expression, family_components = examples_result
+        else:
+            components = _scope_trailing_domains(sentence, components)
+            component_nodes = [
+                _component_node(sentence, item, requirement_id, component_index, confidence)
+                for component_index, item in enumerate(components, start=1)
+            ]
+            expression = _relation_tree(sentence, components, component_nodes, requirement_id, confidence)
+            family_components = components
+    classification = _candidate_facing_kind(sentence, spans)
     importance, importance_confidence, importance_evidence = _importance(sentence, spans)
     section_start = sentence.section.heading_start if sentence.section.heading_start is not None else sentence.section.content_start
     section = SectionContext(
@@ -1492,8 +2027,10 @@ def _build_requirement(sentence: _Sentence, spans: Sequence[_EntitySpan], index:
         importance_confidence=importance_confidence,
         importance_evidence=importance_evidence,
         family=_requirement_family(sentence, family_components),
-        weight=1.0,
+        weight=0.5 if classification is CandidateFacingKind.CANDIDATE_EXPECTATION else 1.0,
         expression=expression,
+        classification=classification,
+        concept_group_id=_concept_group_id(family_components),
         contextual_modifiers=_contextual_modifiers_for(sentence),
     )
 

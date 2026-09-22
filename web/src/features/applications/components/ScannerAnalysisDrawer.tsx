@@ -17,6 +17,7 @@ import type { Application, ScannerEvidenceStatus } from "../types";
 import {
   buildScannerReportViewModel,
   componentStatusIcon,
+  evidenceStrengthText,
   formatScannerPercent,
   scannerStatusLabel,
   type ScannerComponentViewModel,
@@ -115,7 +116,7 @@ function EvidenceList({ evidence, allEvidence }: { evidence: ScannerComponentVie
         {evidence.map((item, index) => (
           <li key={`${item.location.field_path}-${item.excerpt}-${index}`} className="rounded-md bg-app-canvas px-3 py-2 text-xs leading-5 text-app-ink-2">
             <p>“{item.excerpt}”</p>
-            <p className="mt-1 text-app-ink-3">{item.sectionLabel}</p>
+            <p className="mt-1 text-app-ink-3">{item.sectionLabel}{item.strength ? ` · ${evidenceStrengthText(item.strength)}` : ""}</p>
           </li>
         ))}
       </ul>
@@ -126,7 +127,7 @@ function EvidenceList({ evidence, allEvidence }: { evidence: ScannerComponentVie
             {fullEvidence.slice(evidence.length).map((item, index) => (
               <li key={`${item.location.field_path}-${item.excerpt}-all-${index}`} className="rounded-md bg-app-canvas px-3 py-2 text-xs leading-5 text-app-ink-2">
                 <p>“{item.excerpt}”</p>
-                <p className="mt-1 text-app-ink-3">{item.sectionLabel}</p>
+                <p className="mt-1 text-app-ink-3">{item.sectionLabel}{item.strength ? ` · ${evidenceStrengthText(item.strength)}` : ""}</p>
               </li>
             ))}
           </ul>
@@ -168,8 +169,9 @@ function RequirementCard({ requirement }: { requirement: ScannerRequirementViewM
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-sm font-semibold text-app-ink">{requirement.title}</h3>
             <span className="text-xs text-app-ink-3">{requirement.importanceLabel}</span>
+            <span className="text-xs text-app-ink-3">{requirement.classificationLabel}</span>
           </div>
-          <p className="mt-1 text-xs text-app-ink-3">{requirement.components.length > 1 ? `${requirement.components.filter((component) => !component.illustrative && !component.optional && component.status === "supported").length} of ${requirement.components.filter((component) => !component.illustrative && !component.optional).length} components covered` : requirement.sourceText}</p>
+          <p className="mt-1 text-xs text-app-ink-3">{requirement.coverageSummary}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <StatusMark status={requirement.status} label={requirement.statusLabel} />

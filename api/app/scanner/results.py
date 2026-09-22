@@ -35,6 +35,16 @@ class EvidenceMethod(StrEnum):
     HUMAN_ANNOTATION = "human_annotation"
 
 
+class EvidenceStrength(StrEnum):
+    """Directional strength of a CV fact for one requirement expectation."""
+
+    DIRECT_DEMONSTRATION = "direct_demonstration"
+    STRONG_RELATED_EVIDENCE = "strong_related_evidence"
+    PARTIAL_TRANSFER = "partial_transfer"
+    WEAK_CONTEXT = "weak_context"
+    UNSUPPORTED = "unsupported"
+
+
 class AnalysisStatus(StrEnum):
     EVALUATED = "evaluated"
     NOT_EVALUATED = "not_evaluated"
@@ -59,6 +69,7 @@ class ConstraintEvidence(ScannerModel):
     constraint_id: str = Field(min_length=1, max_length=128)
     status: EvidenceStatus
     evidence_text: str | None = Field(default=None, max_length=2_000)
+    observation: str | None = Field(default=None, max_length=500)
 
 
 class Evidence(ScannerModel):
@@ -69,6 +80,7 @@ class Evidence(ScannerModel):
     constraints: list[ConstraintEvidence] = Field(default_factory=list, max_length=100)
     confidence: float = Field(ge=0.0, le=1.0)
     method: EvidenceMethod
+    strength: EvidenceStrength = EvidenceStrength.UNSUPPORTED
 
     @model_validator(mode="after")
     def validate_unique_constraint_evidence(self) -> Evidence:
@@ -319,6 +331,7 @@ __all__ = [
     "ConstraintEvidence",
     "Evidence",
     "EvidenceMethod",
+    "EvidenceStrength",
     "EvidenceStatus",
     "ExpressionEvaluation",
     "FindingSeverity",
