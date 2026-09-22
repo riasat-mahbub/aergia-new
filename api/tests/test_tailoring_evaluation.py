@@ -284,6 +284,83 @@ def test_high_risk_new_employer_is_blocked_without_banning_reframing() -> None:
     assert evaluation.readiness.status == "blocked"
 
 
+def _candidate_with_employer(employer: str) -> dict:
+    candidate = deepcopy(CANDIDATE)
+    candidate["sections"][1]["data"][0]["company"] = employer
+    return candidate
+
+
+def _library_experience(employer: str) -> list[dict]:
+    return [{
+        "id": f"library-{employer.casefold().replace(' ', '-')}",
+        "kind": "experience",
+        "payload": [{"id": "experience-library-1", "company": employer, "position": "Engineer"}],
+    }]
+
+
+def test_library_only_employer_is_authoritative_evidence() -> None:
+    extraction = _extraction()
+    scan = _clean_scan(extraction)
+
+    evaluation = evaluate_tailoring(
+        extraction,
+        scan,
+        "9" * 64,
+        current_candidate=_candidate_with_employer("Employer B"),
+        source_cv=_candidate_with_employer("Employer A"),
+        library=_library_experience("Employer B"),
+    )
+
+    assert not any(item.category == "fabrication" for item in evaluation.blockers)
+
+
+def test_employer_absent_from_source_and_library_is_blocked() -> None:
+    extraction = _extraction()
+    scan = _clean_scan(extraction)
+
+    evaluation = evaluate_tailoring(
+        extraction,
+        scan,
+        "8" * 64,
+        current_candidate=_candidate_with_employer("Employer C"),
+        source_cv=_candidate_with_employer("Employer A"),
+        library=_library_experience("Employer B"),
+    )
+
+    assert any(item.category == "fabrication" for item in evaluation.blockers)
+    assert evaluation.readiness.status == "blocked"
+
+
+def test_library_can_authorize_employer_without_a_source_cv() -> None:
+    extraction = _extraction()
+    scan = _clean_scan(extraction)
+
+    evaluation = evaluate_tailoring(
+        extraction,
+        scan,
+        "7" * 64,
+        current_candidate=_candidate_with_employer("Employer B"),
+        library=_library_experience("Employer B"),
+    )
+
+    assert not any(item.category == "fabrication" for item in evaluation.blockers)
+
+
+def test_employer_is_blocked_when_source_and_library_are_empty() -> None:
+    extraction = _extraction()
+    scan = _clean_scan(extraction)
+
+    evaluation = evaluate_tailoring(
+        extraction,
+        scan,
+        "6" * 64,
+        current_candidate=_candidate_with_employer("Employer C"),
+    )
+
+    assert any(item.category == "fabrication" for item in evaluation.blockers)
+    assert evaluation.readiness.status == "blocked"
+
+
 def test_source_regression_is_a_contextual_tradeoff_and_required_regression_is_prioritized() -> None:
     extraction = _extraction(importance=RequirementImportance.PREFERRED)
     source_scan = _clean_scan(extraction, semantic_status=EvidenceStatus.SUPPORTED, lexical_visibility=LexicalVisibility.EXACT)
