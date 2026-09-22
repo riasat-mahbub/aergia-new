@@ -1,5 +1,6 @@
 from app.scanner.extraction import extract_requirements_from_entities
 from app.scanner.service import ScannerService
+from app.scanner.ats_guidance import ATS_RULES, ATS_SOURCES, SUPPORTED_ATS_PLATFORMS
 
 
 class _FixtureExtractor:
@@ -34,6 +35,15 @@ def test_every_scan_generates_all_supported_ats_platforms():
         "rippling", "workable", "jazzhr", "breezy",
     }
     assert result.versions.ats_guidance_version == "ats-guidance-v1"
+
+
+def test_ats_registry_is_unique_and_source_references_resolve():
+    assert len(SUPPORTED_ATS_PLATFORMS) == len(set(SUPPORTED_ATS_PLATFORMS)) == 14
+    assert len(ATS_RULES) == len(set(ATS_RULES))
+    assert len(ATS_SOURCES) == len(set(ATS_SOURCES))
+    for rule in ATS_RULES.values():
+        assert set(rule.applies_to).issubset(SUPPORTED_ATS_PLATFORMS)
+        assert set(rule.source_ids).issubset(ATS_SOURCES)
 
 
 def test_heading_convention_uses_semantic_section_type():
