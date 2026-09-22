@@ -223,13 +223,31 @@ def _date_findings(facts: _RenderedFacts) -> list[DateCompatibilityFinding]:
     return findings
 
 
-_ENTRY_FIELDS: dict[str, tuple[tuple[str, str], ...]] = {
-    "experience": (("position", "title"), ("company", "employer"), ("date", "dates")),
-    "work_experience": (("position", "title"), ("company", "employer"), ("date", "dates")),
-    "education": (("degree", "degree or program"), ("institution", "institution")),
-    "certifications": (("certification", "certification"), ("issuer", "issuer")),
-    "projects": (("project", "project title"),),
-    "research": (("paper", "research title"),),
+_ENTRY_FIELDS: dict[str, tuple[tuple[tuple[str, ...], str], ...]] = {
+    "experience": (
+        (("position", "title"), "title"),
+        (("company", "employer"), "employer"),
+        (("date", "dates"), "dates"),
+    ),
+    "work_experience": (
+        (("position", "title"), "title"),
+        (("company", "employer"), "employer"),
+        (("date", "dates"), "dates"),
+    ),
+    "education": (
+        (("degree", "program"), "degree or program"),
+        (("institution",), "institution"),
+    ),
+    "certifications": (
+        (("certification", "name"), "certification"),
+        (("issuer", "organization"), "issuer"),
+    ),
+    "projects": (
+        (("project", "name", "title"), "project title"),
+    ),
+    "research": (
+        (("paper", "name", "title"), "research title"),
+    ),
 }
 
 
@@ -239,7 +257,9 @@ def _entry_findings(facts: _RenderedFacts) -> list[EntryCompletenessFinding]:
         requirements = _ENTRY_FIELDS.get(entry.section_type)
         if requirements is None:
             continue
-        missing = [label for key, label in requirements if not entry.fields.get(key)]
+        missing = [
+            label for keys, label in requirements if not any(entry.fields.get(key) for key in keys)
+        ]
         ambiguous = entry.section_type in {"experience", "work_experience"} and bool(
             re.search(r"\s(?:/|&|\band\b)\s", entry.label, re.I)
         )
@@ -668,13 +688,14 @@ def analyze_ats_guidance(
         *_semantic_keyword_guidance(lexical),
     ]
 
-    # Platform interpretations deliberately share rule evaluations.  No
-    # platform-specific vendor claim is emitted without a source entry.
+    # Platform entries are intentionally delta-only.  General ATS advice is
+    # emitted once in ``common_findings``; a platform receives a finding only
+    # when a sourced platform-specific interpretation is added later.
     platforms = {
         platform: AtsPlatformGuidance(
             id=platform,
             name=_PLATFORM_NAMES[platform],
-            findings=[item.model_copy(update={"applies_to": [platform]}) for item in common_findings],
+            findings=[],
             tips=[],
             source_ids=[],
         )

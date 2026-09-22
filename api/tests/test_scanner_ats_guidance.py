@@ -111,6 +111,20 @@ def test_entry_completeness_reports_missing_structured_fields():
     assert findings[("education", "e1")].missing_fields == ["institution"]
 
 
+def test_entry_completeness_accepts_renderer_field_aliases():
+    result = _scan(
+        "Qualifications\nPython",
+        _cv(
+            _section("project", "projects", "Projects", [{"id": "p1", "name": "Aergia"}]),
+            _section("edu", "education", "Education", [{"id": "e1", "degree": "MSc", "institution": "Dal"}]),
+        ),
+    )
+    findings = {(item.section_type, item.entry_id): item for item in result.ats_guidance.entry_completeness}
+
+    assert findings[("projects", "p1")].status == "complete"
+    assert findings[("education", "e1")].status == "complete"
+
+
 def test_structural_entry_findings_keep_named_common_rule_ids():
     result = _scan(
         "Qualifications\nPython",
@@ -155,3 +169,13 @@ def test_common_finding_rule_ids_are_registered():
     )
 
     assert all(item.rule_id in ATS_RULES for item in result.ats_guidance.common_findings)
+
+
+def test_platform_guidance_contains_only_platform_specific_deltas():
+    result = _scan(
+        "Qualifications\nPython",
+        _cv(_section("profile", "profile", "Profile", {"name": "Ada"})),
+    )
+
+    assert result.ats_guidance.common_findings
+    assert all(not platform.findings and not platform.tips for platform in result.ats_guidance.platforms.values())
