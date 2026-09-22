@@ -8,12 +8,17 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { materializeCandidate, validateCandidate } from "./validate-candidate.mjs";
-import { evaluateCritique, MAX_CRITIQUE_PASSES } from "./validate-critique.mjs";
+import {
+  EDITORIAL_REVIEW_VERSION,
+  MAX_EVALUATED_PASSES,
+  validateEditorialReview,
+  validateInferenceNotes,
+} from "./validate-editorial-review.mjs";
 
-export const PROTOCOL_VERSION = 4;
+export const PROTOCOL_VERSION = 5;
 const SUBMIT_MARKER = "SUBMIT";
 const RENDER_MARKER = "RENDER";
-const CRITIQUE_MARKER = "CRITIQUE";
+const EDITORIAL_REVIEW_MARKER = "EDITORIAL_REVIEW";
 
 function parseArgs(argv) {
   const args = {};
@@ -62,7 +67,7 @@ async function requestJson(url, options = {}) {
       const body = await response.json();
       if (typeof body?.detail === "string") detail = body.detail;
     } catch {
-      // Never echo an arbitrary response body supplied by a remote server.
+      // Do not echo arbitrary remote response bodies.
     }
     throw new Error(detail);
   }
@@ -156,9 +161,7 @@ async function readReviewNotes(output) {
     throw error;
   }
   const notes = JSON.parse(source);
-  if (!Array.isArray(notes) || notes.length > 20) {
-    throw new Error("review-notes.json must be an array of at most 20 strings");
-  }
+  if (!Array.isArray(notes) || notes.length > 20) throw new Error("review-notes.json must be an array of at most 20 strings");
   return notes.map((note) => {
     if (typeof note !== "string" || !note.trim() || note.trim().length > 1_000) {
       throw new Error("Each review note must be a non-empty string of at most 1000 characters");
@@ -167,20 +170,38 @@ async function readReviewNotes(output) {
   });
 }
 
+async function readInferenceNotes(output) {
+  let source;
+  try {
+    source = await readFile(resolve(output, "inference-notes.json"), "utf8");
+  } catch (error) {
+    if (error?.code === "ENOENT") return [];
+    throw error;
+  }
+  return validateInferenceNotes(JSON.parse(source));
+}
+
 function wait(milliseconds) {
   return new Promise((accept) => setTimeout(accept, milliseconds));
 }
 
+function ensureEvaluation(evaluation, candidateHash) {
+  if (!evaluation || typeof evaluation !== "object") throw new Error("The server preview did not return a tailoring evaluation");
+  if (evaluation.version !== "tailoring-evaluation-v1") throw new Error("The server returned an incompatible tailoring evaluation");
+  if (evaluation.candidate_hash !== candidateHash) throw new Error("The server evaluation is bound to a different candidate");
+  if (!["ready", "ready_with_review", "revise", "blocked"].includes(evaluation.readiness?.status)) throw new Error("The server returned an invalid tailoring readiness state");
+  return evaluation;
+}
+
 async function renderCandidate(paths, origin, capability, context, candidate, passNumber) {
   const candidateInputDigest = candidateInputHash(candidate);
+  const inferenceNotes = await readInferenceNotes(paths.output);
   const preview = await requestJson(`${origin}/api/v1/tailoring/preview`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Aergia-Tailoring-Capability": capability,
-    },
-    body: JSON.stringify({ context_hash: context.context_hash, candidate }),
+    headers: { "Content-Type": "application/json", "X-Aergia-Tailoring-Capability": capability },
+    body: JSON.stringify({ context_hash: context.context_hash, candidate, inference_notes: inferenceNotes }),
   });
+  const evaluation = ensureEvaluation(preview.evaluation, preview.candidate_hash);
   await replaceProtectedBinary(resolve(paths.output, "candidate-preview.pdf"), preview.pdf_base64);
   const details = {
     format: preview.format,
@@ -189,107 +210,113 @@ async function renderCandidate(paths, origin, capability, context, candidate, pa
     candidate_input_hash: candidateInputDigest,
     pass_number: passNumber,
     scanner_result: preview.scanner_result ?? null,
+    evaluation,
+    inference_notes: inferenceNotes,
     render_warnings: Array.isArray(preview.render_warnings) ? preview.render_warnings : [],
   };
   await replaceProtectedJson(resolve(paths.output, "candidate-preview.json"), details);
-  return {
-    candidate,
-    candidateInputHash: candidateInputDigest,
-    candidateHash: preview.candidate_hash,
-    passNumber,
-    pdfBase64: preview.pdf_base64,
-    preview: details,
-  };
+  return { candidate, candidateInputHash: candidateInputDigest, candidateHash: preview.candidate_hash, passNumber, pdfBase64: preview.pdf_base64, inferenceNotes, preview: details, evaluation };
 }
 
 async function writeSessionStatus(paths, state) {
-  await replaceProtectedJson(resolve(paths.output, "critique-status.json"), state);
+  await replaceProtectedJson(resolve(paths.output, "tailoring-status.json"), state);
 }
 
-async function writeCritiqueResult(paths, result) {
-  await replaceProtectedJson(resolve(paths.output, "critique-result.json"), result);
+async function writeEditorialReviewResult(paths, result) {
+  await replaceProtectedJson(resolve(paths.output, "editorial-review-result.json"), result);
 }
 
 async function appendReviewNote(notes, note) {
-  const boundedNote = note.slice(0, 1_000);
-  return [...notes.slice(0, 19), boundedNote];
+  return [...notes.slice(0, 19), note.slice(0, 1_000)];
+}
+
+function readinessRank(status) {
+  return { blocked: 0, revise: 1, ready_with_review: 2, ready: 3 }[status] ?? 0;
+}
+
+function issueList(evaluation, key) {
+  return Array.isArray(evaluation?.[key]) ? evaluation[key] : [];
+}
+
+function issueIds(evaluation, keys) {
+  return keys.flatMap((key) => issueList(evaluation, key).map((item) => typeof item === "string" ? item : item?.id)).filter(Boolean).sort();
+}
+
+function issueCount(evaluation) {
+  return ["blockers", "review_items", "recommendations", "regressions", "non_actionable_gaps"].reduce((total, key) => total + issueList(evaluation, key).length, 0);
+}
+
+function highPriorityRecommendations(evaluation) {
+  return issueList(evaluation, "recommendations").filter((item) => item?.priority === "high").length;
+}
+
+function materialRegressions(evaluation) {
+  return issueList(evaluation, "regressions").filter((item) => item?.priority === "high" || item?.importance === "required").length;
 }
 
 function isBetterAttempt(current, best) {
   if (!best) return true;
-  if (current.evaluation.passed !== best.evaluation.passed) return current.evaluation.passed;
-  if (current.evaluation.score !== best.evaluation.score) return current.evaluation.score > best.evaluation.score;
-  if (current.evaluation.critical_count !== best.evaluation.critical_count) {
-    return current.evaluation.critical_count < best.evaluation.critical_count;
-  }
-  return current.evaluation.finding_count < best.evaluation.finding_count;
+  const currentStatus = current.evaluation?.readiness?.status;
+  const bestStatus = best.evaluation?.readiness?.status;
+  if (readinessRank(currentStatus) !== readinessRank(bestStatus)) return readinessRank(currentStatus) > readinessRank(bestStatus);
+  if (issueList(current.evaluation, "blockers").length !== issueList(best.evaluation, "blockers").length) return issueList(current.evaluation, "blockers").length < issueList(best.evaluation, "blockers").length;
+  if (materialRegressions(current.evaluation) !== materialRegressions(best.evaluation)) return materialRegressions(current.evaluation) < materialRegressions(best.evaluation);
+  const currentErrors = issueList(current.evaluation, "blockers").filter((item) => ["pdf_recovery", "resume_quality"].includes(item?.category)).length;
+  const bestErrors = issueList(best.evaluation, "blockers").filter((item) => ["pdf_recovery", "resume_quality"].includes(item?.category)).length;
+  if (currentErrors !== bestErrors) return currentErrors < bestErrors;
+  if (highPriorityRecommendations(current.evaluation) !== highPriorityRecommendations(best.evaluation)) return highPriorityRecommendations(current.evaluation) < highPriorityRecommendations(best.evaluation);
+  if (issueCount(current.evaluation) !== issueCount(best.evaluation)) return issueCount(current.evaluation) < issueCount(best.evaluation);
+  return current.candidateHash < best.candidateHash;
 }
 
-function fallbackReviewNote(best, passCount, stopReason) {
-  const unresolved = [
-    ...best.evaluation.findings
-      .filter((finding) => finding.severity === "critical" || finding.severity === "important")
-      .map((finding) => finding.severity + ": " + finding.problem),
-    ...best.evaluation.requirement_review
-      .filter((review) => review.status === "supported_but_missing")
-      .map((review) => review.rationale),
-  ];
-  const reason = stopReason === "repeated_candidate" ? "the writer repeated a previously critiqued candidate" :
-    stopReason === "stalled" ? "two revisions produced less than two points of improvement" :
-      "the five-pass limit was reached";
-  const remaining = unresolved.length > 0 ? unresolved.join("; ") : "the readiness score remained below threshold";
-  return (`Critique gate not passed after ${passCount} critique pass(es): best candidate scored ${best.evaluation.score}/100 (threshold ${best.evaluation.threshold}); ${reason}. Please review remaining findings: ${remaining}`).slice(0, 1_000);
+function actionSignature(evaluation) {
+  return JSON.stringify({
+    blockers: issueIds(evaluation, ["blockers"]),
+    review_items: issueIds(evaluation, ["review_items"]),
+    recommendations: issueIds(evaluation, ["recommendations"]),
+    regressions: issueIds(evaluation, ["regressions"]),
+    gaps: issueIds(evaluation, ["non_actionable_gaps"]),
+  });
+}
+
+function fallbackReviewNote(attempt, passCount, stopReason) {
+  const unresolved = [...issueList(attempt.evaluation, "review_items").slice(0, 3), ...issueList(attempt.evaluation, "recommendations").slice(0, 3)]
+    .map((item) => typeof item === "string" ? item : item?.message).filter(Boolean);
+  const reason = stopReason === "repeated_candidate" ? "the candidate hash repeated" : stopReason === "unchanged_instrumentation" ? "two revisions left the actionable server issues unchanged" : stopReason === "unchanged_blockers" ? "two revisions left the same blocking issues unresolved" : "the five-pass evaluation limit was reached";
+  const remaining = unresolved.length > 0 ? unresolved.join("; ") : "review the server's remaining issue state";
+  return (`Bounded tailoring review stopped after ${passCount} evaluated pass(es) because ${reason}. Remaining review: ${remaining}`).slice(0, 1_000);
 }
 
 async function waitForCandidate(paths, context, origin, capability) {
   const submitPath = resolve(paths.output, SUBMIT_MARKER);
   const renderPath = resolve(paths.output, RENDER_MARKER);
-  const critiquePath = resolve(paths.output, CRITIQUE_MARKER);
+  const reviewMarkerPath = resolve(paths.output, EDITORIAL_REVIEW_MARKER);
   const candidatePath = resolve(paths.output, "candidate.json");
-  const critiqueFilePath = resolve(paths.output, "critique.json");
-  const requirements = Array.isArray(context.scanner?.requirement_extraction?.requirements)
-    ? context.scanner.requirement_extraction.requirements
-    : (Array.isArray(context.requirements) ? context.requirements : []);
-  const critiqueHistory = [];
+  const reviewFilePath = resolve(paths.output, "editorial-review.json");
+  const attempts = [];
   const seenCandidateHashes = new Set();
-  const scores = [];
   let latestRender = null;
-  let latestEvaluation = null;
+  let latestReview = null;
   let bestAttempt = null;
   let passCount = 0;
   let fallbackReady = false;
   let stopReason = null;
+  let unchangedActionRevisions = 0;
+  let unchangedBlockerRevisions = 0;
 
-  await writeSessionStatus(paths, { state: "awaiting_candidate", pass_number: 0, max_passes: MAX_CRITIQUE_PASSES });
+  await writeSessionStatus(paths, { state: "awaiting_candidate", pass_number: 0, max_passes: MAX_EVALUATED_PASSES });
   while (Date.now() < Date.parse(context.expires_at)) {
     if (await exists(renderPath)) {
       await unlink(renderPath).catch(() => undefined);
-      if (fallbackReady && (stopReason === "repeated_candidate" || stopReason === "stalled")) {
-        await writeSessionStatus(paths, {
-          state: "fallback_available",
-          pass_number: passCount,
-          max_passes: MAX_CRITIQUE_PASSES,
-          best_score: bestAttempt?.evaluation.score ?? null,
-          stop_reason: stopReason,
-        });
-        process.stderr.write(`Critique has stopped (${stopReason}). SUBMIT will use the best reviewed candidate.\n`);
-        continue;
-      }
-      if (passCount >= MAX_CRITIQUE_PASSES) {
-        fallbackReady = Boolean(bestAttempt);
+      await unlink(reviewMarkerPath).catch(() => undefined);
+      await unlink(reviewFilePath).catch(() => undefined);
+      await unlink(resolve(paths.output, "editorial-review-result.json")).catch(() => undefined);
+      if (passCount >= MAX_EVALUATED_PASSES) {
+        fallbackReady = Boolean(bestAttempt && bestAttempt.evaluation.readiness.status !== "blocked");
         stopReason = "max_passes";
-        await writeSessionStatus(paths, {
-          state: fallbackReady ? "fallback_available" : "best_candidate_passed",
-          pass_number: passCount,
-          max_passes: MAX_CRITIQUE_PASSES,
-          best_score: bestAttempt?.evaluation.score ?? null,
-        });
-        process.stderr.write("The five-critique-pass limit has been reached. Inspect best-candidate.json; the helper will allow a fallback submit of that reviewed candidate.\n");
+        await writeSessionStatus(paths, { state: fallbackReady ? "fallback_available" : "blocked", pass_number: passCount, max_passes: MAX_EVALUATED_PASSES, stop_reason: stopReason });
         continue;
       }
-      await unlink(critiquePath).catch(() => undefined);
-      await unlink(critiqueFilePath).catch(() => undefined);
-      await unlink(resolve(paths.output, "critique-result.json")).catch(() => undefined);
       try {
         const raw = JSON.parse(await readFile(candidatePath, "utf8"));
         validateCandidate(raw, context);
@@ -298,124 +325,85 @@ async function waitForCandidate(paths, context, origin, capability) {
         const passNumber = passCount + 1;
         const rendered = await renderCandidate(paths, origin, capability, context, candidate, passNumber);
         latestRender = rendered;
-        latestEvaluation = null;
+        latestReview = null;
         passCount = passNumber;
-        await writeSessionStatus(paths, {
-          state: "awaiting_critique",
-          pass_number: passNumber,
-          max_passes: MAX_CRITIQUE_PASSES,
-          candidate_hash: rendered.candidateHash,
-        });
-        process.stderr.write(`Candidate rendered for critique pass ${passNumber}/${MAX_CRITIQUE_PASSES}. Read candidate-preview.pdf and candidate-preview.json, then write critique.json and create CRITIQUE.\n`);
+        await writeSessionStatus(paths, { state: "awaiting_editorial_review", pass_number: passNumber, max_passes: MAX_EVALUATED_PASSES, candidate_hash: rendered.candidateHash, readiness: rendered.evaluation.readiness });
+        process.stderr.write(`Candidate evaluated for pass ${passNumber}/${MAX_EVALUATED_PASSES}. Read candidate-preview.pdf and candidate-preview.json, then write editorial-review.json and create EDITORIAL_REVIEW.\n`);
       } catch (error) {
         await unlink(submitPath).catch(() => undefined);
         await writeSessionStatus(paths, { state: "candidate_or_preview_error", pass_number: passCount, error: error instanceof Error ? error.message : "validation failed" });
         process.stderr.write(`Candidate rejected locally or by preview: ${error instanceof Error ? error.message : "validation failed"}\n`);
-        process.stderr.write(`Repair ${candidatePath}, then create ${renderPath} to try again.\n`);
+        process.stderr.write(`Repair ${candidatePath}, then create ${RENDER_MARKER} to try again.\n`);
       }
       continue;
     }
 
-    if (await exists(critiquePath)) {
-      await unlink(critiquePath).catch(() => undefined);
+    if (await exists(reviewMarkerPath)) {
+      await unlink(reviewMarkerPath).catch(() => undefined);
       try {
-        if (!latestRender) throw new Error("Render a candidate before submitting its critique");
+        if (!latestRender) throw new Error("Evaluate a candidate before submitting its editorial review");
         const rawCandidate = JSON.parse(await readFile(candidatePath, "utf8"));
         validateCandidate(rawCandidate, context);
         const currentCandidate = materializeCandidate(rawCandidate);
-        if (candidateInputHash(currentCandidate) !== latestRender.candidateInputHash) {
-          throw new Error("The candidate changed after rendering; render the current candidate again before critiquing it");
+        if (candidateInputHash(currentCandidate) !== latestRender.candidateInputHash) throw new Error("The candidate changed after evaluation; render the current candidate again before reviewing it");
+        const rawReview = JSON.parse(await readFile(reviewFilePath, "utf8"));
+        const review = validateEditorialReview(rawReview, { candidateHash: latestRender.candidateHash, passNumber: latestRender.passNumber, candidate: latestRender.candidate });
+        latestReview = review;
+        const evaluation = latestRender.evaluation;
+        await writeEditorialReviewResult(paths, { valid: true, review_version: EDITORIAL_REVIEW_VERSION, candidate_hash: review.candidate_hash, pass_number: review.pass_number, readiness: evaluation.readiness, blockers: evaluation.blockers ?? [], review_items: evaluation.review_items ?? [], recommendations: evaluation.recommendations ?? [], non_actionable_gaps: evaluation.non_actionable_gaps ?? [], inference_notes: evaluation.inference_notes ?? [], findings: review.findings });
+        const attempt = { ...latestRender, evaluation, editorialReview: review };
+        const previousAttempt = attempts.at(-1);
+        if (previousAttempt && previousAttempt.candidateHash !== attempt.candidateHash) {
+          unchangedActionRevisions = actionSignature(previousAttempt.evaluation) === actionSignature(attempt.evaluation) ? unchangedActionRevisions + 1 : 0;
+          const previousBlockers = issueIds(previousAttempt.evaluation, ["blockers"]);
+          const currentBlockers = issueIds(attempt.evaluation, ["blockers"]);
+          unchangedBlockerRevisions = previousAttempt.evaluation.readiness?.status === "blocked"
+            && attempt.evaluation.readiness?.status === "blocked"
+            && currentBlockers.length > 0
+            && JSON.stringify(previousBlockers) === JSON.stringify(currentBlockers)
+            ? unchangedBlockerRevisions + 1
+            : 0;
         }
-        const rawCritique = JSON.parse(await readFile(critiqueFilePath, "utf8"));
-        const evaluation = evaluateCritique(rawCritique, {
-          candidateHash: latestRender.candidateHash,
-          passNumber: latestRender.passNumber,
-          candidate: latestRender.candidate,
-          requirements,
-        });
-        latestEvaluation = evaluation;
-        const result = {
-          valid: true,
-          rubric_version: evaluation.rubric_version,
-          candidate_hash: evaluation.candidate_hash,
-          pass_number: evaluation.pass_number,
-          score: evaluation.score,
-          threshold: evaluation.threshold,
-          passed: evaluation.passed,
-          critical_count: evaluation.critical_count,
-          required_evidence_gaps: evaluation.required_evidence_gaps,
-          total_deduction: evaluation.total_deduction,
-          category_scores: evaluation.category_scores,
-          finding_count: evaluation.finding_count,
-          unsupported_requirement_count: evaluation.unsupported_requirement_count,
-          findings: evaluation.findings,
-          requirement_review: evaluation.requirement_review,
-        };
-        await writeCritiqueResult(paths, result);
-        const attempt = { ...latestRender, evaluation };
+        attempts.push(attempt);
         if (isBetterAttempt(attempt, bestAttempt)) {
           bestAttempt = attempt;
           await replaceProtectedJson(resolve(paths.output, "best-candidate.json"), bestAttempt.candidate);
           await replaceProtectedBinary(resolve(paths.output, "best-candidate-preview.pdf"), bestAttempt.pdfBase64);
-          await replaceProtectedJson(resolve(paths.output, "best-candidate-preview.json"), {
-            ...bestAttempt.preview,
-            critique_score: evaluation.score,
-            critique_passed: evaluation.passed,
-          });
+          await replaceProtectedJson(resolve(paths.output, "best-candidate-preview.json"), bestAttempt.preview);
         }
-        const repeatedCandidate = seenCandidateHashes.has(latestRender.candidateInputHash);
-        seenCandidateHashes.add(latestRender.candidateInputHash);
-        scores.push(evaluation.score);
-        const stalled = scores.length >= 3 &&
-          scores[scores.length - 1] - scores[scores.length - 2] < 2 &&
-          scores[scores.length - 2] - scores[scores.length - 3] < 2;
-        critiqueHistory.push(result);
-        await replaceProtectedJson(resolve(paths.output, "critique-history.json"), critiqueHistory);
-
-        if (evaluation.passed) {
+        const repeatedCandidate = seenCandidateHashes.has(attempt.candidateHash);
+        seenCandidateHashes.add(attempt.candidateHash);
+        await replaceProtectedJson(resolve(paths.output, "evaluation-history.json"), attempts.map((item) => ({ candidate_hash: item.candidateHash, pass_number: item.passNumber, readiness: item.evaluation.readiness, improvements: item.evaluation.improvements, regressions: item.evaluation.regressions })));
+        if (evaluation.readiness.status === "ready" || evaluation.readiness.status === "ready_with_review") {
           fallbackReady = false;
           stopReason = null;
-          await writeSessionStatus(paths, {
-            state: "passed",
-            pass_number: passCount,
-            max_passes: MAX_CRITIQUE_PASSES,
-            score: evaluation.score,
-            candidate_hash: evaluation.candidate_hash,
-          });
-          process.stderr.write(`Critique passed at ${evaluation.score}/100. Submit this unchanged rendered candidate, or revise and render again before submitting.\n`);
+          await writeSessionStatus(paths, { state: "ready_for_submission", pass_number: passCount, max_passes: MAX_EVALUATED_PASSES, candidate_hash: attempt.candidateHash, readiness: evaluation.readiness });
+          process.stderr.write(`Server evaluation is ${evaluation.readiness.status}. Submit this exact reviewed candidate when ready, or render a material revision first.\n`);
+        } else if (evaluation.readiness.status === "blocked") {
+          const repeatedBlockers = unchangedBlockerRevisions >= 2;
+          fallbackReady = (repeatedBlockers || passCount >= MAX_EVALUATED_PASSES)
+            && Boolean(bestAttempt && bestAttempt.evaluation.readiness.status !== "blocked");
+          stopReason = repeatedBlockers ? "unchanged_blockers" : passCount >= MAX_EVALUATED_PASSES ? "max_passes" : null;
+          await writeSessionStatus(paths, { state: fallbackReady ? "fallback_available" : "blocked", pass_number: passCount, max_passes: MAX_EVALUATED_PASSES, candidate_hash: attempt.candidateHash, readiness: evaluation.readiness, ...(stopReason ? { stop_reason: stopReason } : {}) });
+          if (fallbackReady) process.stderr.write(`Server evaluation is blocked, but a reviewed non-blocked fallback is available (${stopReason}).\n`);
+          else if (stopReason) {
+            const terminalError = new Error(`Bounded tailoring loop stopped with unresolved blocking issues (${stopReason})`);
+            terminalError.code = "TAILORING_TERMINAL";
+            throw terminalError;
+          }
+          else process.stderr.write("Server evaluation is blocked. Resolve the concrete blocker before submitting.\n");
         } else {
-          fallbackReady = passCount >= MAX_CRITIQUE_PASSES || repeatedCandidate || stalled;
-          stopReason = repeatedCandidate ? "repeated_candidate" : stalled ? "stalled" : passCount >= MAX_CRITIQUE_PASSES ? "max_passes" : null;
-          await writeSessionStatus(paths, {
-            state: fallbackReady ? "fallback_available" : "revision_required",
-            pass_number: passCount,
-            max_passes: MAX_CRITIQUE_PASSES,
-            score: evaluation.score,
-            threshold: evaluation.threshold,
-            passed: false,
-            critical_count: evaluation.critical_count,
-            best_score: bestAttempt?.evaluation.score ?? null,
-            stop_reason: stopReason,
-          });
-          const detail = fallbackReady
-            ? `Critique stopped (${stopReason}). Inspect best-candidate.json; SUBMIT will use that reviewed candidate and attach a note for the user.`
-            : `Critique score ${evaluation.score}/100; ${evaluation.critical_count} Critical issue(s). Revise candidate.json and create RENDER for pass ${passCount + 1}/${MAX_CRITIQUE_PASSES}.`;
-          process.stderr.write(detail + "\n");
+          fallbackReady = passCount >= MAX_EVALUATED_PASSES || repeatedCandidate || unchangedActionRevisions >= 2;
+          stopReason = repeatedCandidate ? "repeated_candidate" : unchangedActionRevisions >= 2 ? "unchanged_instrumentation" : passCount >= MAX_EVALUATED_PASSES ? "max_passes" : null;
+          await writeSessionStatus(paths, { state: fallbackReady ? "fallback_available" : "revision_required", pass_number: passCount, max_passes: MAX_EVALUATED_PASSES, candidate_hash: attempt.candidateHash, readiness: evaluation.readiness, stop_reason: stopReason });
+          process.stderr.write(fallbackReady ? `Bounded revision loop stopped (${stopReason}). SUBMIT may use the best reviewed non-blocked candidate.\n` : `Concrete server issues remain. Revise candidate.json and create RENDER for pass ${passCount + 1}/${MAX_EVALUATED_PASSES}.\n`);
         }
       } catch (error) {
-        const message = error instanceof Error ? error.message : "invalid critique";
-        await writeCritiqueResult(paths, {
-          valid: false,
-          pass_number: latestRender?.passNumber ?? passCount,
-          candidate_hash: latestRender?.candidateHash ?? null,
-          error: message,
-        });
-        await writeSessionStatus(paths, {
-          state: "critique_rejected",
-          pass_number: latestRender?.passNumber ?? passCount,
-          error: message,
-        });
-        process.stderr.write(`Critique rejected: ${message}. Repair critique.json and recreate CRITIQUE, or render the updated candidate.\n`);
+        if (error?.code === "TAILORING_TERMINAL") throw error;
+        const message = error instanceof Error ? error.message : "invalid editorial review";
+        await writeEditorialReviewResult(paths, { valid: false, candidate_hash: latestRender?.candidateHash ?? null, pass_number: latestRender?.passNumber ?? passCount, error: message });
+        await writeSessionStatus(paths, { state: "editorial_review_rejected", pass_number: latestRender?.passNumber ?? passCount, error: message });
+        process.stderr.write(`Editorial review rejected: ${message}. Repair editorial-review.json and recreate EDITORIAL_REVIEW.\n`);
       }
       continue;
     }
@@ -423,36 +411,27 @@ async function waitForCandidate(paths, context, origin, capability) {
     if (await exists(submitPath)) {
       try {
         const notes = await readReviewNotes(paths.output);
+        const currentInferenceNotes = await readInferenceNotes(paths.output);
         let selectedAttempt = null;
-        let fallbackNote = null;
-        if (latestRender && latestEvaluation?.passed) {
+        if (!fallbackReady && latestRender && latestReview) {
           const rawCandidate = JSON.parse(await readFile(candidatePath, "utf8"));
           validateCandidate(rawCandidate, context);
           const currentCandidate = materializeCandidate(rawCandidate);
-          if (candidateInputHash(currentCandidate) === latestRender.candidateInputHash) {
-            selectedAttempt = { ...latestRender, evaluation: latestEvaluation };
-          }
+          if (candidateInputHash(currentCandidate) === latestRender.candidateInputHash) selectedAttempt = { ...latestRender, editorialReview: latestReview };
         }
-        if (!selectedAttempt && bestAttempt?.evaluation.passed) {
-          const rawCandidate = JSON.parse(await readFile(candidatePath, "utf8"));
-          validateCandidate(rawCandidate, context);
-          const currentCandidate = materializeCandidate(rawCandidate);
-          if (candidateInputHash(currentCandidate) === bestAttempt.candidateInputHash) selectedAttempt = bestAttempt;
-        }
-        if (!selectedAttempt && fallbackReady && bestAttempt) {
-          selectedAttempt = bestAttempt;
-          if (!bestAttempt.evaluation.passed) fallbackNote = fallbackReviewNote(bestAttempt, passCount, stopReason);
-        }
-        if (!selectedAttempt) {
-          throw new Error("No passing critique is bound to the current candidate. Render and critique it before SUBMIT; after the limit, SUBMIT uses best-candidate.json.");
-        }
-        const finalNotes = fallbackNote ? await appendReviewNote(notes, fallbackNote) : notes;
+        // A normal ready submission must use the exact candidate currently
+        // present in candidate.json.  Selecting a prior best attempt is only
+        // a bounded-fallback behavior after the loop has explicitly stopped.
+        if (!selectedAttempt && fallbackReady && bestAttempt && bestAttempt.evaluation.readiness.status !== "blocked") selectedAttempt = bestAttempt;
+        if (!selectedAttempt) throw new Error("No exact reviewed non-blocked candidate is available for submission");
+        const readinessStatus = selectedAttempt.evaluation.readiness.status;
+        const fallback = fallbackReady;
+        if (readinessStatus === "revise" && !fallbackReady) throw new Error("The server still requests revision; reach the bounded fallback before submitting");
+        if (readinessStatus === "blocked") throw new Error("Blocked candidates cannot be submitted");
+        if (JSON.stringify(currentInferenceNotes) !== JSON.stringify(selectedAttempt.inferenceNotes ?? [])) throw new Error("inference-notes.json changed after the selected candidate was reviewed");
+        const finalNotes = fallback ? await appendReviewNote(notes, fallbackReviewNote(selectedAttempt, passCount, stopReason)) : notes;
         await replaceProtectedJson(resolve(paths.output, "normalized-candidate.json"), selectedAttempt.candidate);
-        return {
-          candidate: selectedAttempt.candidate,
-          candidateHash: selectedAttempt.candidateHash,
-          reviewNotes: finalNotes,
-        };
+        return { candidate: selectedAttempt.candidate, candidateHash: selectedAttempt.candidateHash, reviewNotes: finalNotes, inferenceNotes: selectedAttempt.inferenceNotes ?? [], editorialReview: selectedAttempt.editorialReview, allowBoundedFallback: fallback };
       } catch (error) {
         await unlink(submitPath).catch(() => undefined);
         const message = error instanceof Error ? error.message : "submission is not ready";
@@ -462,9 +441,7 @@ async function waitForCandidate(paths, context, origin, capability) {
       continue;
     }
 
-    if (!(await exists(renderPath)) && !(await exists(critiquePath)) && !(await exists(submitPath))) {
-      await wait(750);
-    }
+    if (!(await exists(renderPath)) && !(await exists(reviewMarkerPath)) && !(await exists(submitPath))) await wait(750);
   }
   throw new Error("The tailoring session expired before a valid candidate was ready");
 }
@@ -472,58 +449,28 @@ async function waitForCandidate(paths, context, origin, capability) {
 export async function runSession(sessionUrl, workspace, options = {}) {
   const origin = serverOriginFromSessionUrl(sessionUrl);
   const code = options.code === undefined ? await readCode() : validateCode(options.code);
-  const exchange = await requestJson(`${origin}/api/v1/tailoring/exchange`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ protocol_version: PROTOCOL_VERSION, code }),
-  });
-  if (exchange.protocol_version !== PROTOCOL_VERSION || typeof exchange.capability !== "string") {
-    throw new Error("The server returned an incompatible tailoring protocol");
-  }
-  // This value never leaves the process.
+  const exchange = await requestJson(`${origin}/api/v1/tailoring/exchange`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ protocol_version: PROTOCOL_VERSION, code }) });
+  if (exchange.protocol_version !== PROTOCOL_VERSION || typeof exchange.capability !== "string") throw new Error("The server returned an incompatible tailoring protocol");
   const capability = exchange.capability;
-  const context = await requestJson(`${origin}/api/v1/tailoring/context`, {
-    headers: { "X-Aergia-Tailoring-Capability": capability },
-  });
-  if (context.protocol_version !== PROTOCOL_VERSION) throw new Error("The tailoring context is incompatible with this skill");
-
+  const context = await requestJson(`${origin}/api/v1/tailoring/context`, { headers: { "X-Aergia-Tailoring-Capability": capability } });
+  if (context.protocol_version !== PROTOCOL_VERSION || context.evaluation_version !== "tailoring-evaluation-v1") throw new Error("The tailoring context is incompatible with this skill");
   const paths = await prepareWorkspace(workspace, context);
   if (context.rendered_source?.endpoint) {
     try {
-      const sourcePreview = await requestJson(`${origin}${context.rendered_source.endpoint}`, {
-        headers: { "X-Aergia-Tailoring-Capability": capability },
-      });
+      const sourcePreview = await requestJson(`${origin}${context.rendered_source.endpoint}`, { headers: { "X-Aergia-Tailoring-Capability": capability } });
       await writeProtectedBinary(resolve(paths.source, "source-cv.pdf"), sourcePreview.pdf_base64);
-      await writeFile(
-        resolve(paths.source, "source-cv-render.json"),
-        `${JSON.stringify({ format: sourcePreview.format, page_count: sourcePreview.page_count, candidate_hash: sourcePreview.candidate_hash, scanner_result: sourcePreview.scanner_result ?? null }, null, 2)}\n`,
-        { encoding: "utf8", mode: 0o600 },
-      );
+      await writeFile(resolve(paths.source, "source-cv-render.json"), `${JSON.stringify({ format: sourcePreview.format, page_count: sourcePreview.page_count, candidate_hash: sourcePreview.candidate_hash, scanner_result: sourcePreview.scanner_result ?? null, evaluation: sourcePreview.evaluation ?? null }, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
     } catch (error) {
       process.stderr.write(`Source PDF preview unavailable: ${error instanceof Error ? error.message : "render failed"}\n`);
     }
   }
   process.stdout.write(`Context ready in ${paths.source}\n`);
-  process.stdout.write(`Write ${resolve(paths.output, "candidate.json")} and create RENDER. After each preview, write critique.json and create CRITIQUE. Submit only after critique passes, or use the reviewed best candidate after the bounded fallback is available.\n`);
-  const { candidate, candidateHash, reviewNotes } = await waitForCandidate(paths, context, origin, capability);
-  const result = await requestJson(`${origin}/api/v1/tailoring/submit`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Aergia-Tailoring-Capability": capability,
-    },
-    body: JSON.stringify({
-      context_hash: context.context_hash,
-      expected_candidate_hash: candidateHash,
-      candidate,
-      review_notes: reviewNotes,
-    }),
-  });
-  if (result.candidate_hash !== candidateHash) {
-    throw new Error("The submitted draft hash did not match its rendered critique");
-  }
+  process.stdout.write(`Write ${resolve(paths.output, "candidate.json")} and create RENDER. After each server evaluation, write editorial-review.json and create EDITORIAL_REVIEW. Submit only an exact reviewed candidate when it is ready, ready-with-review, or the bounded fallback allows it.\n`);
+  const selected = await waitForCandidate(paths, context, origin, capability);
+  const result = await requestJson(`${origin}/api/v1/tailoring/submit`, { method: "POST", headers: { "Content-Type": "application/json", "X-Aergia-Tailoring-Capability": capability }, body: JSON.stringify({ context_hash: context.context_hash, expected_candidate_hash: selected.candidateHash, candidate: selected.candidate, review_notes: selected.reviewNotes, inference_notes: selected.inferenceNotes, editorial_review: selected.editorialReview, allow_bounded_fallback: selected.allowBoundedFallback }) });
+  if (result.candidate_hash !== selected.candidateHash || result.evaluation?.candidate_hash !== selected.candidateHash) throw new Error("The submitted draft hash did not match its rendered evaluation");
   await writeFile(resolve(paths.output, "result.json"), `${JSON.stringify(result, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
-  await writeSessionStatus(paths, { state: "submitted", draft_cv_id: result.draft_cv_id, candidate_hash: result.candidate_hash });
+  await writeSessionStatus(paths, { state: "submitted", draft_cv_id: result.draft_cv_id, candidate_hash: result.candidate_hash, readiness: result.evaluation?.readiness ?? null });
   process.stdout.write(`${JSON.stringify(result)}\n`);
   return result;
 }
