@@ -275,7 +275,10 @@ def _render_expectations(cv: object, render_manifest: object | None = None) -> _
                         normalized = normalize_url(target)
                         if normalized:
                             text = _field_visible_text(field).strip()
-                            label = text if text and not normalize_url(text) else ""
+                            looks_like_url = bool(
+                                re.match(r"^(?:https?://|www\.|[^\s]+\.[^\s]+$)", text, re.I)
+                            )
+                            label = text if text and not looks_like_url else ""
                             if not label:
                                 label = (
                                     _entry_label(section.type, entry)

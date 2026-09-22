@@ -234,6 +234,32 @@ def test_renderer_normalized_urls_match_source_urls(monkeypatch) -> None:
 
     assert links.expected_count == 1
     assert links.recovered_count == 1
+    assert links.expected_items == ["Aergia"]
+
+
+def test_link_recovery_uses_unique_human_labels_for_duplicate_links(monkeypatch) -> None:
+    cv = _wire_cv(
+        {
+            "id": "profile",
+            "type": "profile",
+            "title": "Profile",
+            "data": {
+                "name": "Ada",
+                "social_links": [
+                    {"label": "GitHub", "url": "github.com/ada", "icon": "github"},
+                    {"label": "GitHub", "url": "github.com/ada-two", "icon": "github"},
+                ],
+            },
+        }
+    )
+    _worker(monkeypatch, text="Ada\nGitHub", links=["https://github.com/ada"])
+
+    result = analyze_pdf_recovery(b"pdf", cv)
+    links = next(check for check in result.checks if check.code == "link_recovery")
+
+    assert links.expected_items == ["GitHub", "GitHub (2)"]
+    assert links.recovered_items == ["GitHub"]
+    assert links.missing_items == ["GitHub (2)"]
 
 
 def test_non_rendered_url_metadata_is_not_a_link_expectation(monkeypatch) -> None:
