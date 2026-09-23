@@ -196,9 +196,12 @@ class TailoringStrategyContextResponse(_StrictModel):
 
 
 class TailoringEvidenceRelation(_StrictModel):
-    kind: str
-    value: str
-    confidence: float = Field(ge=0, le=1)
+    kind: Literal["technology", "method", "collaborator", "artifact", "domain", "outcome", "scope", "other"]
+    value: str = Field(min_length=1, max_length=160)
+    relation: Literal[
+        "used", "deployed_with", "tested_with", "tested_across", "collaborated_with",
+        "created", "documented", "within", "associated_with",
+    ]
 
 
 class TailoringEvidenceClaim(_StrictModel):
@@ -217,14 +220,93 @@ class TailoringEvidenceGroup(_StrictModel):
 
 
 class TailoringCandidateEvidence(_StrictModel):
-    schema_version: Literal["candidate-evidence-v1"]
+    schema_version: Literal["candidate-evidence-v2"]
     groups: list[TailoringEvidenceGroup]
 
 
+class TailoringEvidenceSourceRef(_StrictModel):
+    source_id: str
+    kind: str
+    identity: dict
+    content_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+
+
+class TailoringEvidenceSourcesResponse(_StrictModel):
+    """Narrative source inventory contains no source prose or previous presentation."""
+
+    protocol_version: Literal[STAGED_TAILORING_PROTOCOL_VERSION] = STAGED_TAILORING_PROTOCOL_VERSION
+    stage: Literal["evidence_sources"] = "evidence_sources"
+    session_id: str
+    expires_at: datetime
+    context_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+    sources: list[TailoringEvidenceSourceRef] = Field(max_length=500)
+
+
+class TailoringEvidenceCue(_StrictModel):
+    label: str
+    text: str
+    start: int = Field(ge=0)
+    end: int = Field(gt=0)
+    confidence: float = Field(ge=0, le=1)
+
+
+class TailoringEvidenceSourceContext(_StrictModel):
+    source_id: str
+    kind: str
+    identity: dict
+    content_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+    narrative: str
+    semantic_cues: list[TailoringEvidenceCue] = Field(max_length=500)
+    semantic_cue_model: str
+    semantic_cue_model_revision: str
+    semantic_cue_warning: str | None = None
+
+
+class TailoringEvidenceSourceContextResponse(_StrictModel):
+    """One narrative source for one isolated, job-blind extraction task."""
+
+    protocol_version: Literal[STAGED_TAILORING_PROTOCOL_VERSION] = STAGED_TAILORING_PROTOCOL_VERSION
+    stage: Literal["evidence_source"] = "evidence_source"
+    session_id: str
+    expires_at: datetime
+    context_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+    source: TailoringEvidenceSourceContext
+
+
+class TailoringPropositionConcept(_StrictModel):
+    kind: Literal["technology", "method", "collaborator", "artifact", "domain", "outcome", "scope", "other"]
+    value: str = Field(min_length=1, max_length=160)
+    relation: Literal[
+        "used", "deployed_with", "tested_with", "tested_across", "collaborated_with",
+        "created", "documented", "within", "associated_with",
+    ]
+
+
+class TailoringExtractedProposition(_StrictModel):
+    statement: str = Field(min_length=3, max_length=280)
+    support: Literal["explicit"] = "explicit"
+    source_excerpt: str = Field(min_length=1, max_length=250)
+    associated_concepts: list[TailoringPropositionConcept] = Field(default_factory=list, max_length=30)
+
+
+class TailoringSourcePropositions(_StrictModel):
+    source_id: str
+    claims: list[TailoringExtractedProposition] = Field(max_length=80)
+
+
+class TailoringEvidenceSubmission(_StrictModel):
+    context_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+    source_results: list[TailoringSourcePropositions] = Field(max_length=500)
+
+
 class TailoringEvidenceVersions(_StrictModel):
-    model: str
-    model_revision: str
-    schema_version: Literal["candidate-evidence-v1"]
+    semantic_cue_model: str
+    semantic_cue_model_revision: str
+    proposition_extractor: Literal["codex-isolated-subagent"]
+    proposition_model: str
+    proposition_model_revision: str
+    prompt_version: str
+    schema_version: Literal["candidate-evidence-v2"]
     extractor_version: str
 
 

@@ -27,6 +27,7 @@ def test_tailoring_skill_bundle_contains_current_candidate_workflow():
         assert "aergia-tailor/scripts/validate-editorial-review.mjs" in names
         assert "aergia-tailor/references/editorial-review.schema.json" in names
         assert "aergia-tailor/references/inference-notes.schema.json" in names
+        assert "aergia-tailor/references/candidate-propositions.schema.json" in names
         assert "aergia-tailor/references/evidence-and-inference.md" not in names
         assert "aergia-tailor/references/cv-composition.md" not in names
         assert "aergia-tailor/references/natural-writing.md" in names
@@ -48,7 +49,8 @@ def test_tailoring_skill_bundle_contains_current_candidate_workflow():
         assert "five evaluated candidate passes" in skill
         assert "Pass 1: Build the target strategy" in skill
         assert "Pass 2: Compose from candidate evidence" in skill
-        assert "The v6 first milestone keeps raw Library prose and the previous CV hidden throughout composition" in skill
+        assert "The helper submits the results to the API, which verifies source coverage" in skill
+        assert "spawn a fresh Codex child with `fork_turns=\"none\"`" in skill
         assert "Evidence strength determines confidence. It does not determine editorial prominence." in skill
         assert "Do not preserve source bullet count, order, grouping, or sentence structure." in skill
         assert "reverse chronological order by default" in skill
@@ -149,15 +151,13 @@ async def test_staged_v6_contexts_hide_candidate_from_strategy_and_hide_sources_
 
         def __init__(self):
             self.calls = []
+            self.label_calls = []
 
         def extract_entities(self, text, labels):
             self.calls.append(text)
-            assert "evidence_claim" in labels
-            claim = "Deployed containerized applications"
+            self.label_calls.append(tuple(labels))
+            assert "evidence_claim" not in labels
             spans = []
-            if claim in text:
-                start = text.index(claim)
-                spans.append(SimpleNamespace(label="evidence_claim", text=claim, start=start, end=start + len(claim), confidence=0.93))
             for technology in ("Docker", "CI/CD"):
                 if technology in text:
                     start = text.index(technology)
@@ -204,7 +204,54 @@ async def test_staged_v6_contexts_hide_candidate_from_strategy_and_hide_sources_
     source_preview = await client.get("/api/v1/tailoring/source-preview", headers=capability)
     assert source_preview.status_code == 409
 
-    evidence = await client.get("/api/v1/tailoring/context/evidence", headers=capability)
+    sources = await client.get("/api/v1/tailoring/context/evidence/sources", headers=capability)
+    assert sources.status_code == 200, sources.text
+    source_index = sources.json()
+    assert source_index["stage"] == "evidence_sources"
+    assert len(source_index["sources"]) == 1
+    source_ref = source_index["sources"][0]
+    assert "Deployed containerized applications with Docker and CI/CD." not in json.dumps(source_index)
+
+    source_response = await client.get(
+        f"/api/v1/tailoring/context/evidence/sources/{source_ref['source_id']}",
+        headers=capability,
+    )
+    assert source_response.status_code == 200, source_response.text
+    source_context = source_response.json()
+    assert source_context["stage"] == "evidence_source"
+    assert source_context["source"]["narrative"] == "Deployed containerized applications with Docker and CI/CD."
+    assert {cue["text"] for cue in source_context["source"]["semantic_cues"]} == {"Docker", "CI/CD"}
+    assert "evidence_claim" not in fixture_runtime.label_calls[0]
+    assert "structured_facts" not in source_context["source"]
+    claim = {
+        "statement": "Deployed containerized applications",
+        "support": "explicit",
+        "source_excerpt": "Deployed containerized applications with Docker and CI/CD.",
+        "associated_concepts": [
+            {"kind": "technology", "value": "Docker", "relation": "deployed_with"},
+            {"kind": "technology", "value": "CI/CD", "relation": "deployed_with"},
+        ],
+    }
+    invalid_evidence = await client.post(
+        "/api/v1/tailoring/context/evidence",
+        headers=capability,
+        json={
+            "context_hash": strategy_context["context_hash"],
+            "source_results": [{
+                "source_id": source_ref["source_id"],
+                "claims": [{**claim, "source_excerpt": "Azure deployment"}],
+            }],
+        },
+    )
+    assert invalid_evidence.status_code == 422
+    evidence = await client.post(
+        "/api/v1/tailoring/context/evidence",
+        headers=capability,
+        json={
+            "context_hash": strategy_context["context_hash"],
+            "source_results": [{"source_id": source_ref["source_id"], "claims": [claim]}],
+        },
+    )
     assert evidence.status_code == 200
     evidence_context = evidence.json()
     assert evidence_context["stage"] == "evidence"
@@ -219,6 +266,8 @@ async def test_staged_v6_contexts_hide_candidate_from_strategy_and_hide_sources_
     claim = group["claims"][0]
     assert claim["statement"] == "Deployed containerized applications"
     assert {item["value"] for item in claim["associated_concepts"]} == {"Docker", "CI/CD"}
+    assert {item["relation"] for item in claim["associated_concepts"]} == {"deployed_with"}
+    assert evidence_context["evidence_versions"]["proposition_extractor"] == "codex-isolated-subagent"
     evidence_json = json.dumps(evidence_context)
     assert all(key not in evidence_json for key in ("library_entry_id", "source_field", "source_hash", "source_start", "source_end", "source_excerpt"))
     assert strategy_context["context_hash"] == evidence_context["context_hash"]
