@@ -1,0 +1,36 @@
+{
+  "model": "numind/NuExtract-1.5-tiny",
+  "revision": "63e2e80c804d9c97f3f19a4aa25613e7beca83c9",
+  "transformers": "4.51.3",
+  "torch": "2.13.0+cu130",
+  "python": "3.14.7",
+  "device": "cpu",
+  "dtype": "torch.float32",
+  "generation": {
+    "do_sample": false,
+    "max_new_tokens": 4000
+  },
+  "template": {
+    "requirements": [
+      {
+        "source_text": "",
+        "type": "",
+        "importance": "",
+        "concepts": [],
+        "constraints": [],
+        "alternatives": []
+      }
+    ]
+  },
+  "case_id": "convverge-junior-software-developer-v1",
+  "source_sha256": "5c05e14e2b61b8ee38bf4a5a6622279063777b8fc000fa0d5129cb9ee9c2781c",
+  "load_seconds": 1.132,
+  "inference_seconds": 10.868,
+  "generated_tokens": 136,
+  "schema_valid": true,
+  "parsed_record_count": 3,
+  "candidate_requirement_count_matched_to_seed_oracle": 0,
+  "omitted_seed_requirements": 22,
+  "peak_rss_gib": 3.487,
+  "corpus_sha256": "1bc04f650a3c680ea000fc99137c0d5fd579f7db53dfafa37fa5c89896e41820"
+}

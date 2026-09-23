@@ -1,0 +1,127 @@
+{
+  "model_run": "gliner-base",
+  "case_id": "convverge-junior-software-developer-v1",
+  "oracle_audit_status": "agent_reviewed_seed_needs_second_human_review",
+  "raw_model_candidate_requirement": {
+    "span_count": 3,
+    "source_unit_recall_at_half_coverage": 0.0,
+    "covered_gold_units": 0,
+    "total_gold_units": 22,
+    "any_label_overlap_cue_units": 17
+  },
+  "aergia_final": {
+    "gold_units": 22,
+    "predicted_units": 22,
+    "exact_source_unit_recall": 1.0,
+    "exact_source_unit_precision": 1.0,
+    "matched_units": 22,
+    "missed_gold_ids": [],
+    "extra_prediction_texts": [],
+    "duplicate_prediction_count": 0,
+    "recall_by_difficulty": {
+      "easy": {
+        "gold_units": 1,
+        "discovered": 1,
+        "recall": 1.0
+      },
+      "hard": {
+        "gold_units": 13,
+        "discovered": 13,
+        "recall": 1.0
+      },
+      "medium": {
+        "gold_units": 8,
+        "discovered": 8,
+        "recall": 1.0
+      }
+    },
+    "importance_accuracy_on_matches": 0.8636,
+    "family_accuracy_on_matches": 0.8182
+  },
+  "structured_interpretation_checks": [
+    {
+      "requirement_id": "education-or-equivalent",
+      "found": true,
+      "root_kind": "any",
+      "root_kind_match": true,
+      "nested_any_min_children": 4,
+      "nested_any_present": true,
+      "concept_terms_found": [
+        "Computer Science",
+        "Software Development",
+        "Information Technology",
+        "equivalent practical experience"
+      ],
+      "concept_terms_missing": [],
+      "concept_term_recall": 1.0
+    },
+    {
+      "requirement_id": "early-career-years-and-sources",
+      "found": true,
+      "duration_constraint_count": 1,
+      "duration_constraint_match_count": 1,
+      "duration_constraint_present": true,
+      "duplicate_duration_constraints": 0
+    },
+    {
+      "requirement_id": "one-programming-language",
+      "found": true,
+      "root_kind": "any",
+      "root_kind_match": true,
+      "concept_terms_found": [
+        "C#",
+        "JavaScript",
+        "TypeScript",
+        "Python"
+      ],
+      "concept_terms_missing": [],
+      "concept_term_recall": 1.0
+    },
+    {
+      "requirement_id": "preferred-microsoft-products",
+      "found": true,
+      "root_kind": "any",
+      "root_kind_match": true,
+      "concept_terms_found": [
+        "Azure",
+        "Azure DevOps",
+        "Microsoft 365",
+        "Power Platform"
+      ],
+      "concept_terms_missing": [
+        "SharePoint"
+      ],
+      "concept_term_recall": 0.8
+    },
+    {
+      "requirement_id": "preferred-tools-and-frameworks",
+      "found": true,
+      "root_kind": "any",
+      "root_kind_match": true,
+      "concept_terms_found": [
+        "C#",
+        "PowerShell",
+        "Bash",
+        "APIs",
+        "databases",
+        "web development frameworks"
+      ],
+      "concept_terms_missing": [],
+      "concept_term_recall": 1.0
+    },
+    {
+      "requirement_id": "preferred-client-consulting-team-projects",
+      "found": true,
+      "root_kind": "any",
+      "root_kind_match": true,
+      "concept_terms_found": [
+        "client-facing",
+        "team-based"
+      ],
+      "concept_terms_missing": [
+        "consulting"
+      ],
+      "concept_term_recall": 0.6667
+    }
+  ]
+}
