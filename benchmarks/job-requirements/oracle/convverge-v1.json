@@ -1,0 +1,354 @@
+{
+  "schema_version": "job-requirement-oracle-v1",
+  "case_id": "convverge-junior-software-developer-v1",
+  "source_sha256": "5c05e14e2b61b8ee38bf4a5a6622279063777b8fc000fa0d5129cb9ee9c2781c",
+  "audit_status": "agent_reviewed_seed_needs_second_human_review",
+  "audit_note": "Source quotes were verified against the frozen Convverge fixture and reviewed for candidate-facing meaning. A second human annotator has not adjudicated boundaries or labels; use as a pilot oracle, not a production acceptance set.",
+  "requirements": [
+    {
+      "id": "about-you-general",
+      "source_text": "We are seeking a Junior Software Developer who is curious, motivated, and excited to grow in a collaborative technical environment.",
+      "importance": "unknown",
+      "family": "behavioral",
+      "difficulty": "hard",
+      "concepts": [
+        "curiosity",
+        "motivation",
+        "growth",
+        "collaborative technical environment"
+      ]
+    },
+    {
+      "id": "problem-solving-and-learning",
+      "source_text": "You enjoy learning new technologies, solving problems, and turning business requirements into practical software solutions.",
+      "importance": "unknown",
+      "family": "other",
+      "difficulty": "hard",
+      "concepts": [
+        "learning technologies",
+        "problem solving",
+        "business requirements",
+        "practical software solutions"
+      ]
+    },
+    {
+      "id": "early-career-expectations",
+      "source_text": "You may be early in your career, but you bring strong fundamentals, a willingness to ask thoughtful questions, and a commitment to building reliable, high-quality work.",
+      "importance": "unknown",
+      "family": "behavioral",
+      "difficulty": "hard",
+      "concepts": [
+        "early career",
+        "strong fundamentals",
+        "asking questions",
+        "reliable high-quality work"
+      ]
+    },
+    {
+      "id": "client-solutions-contribution",
+      "source_text": "Contribute to the design, development, testing, and support of client solutions in collaboration with senior developers and project teams.",
+      "importance": "required",
+      "family": "responsibility",
+      "difficulty": "hard",
+      "concepts": [
+        "design",
+        "development",
+        "testing",
+        "support",
+        "client solutions",
+        "collaboration"
+      ]
+    },
+    {
+      "id": "agile-process",
+      "source_text": "Work within an Agile development environment, following team processes, coding standards, and delivery best practices.",
+      "importance": "required",
+      "family": "responsibility",
+      "difficulty": "medium",
+      "concepts": [
+        "Agile",
+        "team processes",
+        "coding standards",
+        "delivery practices"
+      ]
+    },
+    {
+      "id": "task-breakdown-guidance",
+      "source_text": "Break down problems into smaller tasks and seek guidance when needed to prioritize and move work forward.",
+      "importance": "required",
+      "family": "responsibility",
+      "difficulty": "hard",
+      "concepts": [
+        "task decomposition",
+        "guidance seeking",
+        "prioritization"
+      ]
+    },
+    {
+      "id": "as-built-documentation",
+      "source_text": "Create and maintain as-built documentation for client solutions.",
+      "importance": "required",
+      "family": "responsibility",
+      "difficulty": "medium",
+      "concepts": [
+        "create documentation",
+        "maintain documentation",
+        "as-built",
+        "client solutions"
+      ]
+    },
+    {
+      "id": "technical-support-documentation",
+      "source_text": "Build and update technical support documentation for internal teams and client solutions.",
+      "importance": "required",
+      "family": "responsibility",
+      "difficulty": "medium",
+      "concepts": [
+        "technical support documentation",
+        "internal teams",
+        "client solutions"
+      ]
+    },
+    {
+      "id": "testing-quality-assurance",
+      "source_text": "Support testing and quality assurance activities by reviewing functionality, documenting issues, and helping validate fixes.",
+      "importance": "required",
+      "family": "responsibility",
+      "difficulty": "hard",
+      "concepts": [
+        "testing",
+        "quality assurance",
+        "review functionality",
+        "document issues",
+        "validate fixes"
+      ]
+    },
+    {
+      "id": "microsoft-software-development",
+      "source_text": "Develop software components and solutions using Microsoft technologies, including the Power Platform, with support from experienced team members.",
+      "importance": "required",
+      "family": "technical_skill",
+      "difficulty": "hard",
+      "concepts": [
+        "software development",
+        "Microsoft technologies",
+        "Power Platform"
+      ],
+      "contextual_modifiers": [
+        "with support from experienced team members"
+      ]
+    },
+    {
+      "id": "early-risk-communication",
+      "source_text": "Communicate questions, blockers, risks, or delays early so the team can support successful project delivery.",
+      "importance": "required",
+      "family": "behavioral",
+      "difficulty": "hard",
+      "concepts": [
+        "communicate questions",
+        "raise blockers",
+        "raise risks",
+        "raise delays early",
+        "project delivery"
+      ]
+    },
+    {
+      "id": "education-or-equivalent",
+      "source_text": "Post-secondary education in Computer Science, Software Development, Information Technology, or a related program, or equivalent practical experience.",
+      "importance": "required",
+      "family": "education",
+      "difficulty": "hard",
+      "concepts": [
+        "post-secondary education",
+        "Computer Science",
+        "Software Development",
+        "Information Technology",
+        "related program",
+        "equivalent practical experience"
+      ],
+      "alternatives": "degree field or equivalent practical experience"
+    },
+    {
+      "id": "early-career-years-and-sources",
+      "source_text": "Approximately 0–2 years of software development experience, including internships, co-op placements, academic projects, personal projects, or professional experience.",
+      "importance": "required",
+      "family": "experience",
+      "difficulty": "hard",
+      "concepts": [
+        "software development experience"
+      ],
+      "constraints": [
+        {
+          "kind": "experience_duration",
+          "min_years": 0,
+          "max_years": 2,
+          "approximate": true
+        }
+      ],
+      "allowed_evidence_sources": [
+        "internship",
+        "co-op",
+        "academic project",
+        "personal project",
+        "professional experience"
+      ]
+    },
+    {
+      "id": "one-programming-language",
+      "source_text": "Foundational experience with at least one programming language, such as C#, JavaScript, TypeScript, Python, or a similar language.",
+      "importance": "required",
+      "family": "technical_skill",
+      "difficulty": "medium",
+      "concepts": [
+        "programming language"
+      ],
+      "alternatives": "any one language; listed languages are examples"
+    },
+    {
+      "id": "version-control-git",
+      "source_text": "Basic familiarity with version control tools such as Git.",
+      "importance": "required",
+      "family": "technical_skill",
+      "difficulty": "easy",
+      "concepts": [
+        "version control",
+        "Git"
+      ]
+    },
+    {
+      "id": "microsoft-cloud-interest",
+      "source_text": "Interest in Microsoft cloud technologies, including Power Platform, Azure, Microsoft 365, SharePoint.",
+      "importance": "required",
+      "family": "technical_skill",
+      "difficulty": "medium",
+      "concepts": [
+        "interest in Microsoft cloud technologies",
+        "Power Platform",
+        "Azure",
+        "Microsoft 365",
+        "SharePoint"
+      ],
+      "alternatives": "the products illustrate the Microsoft cloud category"
+    },
+    {
+      "id": "independent-and-collaborative",
+      "source_text": "Ability to work both independently and collaboratively within a team environment.",
+      "importance": "required",
+      "family": "behavioral",
+      "difficulty": "hard",
+      "concepts": [
+        "independent work",
+        "collaboration",
+        "team environment"
+      ],
+      "alternatives": "all three components are expected"
+    },
+    {
+      "id": "communication-and-progress-sharing",
+      "source_text": "Clear verbal and written communication skills, with a willingness to ask questions and share progress openly.",
+      "importance": "required",
+      "family": "behavioral",
+      "difficulty": "hard",
+      "concepts": [
+        "verbal communication",
+        "written communication",
+        "asking questions",
+        "open progress sharing"
+      ]
+    },
+    {
+      "id": "preferred-agile-exposure",
+      "source_text": "Exposure to Agile development practices through work, school, or project experience.",
+      "importance": "preferred",
+      "family": "responsibility",
+      "difficulty": "medium",
+      "concepts": [
+        "Agile exposure",
+        "work experience",
+        "school experience",
+        "project experience"
+      ]
+    },
+    {
+      "id": "preferred-microsoft-products",
+      "source_text": "Experience with Microsoft Azure, Azure DevOps, Microsoft 365, SharePoint, or Power Platform.",
+      "importance": "preferred",
+      "family": "technical_skill",
+      "difficulty": "medium",
+      "concepts": [
+        "Azure",
+        "Azure DevOps",
+        "Microsoft 365",
+        "SharePoint",
+        "Power Platform"
+      ],
+      "alternatives": "any one listed product"
+    },
+    {
+      "id": "preferred-tools-and-frameworks",
+      "source_text": "Experience with C#, PowerShell, Bash, APIs, databases, or web development frameworks.",
+      "importance": "preferred",
+      "family": "technical_skill",
+      "difficulty": "medium",
+      "concepts": [
+        "C#",
+        "PowerShell",
+        "Bash",
+        "APIs",
+        "databases",
+        "web development frameworks"
+      ],
+      "alternatives": "any listed skill or framework"
+    },
+    {
+      "id": "preferred-client-consulting-team-projects",
+      "source_text": "Previous experience working on client-facing, consulting, or team-based software projects.",
+      "importance": "preferred",
+      "family": "responsibility",
+      "difficulty": "hard",
+      "concepts": [
+        "client-facing software projects",
+        "consulting software projects",
+        "team-based software projects"
+      ],
+      "alternatives": "any one project context"
+    }
+  ],
+  "structure_checks": [
+    {
+      "requirement_id": "education-or-equivalent",
+      "root_kind": "any",
+      "nested_any_min_children": 4,
+      "concept_terms": ["Computer Science", "Software Development", "Information Technology", "equivalent practical experience"]
+    },
+    {
+      "requirement_id": "early-career-years-and-sources",
+      "experience_duration": {
+        "min_years": 0,
+        "max_years": 2,
+        "approximate": true,
+        "allowed_evidence_sources": ["internship", "co-op placement", "academic project", "personal project", "professional experience"]
+      }
+    },
+    {
+      "requirement_id": "one-programming-language",
+      "root_kind": "any",
+      "concept_terms": ["C#", "JavaScript", "TypeScript", "Python"]
+    },
+    {
+      "requirement_id": "preferred-microsoft-products",
+      "root_kind": "any",
+      "concept_terms": ["Azure", "Azure DevOps", "Microsoft 365", "SharePoint", "Power Platform"]
+    },
+    {
+      "requirement_id": "preferred-tools-and-frameworks",
+      "root_kind": "any",
+      "concept_terms": ["C#", "PowerShell", "Bash", "APIs", "databases", "web development frameworks"]
+    },
+    {
+      "requirement_id": "preferred-client-consulting-team-projects",
+      "root_kind": "any",
+      "concept_terms": ["client-facing", "consulting", "team-based"]
+    }
+  ]
+}
