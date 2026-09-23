@@ -46,6 +46,10 @@ class RequirementExtractionError(ValueError):
         super().__init__(message)
 
 
+class GlinerRuntimeError(ValueError):
+    """The shared entity runtime could not load or use its model."""
+
+
 @dataclass(frozen=True, slots=True)
 class Constraint:
     """A deterministic constraint attached to one source requirement."""
@@ -1175,8 +1179,8 @@ def to_job_requirements(result: ExtractionResult) -> list[JobRequirement]:
     return requirements
 
 
-class Gliner2RequirementExtractor:
-    """Lazy, serialized GLiNER2.5-small inference for production use."""
+class GlinerRuntime:
+    """Shared lazy GLiNER runtime with serialized, source-aware inference."""
 
     def __init__(
         self,
@@ -1218,21 +1222,16 @@ class Gliner2RequirementExtractor:
                     eval_method()
                 self._model = model
             except Exception as exc:
-                logger.exception("gliner2_requirement_model_load_failed", extra={"model": self.model_name})
-                raise RequirementExtractionError() from exc
+                logger.exception("gliner2_model_load_failed", extra={"model": self.model_name})
+                raise GlinerRuntimeError("Unable to load the GLiNER model") from exc
         return self._model
 
-    def extract_raw_spans(self, job_description: str) -> tuple[_RawSpan, ...]:
-        """Return document-relative model spans for a downstream extractor.
+    def extract_entities(self, text: str, labels: Mapping[str, str]) -> tuple[_RawSpan, ...]:
+        """Return document-relative spans for any GLiNER consumer."""
 
-        The scanner replacement uses this boundary to retain the shared lazy
-        GLiNER model and chunking safeguards without inheriting the legacy
-        requirement normalization contract.
-        """
-
-        source = job_description or ""
+        source = text or ""
         if not source.strip():
-            raise RequirementExtractionError()
+            raise GlinerRuntimeError("Unable to run GLiNER entity extraction")
         with self._inference_lock:
             model = self.load()
             try:
@@ -1246,7 +1245,7 @@ class Gliner2RequirementExtractor:
                         # source heading and boilerplate rules.
                         raw = long_method(
                             source,
-                            MODEL_LABELS,
+                            labels,
                             chunk_size=self.chunk_size,
                             chunk_overlap=self.chunk_overlap,
                             batch_size=8,
@@ -1265,7 +1264,7 @@ class Gliner2RequirementExtractor:
                         for chunk in chunks:
                             raw = model.extract_entities(
                                 chunk.text,
-                                MODEL_LABELS,
+                                labels,
                                 include_confidence=True,
                                 include_spans=True,
                                 overlap_policy="flat",
@@ -1275,24 +1274,88 @@ class Gliner2RequirementExtractor:
                 else:
                     raw = model.extract_entities(
                         source,
-                        MODEL_LABELS,
+                        labels,
                         include_confidence=True,
                         include_spans=True,
                         overlap_policy="flat",
                     )
                     spans = _coerce_raw_spans(source, raw)
                     self.last_inference_path = "short"
-            except RequirementExtractionError:
+            except GlinerRuntimeError:
                 raise
             except Exception as exc:
-                logger.exception("gliner2_requirement_extraction_failed", extra={"model": self.model_name})
-                raise RequirementExtractionError() from exc
+                logger.exception("gliner2_entity_extraction_failed", extra={"model": self.model_name})
+                raise GlinerRuntimeError("Unable to run GLiNER entity extraction") from exc
             return tuple(spans)
+
+
+class Gliner2RequirementExtractor:
+    """Job-requirement interpretation layered over the shared GLiNER runtime."""
+
+    def __init__(
+        self,
+        *,
+        model_name: str = DEFAULT_GLINER2_MODEL,
+        revision: str | None = DEFAULT_GLINER2_REVISION,
+        chunk_size: int = DEFAULT_CHUNK_SIZE,
+        chunk_overlap: int = DEFAULT_CHUNK_OVERLAP,
+        model: EntityModel | None = None,
+        runtime: GlinerRuntime | None = None,
+    ) -> None:
+        if runtime is not None and model is not None:
+            raise ValueError("pass either a shared runtime or a model, not both")
+        self.runtime = runtime or GlinerRuntime(
+            model_name=model_name,
+            revision=revision,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            model=model,
+        )
+
+    @property
+    def model_name(self) -> str:
+        return self.runtime.model_name
+
+    @property
+    def revision(self) -> str | None:
+        return self.runtime.revision
+
+    @property
+    def chunk_size(self) -> int:
+        return self.runtime.chunk_size
+
+    @property
+    def chunk_overlap(self) -> int:
+        return self.runtime.chunk_overlap
+
+    @property
+    def _model(self) -> EntityModel | None:
+        # Kept as a read-only compatibility seam for model-free tests.
+        return self.runtime._model
+
+    @property
+    def last_inference_path(self) -> str:
+        return self.runtime.last_inference_path
+
+    def load(self) -> EntityModel:
+        return self.runtime.load()
+
+    def extract_raw_spans(
+        self,
+        job_description: str,
+        labels: Mapping[str, str] = MODEL_LABELS,
+    ) -> tuple[_RawSpan, ...]:
+        """Compatibility alias retained for scanner and test callers."""
+
+        try:
+            return self.runtime.extract_entities(job_description, labels)
+        except GlinerRuntimeError as exc:
+            raise RequirementExtractionError() from exc
 
     def extract_result(self, role: str, job_description: str) -> ExtractionResult:
         del role  # Role titles are context, not candidate source text.
         source = job_description or ""
-        spans = self.extract_raw_spans(source)
+        spans = self.extract_raw_spans(source, MODEL_LABELS)
         result = _requirements_from_spans(
             source,
             spans,
@@ -1309,7 +1372,9 @@ class Gliner2RequirementExtractor:
 
 
 _extractor: RequirementExtractor | None = None
+_runtime: GlinerRuntime | None = None
 _extractor_factory_lock = threading.Lock()
+_runtime_factory_lock = threading.Lock()
 
 
 def get_requirement_extractor() -> RequirementExtractor:
@@ -1320,23 +1385,37 @@ def get_requirement_extractor() -> RequirementExtractor:
         return _extractor
     with _extractor_factory_lock:
         if _extractor is None:
+            _extractor = Gliner2RequirementExtractor(runtime=get_gliner_runtime())
+    return _extractor
+
+
+def get_gliner_runtime() -> GlinerRuntime:
+    """Return the one process-local runtime shared by all GLiNER consumers."""
+
+    global _runtime
+    if _runtime is not None:
+        return _runtime
+    with _runtime_factory_lock:
+        if _runtime is None:
             from app.config import get_settings
 
             settings = get_settings()
-            _extractor = Gliner2RequirementExtractor(
+            _runtime = GlinerRuntime(
                 revision=settings.gliner2_model_revision,
                 chunk_size=settings.gliner2_chunk_size,
                 chunk_overlap=settings.gliner2_chunk_overlap,
             )
-    return _extractor
+    return _runtime
 
 
 def reset_requirement_extractor() -> None:
     """Reset the singleton for tests and controlled process reconfiguration."""
 
-    global _extractor
+    global _extractor, _runtime
     with _extractor_factory_lock:
         _extractor = None
+    with _runtime_factory_lock:
+        _runtime = None
 
 
 __all__ = [
@@ -1345,6 +1424,8 @@ __all__ = [
     "DEFAULT_GLINER2_REVISION",
     "ExtractionResult",
     "Gliner2RequirementExtractor",
+    "GlinerRuntime",
+    "GlinerRuntimeError",
     "Importance",
     "MODEL_LABELS",
     "REQUIREMENT_EXTRACTION_ERROR",
@@ -1353,6 +1434,7 @@ __all__ = [
     "RequirementExtractionError",
     "RequirementExtractor",
     "get_requirement_extractor",
+    "get_gliner_runtime",
     "requirements_from_model_output",
     "reset_requirement_extractor",
     "to_job_requirements",
