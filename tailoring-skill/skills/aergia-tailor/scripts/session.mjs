@@ -2,7 +2,7 @@
 
 import { createInterface } from "node:readline/promises";
 import { createHash } from "node:crypto";
-import { access, chmod, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, readdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,10 +15,11 @@ import {
   validateInferenceNotes,
 } from "./validate-editorial-review.mjs";
 
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6;
 const SUBMIT_MARKER = "SUBMIT";
 const RENDER_MARKER = "RENDER";
 const EDITORIAL_REVIEW_MARKER = "EDITORIAL_REVIEW";
+const STRATEGY_FILE = "target-strategy.json";
 
 function parseArgs(argv) {
   const args = {};
@@ -119,7 +120,89 @@ export function candidateInputHash(candidate) {
   return createHash("sha256").update(JSON.stringify(sortJson(candidate))).digest("hex");
 }
 
-async function prepareWorkspace(workspace, context) {
+async function assertFreshStagedWorkspace(workspace) {
+  async function walk(directory) {
+    let entries;
+    try {
+      entries = await readdir(directory, { withFileTypes: true });
+    } catch (error) {
+      if (error?.code === "ENOENT") return;
+      throw error;
+    }
+    for (const entry of entries) {
+      const path = resolve(directory, entry.name);
+      if (entry.isDirectory()) await walk(path);
+      else throw new Error("Staged tailoring requires an empty workspace so stale source or candidate files cannot leak into an early pass");
+    }
+  }
+  await walk(workspace);
+}
+
+function validateTargetStrategy(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("target-strategy.json must be an object");
+  if (value.schema_version !== "target-strategy-v1") throw new Error("target-strategy.json has an incompatible schema_version");
+  if (!Array.isArray(value.priorities) || value.priorities.length < 3 || value.priorities.length > 6) {
+    throw new Error("target-strategy.json must contain 3 to 6 priorities");
+  }
+  for (const priority of value.priorities) {
+    if (!priority || typeof priority !== "object"
+      || typeof priority.id !== "string" || !priority.id.trim()
+      || typeof priority.label !== "string" || !priority.label.trim()
+      || typeof priority.reason !== "string" || !priority.reason.trim()) {
+      throw new Error("Each target priority needs an id, label, and reason");
+    }
+    if (!Array.isArray(priority.requirement_ids) || !["primary", "secondary"].includes(priority.importance)) {
+      throw new Error("Each target priority needs requirement_ids and primary/secondary importance");
+    }
+  }
+  if (!Array.isArray(value.secondary ?? []) || !Array.isArray(value.do_not_force ?? []) || !Array.isArray(value.terminology ?? [])) {
+    throw new Error("target-strategy.json has invalid optional lists");
+  }
+  return value;
+}
+
+async function prepareStrategyWorkspace(workspace, context) {
+  await assertFreshStagedWorkspace(workspace);
+  const strategy = resolve(workspace, "strategy");
+  const evidence = resolve(workspace, "evidence");
+  const output = resolve(workspace, "output");
+  await Promise.all([strategy, evidence, output].map((path) => mkdir(path, { recursive: true, mode: 0o700 })));
+  await Promise.all([
+    writeProtectedJson(resolve(strategy, "context.json"), context),
+    writeProtectedJson(resolve(strategy, "job.json"), context.job),
+    writeProtectedJson(resolve(strategy, "requirements.json"), context.requirement_extraction),
+    writeProtectedJson(resolve(strategy, "job-terms.json"), context.job_terms ?? []),
+  ]);
+  return { strategy, evidence, output };
+}
+
+async function waitForTargetStrategy(paths, expiresAt) {
+  const path = resolve(paths.output, STRATEGY_FILE);
+  while (Date.now() < Date.parse(expiresAt)) {
+    if (await exists(path)) {
+      const value = validateTargetStrategy(JSON.parse(await readFile(path, "utf8")));
+      await chmod(path, 0o400).catch(() => undefined);
+      return value;
+    }
+    await wait(750);
+  }
+  throw new Error("The tailoring session expired before a target strategy was ready");
+}
+
+async function prepareEvidenceWorkspace(paths, context) {
+  const versions = context.evidence_versions ?? {};
+  await Promise.all([
+    writeProtectedJson(resolve(paths.evidence, "context.json"), context),
+    writeProtectedJson(resolve(paths.evidence, "profile.json"), context.profile),
+    writeProtectedJson(resolve(paths.evidence, "candidate-evidence.json"), context.candidate_evidence),
+    writeProtectedJson(resolve(paths.evidence, "versions.json"), versions),
+    writeProtectedJson(resolve(paths.evidence, "templates.json"), context.templates ?? []),
+    writeProtectedJson(resolve(paths.evidence, "capabilities.json"), context.capabilities ?? {}),
+    writeProtectedJson(resolve(paths.evidence, "effective-appearance.json"), context.effective_appearance ?? {}),
+  ]);
+}
+
+async function prepareLegacyWorkspace(workspace, context) {
   const source = resolve(workspace, "source");
   const output = resolve(workspace, "output");
   await mkdir(source, { recursive: true, mode: 0o700 });
@@ -502,22 +585,37 @@ export async function runSession(sessionUrl, workspace, options = {}) {
   const origin = serverOriginFromSessionUrl(sessionUrl);
   const code = options.code === undefined ? await readCode() : validateCode(options.code);
   const exchange = await requestJson(`${origin}/api/v1/tailoring/exchange`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ protocol_version: PROTOCOL_VERSION, code }) });
-  if (exchange.protocol_version !== PROTOCOL_VERSION || typeof exchange.capability !== "string") throw new Error("The server returned an incompatible tailoring protocol");
+  if (![5, PROTOCOL_VERSION].includes(exchange.protocol_version) || typeof exchange.capability !== "string") throw new Error("The server returned an incompatible tailoring protocol");
   const capability = exchange.capability;
-  const context = await requestJson(`${origin}/api/v1/tailoring/context`, { headers: { "X-Aergia-Tailoring-Capability": capability } });
-  if (context.protocol_version !== PROTOCOL_VERSION || context.evaluation_version !== "tailoring-evaluation-v1") throw new Error("The tailoring context is incompatible with this skill");
-  const paths = await prepareWorkspace(workspace, context);
-  if (context.rendered_source?.endpoint) {
-    try {
-      const sourcePreview = await requestJson(`${origin}${context.rendered_source.endpoint}`, { headers: { "X-Aergia-Tailoring-Capability": capability } });
-      await writeProtectedBinary(resolve(paths.source, "source-cv.pdf"), sourcePreview.pdf_base64);
-      await writeFile(resolve(paths.source, "source-cv-render.json"), `${JSON.stringify({ format: sourcePreview.format, page_count: sourcePreview.page_count, candidate_hash: sourcePreview.candidate_hash, scanner_result: sourcePreview.scanner_result ?? null, evaluation: sourcePreview.evaluation ?? null }, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
-    } catch (error) {
-      process.stderr.write(`Source PDF preview unavailable: ${error instanceof Error ? error.message : "render failed"}\n`);
+  const headers = { "X-Aergia-Tailoring-Capability": capability };
+  let context;
+  let paths;
+  if (exchange.protocol_version === PROTOCOL_VERSION) {
+    const strategyContext = await requestJson(`${origin}/api/v1/tailoring/context/strategy`, { headers });
+    if (strategyContext.protocol_version !== PROTOCOL_VERSION || strategyContext.stage !== "strategy") throw new Error("The server returned an incompatible job strategy context");
+    paths = await prepareStrategyWorkspace(workspace, strategyContext);
+    process.stdout.write(`Job-only strategy context ready in ${paths.strategy}. Write ${resolve(paths.output, STRATEGY_FILE)} before requesting candidate evidence.\n`);
+    const strategy = await waitForTargetStrategy(paths, strategyContext.expires_at);
+    context = await requestJson(`${origin}/api/v1/tailoring/context/evidence`, { headers });
+    if (context.protocol_version !== PROTOCOL_VERSION || context.stage !== "evidence" || context.evaluation_version !== "tailoring-evaluation-v1") throw new Error("The server returned an incompatible candidate evidence context");
+    if (context.context_hash !== strategyContext.context_hash) throw new Error("The staged tailoring context changed between strategy and evidence");
+    await prepareEvidenceWorkspace(paths, context);
+    process.stdout.write(`Presentation-blind candidate evidence ready in ${paths.evidence}. Write ${resolve(paths.output, "candidate.json")} and create RENDER. After each server evaluation, write editorial-review.json and create EDITORIAL_REVIEW.\n`);
+  } else {
+    context = await requestJson(`${origin}/api/v1/tailoring/context`, { headers });
+    if (context.protocol_version !== 5 || context.evaluation_version !== "tailoring-evaluation-v1") throw new Error("The server returned an incompatible v5 tailoring context");
+    paths = await prepareLegacyWorkspace(workspace, context);
+    if (context.rendered_source?.endpoint) {
+      try {
+        const sourcePreview = await requestJson(`${origin}${context.rendered_source.endpoint}`, { headers });
+        await writeProtectedBinary(resolve(paths.source, "source-cv.pdf"), sourcePreview.pdf_base64);
+        await writeFile(resolve(paths.source, "source-cv-render.json"), `${JSON.stringify({ format: sourcePreview.format, page_count: sourcePreview.page_count, candidate_hash: sourcePreview.candidate_hash, scanner_result: sourcePreview.scanner_result ?? null, evaluation: sourcePreview.evaluation ?? null }, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+      } catch (error) {
+        process.stderr.write(`Source PDF preview unavailable: ${error instanceof Error ? error.message : "render failed"}\n`);
+      }
     }
+    process.stdout.write(`Protocol v5 context ready in ${paths.source}. Write ${resolve(paths.output, "candidate.json")} and create RENDER.\n`);
   }
-  process.stdout.write(`Context ready in ${paths.source}\n`);
-  process.stdout.write(`Write ${resolve(paths.output, "candidate.json")} and create RENDER. After each server evaluation, write editorial-review.json and create EDITORIAL_REVIEW. Submit only an exact reviewed candidate when it is ready, ready-with-review, or the bounded fallback allows it.\n`);
   const selected = await waitForCandidate(paths, context, origin, capability);
   const result = await requestJson(`${origin}/api/v1/tailoring/submit`, { method: "POST", headers: { "Content-Type": "application/json", "X-Aergia-Tailoring-Capability": capability }, body: JSON.stringify({ context_hash: context.context_hash, expected_candidate_hash: selected.candidateHash, candidate: selected.candidate, review_notes: selected.reviewNotes, inference_notes: selected.inferenceNotes, editorial_review: selected.editorialReview, allow_bounded_fallback: selected.allowBoundedFallback }) });
   if (result.candidate_hash !== selected.candidateHash || result.evaluation?.candidate_hash !== selected.candidateHash) throw new Error("The submitted draft hash did not match its rendered evaluation");
