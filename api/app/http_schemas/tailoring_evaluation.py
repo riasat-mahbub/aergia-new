@@ -158,6 +158,7 @@ class TailoringEvaluation(_StrictModel):
 class TailoringEditorialFinding(_StrictModel):
     category: Literal[
         "evidence_selection",
+        "targeting",
         "framing",
         "impact",
         "clarity",

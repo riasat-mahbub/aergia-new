@@ -98,7 +98,7 @@ export interface TailoringEvaluation {
 }
 
 export interface TailoringEditorialFinding {
-  category: "evidence_selection" | "framing" | "impact" | "clarity" | "natural_writing" | "visual_balance";
+  category: "evidence_selection" | "targeting" | "framing" | "impact" | "clarity" | "natural_writing" | "visual_balance";
   severity: "important" | "polish" | "blocking";
   section_id: string;
   item_id?: string | null;

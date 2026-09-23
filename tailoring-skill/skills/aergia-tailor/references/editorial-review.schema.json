@@ -17,7 +17,7 @@
         "additionalProperties": false,
         "required": ["category", "severity", "section_id", "excerpt", "problem", "recommended_change"],
         "properties": {
-          "category": {"enum": ["evidence_selection", "framing", "impact", "clarity", "natural_writing", "visual_balance"]},
+          "category": {"enum": ["evidence_selection", "targeting", "framing", "impact", "clarity", "natural_writing", "visual_balance"]},
           "severity": {"enum": ["important", "polish", "blocking"]},
           "section_id": {"type": "string", "minLength": 1, "maxLength": 128},
           "item_id": {"type": "string", "minLength": 1, "maxLength": 128},

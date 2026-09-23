@@ -19,12 +19,12 @@ test("validates an unscored editorial review bound to the rendered candidate", (
     candidate_hash: candidateHash,
     pass_number: 1,
     findings: [{
-      category: "framing",
+      category: "targeting",
       severity: "polish",
       section_id: "profile",
       excerpt: "Platform engineer",
-      problem: "The summary buries the target role.",
-      recommended_change: "Lead with the strongest target-role framing.",
+      problem: "The summary buries the strongest supported target priority.",
+      recommended_change: "Bring the best evidence for that priority into the relevant body entry.",
     }],
     inference_notes: notes,
   }, { candidateHash, passNumber: 1, candidate });

@@ -4,9 +4,15 @@ Use these rules whenever writing or rewriting candidate-facing prose, including 
 
 The objective is not to evade AI detectors. Automated AI-writing detectors are imperfect and must not be treated as a target metric. The objective is specific, credible, economical professional writing that sounds like it belongs to this candidate.
 
-## 1. Prefer specific evidence over polished generalities
+## 1. Prefer specific, target-relevant evidence over polished generalities
 
-Use concrete technologies, decisions, constraints, actions, methods, and outcomes when the evidence supports them. Prefer a precise description of what the candidate did over broad claims about being innovative, impactful, passionate, strategic, or results-driven.
+Use concrete technologies, decisions, constraints, actions, methods, and outcomes when they help
+communicate a relevant capability, accomplishment, constraint, or differentiator. Specificity is
+valuable only when it serves the target. Generalize or omit platform, product, subsystem, or domain
+details when their specificity is incidental to the role. Do not retain an irrelevant technology
+merely because naming it makes the sentence more concrete. Prefer a precise description of what the
+candidate did over broad claims about being innovative, impactful, passionate, strategic, or
+results-driven.
 
 ## 2. State the useful point directly
 
