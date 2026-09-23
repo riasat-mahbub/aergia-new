@@ -117,7 +117,7 @@ export interface TailoringEditorialReview {
 }
 
 export interface TailoringSession {
-  protocol_version: 5;
+  protocol_version: 5 | 6;
   session_id: string;
   application_id: string;
   source_cv_id: string | null;
@@ -151,7 +151,7 @@ export interface TailoringCandidate {
 }
 
 export interface TailoringSessionResult {
-  protocol_version: 4 | 5;
+  protocol_version: 4 | 5 | 6;
   session_id: string;
   application_id: string;
   status: "draft_ready";
@@ -169,7 +169,7 @@ export interface TailoringSessionResult {
 }
 
 export interface TailoringSessionStatusResponse {
-  protocol_version: 4 | 5;
+  protocol_version: 4 | 5 | 6;
   session_id: string;
   application_id: string;
   source_cv_id: string | null;
@@ -187,7 +187,7 @@ export interface TailoringSessionStatusResponse {
 }
 
 export interface TailoringReviewResponse {
-  protocol_version: 4 | 5;
+  protocol_version: 4 | 5 | 6;
   session_id: string;
   application_id: string;
   status: "accepted" | "rejected";

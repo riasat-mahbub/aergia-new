@@ -28,6 +28,7 @@ from app.document_schema.models import SectionInstance, TemplateManifest
 from app.http_schemas.cv import CVCreate
 from app.http_schemas.tailoring import (
     PROTOCOL_VERSION,
+    STAGED_TAILORING_PROTOCOL_VERSION,
     TailoringCandidateCV,
     TailoringContextResponse,
     TailoringCV,
@@ -42,6 +43,10 @@ from app.http_schemas.tailoring import (
     TailoringSessionCreateResponse,
     TailoringSessionStatusResponse,
     TailoringScannerContext,
+    TailoringStrategyContextResponse,
+    TailoringEvidenceContextResponse,
+    TailoringCandidateEvidence,
+    TailoringEvidenceVersions,
     TailoringSubmitRequest,
     TailoringSubmitResponse,
     TailoringTemplate,
@@ -70,6 +75,13 @@ from app.services.renderer.pipeline import prepare_render_source, resolve_source
 from app.services.rich_text import normalize_rich_text_ids
 from app.services.tailoring_validation import CandidateValidationError, validate_section_payload
 from app.services.tailoring_evaluation import evaluate_tailoring
+from app.services.candidate_evidence import (
+    CANDIDATE_EVIDENCE_EXTRACTOR_VERSION,
+    CANDIDATE_EVIDENCE_SCHEMA_VERSION,
+    CandidateEvidenceExtractor,
+    composer_projection,
+)
+from app.services.requirement_extractor import get_gliner_runtime
 
 
 TAILORING_SESSION_TTL = timedelta(hours=1)
@@ -211,7 +223,26 @@ def _bounded_label(value: str, limit: int) -> str:
     return value[:limit]
 
 
-def build_tailoring_prompt(session_url: str, code: str, skill_url: str) -> str:
+def build_tailoring_prompt(
+    session_url: str,
+    code: str,
+    skill_url: str,
+    protocol_version: int = PROTOCOL_VERSION,
+) -> str:
+    if protocol_version == STAGED_TAILORING_PROTOCOL_VERSION:
+        return (
+            "Use the staged Aergia tailoring skill for this session:\n\n"
+            f"{session_url}\n\n"
+            f"One-time session code: {code}\n\n"
+            "Start with the job-only strategy context. Write a target strategy before requesting "
+            "candidate evidence. Compose a fresh candidate from the presentation-blind evidence "
+            "context; the initial composition does not include raw Library prose or the previous CV. "
+            "Render and evaluate the complete candidate through Aergia, then submit it for my review. "
+            "Never accept or reject the draft through the agent capability.\n\n"
+            "If the aergia-tailor skill is missing or incompatible, ask for my approval to download "
+            "and install this official bundle:\n\n"
+            f"{skill_url}"
+        )
     return (
         "Use the Aergia tailoring skill for this session:\n\n"
         f"{session_url}\n\n"
@@ -312,6 +343,28 @@ def _template_manifest(template: Template) -> dict[str, Any] | None:
         return TemplateManifest.model_validate(template.manifest).model_dump(mode="json")
     except ValidationError:
         return None
+
+
+def _job_terms(requirements: Sequence[Any]) -> list[str]:
+    terms: set[str] = set()
+
+    def visit(value: Any) -> None:
+        if isinstance(value, Mapping):
+            concept = value.get("concept")
+            if isinstance(concept, Mapping):
+                name = concept.get("name")
+                if isinstance(name, str) and name.strip():
+                    terms.add(name.strip())
+            for child in value.values():
+                visit(child)
+        elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+            for child in value:
+                visit(child)
+
+    for requirement in requirements:
+        payload = requirement.model_dump(mode="python") if hasattr(requirement, "model_dump") else requirement
+        visit(payload)
+    return sorted(terms, key=str.casefold)[:500]
 
 
 class TailoringService:
@@ -489,7 +542,7 @@ class TailoringService:
         *,
         initialize: bool = False,
     ) -> dict[str, Any]:
-        if session.protocol_version != PROTOCOL_VERSION:
+        if session.protocol_version not in {PROTOCOL_VERSION, STAGED_TAILORING_PROTOCOL_VERSION}:
             raise TailoringStaleError("This tailoring session uses an older protocol; start a new session")
         resources = await self._context_resources(session)
         if not session.context_snapshot:
@@ -498,8 +551,8 @@ class TailoringService:
             scanner_context = await self._freeze_scanner_context(resources)
             basis = self._context_basis(resources, scanner_context)
             session.context_snapshot = {
-                "schema_version": "tailoring-v5",
-                "protocol_version": PROTOCOL_VERSION,
+                "schema_version": f"tailoring-v{session.protocol_version}",
+                "protocol_version": session.protocol_version,
                 "evaluation_version": TAILORING_EVALUATION_VERSION,
                 "scanner": scanner_context.model_dump(mode="json"),
                 "basis": basis,
@@ -507,7 +560,7 @@ class TailoringService:
         else:
             try:
                 snapshot = session.context_snapshot
-                if snapshot.get("protocol_version") != PROTOCOL_VERSION:
+                if snapshot.get("protocol_version") != session.protocol_version:
                     raise TailoringStaleError("The tailoring session protocol is no longer supported")
                 if snapshot.get("evaluation_version") != TAILORING_EVALUATION_VERSION:
                     raise TailoringStaleError("The tailoring evaluation contract changed; start a new session")
@@ -551,7 +604,10 @@ class TailoringService:
         application_id: str,
         user_id: str,
         session_url_base: str | None = None,
+        protocol_version: int = PROTOCOL_VERSION,
     ) -> tuple[TailoringSessionCreateResponse, TailoringSession]:
+        if protocol_version not in {PROTOCOL_VERSION, STAGED_TAILORING_PROTOCOL_VERSION}:
+            raise TailoringUnavailableError("Unsupported tailoring protocol")
         application = await self._owned_application(application_id, user_id)
         if application is None:
             raise TailoringNotFoundError("Application not found")
@@ -592,7 +648,7 @@ class TailoringService:
             application_id=application.id,
             cv_id=application.cv_id,
             code_hash=hash_token(code),
-            protocol_version=PROTOCOL_VERSION,
+            protocol_version=protocol_version,
             status=TAILORING_SESSION_CREATED,
             expires_at=now + TAILORING_SESSION_TTL,
         )
@@ -607,7 +663,7 @@ class TailoringService:
         skill_url = f"{public_origin}/api/v1/tailoring/skill.zip"
         source_cv_id = application.cv_id
         response = TailoringSessionCreateResponse(
-            protocol_version=PROTOCOL_VERSION,
+            protocol_version=protocol_version,
             session_id=session.id,
             application_id=application.id,
             source_cv_id=source_cv_id,
@@ -615,7 +671,7 @@ class TailoringService:
             code=code,
             session_url=session_url,
             skill_url=skill_url,
-            prompt=build_tailoring_prompt(session_url, code, skill_url),
+            prompt=build_tailoring_prompt(session_url, code, skill_url, protocol_version),
             expires_at=session.expires_at,
         )
         return response, session
@@ -635,8 +691,8 @@ class TailoringService:
     @staticmethod
     def _status_response(session: TailoringSession) -> TailoringSessionStatusResponse:
         return TailoringSessionStatusResponse(
-            # Historical v4 drafts remain readable/reviewable.  New session
-            # creation and agent exchange use the current v5 constant.
+            # Historical v4 drafts remain readable/reviewable. New sessions
+            # retain their selected v5 or v6 contract through review.
             protocol_version=session.protocol_version or PROTOCOL_VERSION,
             session_id=session.id,
             application_id=session.application_id,
@@ -752,7 +808,7 @@ class TailoringService:
         if result.rowcount != 1:
             raise TailoringConflictError("Tailoring code has already been exchanged")
         return TailoringExchangeResponse(
-            protocol_version=PROTOCOL_VERSION,
+            protocol_version=session.protocol_version,
             session_id=session.id,
             expires_at=session.expires_at,
             capability=capability,
@@ -948,6 +1004,8 @@ class TailoringService:
 
     async def context(self, capability: str | None) -> TailoringContextResponse:
         session = await self._session_for_capability(capability)
+        if session.protocol_version != PROTOCOL_VERSION:
+            raise TailoringConflictError("Staged sessions use stage-specific context endpoints")
         parts = await self._current_context(session)
         application: Application = parts["application"]
         source_cv: CV | None = parts["source_cv"]
@@ -1013,8 +1071,89 @@ class TailoringService:
             evaluation_version=TAILORING_EVALUATION_VERSION,
         )
 
+    async def strategy_context(self, capability: str | None) -> TailoringStrategyContextResponse:
+        """Return job-only inputs; no candidate facts or candidate-relative scanner data."""
+
+        session = await self._session_for_capability(capability)
+        if session.protocol_version != STAGED_TAILORING_PROTOCOL_VERSION:
+            raise TailoringConflictError("Job strategy context requires staged protocol v6")
+        parts = await self._current_context(session)
+        application: Application = parts["application"]
+        terms = _job_terms(parts["requirements"])
+        return TailoringStrategyContextResponse(
+            session_id=session.id,
+            expires_at=session.expires_at,
+            context_hash=parts["context_hash"],
+            job=TailoringJob(
+                company=application.company,
+                role=application.role,
+                job_url=application.job_url,
+                description=application.job_description,
+                user_instructions=application.notes,
+            ),
+            requirement_extraction=parts["scanner_context"].requirement_extraction,
+            job_terms=terms,
+        )
+
+    async def evidence_context(self, capability: str | None) -> TailoringEvidenceContextResponse:
+        """Return structured facts and job-blind narrative claims for composition."""
+
+        session = await self._session_for_capability(capability)
+        if session.protocol_version != STAGED_TAILORING_PROTOCOL_VERSION:
+            raise TailoringConflictError("Candidate evidence context requires staged protocol v6")
+        parts = await self._current_context(session)
+        extraction = await asyncio.to_thread(
+            CandidateEvidenceExtractor(get_gliner_runtime()).extract,
+            parts["authoritative_library"],
+        )
+        projection = composer_projection(extraction)
+        templates = [
+            TailoringTemplate(
+                id=template.id,
+                name=template.name,
+                description=template.description,
+                manifest=parts["manifest_by_id"][template.id],
+            )
+            for template in parts["templates"]
+            if template.id in parts["manifest_by_id"]
+        ]
+        appearance = parts["effective"]
+        presentation_settings = (
+            {
+                key: copy.deepcopy(appearance[key])
+                for key in ("template_id", "body_font", "heading_font", "css_vars", "unavailable")
+                if key in appearance
+            }
+            if isinstance(appearance, Mapping)
+            else {}
+        )
+        return TailoringEvidenceContextResponse(
+            session_id=session.id,
+            expires_at=session.expires_at,
+            context_hash=parts["context_hash"],
+            profile=copy.deepcopy(parts["profile_data"]),
+            candidate_evidence=TailoringCandidateEvidence.model_validate(projection.model_dump(mode="json")),
+            evidence_versions=TailoringEvidenceVersions(
+                model=extraction.model,
+                model_revision=extraction.model_revision,
+                schema_version=CANDIDATE_EVIDENCE_SCHEMA_VERSION,
+                extractor_version=CANDIDATE_EVIDENCE_EXTRACTOR_VERSION,
+            ),
+            templates=templates,
+            selected_template_id=parts["selected_template_id"],
+            selected_template_manifest=copy.deepcopy(
+                parts["manifest_by_id"][parts["selected_template_id"]]
+            ),
+            capabilities=parts["capabilities"],
+            capabilities_hash=capabilities_hash(parts["capabilities"]),
+            effective_appearance=presentation_settings,
+            evaluation_version=TAILORING_EVALUATION_VERSION,
+        )
+
     async def source_preview(self, capability: str | None) -> TailoringPreviewResponse:
         session = await self._session_for_capability(capability)
+        if session.protocol_version != PROTOCOL_VERSION:
+            raise TailoringConflictError("Staged sessions do not expose the previous CV before composition")
         parts = await self._current_context(session)
         source_cv: CV | None = parts["source_cv"]
         if source_cv is None:
@@ -1305,7 +1444,7 @@ class TailoringService:
         await self.db.refresh(session)
         now = _utcnow()
         result_payload = {
-            "protocol_version": PROTOCOL_VERSION,
+            "protocol_version": session.protocol_version,
             "session_id": session.id,
             "application_id": application_id,
             "status": TAILORING_SESSION_DRAFT_READY,
@@ -1342,7 +1481,7 @@ class TailoringService:
             # transaction rolls back the just-created CV and quota reservation.
             raise TailoringConflictError("Tailoring session already has a draft")
         return TailoringSubmitResponse(
-            protocol_version=PROTOCOL_VERSION,
+            protocol_version=session.protocol_version,
             session_id=session.id,
             application_id=application_id,
             status=TAILORING_SESSION_DRAFT_READY,
@@ -1367,7 +1506,7 @@ class TailoringService:
         if application is None or draft is None or draft.application_id != application.id:
             raise TailoringConflictError("Tailoring draft is no longer available")
         parts: dict[str, Any] | None
-        if session.protocol_version == PROTOCOL_VERSION:
+        if session.protocol_version in {PROTOCOL_VERSION, STAGED_TAILORING_PROTOCOL_VERSION}:
             try:
                 parts = await self._current_context(session)
             except TailoringStaleError as exc:
@@ -1393,7 +1532,7 @@ class TailoringService:
         if self._candidate_hash(stored_candidate) != stored_candidate_hash:
             raise TailoringConflictError("The tailoring draft candidate binding is invalid")
         stored_evaluation: TailoringEvaluation | None = None
-        if session.protocol_version == PROTOCOL_VERSION:
+        if session.protocol_version in {PROTOCOL_VERSION, STAGED_TAILORING_PROTOCOL_VERSION}:
             try:
                 stored_evaluation = TailoringEvaluation.model_validate(
                     (session.result or {}).get("tailoring_evaluation")

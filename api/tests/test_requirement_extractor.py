@@ -14,6 +14,7 @@ import pytest
 from app.services import relevance
 from app.services.requirement_extractor import (
     Gliner2RequirementExtractor,
+    GlinerRuntime,
     Importance,
     RequirementExtractionError,
     requirements_from_model_output,
@@ -340,6 +341,30 @@ def test_model_loading_is_lazy_and_cached(monkeypatch: pytest.MonkeyPatch) -> No
     second = extractor.load()
     assert first is second
     assert calls == 1
+
+
+def test_shared_runtime_accepts_consumer_specific_labels() -> None:
+    model = FakeEntityModel([("evidence_claim", "Authored unit tests.")])
+    runtime = GlinerRuntime(model=model)
+    spans = runtime.extract_entities(
+        "Authored unit tests.",
+        {"evidence_claim": "A minimal source-grounded candidate activity."},
+    )
+
+    assert [(span.label, span.text) for span in spans] == [("evidence_claim", "Authored unit tests.")]
+
+
+def test_requirement_adapter_and_candidate_consumer_can_share_one_runtime() -> None:
+    from app.services import requirement_extractor as module
+
+    module.reset_requirement_extractor()
+    try:
+        runtime = module.get_gliner_runtime()
+        adapter = Gliner2RequirementExtractor(runtime=runtime)
+        assert module.get_gliner_runtime() is runtime
+        assert adapter.runtime is runtime
+    finally:
+        module.reset_requirement_extractor()
 
 
 def test_inference_concurrency_is_serialized() -> None:

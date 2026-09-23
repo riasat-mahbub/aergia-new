@@ -1,6 +1,6 @@
 """Browser and scoped-capability routes for local-agent tailoring."""
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -9,9 +9,11 @@ from app.core.rate_limit import limiter
 from app.db.session import get_db
 from app.models.user import User
 from app.http_schemas.tailoring import (
-    PROTOCOL_VERSION,
+    STAGED_TAILORING_PROTOCOL_VERSION,
     TailoringCodeExchange,
     TailoringContextResponse,
+    TailoringStrategyContextResponse,
+    TailoringEvidenceContextResponse,
     TailoringExchangeResponse,
     TailoringPreviewRequest,
     TailoringPreviewResponse,
@@ -33,6 +35,7 @@ from app.services.tailoring import (
     TailoringUnavailableError,
 )
 from app.services.tailoring_skill import build_tailoring_skill_bundle
+from app.services.candidate_evidence import CandidateEvidenceExtractionError
 from app.services.quotas import QuotaExceededError, QuotaResource
 
 router = APIRouter()
@@ -57,7 +60,7 @@ async def download_tailoring_skill(request: Request):
             "Content-Disposition": 'attachment; filename="aergia-tailor.zip"',
             "Cache-Control": "public, max-age=300",
             "ETag": f'"sha256-{bundle.sha256}"',
-            "X-Aergia-Skill-Protocol-Version": str(PROTOCOL_VERSION),
+            "X-Aergia-Skill-Protocol-Version": str(STAGED_TAILORING_PROTOCOL_VERSION),
         },
     )
 
@@ -100,6 +103,7 @@ async def create_tailoring_session(
     request: Request,
     response: Response,
     application_id: str,
+    protocol_version: int = Query(default=5, ge=5, le=6),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -111,6 +115,7 @@ async def create_tailoring_session(
             # header when constructing a link that will be pasted into an
             # external coding agent.
             session_url_base=get_settings().frontend_url.rstrip("/"),
+            protocol_version=protocol_version,
         )
         return result
     except Exception as exc:  # noqa: BLE001
@@ -198,6 +203,45 @@ async def get_tailoring_context(
 ):
     try:
         return await TailoringService(db).context(capability)
+    except Exception as exc:  # noqa: BLE001
+        _raise_service_error(exc)
+
+
+@router.get(
+    "/tailoring/context/strategy",
+    response_model=TailoringStrategyContextResponse,
+)
+@limiter.limit("30/minute")
+async def get_tailoring_strategy_context(
+    request: Request,
+    response: Response,
+    capability: str | None = Header(default=None, alias="X-Aergia-Tailoring-Capability"),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await TailoringService(db).strategy_context(capability)
+    except Exception as exc:  # noqa: BLE001
+        _raise_service_error(exc)
+
+
+@router.get(
+    "/tailoring/context/evidence",
+    response_model=TailoringEvidenceContextResponse,
+)
+@limiter.limit("10/minute")
+async def get_tailoring_evidence_context(
+    request: Request,
+    response: Response,
+    capability: str | None = Header(default=None, alias="X-Aergia-Tailoring-Capability"),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await TailoringService(db).evidence_context(capability)
+    except CandidateEvidenceExtractionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Candidate evidence extraction is temporarily unavailable",
+        ) from exc
     except Exception as exc:  # noqa: BLE001
         _raise_service_error(exc)
 

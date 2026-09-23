@@ -116,19 +116,64 @@ async function makeSessionWorkspace() {
     sections: [{ id: "profile", type: "profile", title: "Profile", enabled: true, data: { name: "Ada" } }],
     customizations: {},
   };
+  const targetStrategy = {
+    schema_version: "target-strategy-v1",
+    priorities: [
+      { id: "p1", label: "Software delivery", requirement_ids: ["r1"], reason: "Central to the role.", importance: "primary" },
+      { id: "p2", label: "Testing", requirement_ids: ["r2"], reason: "A defining responsibility.", importance: "primary" },
+      { id: "p3", label: "Collaboration", requirement_ids: ["r3"], reason: "Repeated in the posting.", importance: "secondary" },
+    ],
+    secondary: [],
+    do_not_force: [],
+    terminology: [],
+  };
   const output = join(workspace, "output");
   await mkdir(output, { recursive: true });
   await writeFile(join(output, "candidate.json"), JSON.stringify(candidate));
-  return { workspace, output, context, candidate };
+  await writeFile(join(output, "target-strategy.json"), JSON.stringify(targetStrategy));
+  return { workspace, output, context, candidate, targetStrategy };
 }
 
-function mockTailoringServer(context, evaluator = ({ candidate, pass }) => evaluation(candidateHash(candidate), pass)) {
+function mockTailoringServer(context, evaluator = ({ candidate, pass }) => evaluation(candidateHash(candidate), pass), sessionProtocol = 5) {
   const calls = [];
   let previewNumber = 0;
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, options = {}) => {
     calls.push({ url: String(url), options });
-    if (String(url).endsWith("/exchange")) return Response.json({ protocol_version: 5, capability: "scoped-capability" });
+    if (String(url).endsWith("/exchange")) {
+      return Response.json({ protocol_version: sessionProtocol, capability: "scoped-capability" });
+    }
+    if (String(url).endsWith("/context/strategy")) {
+      return Response.json({
+        protocol_version: 6,
+        stage: "strategy",
+        session_id: context.session_id,
+        expires_at: context.expires_at,
+        context_hash: context.context_hash,
+        job: context.job,
+        requirement_extraction: context.scanner.requirement_extraction,
+        job_terms: ["Python", "testing"],
+      });
+    }
+    if (String(url).endsWith("/context/evidence")) {
+      return Response.json({
+        protocol_version: 6,
+        stage: "evidence",
+        session_id: context.session_id,
+        expires_at: context.expires_at,
+        context_hash: context.context_hash,
+        profile: context.profile,
+        candidate_evidence: { schema_version: "candidate-evidence-v1", groups: [] },
+        evidence_versions: { model: "gliner2.5-small-v1", model_revision: "test", schema_version: "candidate-evidence-v1", extractor_version: "test-v1" },
+        templates: context.templates,
+        selected_template_id: context.selected_template_id,
+        selected_template_manifest: context.selected_template_manifest,
+        capabilities: context.capabilities,
+        capabilities_hash: context.capabilities_hash,
+        effective_appearance: context.effective_appearance,
+        evaluation_version: context.evaluation_version,
+      });
+    }
     if (String(url).endsWith("/context")) return Response.json(context);
     if (String(url).endsWith("/preview")) {
       previewNumber += 1;
@@ -165,16 +210,21 @@ test("session helper accepts only scoped Aergia session links", { concurrency: f
 });
 
 test("session helper submits an exact reviewed candidate and carries inference notes", { concurrency: false }, async () => {
-  const { workspace, output, context, candidate } = await makeSessionWorkspace();
-  const server = mockTailoringServer(context);
+  const { workspace, output, context, candidate, targetStrategy } = await makeSessionWorkspace();
+  await rm(join(output, "candidate.json"));
+  await rm(join(output, "target-strategy.json"));
+  const server = mockTailoringServer(context, undefined, 6);
   try {
-    const source = join(workspace, "source");
-    await mkdir(source, { recursive: true });
+    const source = join(workspace, "strategy");
+    const resultPromise = runSession("https://aergia.example/agent/tailor/session-1", workspace, { code: "code-1234567890123456" });
+    void resultPromise.catch(() => undefined);
+    await waitForJson(join(source, "context.json"), (value) => value.stage === "strategy");
+    await writeFile(join(output, "target-strategy.json"), JSON.stringify(targetStrategy));
+    await waitForJson(join(workspace, "evidence", "context.json"), (value) => value.stage === "evidence");
+    await writeFile(join(output, "candidate.json"), JSON.stringify(candidate));
     const notes = [{ claim: "Jest familiarity", basis: ["React/TypeScript work", "documented unit testing"], confidence: "reasonable", review_recommended: true }];
     await writeFile(join(output, "inference-notes.json"), JSON.stringify(notes));
     await writeFile(join(output, "RENDER"), "");
-    const resultPromise = runSession("https://aergia.example/agent/tailor/session-1", workspace, { code: "code-1234567890123456" });
-    void resultPromise.catch(() => undefined);
     const preview = await waitForJson(join(output, "candidate-preview.json"), (value) => value.pass_number === 1);
     assert.equal(preview.evaluation.readiness.status, "ready_with_review");
     await writeFile(join(output, "editorial-review.json"), JSON.stringify(editorialReview(preview.candidate_hash, 1, notes)));
@@ -191,14 +241,42 @@ test("session helper submits an exact reviewed candidate and carries inference n
     await writeFile(join(output, "SUBMIT"), "");
     const result = await resultPromise;
     assert.equal(result.status, "draft_ready");
-    assert.equal(server.calls.length, 4);
+    assert.equal(server.calls.length, 5);
     assert.equal(server.calls[1].options.headers["X-Aergia-Tailoring-Capability"], "scoped-capability");
-    const body = JSON.parse(server.calls[3].options.body);
+    const body = JSON.parse(server.calls[4].options.body);
     assert.deepEqual(body.inference_notes, notes);
     assert.deepEqual(body.editorial_review.inference_notes, notes);
     assert.equal(body.allow_bounded_fallback, false);
     assert.doesNotMatch(await readFile(join(output, "result.json"), "utf8"), /scoped-capability/);
-    assert.doesNotMatch(await readFile(join(source, "context.json"), "utf8"), /scoped-capability/);
+    assert.doesNotMatch(await readFile(join(source, "context.json"), "utf8"), /previous_cv|library|source_scan/i);
+    assert.equal(await readFile(join(workspace, "evidence", "candidate-evidence.json"), "utf8"), '{\n  "schema_version": "candidate-evidence-v1",\n  "groups": []\n}\n');
+    await assert.rejects(readFile(join(workspace, "strategy", "previous-cv.json"), "utf8"));
+    await assert.rejects(readFile(join(workspace, "strategy", "library.json"), "utf8"));
+  } finally {
+    server.restore();
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("staged bundle keeps the protocol v5 context path working", { concurrency: false }, async () => {
+  const { workspace, output, context, candidate } = await makeSessionWorkspace();
+  const server = mockTailoringServer(context, undefined, 5);
+  try {
+    await writeFile(join(output, "RENDER"), "");
+    const resultPromise = runSession("https://aergia.example/agent/tailor/session-1", workspace, { code: "code-1234567890123456" });
+    void resultPromise.catch(() => undefined);
+    const preview = await waitForJson(join(output, "candidate-preview.json"), (value) => value.pass_number === 1);
+    await writeFile(join(output, "editorial-review.json"), JSON.stringify(editorialReview(preview.candidate_hash, 1)));
+    await writeFile(join(output, "EDITORIAL_REVIEW"), "");
+    await waitForJson(join(output, "tailoring-status.json"), (value) => value.state === "ready_for_submission");
+    await writeFile(join(output, "SUBMIT"), "");
+    const result = await resultPromise;
+
+    assert.equal(result.status, "draft_ready");
+    assert.equal(server.calls.length, 4);
+    assert.ok(JSON.parse(await readFile(join(workspace, "source", "library.json"), "utf8")));
+    assert.ok(JSON.parse(await readFile(join(workspace, "source", "previous-cv.json"), "utf8")));
+    assert.equal(JSON.parse(await readFile(join(output, "normalized-candidate.json"), "utf8")).title, candidate.title);
   } finally {
     server.restore();
     await rm(workspace, { recursive: true, force: true });
