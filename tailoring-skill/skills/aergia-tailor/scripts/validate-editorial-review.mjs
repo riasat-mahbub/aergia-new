@@ -102,7 +102,7 @@ export function validateEditorialReview(review, expected = {}) {
   for (const [index, raw] of review.findings.entries()) {
     assertObject(raw, `Editorial finding ${index + 1}`);
     assertOnlyKeys(raw, FINDING_KEYS, `Editorial finding ${index + 1}`);
-    assert(["evidence_selection", "framing", "impact", "clarity", "natural_writing", "visual_balance"].includes(raw.category), `Editorial finding ${index + 1} category is unsupported`);
+    assert(["evidence_selection", "targeting", "framing", "impact", "clarity", "natural_writing", "visual_balance"].includes(raw.category), `Editorial finding ${index + 1} category is unsupported`);
     assert(["important", "polish", "blocking"].includes(raw.severity), `Editorial finding ${index + 1} severity is unsupported`);
     const sectionId = text(raw.section_id, `Editorial finding ${index + 1} section_id`, 128);
     assert(sectionId === "_document" || sectionIds.has(sectionId), `Editorial finding ${index + 1} section_id is not in the candidate`);
