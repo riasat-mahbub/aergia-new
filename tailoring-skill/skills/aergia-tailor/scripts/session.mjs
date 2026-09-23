@@ -2,7 +2,7 @@
 
 import { createInterface } from "node:readline/promises";
 import { createHash } from "node:crypto";
-import { access, chmod, mkdir, readdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, readdir, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -173,7 +173,7 @@ async function prepareStrategyWorkspace(workspace, context) {
     writeProtectedJson(resolve(strategy, "requirements.json"), context.requirement_extraction),
     writeProtectedJson(resolve(strategy, "job-terms.json"), context.job_terms ?? []),
   ]);
-  return { strategy, evidence, output };
+  return { strategy, evidence, output, workspace };
 }
 
 async function waitForTargetStrategy(paths, expiresAt) {
@@ -200,6 +200,66 @@ async function prepareEvidenceWorkspace(paths, context) {
     writeProtectedJson(resolve(paths.evidence, "capabilities.json"), context.capabilities ?? {}),
     writeProtectedJson(resolve(paths.evidence, "effective-appearance.json"), context.effective_appearance ?? {}),
   ]);
+}
+
+export function validateSourcePropositions(value, expectedSourceId) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("current-propositions.json must be an object");
+  if (value.source_id !== expectedSourceId || !Array.isArray(value.claims) || value.claims.length > 80) {
+    throw new Error("current-propositions.json does not match the active source or has an invalid claims list");
+  }
+  const allowedClaimKeys = new Set(["statement", "support", "source_excerpt", "associated_concepts"]);
+  const allowedConceptKeys = new Set(["kind", "value", "relation"]);
+  for (const claim of value.claims) {
+    if (!claim || typeof claim !== "object" || Array.isArray(claim)
+      || Object.keys(claim).some((key) => !allowedClaimKeys.has(key))
+      || typeof claim.statement !== "string" || !claim.statement.trim()
+      || claim.statement.trim().split(/\s+/).length > 18
+      || claim.support !== "explicit"
+      || typeof claim.source_excerpt !== "string" || !claim.source_excerpt.trim() || claim.source_excerpt.length > 250
+      || !Array.isArray(claim.associated_concepts ?? [])) {
+      throw new Error("current-propositions.json contains an invalid proposition");
+    }
+    for (const concept of claim.associated_concepts ?? []) {
+      if (!concept || typeof concept !== "object" || Array.isArray(concept)
+        || Object.keys(concept).some((key) => !allowedConceptKeys.has(key))
+        || typeof concept.kind !== "string" || typeof concept.value !== "string" || typeof concept.relation !== "string") {
+        throw new Error("current-propositions.json contains an invalid concept relation");
+      }
+    }
+  }
+  return { source_id: value.source_id, claims: value.claims };
+}
+
+async function waitForSourcePropositions(paths, sourceId, expiresAt) {
+  const path = resolve(paths.output, "current-propositions.json");
+  while (Date.now() < Date.parse(expiresAt)) {
+    if (await exists(path)) {
+      const value = validateSourcePropositions(JSON.parse(await readFile(path, "utf8")), sourceId);
+      return value;
+    }
+    await wait(500);
+  }
+  throw new Error(`The tailoring session expired while extracting source ${sourceId}`);
+}
+
+async function clearWorkspaceContents(workspace) {
+  const entries = await readdir(workspace, { withFileTypes: true });
+  await Promise.all(entries.map((entry) => rm(resolve(workspace, entry.name), { recursive: true, force: true })));
+}
+
+async function resetForIsolatedExtraction(paths) {
+  // The strategy stays in process memory. Remove all job-side files before an
+  // isolated child is given a source path, then expose only one source at once.
+  await clearWorkspaceContents(paths.workspace);
+  await Promise.all([paths.strategy, paths.evidence, paths.output, resolve(paths.workspace, "extraction")].map((path) => mkdir(path, { recursive: true, mode: 0o700 })));
+  return { ...paths, extraction: resolve(paths.workspace, "extraction") };
+}
+
+async function exposeComposerWorkspace(paths, context, strategy) {
+  await clearWorkspaceContents(paths.workspace);
+  await Promise.all([paths.strategy, paths.evidence, paths.output].map((path) => mkdir(path, { recursive: true, mode: 0o700 })));
+  await writeProtectedJson(resolve(paths.strategy, STRATEGY_FILE), strategy);
+  await prepareEvidenceWorkspace(paths, context);
 }
 
 async function prepareLegacyWorkspace(workspace, context) {
@@ -596,10 +656,43 @@ export async function runSession(sessionUrl, workspace, options = {}) {
     paths = await prepareStrategyWorkspace(workspace, strategyContext);
     process.stdout.write(`Job-only strategy context ready in ${paths.strategy}. Write ${resolve(paths.output, STRATEGY_FILE)} before requesting candidate evidence.\n`);
     const strategy = await waitForTargetStrategy(paths, strategyContext.expires_at);
-    context = await requestJson(`${origin}/api/v1/tailoring/context/evidence`, { headers });
+    paths = await resetForIsolatedExtraction(paths);
+    const sourceIndex = await requestJson(`${origin}/api/v1/tailoring/context/evidence/sources`, { headers });
+    if (sourceIndex.protocol_version !== PROTOCOL_VERSION || sourceIndex.stage !== "evidence_sources"
+      || sourceIndex.context_hash !== strategyContext.context_hash || !Array.isArray(sourceIndex.sources)) {
+      throw new Error("The server returned an incompatible candidate evidence source index");
+    }
+    const sourceResults = [];
+    for (const reference of sourceIndex.sources) {
+      if (typeof reference?.source_id !== "string" || typeof reference.content_hash !== "string") {
+        throw new Error("The candidate evidence source index contains an invalid reference");
+      }
+      const sourceContext = await requestJson(
+        `${origin}/api/v1/tailoring/context/evidence/sources/${encodeURIComponent(reference.source_id)}`,
+        { headers },
+      );
+      const source = sourceContext.source;
+      if (sourceContext.protocol_version !== PROTOCOL_VERSION || sourceContext.stage !== "evidence_source"
+        || sourceContext.context_hash !== strategyContext.context_hash || source?.source_id !== reference.source_id
+        || source.content_hash !== reference.content_hash || typeof source.narrative !== "string") {
+        throw new Error("The server returned a mismatched candidate evidence source");
+      }
+      const sourcePath = resolve(paths.extraction, "current-source.json");
+      const propositionsPath = resolve(paths.output, "current-propositions.json");
+      await writeProtectedJson(sourcePath, { source: sourceContext.source });
+      process.stdout.write(`Isolated proposition extraction ready for ${reference.source_id}. Give a fresh fork_turns=none child only ${sourcePath}; ask it to write ${propositionsPath}. The helper will remove both files before exposing the next source.\n`);
+      const propositions = await waitForSourcePropositions(paths, reference.source_id, strategyContext.expires_at);
+      sourceResults.push(propositions);
+      await Promise.all([unlink(sourcePath).catch(() => undefined), unlink(propositionsPath).catch(() => undefined)]);
+    }
+    context = await requestJson(`${origin}/api/v1/tailoring/context/evidence`, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ context_hash: strategyContext.context_hash, source_results: sourceResults }),
+    });
     if (context.protocol_version !== PROTOCOL_VERSION || context.stage !== "evidence" || context.evaluation_version !== "tailoring-evaluation-v1") throw new Error("The server returned an incompatible candidate evidence context");
     if (context.context_hash !== strategyContext.context_hash) throw new Error("The staged tailoring context changed between strategy and evidence");
-    await prepareEvidenceWorkspace(paths, context);
+    await exposeComposerWorkspace(paths, context, strategy);
     process.stdout.write(`Presentation-blind candidate evidence ready in ${paths.evidence}. Write ${resolve(paths.output, "candidate.json")} and create RENDER. After each server evaluation, write editorial-review.json and create EDITORIAL_REVIEW.\n`);
   } else {
     context = await requestJson(`${origin}/api/v1/tailoring/context`, { headers });

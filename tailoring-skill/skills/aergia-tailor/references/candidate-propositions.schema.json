@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aergia.local/schemas/candidate-propositions-v3.schema.json",
+  "title": "Aergia Isolated Candidate Propositions v3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source_id", "claims"],
+  "properties": {
+    "source_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "claims": {
+      "type": "array",
+      "maxItems": 80,
+      "items": { "$ref": "#/$defs/claim" }
+    }
+  },
+  "$defs": {
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["statement", "support", "source_excerpt", "associated_concepts"],
+      "properties": {
+        "statement": { "type": "string", "minLength": 3, "maxLength": 280 },
+        "support": { "const": "explicit" },
+        "source_excerpt": { "type": "string", "minLength": 1, "maxLength": 250 },
+        "associated_concepts": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "value", "relation"],
+            "properties": {
+              "kind": { "enum": ["technology", "method", "collaborator", "artifact", "domain", "outcome", "scope", "other"] },
+              "value": { "type": "string", "minLength": 1, "maxLength": 160 },
+              "relation": { "enum": ["used", "deployed_with", "tested_with", "tested_across", "collaborated_with", "created", "documented", "within", "associated_with"] }
+            }
+          }
+        }
+      }
+    }
+  }
+}
