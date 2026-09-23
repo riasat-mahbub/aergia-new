@@ -1,4 +1,4 @@
-"""HTTP contracts for whole-document local-agent tailoring (protocol v5).
+"""HTTP contracts for whole-document local-agent tailoring (protocols v5 and v6).
 
 The agent authors one complete CV candidate. There is deliberately no patch
 or evidence-reference model here: the exchanged context is read-only input,
@@ -25,6 +25,7 @@ from app.http_schemas.tailoring_evaluation import (
 
 
 TAILORING_PROTOCOL_VERSION = 5
+STAGED_TAILORING_PROTOCOL_VERSION = 6
 PROTOCOL_VERSION = TAILORING_PROTOCOL_VERSION
 
 
@@ -33,7 +34,7 @@ class _StrictModel(BaseModel):
 
 
 class TailoringCodeExchange(_StrictModel):
-    protocol_version: Literal[PROTOCOL_VERSION]
+    protocol_version: Literal[PROTOCOL_VERSION, STAGED_TAILORING_PROTOCOL_VERSION]
     code: str = Field(min_length=16, max_length=128)
 
     @field_validator("code")
@@ -46,7 +47,7 @@ class TailoringCodeExchange(_StrictModel):
 
 
 class TailoringSessionCreateResponse(_StrictModel):
-    protocol_version: Literal[PROTOCOL_VERSION] = PROTOCOL_VERSION
+    protocol_version: Literal[PROTOCOL_VERSION, STAGED_TAILORING_PROTOCOL_VERSION] = PROTOCOL_VERSION
     session_id: str
     application_id: str
     source_cv_id: str | None = None
@@ -61,7 +62,7 @@ class TailoringSessionCreateResponse(_StrictModel):
 
 
 class TailoringExchangeResponse(_StrictModel):
-    protocol_version: Literal[PROTOCOL_VERSION] = PROTOCOL_VERSION
+    protocol_version: Literal[PROTOCOL_VERSION, STAGED_TAILORING_PROTOCOL_VERSION] = PROTOCOL_VERSION
     session_id: str
     expires_at: datetime
     capability: str
@@ -81,9 +82,9 @@ TailoringSessionState = Literal[
 
 
 class TailoringSessionStatusResponse(_StrictModel):
-    # Historical v4 drafts remain owner-reviewable. New exchanges and active
-    # agent contexts are v5 only.
-    protocol_version: Literal[4, PROTOCOL_VERSION] = PROTOCOL_VERSION
+    # Historical v4 drafts remain owner-reviewable. Active sessions may use
+    # either the legacy v5 context or staged v6 contexts.
+    protocol_version: Literal[4, PROTOCOL_VERSION, STAGED_TAILORING_PROTOCOL_VERSION] = PROTOCOL_VERSION
     session_id: str
     application_id: str
     source_cv_id: str | None = None
@@ -181,8 +182,74 @@ class TailoringContextResponse(_StrictModel):
     evaluation_version: Literal[TAILORING_EVALUATION_VERSION] = TAILORING_EVALUATION_VERSION
 
 
+class TailoringStrategyContextResponse(_StrictModel):
+    """Candidate-blind job analysis input for staged protocol v6."""
+
+    protocol_version: Literal[STAGED_TAILORING_PROTOCOL_VERSION] = STAGED_TAILORING_PROTOCOL_VERSION
+    stage: Literal["strategy"] = "strategy"
+    session_id: str
+    expires_at: datetime
+    context_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+    job: TailoringJob
+    requirement_extraction: RequirementExtraction
+    job_terms: list[str] = Field(max_length=500)
+
+
+class TailoringEvidenceRelation(_StrictModel):
+    kind: str
+    value: str
+    confidence: float = Field(ge=0, le=1)
+
+
+class TailoringEvidenceClaim(_StrictModel):
+    id: str
+    statement: str
+    confidence_category: str
+    associated_concepts: list[TailoringEvidenceRelation] = Field(default_factory=list)
+
+
+class TailoringEvidenceGroup(_StrictModel):
+    id: str
+    kind: str
+    identity: dict
+    structured_facts: dict
+    claims: list[TailoringEvidenceClaim]
+
+
+class TailoringCandidateEvidence(_StrictModel):
+    schema_version: Literal["candidate-evidence-v1"]
+    groups: list[TailoringEvidenceGroup]
+
+
+class TailoringEvidenceVersions(_StrictModel):
+    model: str
+    model_revision: str
+    schema_version: Literal["candidate-evidence-v1"]
+    extractor_version: str
+
+
+class TailoringEvidenceContextResponse(_StrictModel):
+    """Presentation-blind candidate composition input for staged protocol v6."""
+
+    protocol_version: Literal[STAGED_TAILORING_PROTOCOL_VERSION] = STAGED_TAILORING_PROTOCOL_VERSION
+    stage: Literal["evidence"] = "evidence"
+    session_id: str
+    expires_at: datetime
+    context_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+    profile: dict
+    candidate_evidence: TailoringCandidateEvidence
+    evidence_versions: TailoringEvidenceVersions
+    templates: list[TailoringTemplate] = Field(max_length=32)
+    selected_template_id: str
+    selected_template_manifest: dict
+    capabilities: dict = Field(max_length=100)
+    capabilities_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+    effective_appearance: dict = Field(default_factory=dict, max_length=100)
+    evaluation_version: Literal[TAILORING_EVALUATION_VERSION] = TAILORING_EVALUATION_VERSION
+
+
 class TailoringCandidateCV(_StrictModel):
-    """The only document write value accepted by protocol v5."""
+    """The complete document write value accepted by protocols v5 and v6."""
 
     id: str | None = None
     title: str = Field(min_length=1, max_length=255)
@@ -237,7 +304,7 @@ class TailoringSubmitRequest(_StrictModel):
 
 
 class TailoringSubmitResponse(_StrictModel):
-    protocol_version: Literal[PROTOCOL_VERSION] = PROTOCOL_VERSION
+    protocol_version: Literal[PROTOCOL_VERSION, STAGED_TAILORING_PROTOCOL_VERSION] = PROTOCOL_VERSION
     session_id: str
     application_id: str
     status: Literal["draft_ready"] = "draft_ready"
@@ -254,7 +321,7 @@ class TailoringSubmitResponse(_StrictModel):
 
 
 class TailoringReviewResponse(_StrictModel):
-    protocol_version: Literal[4, PROTOCOL_VERSION] = PROTOCOL_VERSION
+    protocol_version: Literal[4, PROTOCOL_VERSION, STAGED_TAILORING_PROTOCOL_VERSION] = PROTOCOL_VERSION
     session_id: str
     application_id: str
     status: Literal["accepted", "rejected"]
@@ -266,11 +333,14 @@ class TailoringReviewResponse(_StrictModel):
 
 __all__ = [
     "PROTOCOL_VERSION",
+    "STAGED_TAILORING_PROTOCOL_VERSION",
     "TAILORING_PROTOCOL_VERSION",
     "TAILORING_EVALUATION_VERSION",
     "TailoringCandidateCV",
     "TailoringCodeExchange",
     "TailoringContextResponse",
+    "TailoringStrategyContextResponse",
+    "TailoringEvidenceContextResponse",
     "TailoringCV",
     "TailoringEditorialReview",
     "TailoringEvaluation",
