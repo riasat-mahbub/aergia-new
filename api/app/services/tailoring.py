@@ -45,6 +45,9 @@ from app.http_schemas.tailoring import (
     TailoringScannerContext,
     TailoringStrategyContextResponse,
     TailoringEvidenceContextResponse,
+    TailoringEvidenceSourcesResponse,
+    TailoringEvidenceSourceContextResponse,
+    TailoringEvidenceSubmission,
     TailoringCandidateEvidence,
     TailoringEvidenceVersions,
     TailoringSubmitRequest,
@@ -76,9 +79,15 @@ from app.services.rich_text import normalize_rich_text_ids
 from app.services.tailoring_validation import CandidateValidationError, validate_section_payload
 from app.services.tailoring_evaluation import evaluate_tailoring
 from app.services.candidate_evidence import (
+    CANDIDATE_EVIDENCE_PROMPT_VERSION,
+    CANDIDATE_EVIDENCE_PROPOSITION_MODEL,
+    CANDIDATE_EVIDENCE_PROPOSITION_MODEL_REVISION,
     CANDIDATE_EVIDENCE_EXTRACTOR_VERSION,
     CANDIDATE_EVIDENCE_SCHEMA_VERSION,
-    CandidateEvidenceExtractor,
+    CandidateEvidenceExtractionError,
+    build_candidate_evidence,
+    extract_semantic_cues,
+    iter_candidate_sources,
     composer_projection,
 )
 from app.services.requirement_extractor import get_gliner_runtime
@@ -1095,16 +1104,88 @@ class TailoringService:
             job_terms=terms,
         )
 
-    async def evidence_context(self, capability: str | None) -> TailoringEvidenceContextResponse:
-        """Return structured facts and job-blind narrative claims for composition."""
+    @staticmethod
+    def _evidence_sources(parts: Mapping[str, Any]):
+        return iter_candidate_sources(parts["authoritative_library"])
+
+    async def evidence_sources(self, capability: str | None) -> TailoringEvidenceSourcesResponse:
+        """Return source handles without raw prose for v6 extraction orchestration."""
+
+        session = await self._session_for_capability(capability)
+        if session.protocol_version != STAGED_TAILORING_PROTOCOL_VERSION:
+            raise TailoringConflictError("Candidate evidence sources require staged protocol v6")
+        parts = await self._current_context(session)
+        return TailoringEvidenceSourcesResponse(
+            session_id=session.id,
+            expires_at=session.expires_at,
+            context_hash=parts["context_hash"],
+            sources=[
+                {
+                    "source_id": source.source_id,
+                    "kind": source.kind,
+                    "identity": source.identity,
+                    "content_hash": source.source_hash,
+                }
+                for source in self._evidence_sources(parts)
+            ],
+        )
+
+    async def evidence_source_context(
+        self,
+        capability: str | None,
+        source_id: str,
+    ) -> TailoringEvidenceSourceContextResponse:
+        """Return exactly one narrative source and best-effort GLiNER cues."""
+
+        session = await self._session_for_capability(capability)
+        if session.protocol_version != STAGED_TAILORING_PROTOCOL_VERSION:
+            raise TailoringConflictError("Candidate evidence source requires staged protocol v6")
+        parts = await self._current_context(session)
+        source = next((item for item in self._evidence_sources(parts) if item.source_id == source_id), None)
+        if source is None:
+            raise CandidateEvidenceExtractionError("Unknown candidate evidence source")
+        cues, model, revision, warning = await asyncio.to_thread(
+            extract_semantic_cues,
+            source,
+            get_gliner_runtime(),
+        )
+        return TailoringEvidenceSourceContextResponse(
+            session_id=session.id,
+            expires_at=session.expires_at,
+            context_hash=parts["context_hash"],
+            source={
+                "source_id": source.source_id,
+                "kind": source.kind,
+                "identity": source.identity,
+                "content_hash": source.source_hash,
+                "narrative": source.text,
+                "semantic_cues": [cue.model_dump(mode="json") for cue in cues],
+                "semantic_cue_model": model,
+                "semantic_cue_model_revision": revision,
+                "semantic_cue_warning": warning,
+            },
+        )
+
+    async def evidence_context(
+        self,
+        capability: str | None,
+        request: TailoringEvidenceSubmission,
+    ) -> TailoringEvidenceContextResponse:
+        """Validate isolated propositions and return a presentation-blind projection."""
 
         session = await self._session_for_capability(capability)
         if session.protocol_version != STAGED_TAILORING_PROTOCOL_VERSION:
             raise TailoringConflictError("Candidate evidence context requires staged protocol v6")
         parts = await self._current_context(session)
-        extraction = await asyncio.to_thread(
-            CandidateEvidenceExtractor(get_gliner_runtime()).extract,
+        if request.context_hash != parts["context_hash"]:
+            raise TailoringStaleError("The tailoring context changed; restart candidate evidence extraction")
+        runtime = get_gliner_runtime()
+        source_results = [item.model_dump(mode="json") for item in request.source_results]
+        extraction = build_candidate_evidence(
             parts["authoritative_library"],
+            source_results,
+            semantic_cue_model=str(getattr(runtime, "model_name", "gliner2.5-small-v1")),
+            semantic_cue_model_revision=str(getattr(runtime, "revision", None) or "default"),
         )
         projection = composer_projection(extraction)
         templates = [
@@ -1134,8 +1215,12 @@ class TailoringService:
             profile=copy.deepcopy(parts["profile_data"]),
             candidate_evidence=TailoringCandidateEvidence.model_validate(projection.model_dump(mode="json")),
             evidence_versions=TailoringEvidenceVersions(
-                model=extraction.model,
-                model_revision=extraction.model_revision,
+                semantic_cue_model=extraction.semantic_cue_model,
+                semantic_cue_model_revision=extraction.semantic_cue_model_revision,
+                proposition_extractor=extraction.proposition_extractor,
+                proposition_model=CANDIDATE_EVIDENCE_PROPOSITION_MODEL,
+                proposition_model_revision=CANDIDATE_EVIDENCE_PROPOSITION_MODEL_REVISION,
+                prompt_version=CANDIDATE_EVIDENCE_PROMPT_VERSION,
                 schema_version=CANDIDATE_EVIDENCE_SCHEMA_VERSION,
                 extractor_version=CANDIDATE_EVIDENCE_EXTRACTOR_VERSION,
             ),

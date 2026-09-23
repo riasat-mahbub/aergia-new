@@ -14,6 +14,9 @@ from app.http_schemas.tailoring import (
     TailoringContextResponse,
     TailoringStrategyContextResponse,
     TailoringEvidenceContextResponse,
+    TailoringEvidenceSourcesResponse,
+    TailoringEvidenceSourceContextResponse,
+    TailoringEvidenceSubmission,
     TailoringExchangeResponse,
     TailoringPreviewRequest,
     TailoringPreviewResponse,
@@ -225,22 +228,60 @@ async def get_tailoring_strategy_context(
 
 
 @router.get(
-    "/tailoring/context/evidence",
-    response_model=TailoringEvidenceContextResponse,
+    "/tailoring/context/evidence/sources",
+    response_model=TailoringEvidenceSourcesResponse,
 )
-@limiter.limit("10/minute")
-async def get_tailoring_evidence_context(
+@limiter.limit("30/minute")
+async def get_tailoring_evidence_sources(
     request: Request,
     response: Response,
     capability: str | None = Header(default=None, alias="X-Aergia-Tailoring-Capability"),
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        return await TailoringService(db).evidence_context(capability)
+        return await TailoringService(db).evidence_sources(capability)
+    except Exception as exc:  # noqa: BLE001
+        _raise_service_error(exc)
+
+
+@router.get(
+    "/tailoring/context/evidence/sources/{source_id}",
+    response_model=TailoringEvidenceSourceContextResponse,
+)
+@limiter.limit("30/minute")
+async def get_tailoring_evidence_source(
+    source_id: str,
+    request: Request,
+    response: Response,
+    capability: str | None = Header(default=None, alias="X-Aergia-Tailoring-Capability"),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await TailoringService(db).evidence_source_context(capability, source_id)
+    except CandidateEvidenceExtractionError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate evidence source is unavailable") from exc
+    except Exception as exc:  # noqa: BLE001
+        _raise_service_error(exc)
+
+
+@router.post(
+    "/tailoring/context/evidence",
+    response_model=TailoringEvidenceContextResponse,
+)
+@limiter.limit("10/minute")
+async def submit_tailoring_evidence(
+    request: Request,
+    response: Response,
+    body: TailoringEvidenceSubmission,
+    capability: str | None = Header(default=None, alias="X-Aergia-Tailoring-Capability"),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await TailoringService(db).evidence_context(capability, body)
     except CandidateEvidenceExtractionError as exc:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Candidate evidence extraction is temporarily unavailable",
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The isolated candidate evidence failed source validation",
         ) from exc
     except Exception as exc:  # noqa: BLE001
         _raise_service_error(exc)

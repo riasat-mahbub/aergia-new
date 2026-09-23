@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { runSession, serverOriginFromSessionUrl } from "../skills/aergia-tailor/scripts/session.mjs";
+import { runSession, serverOriginFromSessionUrl, validateSourcePropositions } from "../skills/aergia-tailor/scripts/session.mjs";
 
 const candidateHash = (candidate) => createHash("sha256").update(JSON.stringify(candidate)).digest("hex");
 
@@ -137,6 +137,43 @@ async function makeSessionWorkspace() {
 function mockTailoringServer(context, evaluator = ({ candidate, pass }) => evaluation(candidateHash(candidate), pass), sessionProtocol = 5) {
   const calls = [];
   let previewNumber = 0;
+  const evidenceSource = {
+    source_id: "source_fixture",
+    kind: "experience",
+    identity: { company: "Example Systems", position: "Developer" },
+    content_hash: "a".repeat(64),
+    narrative: "Worked in Agile/Scrum delivery.",
+    semantic_cues: [],
+    semantic_cue_model: "gliner2.5-small-v1",
+    semantic_cue_model_revision: "fixture",
+    semantic_cue_warning: null,
+  };
+  const evidenceContext = {
+    protocol_version: 6,
+    stage: "evidence",
+    session_id: context.session_id,
+    expires_at: context.expires_at,
+    context_hash: context.context_hash,
+    profile: context.profile,
+    candidate_evidence: { schema_version: "candidate-evidence-v2", groups: [] },
+    evidence_versions: {
+      semantic_cue_model: "gliner2.5-small-v1",
+      semantic_cue_model_revision: "fixture",
+      proposition_extractor: "codex-isolated-subagent",
+      proposition_model: "codex-agent-managed",
+      proposition_model_revision: "runtime-managed",
+      prompt_version: "candidate-proposition-prompt-v6",
+      schema_version: "candidate-evidence-v2",
+      extractor_version: "codex-isolated-propositions-v3",
+    },
+    templates: context.templates,
+    selected_template_id: context.selected_template_id,
+    selected_template_manifest: context.selected_template_manifest,
+    capabilities: context.capabilities,
+    capabilities_hash: context.capabilities_hash,
+    effective_appearance: context.effective_appearance,
+    evaluation_version: context.evaluation_version,
+  };
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, options = {}) => {
     calls.push({ url: String(url), options });
@@ -155,24 +192,28 @@ function mockTailoringServer(context, evaluator = ({ candidate, pass }) => evalu
         job_terms: ["Python", "testing"],
       });
     }
-    if (String(url).endsWith("/context/evidence")) {
+    if (String(url).endsWith("/context/evidence/sources")) {
       return Response.json({
         protocol_version: 6,
-        stage: "evidence",
+        stage: "evidence_sources",
         session_id: context.session_id,
         expires_at: context.expires_at,
         context_hash: context.context_hash,
-        profile: context.profile,
-        candidate_evidence: { schema_version: "candidate-evidence-v1", groups: [] },
-        evidence_versions: { model: "gliner2.5-small-v1", model_revision: "test", schema_version: "candidate-evidence-v1", extractor_version: "test-v1" },
-        templates: context.templates,
-        selected_template_id: context.selected_template_id,
-        selected_template_manifest: context.selected_template_manifest,
-        capabilities: context.capabilities,
-        capabilities_hash: context.capabilities_hash,
-        effective_appearance: context.effective_appearance,
-        evaluation_version: context.evaluation_version,
+        sources: [{ source_id: evidenceSource.source_id, kind: evidenceSource.kind, identity: evidenceSource.identity, content_hash: evidenceSource.content_hash }],
       });
+    }
+    if (String(url).includes("/context/evidence/sources/")) {
+      return Response.json({
+        protocol_version: 6,
+        stage: "evidence_source",
+        session_id: context.session_id,
+        expires_at: context.expires_at,
+        context_hash: context.context_hash,
+        source: evidenceSource,
+      });
+    }
+    if (String(url).endsWith("/context/evidence") && options.method === "POST") {
+      return Response.json(evidenceContext);
     }
     if (String(url).endsWith("/context")) return Response.json(context);
     if (String(url).endsWith("/preview")) {
@@ -200,13 +241,31 @@ function mockTailoringServer(context, evaluator = ({ candidate, pass }) => evalu
       render_warnings: [],
     });
   };
-  return { calls, restore: () => { globalThis.fetch = originalFetch; } };
+  return { calls, evidenceSource, restore: () => { globalThis.fetch = originalFetch; } };
 }
 
 test("session helper accepts only scoped Aergia session links", { concurrency: false }, () => {
   assert.equal(serverOriginFromSessionUrl("https://aergia.example/agent/tailor/session-1"), "https://aergia.example");
   assert.throws(() => serverOriginFromSessionUrl("https://aergia.example/applications"), /not an Aergia tailoring session/);
   assert.throws(() => serverOriginFromSessionUrl("javascript:alert(1)"), /safe HTTP\(S\)/);
+});
+
+test("isolated propositions enforce concise claims and narrow source excerpts", () => {
+  const claim = {
+    statement: "Deployed containerized applications",
+    support: "explicit",
+    source_excerpt: "Deployed containerized applications with Docker.",
+    associated_concepts: [],
+  };
+  assert.equal(validateSourcePropositions({ source_id: "source_fixture", claims: [claim] }, "source_fixture").claims.length, 1);
+  assert.throws(() => validateSourcePropositions({
+    source_id: "source_fixture",
+    claims: [{ ...claim, statement: Array(19).fill("evidence").join(" ") }],
+  }, "source_fixture"), /invalid proposition/);
+  assert.throws(() => validateSourcePropositions({
+    source_id: "source_fixture",
+    claims: [{ ...claim, source_excerpt: "x".repeat(251) }],
+  }, "source_fixture"), /invalid proposition/);
 });
 
 test("session helper submits an exact reviewed candidate and carries inference notes", { concurrency: false }, async () => {
@@ -220,7 +279,20 @@ test("session helper submits an exact reviewed candidate and carries inference n
     void resultPromise.catch(() => undefined);
     await waitForJson(join(source, "context.json"), (value) => value.stage === "strategy");
     await writeFile(join(output, "target-strategy.json"), JSON.stringify(targetStrategy));
+    const extractionSourcePath = join(workspace, "extraction", "current-source.json");
+    const extractionSource = await waitForJson(extractionSourcePath, (value) => value.source?.source_id === "source_fixture");
+    assert.deepEqual(Object.keys(extractionSource), ["source"]);
+    assert.equal(extractionSource.source.narrative, server.evidenceSource.narrative);
+    assert.doesNotMatch(JSON.stringify(extractionSource), /Convverge|target-strategy|previous_cv|job_description/i);
+    await assert.rejects(readFile(join(workspace, "strategy", "context.json"), "utf8"));
+    await writeFile(join(output, "current-propositions.json"), JSON.stringify({
+      source_id: "source_fixture",
+      claims: [{ statement: "Worked in Agile/Scrum delivery", support: "explicit", source_excerpt: server.evidenceSource.narrative, associated_concepts: [] }],
+    }));
     await waitForJson(join(workspace, "evidence", "context.json"), (value) => value.stage === "evidence");
+    await assert.rejects(readFile(join(workspace, "extraction", "current-source.json"), "utf8"));
+    await assert.rejects(readFile(join(output, "current-propositions.json"), "utf8"));
+    assert.deepEqual(JSON.parse(await readFile(join(workspace, "strategy", "target-strategy.json"), "utf8")), targetStrategy);
     await writeFile(join(output, "candidate.json"), JSON.stringify(candidate));
     const notes = [{ claim: "Jest familiarity", basis: ["React/TypeScript work", "documented unit testing"], confidence: "reasonable", review_recommended: true }];
     await writeFile(join(output, "inference-notes.json"), JSON.stringify(notes));
@@ -241,15 +313,15 @@ test("session helper submits an exact reviewed candidate and carries inference n
     await writeFile(join(output, "SUBMIT"), "");
     const result = await resultPromise;
     assert.equal(result.status, "draft_ready");
-    assert.equal(server.calls.length, 5);
+    assert.equal(server.calls.length, 7);
     assert.equal(server.calls[1].options.headers["X-Aergia-Tailoring-Capability"], "scoped-capability");
-    const body = JSON.parse(server.calls[4].options.body);
+    const body = JSON.parse(server.calls[6].options.body);
     assert.deepEqual(body.inference_notes, notes);
     assert.deepEqual(body.editorial_review.inference_notes, notes);
     assert.equal(body.allow_bounded_fallback, false);
     assert.doesNotMatch(await readFile(join(output, "result.json"), "utf8"), /scoped-capability/);
-    assert.doesNotMatch(await readFile(join(source, "context.json"), "utf8"), /previous_cv|library|source_scan/i);
-    assert.equal(await readFile(join(workspace, "evidence", "candidate-evidence.json"), "utf8"), '{\n  "schema_version": "candidate-evidence-v1",\n  "groups": []\n}\n');
+    assert.deepEqual(await readFile(join(source, "target-strategy.json"), "utf8"), `${JSON.stringify(targetStrategy, null, 2)}\n`);
+    assert.equal(await readFile(join(workspace, "evidence", "candidate-evidence.json"), "utf8"), '{\n  "schema_version": "candidate-evidence-v2",\n  "groups": []\n}\n');
     await assert.rejects(readFile(join(workspace, "strategy", "previous-cv.json"), "utf8"));
     await assert.rejects(readFile(join(workspace, "strategy", "library.json"), "utf8"));
   } finally {
