@@ -1,0 +1,42 @@
+{
+  "model_run": "gliner-base",
+  "case_id": "alayacare-junior-fullstack-python-v1",
+  "oracle_audit_status": "agent_reviewed_seed_needs_second_human_review",
+  "raw_model_candidate_requirement": {
+    "span_count": 8,
+    "source_unit_recall_at_half_coverage": 0.0,
+    "covered_gold_units": 0,
+    "total_gold_units": 16,
+    "any_label_overlap_cue_units": 13
+  },
+  "aergia_final": {
+    "gold_units": 16,
+    "predicted_units": 16,
+    "exact_source_unit_recall": 1.0,
+    "exact_source_unit_precision": 1.0,
+    "matched_units": 16,
+    "missed_gold_ids": [],
+    "extra_prediction_texts": [],
+    "duplicate_prediction_count": 0,
+    "recall_by_difficulty": {
+      "easy": {
+        "gold_units": 4,
+        "discovered": 4,
+        "recall": 1.0
+      },
+      "hard": {
+        "gold_units": 5,
+        "discovered": 5,
+        "recall": 1.0
+      },
+      "medium": {
+        "gold_units": 7,
+        "discovered": 7,
+        "recall": 1.0
+      }
+    },
+    "importance_accuracy_on_matches": 0.75,
+    "family_accuracy_on_matches": 0.8125
+  },
+  "structured_interpretation_checks": []
+}
