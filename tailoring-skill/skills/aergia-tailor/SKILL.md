@@ -143,14 +143,16 @@ strategy compact; it is a prioritization aid rather than another requirement ext
 
 After the strategy is complete, the helper removes all strategy/job files from the workspace and
 stages one narrative source at a time in `extraction/current-source.json`. It waits for
-`output/current-propositions.json`, validates the source ID and basic shape, removes both files, and
-then stages the next source. Never copy source text, propositions, or files into another source
-task. The helper submits the results to the API, which verifies source coverage, exact excerpt
-matches, source hashes, relation values, offsets, and provenance before creating composer evidence.
+the source-specific propositions path printed by the helper, validates the source ID and basic
+shape, removes both files, and then stages the next source. Source-specific output paths prevent a
+late or stale extraction result from being mistaken for the active source. Never copy source text,
+propositions, or files into another source task. The helper submits the results to the API, which
+verifies source coverage, exact excerpt matches, source hashes, relation values, offsets, and
+provenance before creating composer evidence.
 
 For each announced source, spawn a fresh Codex child with `fork_turns="none"`. Give the child only
-the paths to `extraction/current-source.json` and `output/current-propositions.json`, plus the
-instructions below and the proposition schema at
+the paths to `extraction/current-source.json` and the source-specific output path printed by the
+helper, plus the instructions below and the proposition schema at
 [`references/candidate-propositions.schema.json`](references/candidate-propositions.schema.json).
 Do not include the target strategy, job, requirements, candidate scan, previous CV, or another
 Library entry in the child task. The child must read only the current source file. After writing the

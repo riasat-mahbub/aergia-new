@@ -227,8 +227,22 @@ export function validateSourcePropositions(value, expectedSourceId) {
   return { source_id: value.source_id, claims: value.claims };
 }
 
+export function sourcePropositionsPath(output, sourceId) {
+  const suffix = createHash("sha256").update(sourceId).digest("hex").slice(0, 16);
+  return resolve(output, `current-propositions-${suffix}.json`);
+}
+
+async function removeStagedFile(path) {
+  try {
+    await unlink(path);
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+  if (await exists(path)) throw new Error("The isolated source extraction files could not be cleared");
+}
+
 async function waitForSourcePropositions(paths, sourceId, expiresAt) {
-  const path = resolve(paths.output, "current-propositions.json");
+  const path = sourcePropositionsPath(paths.output, sourceId);
   while (Date.now() < Date.parse(expiresAt)) {
     if (await exists(path)) {
       const value = validateSourcePropositions(JSON.parse(await readFile(path, "utf8")), sourceId);
@@ -699,12 +713,12 @@ export async function runSession(sessionUrl, workspace, options = {}) {
         throw new Error("The server returned a mismatched candidate evidence source");
       }
       const sourcePath = resolve(paths.extraction, "current-source.json");
-      const propositionsPath = resolve(paths.output, "current-propositions.json");
+      const propositionsPath = sourcePropositionsPath(paths.output, reference.source_id);
       await writeProtectedJson(sourcePath, { source: sourceContext.source });
       process.stdout.write(`Isolated proposition extraction ready for ${reference.source_id}. Give a fresh fork_turns=none child only ${sourcePath}; ask it to write ${propositionsPath}. The helper will remove both files before exposing the next source.\n`);
       const propositions = await waitForSourcePropositions(paths, reference.source_id, strategyContext.expires_at);
       sourceResults.push(propositions);
-      await Promise.all([unlink(sourcePath).catch(() => undefined), unlink(propositionsPath).catch(() => undefined)]);
+      await Promise.all([removeStagedFile(sourcePath), removeStagedFile(propositionsPath)]);
     }
     context = await requestJson(`${origin}/api/v1/tailoring/context/evidence`, {
       method: "POST",

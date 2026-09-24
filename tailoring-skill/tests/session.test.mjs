@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { runSession, serverOriginFromSessionUrl, validateSourcePropositions } from "../skills/aergia-tailor/scripts/session.mjs";
+import { runSession, serverOriginFromSessionUrl, sourcePropositionsPath, validateSourcePropositions } from "../skills/aergia-tailor/scripts/session.mjs";
 
 const candidateHash = (candidate) => createHash("sha256").update(JSON.stringify(candidate)).digest("hex");
 
@@ -148,6 +148,13 @@ function mockTailoringServer(context, evaluator = ({ candidate, pass }) => evalu
     semantic_cue_model_revision: "fixture",
     semantic_cue_warning: null,
   };
+  const secondEvidenceSource = {
+    ...evidenceSource,
+    source_id: "source_fixture_2",
+    content_hash: "b".repeat(64),
+    narrative: "Documented REST API behavior and tested fixes.",
+  };
+  const evidenceSources = [evidenceSource, secondEvidenceSource];
   const evidenceContext = {
     protocol_version: 6,
     stage: "evidence",
@@ -199,17 +206,19 @@ function mockTailoringServer(context, evaluator = ({ candidate, pass }) => evalu
         session_id: context.session_id,
         expires_at: context.expires_at,
         context_hash: context.context_hash,
-        sources: [{ source_id: evidenceSource.source_id, kind: evidenceSource.kind, identity: evidenceSource.identity, content_hash: evidenceSource.content_hash }],
+        sources: evidenceSources.map((source) => ({ source_id: source.source_id, kind: source.kind, identity: source.identity, content_hash: source.content_hash })),
       });
     }
     if (String(url).includes("/context/evidence/sources/")) {
+      const sourceId = decodeURIComponent(new URL(String(url)).pathname.split("/").at(-1));
+      const source = evidenceSources.find((item) => item.source_id === sourceId);
       return Response.json({
         protocol_version: 6,
         stage: "evidence_source",
         session_id: context.session_id,
         expires_at: context.expires_at,
         context_hash: context.context_hash,
-        source: evidenceSource,
+        source,
       });
     }
     if (String(url).endsWith("/context/evidence") && options.method === "POST") {
@@ -241,7 +250,7 @@ function mockTailoringServer(context, evaluator = ({ candidate, pass }) => evalu
       render_warnings: [],
     });
   };
-  return { calls, evidenceSource, restore: () => { globalThis.fetch = originalFetch; } };
+  return { calls, evidenceSource, secondEvidenceSource, restore: () => { globalThis.fetch = originalFetch; } };
 }
 
 test("session helper accepts only scoped Aergia session links", { concurrency: false }, () => {
@@ -266,6 +275,7 @@ test("isolated propositions enforce concise claims and narrow source excerpts", 
     source_id: "source_fixture",
     claims: [{ ...claim, source_excerpt: "x".repeat(251) }],
   }, "source_fixture"), /invalid proposition/);
+  assert.notEqual(sourcePropositionsPath("/tmp/output", "source_fixture"), sourcePropositionsPath("/tmp/output", "source_fixture_2"));
 });
 
 test("session helper submits an exact reviewed candidate and carries inference notes", { concurrency: false }, async () => {
@@ -285,12 +295,24 @@ test("session helper submits an exact reviewed candidate and carries inference n
     assert.equal(extractionSource.source.narrative, server.evidenceSource.narrative);
     assert.doesNotMatch(JSON.stringify(extractionSource), /Convverge|target-strategy|previous_cv|job_description/i);
     await assert.rejects(readFile(join(workspace, "strategy", "context.json"), "utf8"));
-    await writeFile(join(output, "current-propositions.json"), JSON.stringify({
+    const firstPropositionsPath = sourcePropositionsPath(output, server.evidenceSource.source_id);
+    await writeFile(firstPropositionsPath, JSON.stringify({
       source_id: "source_fixture",
       claims: [{ statement: "Worked in Agile/Scrum delivery", support: "explicit", source_excerpt: server.evidenceSource.narrative, associated_concepts: [] }],
     }));
+    const secondExtractionSource = await waitForJson(extractionSourcePath, (value) => value.source?.source_id === "source_fixture_2");
+    assert.equal(secondExtractionSource.source.narrative, server.secondEvidenceSource.narrative);
+    await assert.rejects(readFile(firstPropositionsPath, "utf8"));
+    await writeFile(join(output, "current-propositions.json"), JSON.stringify({ source_id: "source_fixture", claims: [] }));
+    const secondPropositionsPath = sourcePropositionsPath(output, server.secondEvidenceSource.source_id);
+    await writeFile(secondPropositionsPath, JSON.stringify({
+      source_id: "source_fixture_2",
+      claims: [{ statement: "Documented and tested REST API fixes", support: "explicit", source_excerpt: server.secondEvidenceSource.narrative, associated_concepts: [] }],
+    }));
     await waitForJson(join(workspace, "evidence", "context.json"), (value) => value.stage === "evidence");
     await assert.rejects(readFile(join(workspace, "extraction", "current-source.json"), "utf8"));
+    await assert.rejects(readFile(firstPropositionsPath, "utf8"));
+    await assert.rejects(readFile(secondPropositionsPath, "utf8"));
     await assert.rejects(readFile(join(output, "current-propositions.json"), "utf8"));
     assert.deepEqual(JSON.parse(await readFile(join(workspace, "strategy", "target-strategy.json"), "utf8")), targetStrategy);
     await writeFile(join(output, "candidate.json"), JSON.stringify(candidate));
@@ -313,9 +335,9 @@ test("session helper submits an exact reviewed candidate and carries inference n
     await writeFile(join(output, "SUBMIT"), "");
     const result = await resultPromise;
     assert.equal(result.status, "draft_ready");
-    assert.equal(server.calls.length, 7);
+    assert.equal(server.calls.length, 8);
     assert.equal(server.calls[1].options.headers["X-Aergia-Tailoring-Capability"], "scoped-capability");
-    const body = JSON.parse(server.calls[6].options.body);
+    const body = JSON.parse(server.calls[7].options.body);
     assert.deepEqual(body.inference_notes, notes);
     assert.deepEqual(body.editorial_review.inference_notes, notes);
     assert.equal(body.allow_bounded_fallback, false);
