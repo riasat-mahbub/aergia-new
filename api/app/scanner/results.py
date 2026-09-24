@@ -26,6 +26,7 @@ class EvidenceStatus(StrEnum):
 
 class EvidenceMethod(StrEnum):
     STRUCTURED = "structured"
+    SKILL_IDENTITY = "skill_identity"
     TAXONOMY = "taxonomy"
     EXACT = "exact"
     FTS5 = "fts5"

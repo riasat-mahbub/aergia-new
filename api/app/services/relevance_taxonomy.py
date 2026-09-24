@@ -7,59 +7,19 @@ large language model or an embedding index would be.
 
 from __future__ import annotations
 
+from app.scanner.skills import SKILL_ALIASES
+
 
 # Canonical names are the values persisted in requirement explanations.  The
 # aliases cover common spelling, punctuation, and product-name variants only;
 # they are not intended to be a general thesaurus.
-HARD_SKILL_ALIASES: dict[str, tuple[str, ...]] = {
-    "python": ("python",),
-    "javascript": ("javascript", "js"),
-    "typescript": ("typescript", "ts"),
-    "java": ("java",),
-    "c#": ("c#", "c sharp", "csharp"),
-    ".net": (".net", "dotnet", "asp.net", "asp net"),
-    "c++": ("c++", "cpp"),
-    "go": ("go", "golang"),
-    "rust": ("rust",),
-    "ruby": ("ruby",),
-    "php": ("php",),
-    "kotlin": ("kotlin",),
-    "swift": ("swift",),
-    "scala": ("scala",),
-    "react": ("react", "react.js", "reactjs"),
-    "angular": ("angular",),
-    "vue": ("vue", "vue.js", "vuejs"),
-    "node.js": ("node.js", "nodejs", "node"),
-    "express": ("express", "express.js", "expressjs"),
-    "fastapi": ("fastapi", "fast api"),
-    "django": ("django",),
-    "flask": ("flask",),
-    "spring": ("spring", "spring boot", "spring framework"),
-    "next.js": ("next.js", "nextjs", "next"),
-    "graphql": ("graphql", "graph ql"),
-    "sql": ("sql",),
-    "postgresql": ("postgresql", "postgres", "postgre sql"),
-    "mysql": ("mysql", "my sql"),
-    "sqlite": ("sqlite", "sqlite3"),
-    "mongodb": ("mongodb", "mongo db", "mongo"),
-    "redis": ("redis",),
-    "elasticsearch": ("elasticsearch", "elastic search"),
-    "kafka": ("kafka", "apache kafka"),
-    "spark": ("spark", "apache spark"),
-    "pandas": ("pandas",),
-    "numpy": ("numpy",),
-    "aws": ("aws", "amazon web services"),
-    "azure": ("azure", "microsoft azure"),
-    "gcp": ("gcp", "google cloud", "google cloud platform"),
-    "docker": ("docker",),
-    "kubernetes": ("kubernetes", "k8s"),
-    "terraform": ("terraform",),
-    "git": ("git",),
-    "linux": ("linux",),
+HARD_SKILL_ALIASES: dict[str, tuple[str, ...]] = SKILL_ALIASES
+
+# Technical topics and practices help parse requirements, but their labels
+# are contextual concepts rather than product or language identities.
+TECHNICAL_CONCEPT_ALIASES: dict[str, tuple[str, ...]] = {
     "rest api": ("rest api", "restful api", "rest apis", "restful apis", "rest"),
     "ci/cd": ("ci/cd", "ci cd", "continuous integration", "continuous delivery", "continuous deployment"),
-    "github actions": ("github actions",),
-    "jenkins": ("jenkins",),
     "microservices": ("microservices", "micro services"),
     "distributed systems": ("distributed systems", "distributed system"),
     "cloud native": ("cloud native", "cloud-native"),
@@ -112,6 +72,7 @@ CERTIFICATION_ALIASES: dict[str, tuple[str, ...]] = {
 
 TAXONOMY: dict[str, tuple[str, tuple[str, ...]]] = {
     **{canonical: ("hard_skill", aliases) for canonical, aliases in HARD_SKILL_ALIASES.items()},
+    **{canonical: ("hard_skill", aliases) for canonical, aliases in TECHNICAL_CONCEPT_ALIASES.items()},
     **{canonical: ("responsibility", aliases) for canonical, aliases in RESPONSIBILITY_ALIASES.items()},
     **{canonical: ("certification", aliases) for canonical, aliases in CERTIFICATION_ALIASES.items()},
 }
@@ -127,6 +88,7 @@ __all__ = [
     "ALIAS_TO_CANONICAL",
     "CERTIFICATION_ALIASES",
     "HARD_SKILL_ALIASES",
+    "TECHNICAL_CONCEPT_ALIASES",
     "RESPONSIBILITY_ALIASES",
     "TAXONOMY",
 ]

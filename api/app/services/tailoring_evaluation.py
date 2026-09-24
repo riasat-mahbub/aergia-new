@@ -30,6 +30,8 @@ from app.http_schemas.tailoring_evaluation import (
     TailoringSourceComparison,
 )
 from app.scanner.matching import flatten_cv_text
+from app.scanner.skills import extract_skills
+from app.services.relevance import flatten_library_fields
 from app.scanner.requirements import RequirementExtraction, RequirementImportance
 from app.scanner.results import (
     EvidenceStatus,
@@ -109,6 +111,15 @@ def _candidate_text(candidate: object) -> str:
     except (TypeError, ValueError):
         parts.append(str(candidate))
     return "\n".join(parts)
+
+
+def _skill_set(document: object | None) -> set[str]:
+    if document is None:
+        return set()
+    return set().union(*(
+        extract_skills(field.text, skill_section=field.section_type == "skills")
+        for field in flatten_cv_text(document)
+    ))
 
 
 def _contains_term(text: str, term: str) -> bool:
@@ -907,6 +918,25 @@ def evaluate_tailoring(
             )
 
     candidate_text = _candidate_text(current_candidate) if current_candidate is not None else ""
+    if current_candidate is not None and (source_cv is not None or library or user_confirmed_facts):
+        supplied_skills = _skill_set(source_cv)
+        for field in flatten_library_fields(library):
+            supplied_skills.update(extract_skills(field.text, skill_section=field.section_type == "skills"))
+        supplied_skills.update(extract_skills(json.dumps(list(user_confirmed_facts), default=str)))
+        new_skills = _skill_set(current_candidate) - supplied_skills
+        for skill in sorted(new_skills - {"c", "r", "go"}):
+            _add_issue(
+                blockers,
+                _issue(
+                    issue_id=f"unsupported-skill-{skill.replace(' ', '-')}",
+                    kind="blocker",
+                    category="fabrication",
+                    message=f"The candidate names {skill}, but it is absent from the supplied CV and Library sources.",
+                    detail="Remove the claim or supply authoritative evidence before using this skill.",
+                    priority="high",
+                    code="unsupported_skill",
+                ),
+            )
     for index, (term, reason) in enumerate(_user_forbidden_terms(user_instructions)):
         if _contains_term(candidate_text, term):
             _add_issue(

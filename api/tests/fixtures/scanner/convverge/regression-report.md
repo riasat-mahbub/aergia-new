@@ -1,5 +1,38 @@
 # Convverge Job Fit regression report
 
+## Current linked-CV and grounded-draft check (2026-09-23)
+
+The unchanged exported CV (`candidate.json`) now scans at **52.26% Job Fit**
+and **47.43% Term Visibility** with the shared skill matcher. A manually
+composed draft (`candidate-after.json`) uses only details from the frozen
+Library narratives and scans at **61.79% Job Fit** and **52.57% Term
+Visibility**. This draft is a regression example, not an agent-generated
+tailoring session output.
+
+| Qualification or requirement | Linked CV | Grounded draft | Source and interpretation |
+|---|---|---|---|
+| Git | Supported | Supported | Already visible in the linked CV; exact identity no longer needs use-strength inference. |
+| Agile development | Not shown | Supported | Brain Station source states Agile and Scrum methodologies across projects. |
+| Collaborative delivery of client solutions | Not shown | Partial | Research source establishes collaboration across software-related projects, but not client-solution delivery. |
+| Testing and QA | Supported | Supported | Brain Station source explicitly describes unit and integration test suites; the draft makes QA wording visible. |
+| Client-facing software projects | Not shown | Not shown | Neither frozen source establishes direct client work. |
+| Proactive blocker reporting | Not shown | Not shown | Neither frozen source establishes this behavior. |
+
+Both PDFs render to **one page**. Visual inspection found conventional section
+flow, readable body text, retained links, and useful page utilization. The
+draft fills more of the page without shrinking typography. Project labels use
+plain, near-black underlined links without colored pills. PDF recovery is 98.91% for
+both; text retention, reading order, contact, headings, and entries pass.
+Link recovery reports the same pre-existing name-link warning for both.
+Presentation quality has one warning in each scan; the draft adds one
+informational action-only bullet finding. The ATS guidance change is limited
+to informational/recommendation keyword findings; it has no new structural
+warning. These findings still require editorial review in a real session.
+
+The historical investigation below compares the older exported scanner with
+the previous structured scanner implementation. Its "current scanner" column
+is historical and should not be used as the current v5 matcher result.
+
 This report uses the complete posting in `job.json` and the unmodified
 tailored CV in `candidate.json`. The previous column is the frozen scanner
 result exported from the tailoring session; the new column is produced by the

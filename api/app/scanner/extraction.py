@@ -50,6 +50,7 @@ from app.scanner.requirements import (
     WorkAuthorizationConstraint,
 )
 from app.services.relevance_taxonomy import ALIAS_TO_CANONICAL, TAXONOMY
+from app.scanner.skills import SKILL_ALIASES, find_skill
 from app.services.requirement_extractor import (
     MODEL_LABELS,
     RequirementExtractionError,
@@ -828,8 +829,15 @@ def candidate_facing_segments(source: str) -> list[CandidateTextSegment]:
 def _taxonomy_components(text: str, base: int) -> list[_Component]:
     folded = text.casefold()
     matches: list[tuple[int, int, str]] = []
+    for canonical in SKILL_ALIASES:
+        surface = find_skill(text, canonical)
+        if surface:
+            start = text.find(surface)
+            matches.append((start, start + len(surface), canonical))
     for alias, canonical in sorted(ALIAS_TO_CANONICAL.items(), key=lambda item: (-len(item[0]), item[0])):
-        for match in re.finditer(rf"(?<![\w]){re.escape(alias.casefold())}(?![\w])", folded):
+        if canonical in SKILL_ALIASES:
+            continue
+        for match in re.finditer(rf"(?<![\w+#]){re.escape(alias.casefold())}(?![\w+#])", folded):
             matches.append((match.start(), match.end(), canonical))
     matches.sort(key=lambda item: (item[0], -(item[1] - item[0]), item[2]))
     selected: list[tuple[int, int, str]] = []
@@ -1118,6 +1126,8 @@ def _components_for(sentence: _Sentence, spans: Sequence[_EntitySpan]) -> list[_
         if any(local_start < item.end and local_end > item.start for item in components):
             continue
         canonical = ALIAS_TO_CANONICAL.get(_normalize(raw_text))
+        if canonical in {"c", "r", "go"} and not find_skill(sentence.text, canonical):
+            canonical = None
         if canonical and canonical in TAXONOMY:
             name = canonical
             family = TAXONOMY[canonical][0]

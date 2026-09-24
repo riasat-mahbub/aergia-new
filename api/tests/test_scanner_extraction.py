@@ -22,6 +22,7 @@ from app.scanner.requirements import (
     RequirementLeaf,
     SectionPurpose,
 )
+from app.services.requirement_extractor import _taxonomy_concepts
 
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "scanner" / "alayacare"
@@ -188,6 +189,13 @@ def test_logical_expression_parser_preserves_nested_alternatives_and_groups() ->
     or_inside_and = _logical_requirement("A AND (B OR C)", ["A", "B", "C"]).expression
     assert isinstance(or_inside_and, AllExpression)
     assert isinstance(or_inside_and.children[1], AnyExpression)
+
+
+def test_short_language_names_require_nearby_programming_context() -> None:
+    assert ("c", "hard_skill") not in _taxonomy_concepts("Experience with A, B, and C.")
+    assert ("c", "hard_skill") in _taxonomy_concepts("Experience with C programming.")
+    assert ("go", "hard_skill") not in _taxonomy_concepts("Then we go to market.")
+    assert ("go", "hard_skill") in _taxonomy_concepts("Experience building services in Go.")
 
 
 def test_education_alternatives_are_nested_and_a_computer_science_degree_can_satisfy_one_branch() -> None:

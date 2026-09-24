@@ -2,6 +2,8 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from app.scanner.matching import evaluate_semantic_coverage, flatten_cv_text
 from app.scanner.requirements import (
     Concept,
@@ -230,7 +232,102 @@ def test_familiarity_is_supported_by_a_cv_skill_field() -> None:
     assert any(location.section_type == "skills" for item in result.evidence for location in item.locations)
 
 
-def test_unrelated_skill_and_experience_entries_are_not_joined_as_full_proof() -> None:
+@pytest.mark.parametrize(
+    ("job_skill", "cv_skill", "expected"),
+    [
+        ("Git", "Git", EvidenceStatus.SUPPORTED),
+        ("git", "Git", EvidenceStatus.SUPPORTED),
+        ("Postgres", "PostgreSQL", EvidenceStatus.SUPPORTED),
+        ("k8s", "Kubernetes", EvidenceStatus.SUPPORTED),
+        ("React.js", "React", EvidenceStatus.SUPPORTED),
+        ("Java", "JavaScript", EvidenceStatus.NOT_EVIDENCED),
+        ("C++", "C++", EvidenceStatus.SUPPORTED),
+        ("C#", "C#", EvidenceStatus.SUPPORTED),
+        (".NET", ".NET", EvidenceStatus.SUPPORTED),
+        ("Fabrikam-SDK", "Fabrikam-SDK", EvidenceStatus.SUPPORTED),
+        ("Fabrikam-SDK", "Other-SDK", EvidenceStatus.NOT_EVIDENCED),
+    ],
+)
+@pytest.mark.parametrize("section", ["skills", "experience"])
+def test_exact_skill_identity_does_not_require_usage_inference(
+    job_skill: str, cv_skill: str, expected: EvidenceStatus, section: str,
+) -> None:
+    requirement = _requirement("exact-skill", job_skill, ExpectationKind.PRIOR_EXPERIENCE)
+    cv = {"sections": [{"id": section, "type": section, "enabled": True, "fields": [], "entries": [
+        {"id": "entry", "fields": [_field("description", cv_skill)]}
+    ]}]}
+    result = evaluate_semantic_coverage([requirement], cv, as_of=date(2026, 9, 20))
+    assert result.requirements[0].status is expected
+
+
+@pytest.mark.parametrize("expectation", [
+    ExpectationKind.FAMILIARITY,
+    ExpectationKind.PRIOR_EXPERIENCE,
+    ExpectationKind.PRACTICAL_USE,
+    ExpectationKind.PROFICIENCY,
+    ExpectationKind.DEMONSTRATED_APPLICATION,
+])
+def test_adding_exact_skill_cannot_downgrade_identity(expectation: ExpectationKind) -> None:
+    requirement = _requirement("git-monotonic", "Git", expectation)
+    without = {"sections": [{"id": "skills", "type": "skills", "fields": [_field("tools", "Python")]}]}
+    with_git = {"sections": [{"id": "skills", "type": "skills", "fields": [_field("tools", "Python, Git")]}]}
+    before = evaluate_semantic_coverage([requirement], without, as_of=date(2026, 9, 20))
+    after = evaluate_semantic_coverage([requirement], with_git, as_of=date(2026, 9, 20))
+
+    assert before.requirements[0].status is EvidenceStatus.NOT_EVIDENCED
+    assert after.requirements[0].status is EvidenceStatus.SUPPORTED
+    assert any(item.method is EvidenceMethod.SKILL_IDENTITY for item in after.evidence)
+
+
+def test_unknown_lowercase_extracted_hard_skill_self_matches() -> None:
+    requirement = _requirement("unknown-skill", "ziglang", ExpectationKind.PRIOR_EXPERIENCE)
+    leaf = requirement.expression
+    assert isinstance(leaf, RequirementLeaf)
+    requirement = requirement.model_copy(update={
+        "expression": leaf.model_copy(update={"concept": leaf.concept.model_copy(update={"family": "hard_skill"})})
+    })
+    cv = {"sections": [{"id": "skills", "type": "skills", "data": [
+        {"id": "languages", "items": ["ziglang"]}
+    ]}]}
+    result = evaluate_semantic_coverage([requirement], cv, as_of=date(2026, 9, 20))
+    assert result.requirements[0].status is EvidenceStatus.SUPPORTED
+
+
+def test_unknown_exact_skill_survives_a_separate_unverifiable_years_constraint() -> None:
+    requirement = _requirement(
+        "unknown-years",
+        "Fabrikam-SDK",
+        ExpectationKind.PRACTICAL_USE,
+        constraints=[MinimumYearsConstraint(
+            kind="minimum_years",
+            id="unknown-years-minimum",
+            source_text="3+ years",
+            confidence=0.9,
+            years=3,
+        )],
+    )
+    leaf = requirement.expression
+    assert isinstance(leaf, RequirementLeaf)
+    requirement = requirement.model_copy(update={
+        "family": RequirementFamily.EXPERIENCE,
+        "expression": leaf.model_copy(update={
+            "concept": leaf.concept.model_copy(update={"family": "hard_skill"}),
+        }),
+    })
+    cv = {"sections": [{"id": "skills", "type": "skills", "data": [
+        {"id": "tools", "items": ["Fabrikam-SDK"]}
+    ]}]}
+
+    result = evaluate_semantic_coverage([requirement], cv, as_of=date(2026, 9, 20))
+
+    evidence = result.evidence[0]
+    assert evidence.concept_status is EvidenceStatus.SUPPORTED
+    assert evidence.expectation_status is EvidenceStatus.SUPPORTED
+    assert evidence.constraints[0].status is EvidenceStatus.UNVERIFIABLE
+    assert result.requirements[0].status is EvidenceStatus.PARTIAL
+
+
+def test_skill_listing_matches_without_joining_unrelated_experience() -> None:
     requirement = _requirement("python-prior-experience", "Python", ExpectationKind.PRIOR_EXPERIENCE)
     cv = {
         "sections": [
@@ -241,8 +338,8 @@ def test_unrelated_skill_and_experience_entries_are_not_joined_as_full_proof() -
 
     result = evaluate_semantic_coverage([requirement], cv, as_of=date(2026, 9, 20))
 
-    assert result.requirements[0].status is EvidenceStatus.PARTIAL
-    assert result.requirements[0].status is not EvidenceStatus.SUPPORTED
+    assert result.requirements[0].status is EvidenceStatus.SUPPORTED
+    assert all(location.section_type == "skills" for item in result.evidence for location in item.locations)
 
 
 def test_software_engineer_title_cannot_establish_industry_curiosity() -> None:
@@ -411,7 +508,7 @@ def test_general_action_patterns_support_feature_implementation() -> None:
     assert any(item.method is EvidenceMethod.SEMANTIC_RULE for item in result.evidence)
 
 
-def test_job_title_alone_does_not_establish_familiarity_or_prior_experience() -> None:
+def test_skill_identity_in_job_title_is_visible_to_scanner() -> None:
     requirement = _requirement("python-experience", "Python", ExpectationKind.PRIOR_EXPERIENCE)
     cv = {
         "sections": [
@@ -429,7 +526,7 @@ def test_job_title_alone_does_not_establish_familiarity_or_prior_experience() ->
 
     result = evaluate_semantic_coverage([requirement], cv, as_of=date(2026, 9, 20))
 
-    assert result.requirements[0].status is EvidenceStatus.PARTIAL
+    assert result.requirements[0].status is EvidenceStatus.SUPPORTED
 
 
 def test_coding_agent_project_does_not_prove_ai_assisted_coding_predicate() -> None:
@@ -659,7 +756,7 @@ def test_team_software_development_supports_collaboration_but_not_proactive_bloc
     assert not any(item.id.startswith("ev-blockers") for item in result.evidence)
 
 
-def test_skill_list_supports_azure_familiarity_but_not_demonstrated_application() -> None:
+def test_skill_list_supports_azure_identity_across_skill_expectations() -> None:
     familiarity = _requirement("azure-familiarity", "Azure", ExpectationKind.FAMILIARITY)
     application = _requirement("azure-application", "Azure", ExpectationKind.PRIOR_EXPERIENCE)
     cv = {
@@ -677,8 +774,8 @@ def test_skill_list_supports_azure_familiarity_but_not_demonstrated_application(
 
     assert result.requirements[0].status is EvidenceStatus.SUPPORTED
     assert result.evidence[0].strength is EvidenceStrength.STRONG_RELATED_EVIDENCE
-    assert result.requirements[1].status is EvidenceStatus.PARTIAL
-    assert result.evidence[1].strength is EvidenceStrength.PARTIAL_TRANSFER
+    assert result.requirements[1].status is EvidenceStatus.SUPPORTED
+    assert result.evidence[1].strength is EvidenceStrength.STRONG_RELATED_EVIDENCE
 
 
 def test_summary_interest_is_valid_direct_evidence_without_becoming_experience() -> None:

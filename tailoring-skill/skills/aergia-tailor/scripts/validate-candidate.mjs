@@ -9,6 +9,16 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+function sortJson(value) {
+  if (Array.isArray(value)) return value.map(sortJson);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, sortJson(value[key])]));
+}
+
+export function candidateInputHash(candidate) {
+  return createHash("sha256").update(JSON.stringify(sortJson(candidate))).digest("hex");
+}
+
 export function validateCandidate(candidate, context) {
   assert(candidate && typeof candidate === "object" && !Array.isArray(candidate), "Candidate must be an object");
   assert(typeof candidate.title === "string" && candidate.title.trim(), "Candidate title is required");
@@ -133,7 +143,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       const candidate = await readJson(args.candidate);
       const result = validateCandidate(candidate, context);
       if (args.output) await writeFile(args.output, `${JSON.stringify(materializeCandidate(candidate), null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
-      console.log(JSON.stringify(result));
+      console.log(JSON.stringify({ ...result, candidate_input_hash: candidateInputHash(materializeCandidate(candidate)) }));
     }
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : "Candidate validation failed"}\n`);

@@ -7,7 +7,8 @@ import { constants as fsConstants } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { materializeCandidate, validateCandidate } from "./validate-candidate.mjs";
+import { candidateInputHash, materializeCandidate, validateCandidate } from "./validate-candidate.mjs";
+import { candidateNarrativeClaims, validateClaimVerification } from "./verify-claims.mjs";
 import {
   EDITORIAL_REVIEW_VERSION,
   MAX_EVALUATED_PASSES,
@@ -110,15 +111,7 @@ async function replaceProtectedJson(path, value) {
   await chmod(path, 0o400);
 }
 
-function sortJson(value) {
-  if (Array.isArray(value)) return value.map(sortJson);
-  if (!value || typeof value !== "object") return value;
-  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, sortJson(value[key])]));
-}
-
-export function candidateInputHash(candidate) {
-  return createHash("sha256").update(JSON.stringify(sortJson(candidate))).digest("hex");
-}
+export { candidateInputHash } from "./validate-candidate.mjs";
 
 async function assertFreshStagedWorkspace(workspace) {
   async function walk(directory) {
@@ -195,6 +188,10 @@ async function prepareEvidenceWorkspace(paths, context) {
     writeProtectedJson(resolve(paths.evidence, "context.json"), context),
     writeProtectedJson(resolve(paths.evidence, "profile.json"), context.profile),
     writeProtectedJson(resolve(paths.evidence, "candidate-evidence.json"), context.candidate_evidence),
+    writeProtectedJson(resolve(paths.evidence, "linked-cv.json"), context.linked_cv ?? null),
+    writeProtectedJson(resolve(paths.evidence, "linked-cv-scan.json"), context.linked_cv_scan ?? null),
+    writeProtectedJson(resolve(paths.evidence, "opportunities.json"), context.opportunities ?? []),
+    writeProtectedJson(resolve(paths.evidence, "retrieved-sources.json"), context.retrieved_sources ?? []),
     writeProtectedJson(resolve(paths.evidence, "versions.json"), versions),
     writeProtectedJson(resolve(paths.evidence, "templates.json"), context.templates ?? []),
     writeProtectedJson(resolve(paths.evidence, "capabilities.json"), context.capabilities ?? {}),
@@ -402,6 +399,16 @@ function materialRegressions(evaluation) {
   return issueList(evaluation, "regressions").filter((item) => item?.priority === "high" || item?.importance === "required").length;
 }
 
+function qualityPenalty(attempt) {
+  const dimensions = attempt.evaluation?.dimensions ?? {};
+  const ats = dimensions.ats ?? {};
+  const quality = dimensions.resume_quality ?? {};
+  const editorial = attempt.editorialReview?.findings ?? [];
+  return (ats.candidate_error_count ?? 0) * 10 + (quality.candidate_error_count ?? 0) * 10
+    + (ats.candidate_warning_count ?? 0) * 3 + (quality.candidate_warning_count ?? 0) * 3
+    + editorial.filter((finding) => finding.severity === "important").length * 3;
+}
+
 function isBetterAttempt(current, best) {
   if (!best) return true;
   const currentStatus = current.evaluation?.readiness?.status;
@@ -412,8 +419,18 @@ function isBetterAttempt(current, best) {
   const currentErrors = issueList(current.evaluation, "blockers").filter((item) => ["pdf_recovery", "resume_quality"].includes(item?.category)).length;
   const bestErrors = issueList(best.evaluation, "blockers").filter((item) => ["pdf_recovery", "resume_quality"].includes(item?.category)).length;
   if (currentErrors !== bestErrors) return currentErrors < bestErrors;
+  if (qualityPenalty(current) !== qualityPenalty(best)) return qualityPenalty(current) < qualityPenalty(best);
+  const currentPdf = current.evaluation?.dimensions?.pdf_recovery?.candidate ?? 0;
+  const bestPdf = best.evaluation?.dimensions?.pdf_recovery?.candidate ?? 0;
+  if (Math.abs(currentPdf - bestPdf) >= 0.05) return currentPdf > bestPdf;
   if (highPriorityRecommendations(current.evaluation) !== highPriorityRecommendations(best.evaluation)) return highPriorityRecommendations(current.evaluation) < highPriorityRecommendations(best.evaluation);
   if (issueCount(current.evaluation) !== issueCount(best.evaluation)) return issueCount(current.evaluation) < issueCount(best.evaluation);
+  const currentFit = current.evaluation?.dimensions?.job_fit?.candidate ?? 0;
+  const bestFit = best.evaluation?.dimensions?.job_fit?.candidate ?? 0;
+  if (Math.abs(currentFit - bestFit) >= 0.01) return currentFit > bestFit;
+  const currentVisibility = current.evaluation?.dimensions?.keywords?.candidate ?? 0;
+  const bestVisibility = best.evaluation?.dimensions?.keywords?.candidate ?? 0;
+  if (Math.abs(currentVisibility - bestVisibility) >= 0.01) return currentVisibility > bestVisibility;
   if (current.passNumber !== best.passNumber) return current.passNumber > best.passNumber;
   return current.candidateHash < best.candidateHash;
 }
@@ -484,6 +501,10 @@ async function waitForCandidate(paths, context, origin, capability) {
         const raw = JSON.parse(await readFile(candidatePath, "utf8"));
         validateCandidate(raw, context);
         const candidate = materializeCandidate(raw);
+        if (context.protocol_version === PROTOCOL_VERSION && candidateNarrativeClaims(candidate).length > 0) {
+          const verification = JSON.parse(await readFile(resolve(paths.output, "claim-verification.json"), "utf8"));
+          validateClaimVerification(verification, candidate, context, candidateInputHash(candidate), await readInferenceNotes(paths.output));
+        }
         if (
           latestRender
           && editorialBlockedCandidateHashes.has(latestRender.candidateHash)

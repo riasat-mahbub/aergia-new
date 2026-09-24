@@ -20,6 +20,7 @@ from enum import StrEnum
 from typing import Any, Protocol
 
 from app.http_schemas.application import JobRequirement
+from app.scanner.skills import find_skill
 from app.services.relevance_taxonomy import ALIAS_TO_CANONICAL, TAXONOMY
 
 logger = logging.getLogger(__name__)
@@ -780,8 +781,10 @@ def _taxonomy_concepts(text: str) -> list[tuple[str, str]]:
     found: list[tuple[int, int, str, str]] = []
     folded = _normalise(text)
     for alias, canonical in sorted(ALIAS_TO_CANONICAL.items(), key=lambda item: (-len(item[0]), item[0])):
-        match = re.search(rf"(?<![\w]){re.escape(_normalise(alias))}(?![\w])", folded)
+        match = re.search(rf"(?<![\w+#]){re.escape(_normalise(alias))}(?![\w+#])", folded)
         if match:
+            if canonical in {"c", "r", "go"} and not find_skill(text, canonical):
+                continue
             found.append((match.start(), -len(alias), canonical, TAXONOMY[canonical][0]))
     found.sort(key=lambda item: (item[0], item[1], item[2]))
     deduped: dict[str, str] = {}
@@ -818,11 +821,15 @@ def _concept_values(candidate: _RawSpan, attached: Iterable[_RawSpan], context_t
             continue
         normalized = _normalise(span.text)
         value = ALIAS_TO_CANONICAL.get(normalized, normalized)
+        if value in {"c", "r", "go"} and not find_skill(context_text, value):
+            value = span.text.strip()
         if value and value not in values:
             values.append(value)
     if not values and candidate.label in _CONCEPT_VALUE_LABELS:
         normalized = _normalise(candidate.text)
         value = ALIAS_TO_CANONICAL.get(normalized, normalized)
+        if value in {"c", "r", "go"} and not find_skill(context_text, value):
+            value = candidate.text.strip()
         if value:
             values.append(value)
     return tuple(values)

@@ -36,6 +36,7 @@ export interface ScannerEvidenceViewModel {
   sectionLabel: string;
   location: ScannerCVLocation;
   strength: ScannerEvidenceStrength | null;
+  identityMatch: boolean;
 }
 
 export interface ScannerComponentViewModel {
@@ -311,6 +312,7 @@ function bestEvidence(
       sectionLabel: sectionLabel(location),
       location,
       strength: null,
+      identityMatch: false,
     }));
 }
 
@@ -323,6 +325,7 @@ function semanticEvidence(
     sectionLabel: sectionLabel(location),
     location,
     strength: record.strength ?? null,
+    identityMatch: record.method === "skill_identity",
   })));
   const seen = new Set<string>();
   return candidates
@@ -472,6 +475,9 @@ function classificationLabel(requirement: ScannerRequirement): string {
 function requirementExplanation(status: ScannerEvidenceStatus, components: ScannerComponentViewModel[]): string {
   if (status === "supported") return "Your CV provides evidence for this requirement.";
   if (status === "partial") {
+    if (components.some((component) => component.evidence.some((item) => item.identityMatch))) {
+      return "The skill is found in this CV. Review the separate conditions or other parts of the requirement.";
+    }
     const missing = components.filter((component) => !component.illustrative && component.status !== "supported");
     return missing.length > 0
       ? `Your CV supports some of this requirement, but ${missing.map((component) => component.title).join(", ")} still needs evidence.`

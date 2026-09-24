@@ -310,8 +310,29 @@ class TailoringEvidenceVersions(_StrictModel):
     extractor_version: str
 
 
+class TailoringOpportunity(_StrictModel):
+    requirement_id: str | None = None
+    label: str
+    current_cv_status: str
+    kind: Literal["skill", "semantic_or_structured", "keyword"]
+    missing_skills: list[str] = Field(default_factory=list)
+    poorly_surfaced_skills: list[str] = Field(default_factory=list)
+    source_ids: list[str] = Field(default_factory=list, max_length=3)
+    operation: Literal["SURFACE", "PROMOTE", "REFRAME", "REVIEW"]
+    source_note: str
+
+
+class TailoringRetrievedSource(_StrictModel):
+    source_id: str
+    kind: str
+    identity: dict
+    structured_facts: dict
+    content_hash: str
+    narrative: str = Field(max_length=12_000)
+
+
 class TailoringEvidenceContextResponse(_StrictModel):
-    """Presentation-blind candidate composition input for staged protocol v6."""
+    """Candidate composition input after isolated job and evidence extraction."""
 
     protocol_version: Literal[STAGED_TAILORING_PROTOCOL_VERSION] = STAGED_TAILORING_PROTOCOL_VERSION
     stage: Literal["evidence"] = "evidence"
@@ -320,6 +341,10 @@ class TailoringEvidenceContextResponse(_StrictModel):
     context_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
     profile: dict
     candidate_evidence: TailoringCandidateEvidence
+    linked_cv: TailoringCV | None = None
+    linked_cv_scan: ScanResult | None = None
+    opportunities: list[TailoringOpportunity] = Field(default_factory=list, max_length=100)
+    retrieved_sources: list[TailoringRetrievedSource] = Field(default_factory=list, max_length=20)
     evidence_versions: TailoringEvidenceVersions
     templates: list[TailoringTemplate] = Field(max_length=32)
     selected_template_id: str

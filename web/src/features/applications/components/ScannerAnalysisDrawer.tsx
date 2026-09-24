@@ -116,7 +116,7 @@ function EvidenceList({ evidence, allEvidence }: { evidence: ScannerComponentVie
         {evidence.map((item, index) => (
           <li key={`${item.location.field_path}-${item.excerpt}-${index}`} className="rounded-md bg-app-canvas px-3 py-2 text-xs leading-5 text-app-ink-2">
             <p>“{item.excerpt}”</p>
-            <p className="mt-1 text-app-ink-3">{item.sectionLabel}{item.strength ? ` · ${evidenceStrengthText(item.strength)}` : ""}</p>
+            <p className="mt-1 text-app-ink-3">{item.sectionLabel}{item.identityMatch ? " · Found in CV" : item.strength ? ` · ${evidenceStrengthText(item.strength)}` : ""}</p>
           </li>
         ))}
       </ul>
@@ -127,7 +127,7 @@ function EvidenceList({ evidence, allEvidence }: { evidence: ScannerComponentVie
             {fullEvidence.slice(evidence.length).map((item, index) => (
               <li key={`${item.location.field_path}-${item.excerpt}-all-${index}`} className="rounded-md bg-app-canvas px-3 py-2 text-xs leading-5 text-app-ink-2">
                 <p>“{item.excerpt}”</p>
-                <p className="mt-1 text-app-ink-3">{item.sectionLabel}{item.strength ? ` · ${evidenceStrengthText(item.strength)}` : ""}</p>
+                <p className="mt-1 text-app-ink-3">{item.sectionLabel}{item.identityMatch ? " · Found in CV" : item.strength ? ` · ${evidenceStrengthText(item.strength)}` : ""}</p>
               </li>
             ))}
           </ul>
@@ -296,7 +296,7 @@ function JobFit({ report }: { report: ScannerReportViewModel }) {
   ];
   return (
     <div className="space-y-4">
-      <PanelSection title="Job Fit" description="Review how the CV currently demonstrates each candidate-facing requirement. Not shown means the CV does not provide enough evidence; it does not prove the candidate lacks the skill.">
+      <PanelSection title="Job Fit" description="Review how the currently linked CV matches each candidate-facing requirement. A missing skill here may still exist in your Library for tailoring.">
         <div className="flex flex-wrap gap-2" role="tablist" aria-label="Requirement filters">
           {filters.filter((item) => item.id !== "unclassified" || item.count > 0).map((item) => <button key={item.id} type="button" role="tab" aria-selected={filter === item.id} onClick={() => setFilter(item.id)} className={`rounded-full border px-3 py-1.5 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary ${filter === item.id ? "border-app-primary bg-app-primary-soft text-app-primary" : "border-app-rule-strong text-app-ink-2 hover:bg-app-surface-muted"}`}>{item.label} ({item.count})</button>)}
         </div>

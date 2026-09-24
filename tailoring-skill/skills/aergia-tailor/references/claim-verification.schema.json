@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aergia.local/schemas/claim-verification-v1.json",
+  "title": "Aergia claim verification",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "candidate_input_hash", "claims"],
+  "properties": {
+    "schema_version": { "const": "claim-verification-v1" },
+    "candidate_input_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["text", "classification", "references"],
+        "properties": {
+          "text": { "type": "string", "minLength": 1 },
+          "classification": { "enum": ["EXPLICIT", "DERIVED", "INFERRED", "UNSUPPORTED"] },
+          "references": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["evidence_claim_id"],
+                  "properties": { "evidence_claim_id": { "type": "string", "minLength": 1 } }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["source_id", "excerpt"],
+                  "properties": {
+                    "source_id": { "type": "string", "minLength": 1 },
+                    "excerpt": { "type": "string", "minLength": 1 }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

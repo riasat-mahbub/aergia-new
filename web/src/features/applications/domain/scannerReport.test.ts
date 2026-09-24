@@ -101,7 +101,7 @@ function makeResult(): ScanResult {
         { requirement_id: allRequirement.id, status: "partial", expression: allEvaluation },
         { requirement_id: examplesRequirement.id, status: "not_evidenced", expression: examplesEvaluation },
       ],
-      evidence: [{ id: "e-python", locations: [location("experience[0].description", "Built Python services")], concept_status: "supported", expectation_status: "supported", confidence: 0.95, method: "exact" }],
+      evidence: [{ id: "e-python", locations: [location("experience[0].description", "Built Python services")], concept_status: "supported", expectation_status: "supported", confidence: 0.95, method: "skill_identity" }],
       summary: {
         status: "available",
         job_fit: 0.51,
@@ -164,6 +164,8 @@ function application(result: ScanResult | null, scannerStatus: Application["scan
 
 test("builds a user-facing report without exposing expression node kinds", () => {
   const report = buildScannerReportViewModel(makeResult(), application(makeResult()));
+  assert.match(report.requirements[0].explanation, /skill is found in this CV/);
+  assert.equal(report.requirements[0].components[0].evidence[0].identityMatch, true);
   assert.equal(report.score.jobFit, 0.51);
   assert.equal(report.score.partialCount, 1);
   assert.equal(report.requirements[0]?.components.map((item) => item.title).join(", "), "Python, Docker");

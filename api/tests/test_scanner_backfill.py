@@ -217,7 +217,7 @@ def test_render_fingerprint_includes_renderer_behavior_version(monkeypatch):
         render_manifest={"manifest_version": 2},
     ).render_input_sha256
 
-    monkeypatch.setattr("app.scanner.service.PDF_RENDERER_VERSION", "aergia-pdf-render-v2")
+    monkeypatch.setattr("app.scanner.service.PDF_RENDERER_VERSION", "aergia-pdf-render-v3")
 
     changed = fingerprint_scan_inputs(
         "Python developer",
@@ -226,7 +226,7 @@ def test_render_fingerprint_includes_renderer_behavior_version(monkeypatch):
     ).render_input_sha256
 
     assert base != changed
-    assert PDF_RENDERER_VERSION == "aergia-pdf-render-v1"
+    assert PDF_RENDERER_VERSION == "aergia-pdf-render-v2"
 
 
 class _FixtureExtractor:

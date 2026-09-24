@@ -343,7 +343,23 @@ def test_library_can_authorize_employer_without_a_source_cv() -> None:
         library=_library_experience("Employer B"),
     )
 
-    assert not any(item.category == "fabrication" for item in evaluation.blockers)
+    assert not any("employer" in item.id for item in evaluation.blockers)
+    assert any(item.code == "unsupported_skill" for item in evaluation.blockers)
+
+
+def test_known_skill_alias_is_grounded_but_new_product_is_blocked() -> None:
+    extraction = _extraction()
+    scan = _clean_scan(extraction)
+    source = deepcopy(CANDIDATE)
+    source["sections"][1]["data"][0]["description"] = "Built PostgreSQL services."
+    candidate = deepcopy(source)
+    candidate["sections"][1]["data"][0]["description"] = "Built Postgres and Kubernetes services."
+
+    evaluation = evaluate_tailoring(
+        extraction, scan, "8" * 64, current_candidate=candidate, source_cv=source,
+    )
+    unsupported = [item for item in evaluation.blockers if item.code == "unsupported_skill"]
+    assert [item.id for item in unsupported] == ["unsupported-skill-kubernetes"]
 
 
 def test_employer_is_blocked_when_source_and_library_are_empty() -> None:

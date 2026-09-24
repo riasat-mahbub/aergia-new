@@ -91,6 +91,7 @@ from app.services.candidate_evidence import (
     composer_projection,
 )
 from app.services.requirement_extractor import get_gliner_runtime
+from app.services.tailoring_opportunities import map_tailoring_opportunities
 
 
 TAILORING_SESSION_TTL = timedelta(hours=1)
@@ -1188,6 +1189,21 @@ class TailoringService:
             semantic_cue_model_revision=str(getattr(runtime, "revision", None) or "default"),
         )
         projection = composer_projection(extraction)
+        source_cv: CV | None = parts["source_cv"]
+        linked_cv = TailoringCV.model_validate({
+            "id": source_cv.id,
+            "title": source_cv.title,
+            "description": source_cv.description,
+            "template_id": source_cv.template_id,
+            "sections": source_cv.sections or [],
+            "customizations": source_cv.customizations or {},
+        }) if source_cv is not None else None
+        opportunities, rich_sources = map_tailoring_opportunities(
+            parts["scanner_context"].requirement_extraction,
+            parts["scanner_context"].source_scan,
+            linked_cv,
+            self._evidence_sources(parts),
+        )
         templates = [
             TailoringTemplate(
                 id=template.id,
@@ -1214,6 +1230,10 @@ class TailoringService:
             context_hash=parts["context_hash"],
             profile=copy.deepcopy(parts["profile_data"]),
             candidate_evidence=TailoringCandidateEvidence.model_validate(projection.model_dump(mode="json")),
+            linked_cv=linked_cv,
+            linked_cv_scan=parts["scanner_context"].source_scan,
+            opportunities=opportunities,
+            retrieved_sources=rich_sources,
             evidence_versions=TailoringEvidenceVersions(
                 semantic_cue_model=extraction.semantic_cue_model,
                 semantic_cue_model_revision=extraction.semantic_cue_model_revision,

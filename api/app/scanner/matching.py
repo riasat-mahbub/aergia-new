@@ -24,6 +24,7 @@ from app.scanner.requirements import (
     LanguageProficiencyConstraint,
     MinimumYearsConstraint,
     Requirement,
+    RequirementFamily,
     RequirementLeaf,
     WorkAuthorizationConstraint,
 )
@@ -38,7 +39,13 @@ from app.scanner.results import (
     SemanticAnalysis,
     AnalysisStatus,
 )
-from app.services.relevance_taxonomy import ALIAS_TO_CANONICAL, TAXONOMY
+from app.services.relevance_taxonomy import (
+    ALIAS_TO_CANONICAL,
+    RESPONSIBILITY_ALIASES,
+    TAXONOMY,
+    TECHNICAL_CONCEPT_ALIASES,
+)
+from app.scanner.skills import find_skill, is_known_skill
 
 _DASHES = str.maketrans({char: "-" for char in "‐‑‒–—―−﹘﹣－"})
 _WORD_RE = re.compile(r"[a-z0-9+#./-]+", re.I)
@@ -659,6 +666,13 @@ def _expectation_support(expectation: Expectation, concept: object, fields: Sequ
         # or support-documentation context.
         return EvidenceStatus.PARTIAL, matched_fields
 
+    if normalized_concept == "collaboration" and "client" in qualifier and not re.search(
+        r"\bclients?\b", text, re.I
+    ):
+        # General collaboration is useful transfer, but it does not establish
+        # delivery of client solutions in the same work context.
+        return EvidenceStatus.PARTIAL, matched_fields
+
     if any(field.section_type == "education" for field in matched_fields) and normalized_concept not in {
         "equivalent practical experience",
     }:
@@ -996,6 +1010,8 @@ def _evidence_for_leaf(
     leaf: RequirementLeaf,
     fields: Sequence[CVTextField],
     as_of: date,
+    *,
+    skill_identity: bool = False,
 ) -> list[Evidence]:
     groups = _field_groups(fields)
     constraint_results = [_constraint_result(item, fields, leaf.concept, as_of) for item in leaf.constraints]
@@ -1005,10 +1021,25 @@ def _evidence_for_leaf(
     evidence_index = 0
     for group in groups:
         group_text = "\n".join(field.text for field in group)
-        concept_hit = _best_concept_hit(group_text, leaf.concept)
-        expectation_status, expectation_fields = _expectation_support(leaf.expectation, leaf.concept, group, concept_hit)
+        if skill_identity:
+            name = str(_value(leaf.concept, "name", ""))
+            match = next((
+                (field, surface)
+                for field in group
+                if (surface := find_skill(field.text, name, skill_section=field.section_type == "skills"))
+            ), None)
+            concept_hit = _ConceptHit(
+                EvidenceStatus.SUPPORTED,
+                EvidenceMethod.SKILL_IDENTITY,
+                match[1],
+            ) if match else None
+            expectation_status = EvidenceStatus.SUPPORTED if match else EvidenceStatus.NOT_EVIDENCED
+            expectation_fields = [match[0]] if match else []
+        else:
+            concept_hit = _best_concept_hit(group_text, leaf.concept)
+            expectation_status, expectation_fields = _expectation_support(leaf.expectation, leaf.concept, group, concept_hit)
         concept_status = concept_hit.status if concept_hit else EvidenceStatus.NOT_EVIDENCED
-        relevant_fields = list(group) if concept_hit else []
+        relevant_fields = list(expectation_fields) if skill_identity else (list(group) if concept_hit else [])
         relevant_fields.extend(expectation_fields)
         relevant_fields.extend(
             field
@@ -1024,11 +1055,10 @@ def _evidence_for_leaf(
             for item in constraint_results
             if any(group and _group_key(field) == _group_key(group[0]) for field in item.fields)
         ]
-        strength = _evidence_strength(
-            leaf,
-            expectation_status,
-            concept_hit,
-            relevant_fields,
+        strength = (
+            EvidenceStrength.STRONG_RELATED_EVIDENCE
+            if skill_identity and concept_hit is not None
+            else _evidence_strength(leaf, expectation_status, concept_hit, relevant_fields)
         )
         results.append(
             Evidence(
@@ -1077,6 +1107,38 @@ def _evidence_for_leaf(
     return results
 
 
+_SKILL_EXPECTATIONS = frozenset({
+    ExpectationKind.FAMILIARITY,
+    ExpectationKind.PRIOR_EXPERIENCE,
+    ExpectationKind.PRACTICAL_USE,
+    ExpectationKind.PROFICIENCY,
+    ExpectationKind.DEMONSTRATED_APPLICATION,
+    ExpectationKind.KNOWLEDGE,
+    ExpectationKind.ABILITY_TO_PERFORM,
+})
+
+
+def _ordinary_skill_leaf(leaf: RequirementLeaf, requirement: Requirement) -> bool:
+    if leaf.expectation.kind not in _SKILL_EXPECTATIONS:
+        return False
+    name = leaf.concept.name
+    if is_known_skill(name):
+        return True
+    normalized = _normalize(name)
+    # An unknown product can still self-match. Avoid routing ordinary
+    # behavioral nouns from a broadly classified requirement through skills.
+    typed_technical = leaf.concept.family in {"hard_skill", "technical_skill"}
+    product_shaped = bool(re.search(r"[-.+#0-9]|[a-z][A-Z]", name)) or typed_technical
+    return (
+        (requirement.family is RequirementFamily.TECHNICAL_SKILL or typed_technical)
+        and product_shaped
+        and normalized not in RESPONSIBILITY_ALIASES
+        and normalized not in TECHNICAL_CONCEPT_ALIASES
+        and normalized not in _SEMANTIC_ALIASES
+        and normalized not in _SEMANTIC_PATTERNS
+    )
+
+
 def evaluate_semantic_coverage(
     requirements: Sequence[Requirement],
     cv: object,
@@ -1092,7 +1154,8 @@ def evaluate_semantic_coverage(
     for requirement in requirements:
         evidence_by_node: dict[str, list[Evidence]] = {}
         for leaf in _walk_leaves(requirement.expression):
-            leaf_evidence = _evidence_for_leaf(leaf, fields, as_of_date)
+            skill_identity = _ordinary_skill_leaf(leaf, requirement)
+            leaf_evidence = _evidence_for_leaf(leaf, fields, as_of_date, skill_identity=skill_identity)
             evidence_by_node[leaf.id] = leaf_evidence
             evidence.extend(leaf_evidence)
         evaluations.append(aggregate_requirement(requirement, evidence_by_node))

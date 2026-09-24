@@ -81,7 +81,7 @@ def test_reference_model_html_output_is_stable():
 
     html = HTMLDocumentRenderer().render(_model()).encode("utf-8")
     assert hashlib.sha256(html).hexdigest() == (
-        "8d78351697fa73a642a1b2f506d4c7b7cef002c735b241722d9dd0c77d53c69f"
+        "9563137285c3823aa449cf6548badb345f692808234e882ec9c620720dfeb6e4"
     )
 
 def test_renders_preview_page_flow_metadata_without_changing_document_structure():
@@ -615,7 +615,10 @@ def test_projects_default_tech_stack_renders_as_one_wrapping_chip_group():
     assert left_html.count('<span class="f-chip">') == 3
     assert left_html.index("f-description") < left_html.index("f-chip-group")
     assert ".f-chip-group {" in html
-    assert "border-radius:9999px" in html
+    assert "background:transparent" in html
+    assert "padding:0" in html
+    assert "border-radius:0" in html
+    assert "text-decoration:underline" in html
 
 
 def test_projects_partial_layout_override_keeps_tech_chip_group():

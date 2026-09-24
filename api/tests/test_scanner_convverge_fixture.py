@@ -10,6 +10,10 @@ from app.scanner.matching import evaluate_semantic_coverage
 from app.scanner.requirements import AnyExpression, ExperienceDurationConstraint, ExamplesExpression, RequirementLeaf
 from app.scanner.results import EvidenceStatus, EvidenceStrength
 from app.scanner.scoring import score_semantic_analysis
+from app.scanner.service import ScannerService
+from app.scanner.skills import extract_skills
+from app.services.candidate_evidence import iter_candidate_sources
+from app.services.tailoring_opportunities import map_tailoring_opportunities
 
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "scanner" / "convverge"
@@ -87,7 +91,7 @@ def test_convverge_fixture_evaluates_nested_logic_constraints_and_evidence_stren
 
     preferred_microsoft = next(item for item in extraction.requirements if item.source.original_text.startswith("Experience with Microsoft Azure"))
     assert isinstance(preferred_microsoft.expression, AnyExpression)
-    assert evaluations[preferred_microsoft.id].status is EvidenceStatus.PARTIAL
+    assert evaluations[preferred_microsoft.id].status is EvidenceStatus.SUPPORTED
 
     # The canonical exported CV currently contains no literal collaboration or
     # Agile assertion. Those remain genuine gaps; the fixture must not be
@@ -110,3 +114,44 @@ def test_convverge_fixture_produces_a_scored_job_fit_summary() -> None:
     assert summary.qualification_fit.total_weight > 0
     assert summary.responsibility_alignment.total_weight > 0
     assert summary.preferred_fit.total_weight > 0
+
+
+def test_convverge_grounded_tailoring_surfaces_agile_and_collaboration_without_fabricating_client_work() -> None:
+    job, before_cv = _load_fixture()
+    after_cv = json.loads((FIXTURE_DIR / "candidate-after.json").read_text(encoding="utf-8"))
+    library = json.loads((FIXTURE_DIR / "library-opportunities.json").read_text(encoding="utf-8"))
+    extraction = extract_requirements_from_entities(job, {"entities": {}})
+    scanner = ScannerService()
+    before = scanner.scan_with_extraction(job, before_cv, extraction, as_of=date(2026, 9, 22))
+    after = scanner.scan_with_extraction(job, after_cv, extraction, as_of=date(2026, 9, 22))
+    opportunities, sources = map_tailoring_opportunities(
+        extraction, before, before_cv, iter_candidate_sources(library),
+    )
+    assert any("Agile" in item["label"] and item["source_ids"] for item in opportunities)
+    assert any("collaboration" in item["label"].casefold() and item["source_ids"] for item in opportunities)
+    assert len(sources) == 2
+
+    before_by_id = {item.requirement_id: item for item in before.semantic.requirements}
+    after_by_id = {item.requirement_id: item for item in after.semantic.requirements}
+    def status(prefix: str) -> tuple[EvidenceStatus, EvidenceStatus]:
+        requirement = next(item for item in extraction.requirements if item.source.original_text.startswith(prefix))
+        return before_by_id[requirement.id].status, after_by_id[requirement.id].status
+
+    assert status("Work within an Agile") == (EvidenceStatus.NOT_EVIDENCED, EvidenceStatus.SUPPORTED)
+    assert status("Exposure to Agile") == (EvidenceStatus.NOT_EVIDENCED, EvidenceStatus.SUPPORTED)
+    assert status("Contribute to the design") == (EvidenceStatus.NOT_EVIDENCED, EvidenceStatus.PARTIAL)
+    assert status("Basic familiarity with version control") == (EvidenceStatus.SUPPORTED, EvidenceStatus.SUPPORTED)
+    assert status("Support testing and quality assurance") == (EvidenceStatus.SUPPORTED, EvidenceStatus.SUPPORTED)
+    assert status("Communicate questions, blockers") == (EvidenceStatus.NOT_EVIDENCED, EvidenceStatus.NOT_EVIDENCED)
+    assert status("Previous experience working on client-facing") == (EvidenceStatus.NOT_EVIDENCED, EvidenceStatus.NOT_EVIDENCED)
+
+    assert after.semantic.summary.job_fit > before.semantic.summary.job_fit
+    assert after.lexical.summary.visibility_score > before.lexical.summary.visibility_score
+    before_links = {value for value in json.dumps(before_cv).split('"') if value.startswith("https://")}
+    after_links = {value for value in json.dumps(after_cv).split('"') if value.startswith("https://")}
+    assert before_links == after_links
+    library_text = json.dumps(library)
+    assert extract_skills(json.dumps(after_cv)) <= extract_skills(json.dumps(before_cv) + library_text)
+    assert len([finding for finding in after.presentation_quality.findings if finding.severity.value == "error"]) <= len([
+        finding for finding in before.presentation_quality.findings if finding.severity.value == "error"
+    ])

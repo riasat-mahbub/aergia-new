@@ -1,0 +1,46 @@
+[
+  {
+    "id": "brain-station-source",
+    "kind": "experience",
+    "payload": [
+      {
+        "id": "brain-station-role",
+        "company": "Brain Station 23",
+        "position": "Associate Software Engineer",
+        "description": [
+          {
+            "type": "bullet_list",
+            "items": [
+              {"text": "Engineered and shipped full-stack web and mobile features using Angular, Laravel, and Ionic across projects following agile and scrum methodologies."},
+              {"text": "Provisioned Linux environments and deployed containerized applications using Docker, Git and CI/CD pipelines."},
+              {"text": "Developed custom Moodle and WordPress plugins, including an Ionic mobile interface designed to parse and structure Moodle HTML outputs."},
+              {"text": "Maintained application reliability and reduced technical debt by authoring unit and integration test suites across legacy and new codebases."}
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "research-source",
+    "kind": "experience",
+    "payload": [
+      {
+        "id": "research-role",
+        "company": "Dalhousie University",
+        "position": "Research Assistant",
+        "description": [
+          {
+            "type": "bullet_list",
+            "items": [
+              {"text": "Conducted empirical software-engineering research across 482 open-source repositories, studying code quality and refactoring in simulation systems."},
+              {"text": "Co-authored research presented at IEEE SCAM 2024 and TRB 2026, using static-analysis and repository-mining pipelines to analyze 482 open source repositories."},
+              {"text": "Furthered development of in-house simulation software made with legacy C# and .NET by addressing code quality concerns and contributing to implementing critical features."},
+              {"text": "Collaborated with a diverse group of civil engineers, planners and architects in multiple research projects that utilized my software development experience."}
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]

@@ -34,11 +34,11 @@ from app.scanner.scoring import (
 )
 from app.services.requirement_extractor import RequirementExtractionError
 
-MATCHER_VERSION = "requirement-match-v4"
-LEXICAL_VERSION = "ats-lexical-v5"
+MATCHER_VERSION = "requirement-match-v5"
+LEXICAL_VERSION = "ats-lexical-v6"
 # Bump when renderer code changes in a way that can alter PDF output while
 # the canonical CV payload and template manifest remain unchanged.
-PDF_RENDERER_VERSION = "aergia-pdf-render-v1"
+PDF_RENDERER_VERSION = "aergia-pdf-render-v2"
 
 
 class RequirementExtractor(Protocol):

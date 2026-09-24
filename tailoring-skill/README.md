@@ -31,14 +31,14 @@ The browser entrypoint for a session remains `/agent/tailor/$sessionId`; the
 directory name `tailoring-skill/` describes the local assets and does not
 change that public URL.
 
-New sessions use tailoring protocol v5. Aergia returns the authoritative
-scanner-derived `TailoringEvaluation`; the agent supplies composition and an
-unscored hash-bound editorial review. There is no local numeric critique gate.
+New sessions use staged tailoring protocol v6. Aergia returns the authoritative
+scanner-derived `TailoringEvaluation`; the agent supplies composition, a claim
+verification ledger, and an unscored hash-bound editorial review. There is no
+local numeric critique gate.
 Reasonable technical inferences remain allowed in the user-reviewed draft,
 while explicit user corrections and prohibitions remain authoritative.
 
-The context is authoritative read-only input. The Library is a bounded
-snapshot, not a relevance-filtered shortlist, so the local agent can select
-rows and compose a document from scratch. `previous_cv` is optional context;
-an accepted submission creates a new CV and leaves the linked source CV
-untouched until the user reviews the draft.
+The job strategy and job-blind candidate extraction run independently. The
+composition context then includes the linked CV scan, tailored opportunities,
+CandidateEvidence, and selected original Library narratives. Job Fit uses the
+linked CV only. A submitted draft remains unlinked until the user reviews it.
