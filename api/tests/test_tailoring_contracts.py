@@ -1,4 +1,4 @@
-"""Pure protocol-v8 contract tests (no database or browser runtime)."""
+"""Pure protocol-v9 contract tests (no database or browser runtime)."""
 
 import asyncio
 from datetime import datetime, timedelta, timezone
@@ -17,7 +17,6 @@ from app.http_schemas.tailoring import (
     TailoringCodeExchange,
     TailoringContextResponse,
     TailoringPreviewResponse,
-    TailoringSourcePreviewResponse,
     TailoringSessionStatusResponse,
     TailoringSubmitRequest,
 )
@@ -70,9 +69,9 @@ def _scanner_result() -> tuple[dict, object]:
     return result.model_dump(mode="json"), result
 
 
-def test_protocol_v8_is_complete_candidate_only_and_requires_preview_binding():
+def test_protocol_v9_is_complete_candidate_only_and_requires_preview_binding():
     candidate = _candidate()
-    assert PROTOCOL_VERSION == 8
+    assert PROTOCOL_VERSION == 9
     assert candidate.customizations.accent_color == "#123456"
     assert candidate.sections[0].style is not None
     with pytest.raises(ValidationError):
@@ -81,25 +80,28 @@ def test_protocol_v8_is_complete_candidate_only_and_requires_preview_binding():
         TailoringSubmitRequest.model_validate({"context_hash": "a" * 64, "changes": []})
     with pytest.raises(ValidationError):
         TailoringSubmitRequest.model_validate(
-            {"context_hash": "a" * 64, "candidate": _candidate(), "review_notes": ["x" * 1_001]}
+            {
+                "context_hash": "a" * 64,
+                "evaluation_id": "evaluation_0123456789abcdef",
+                "candidate_hash": "b" * 64,
+                "candidate": candidate,
+                "review_notes": ["x" * 1_001],
+            }
         )
     with pytest.raises(ValidationError):
         TailoringSubmitRequest.model_validate({
             "context_hash": "a" * 64,
+            "evaluation_id": "evaluation_0123456789abcdef",
             "expected_candidate_hash": "b" * 64,
-            "candidate": _candidate(),
-            "editorial_review": {
-                "review_version": "aergia-editorial-review-v2",
-                "evaluation_id": "evaluation_0123456789abcdef",
-                "candidate_hash": "b" * 64,
-                "findings": [],
-            },
+            "candidate_hash": "b" * 64,
+            "candidate": candidate,
         })
 
 
-def test_preview_scanner_result_and_expected_candidate_hash_are_part_of_the_tailoring_contract():
+def test_preview_returns_the_canonical_candidate_used_for_hashing_and_submit_binding():
     scanner_result, scanner_model = _scanner_result()
     evaluation = evaluate_tailoring(scanner_model.requirement_extraction, scanner_model, "b" * 64)
+    candidate = _candidate()
     preview = TailoringPreviewResponse.model_validate(
         {
             "format": "pdf",
@@ -107,6 +109,7 @@ def test_preview_scanner_result_and_expected_candidate_hash_are_part_of_the_tail
             "page_count": 1,
             "evaluation_id": "evaluation_0123456789abcdef",
             "candidate_hash": "b" * 64,
+            "candidate": candidate.model_dump(mode="json"),
             "scanner_result": scanner_result,
             "evaluation": evaluation.model_dump(mode="json"),
             "render_warnings": ["Review length for the target role."],
@@ -116,14 +119,8 @@ def test_preview_scanner_result_and_expected_candidate_hash_are_part_of_the_tail
         {
             "context_hash": "a" * 64,
             "evaluation_id": preview.evaluation_id,
-            "expected_candidate_hash": preview.candidate_hash,
-            "candidate": _candidate(),
-            "editorial_review": {
-                "review_version": "aergia-editorial-review-v2",
-                "evaluation_id": preview.evaluation_id,
-                "candidate_hash": preview.candidate_hash,
-                "findings": [],
-            },
+            "candidate_hash": preview.candidate_hash,
+            "candidate": preview.candidate,
         }
     )
 
@@ -132,15 +129,12 @@ def test_preview_scanner_result_and_expected_candidate_hash_are_part_of_the_tail
     assert preview.evaluation.version == TAILORING_EVALUATION_VERSION
     assert preview.evaluation.candidate_hash == preview.candidate_hash
     assert preview.render_warnings == ["Review length for the target role."]
-    assert request.expected_candidate_hash == preview.candidate_hash
+    assert request.candidate_hash == preview.candidate_hash
     assert request.evaluation_id == preview.evaluation_id
-    source_preview = TailoringSourcePreviewResponse.model_validate(
-        {key: value for key, value in preview.model_dump(mode="json").items() if key != "evaluation_id"}
-    )
-    assert not hasattr(source_preview, "evaluation_id")
+    assert request.candidate == preview.candidate
 
 
-def test_context_and_status_contracts_are_v8_and_do_not_expose_capabilities():
+def test_context_is_one_full_dossier_and_does_not_expose_retired_retrieval_fields():
     capabilities = renderer_capabilities()
     assert capabilities["version"] == 2
     assert capabilities["tailoring"]["mode"] == "complete_candidate"
@@ -156,48 +150,32 @@ def test_context_and_status_contracts_are_v8_and_do_not_expose_capabilities():
     certification_description = capabilities["document"]["section_types"]["certifications"]["fields"]["description"]
     assert certification_description["type"] == "rich_text"
     assert certification_description["editable"] is True
-    scanner_result, result_model = _scanner_result()
     context = TailoringContextResponse.model_validate(
         {
-            "protocol_version": 8,
+            "protocol_version": 9,
             "session_id": "session",
             "application_id": "application",
             "source_cv_id": None,
             "expires_at": datetime.now(timezone.utc),
             "context_hash": "a" * 64,
             "job": {"company": "Example", "role": "Engineer", "description": "Build APIs", "user_instructions": None},
-            "profile": {"name": "Ada"},
-            "previous_cv": None,
-            "scanner": {
-                "schema_version": "scanner-v1",
-                "versions": scanner_result["versions"],
-                "requirement_extraction": scanner_result["requirement_extraction"],
-                "source_scan": None,
-            },
-            "requirements": [item.model_dump(mode="json") for item in result_model.requirement_extraction.requirements],
+            "dossier": "Profile: Ada\n\nLibrary experience: unrelated source sentinel.",
             "templates": [{"id": "minimal", "name": "Minimal", "manifest": {}}],
             "selected_template_id": "minimal",
             "selected_template_manifest": {},
             "capabilities": capabilities,
             "capabilities_hash": capabilities_hash(capabilities),
-            "candidate_index": {
-                "schema_version": "candidate-index-v1",
-                "canonical_skills": [],
-                "source_count": 0,
-                "row_count": 0,
-                "semantic_source_counts": {"fresh": 0, "stale": 0, "missing": 0},
-                "cache_state": "warm",
-            },
-            "candidate_evidence": {"schema_version": "candidate-evidence-v2", "groups": []},
-            "writer_context_characters": 0,
             "evaluation_version": TAILORING_EVALUATION_VERSION,
         }
     )
-    assert context.previous_cv is None
-    assert context.protocol_version == 8
+    assert context.protocol_version == 9
     assert context.evaluation_version == TAILORING_EVALUATION_VERSION
-    assert context.scanner.source_scan is None
-    assert context.scanner.requirement_extraction.extractor_version
+    assert "Ada" in context.dossier
+    assert "unrelated source sentinel" in context.dossier
+    with pytest.raises(ValidationError):
+        TailoringContextResponse.model_validate(
+            context.model_dump(mode="json") | {"candidate_index": {"row_count": 0}}
+        )
     with pytest.raises(ValidationError):
         TailoringSessionStatusResponse.model_validate(
             {
@@ -275,28 +253,41 @@ def test_ready_draft_remains_reviewable_after_agent_capability_expiry():
     assert status.draft_cv_id == "draft"
 
 
-def test_historical_v4_status_remains_readable_while_new_protocol_is_v8():
+def test_historical_v8_status_with_editorial_result_remains_readable():
     now = datetime.now(timezone.utc)
+    historical_editorial_review = {
+        "review_version": "aergia-editorial-review-v2",
+        "evaluation_id": "evaluation_0123456789abcdef",
+        "candidate_hash": "b" * 64,
+        "findings": [],
+    }
     session = TailoringSession(
         id="legacy-session",
         user_id="user",
         application_id="application",
         code_hash="code-hash",
-        protocol_version=4,
+        protocol_version=8,
         status="draft_ready",
         draft_cv_id="draft",
         expires_at=now,
         created_at=now,
         updated_at=now,
         attempts=1,
-        result={"protocol_version": 4, "draft_cv_id": "draft"},
+        result={
+            "protocol_version": 8,
+            "draft_cv_id": "draft",
+            "evaluation_id": "evaluation_0123456789abcdef",
+            "candidate_hash": "b" * 64,
+            "editorial_review": historical_editorial_review,
+        },
     )
 
     status = TailoringService._status_response(session)
 
-    assert status.protocol_version == 4
-    assert status.result["protocol_version"] == 4
-    assert PROTOCOL_VERSION == 8
+    assert status.protocol_version == 8
+    assert status.result["protocol_version"] == 8
+    assert status.result["editorial_review"] == historical_editorial_review
+    assert PROTOCOL_VERSION == 9
 
 
 def test_expired_agent_draft_still_blocks_a_second_session_until_reviewed():

@@ -66,15 +66,15 @@ export default function ApplicationCvPanel({
           </div>
         </>
       ) : (
-        <p className="mt-2 text-sm text-app-ink-2">No CV is linked yet. Link an existing CV in Scanner analysis or start LLM tailoring to create a draft.</p>
+        <p className="mt-2 text-sm text-app-ink-2">No CV is linked yet. Link one in Scanner analysis or start a tailoring session to create a draft.</p>
       )}
 
       <div className="mt-4 flex flex-wrap gap-2">
         <button type="button" onClick={onStartTailoring} disabled={tailoringStarting || tailoringBlocksNewSession} className="inline-flex items-center gap-1 rounded-md border border-app-primary-soft px-3 py-2 text-sm font-medium text-app-primary hover:bg-app-primary-soft disabled:opacity-50">
-          {tailoringStarting ? "Preparing LLM tailoring…" : tailoringBlocksNewSession ? "Finish current tailoring first" : "LLM Tailoring"}
+          {tailoringStarting ? "Preparing tailoring…" : tailoringBlocksNewSession ? "Finish current tailoring first" : "Tailor with AI"}
         </button>
       </div>
-      <p className="mt-3 text-xs text-app-ink-3">Your coding agent composes a complete CV and may change content, sections, template, layout, and styles. The current CV stays unchanged until you review the draft.</p>
+      <p className="mt-3 text-xs text-app-ink-3">Your coding agent receives your full profile and every Library entry, composes a complete CV, and previews the rendered result. Your linked CV stays in place until you accept the draft.</p>
 
       {tailoringSession && (
         <div className="mt-4 rounded-md bg-app-canvas px-3 py-3" role="status">

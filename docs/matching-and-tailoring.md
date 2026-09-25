@@ -55,54 +55,46 @@ bad results remain stale without discarding valid peers. Refresh has a bounded
 wait. Failure leaves stale semantic results unusable and tailoring continues
 with the deterministic index and current original narratives.
 
-The candidate index is a retrieval aid, not an authoritative whitelist of what
-the writer may say. It never changes Job Fit. Retrieval is high-recall but
-writer context is bounded by a character budget. Selected sources retain their
-current original narrative, structured facts, stable source identity, and
-fresh semantic record where available. A missing or stale semantic record does
-not make an available original narrative unusable; the writer can interpret
-and reframe it directly.
+The candidate index supports matching and scanner workflows. Protocol v9
+tailoring does not use it to select or limit writer context: the tailoring
+context contains one complete dossier made from the user's current profile and
+every Library entry. This gives the agent the full source material for the
+application in one place, including entries that do not appear relevant to an
+initial keyword or semantic search.
 
 ## Tailoring flow
 
-Protocol v8 follows this relevance-first flow:
+Protocol v9 follows this full-dossier flow:
 
-1. Check candidate semantic freshness and refresh only stale/missing sources.
-2. Identify the job's highest-value priorities and what a recruiter should see
-   immediately.
-3. Retrieve Library material that supports or plausibly implies those
-   priorities, then infer, abstract, combine, and reframe it aggressively.
-4. Compose a complete target-specific CV, treating the linked CV as context
-   rather than a fixed template.
-5. Render and scan. Review the current CV's requirement, term, ATS, quality,
-   PDF, and page-use diagnostics. Make another revision when it offers a
-   material relevance improvement; otherwise select the strongest reviewed
-   candidate and submit it for user review.
+1. Freeze the application's job details, user instructions, profile, complete
+   Library dossier, template choices, and rendering capabilities into a
+   context snapshot.
+2. Read the dossier as a whole, select and shape the most relevant experience,
+   projects, skills, and other material, then compose a complete target CV.
+3. Preview the candidate through the canonical renderer and scanner. The
+   preview returns the server-normalized candidate, evaluation ID, and
+   candidate hash.
+4. Submit that exact preview candidate with its context hash, evaluation ID,
+   and candidate hash. The user reviews the saved draft and chooses whether to
+   accept it.
 
-Ordinary professional inference appears directly in prose. Do not classify
-every claim, require inference notes, or invoke another model because wording
-is inferred. Do not invent fixed high-risk facts such as employers, dates,
+Changes to the application, profile, or any Library entry make the frozen
+context stale. Restart tailoring to load a fresh complete dossier; do not
+continue from a partial refresh or submit against the old snapshot.
+
+The preview candidate is canonical because the server normalizes document
+content, including rich-text identifiers, before hashing and scanning. The
+helper must keep the returned candidate unchanged through submission. Every
+preview has its own evaluation ID, even when the candidate hash matches an
+earlier preview. Submission binds to the selected preview through that ID and
+hash; there is no separate editorial review payload or editorial approval
+gate. The user still reviews the saved draft before accepting it.
+
+Do not invent fixed high-risk facts such as employers, dates,
 degrees/institutions, certifications, official titles, publications,
-identities/URLs, exact metrics, or security clearances. One strong draft and
-one useful revision are latency guidance, not submission gates.
+identities/URLs, exact metrics, or security clearances. A scan describes the
+candidate against this job; it does not replace the user's judgment about the
+draft.
 
-Each successful candidate preview has a unique evaluation ID, even when its
-candidate hash matches an earlier preview. The editorial review and explicit
-selection bind to both values. A finding does not decide whether a candidate
-may be submitted; it remains visible in the user's saved draft review.
-
-Optimize in this order: target relevance, requirement coverage, employer
-terminology, strong reframing and inference, useful page-space allocation,
-ATS/readability, and layout. `not_evidenced` means the current CV does not
-establish a requirement yet; it does not prohibit writing toward it. Use the
-scanner as an adversary for the current draft without mechanically maximizing
-any single score.
-
-## Limits
-
-Submission binds the explicitly selected frozen candidate to the server's
-`candidate_hash` and `evaluation_id`. The helper submits that candidate and the
-server checks the normal candidate/evaluation/review binding. There is no local
-claim ledger or inference-note gate. Unknown product names use deterministic
-whole-token matching for retrieval; behavioral and ecosystem inference remain
-part of the writer's relevance judgment and the user's final draft review.
+Historical protocol-v8 drafts remain readable and can still be accepted or
+rejected. New sessions use protocol v9 and the complete-dossier contract.

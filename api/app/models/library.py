@@ -48,9 +48,6 @@ class LibraryEntry(Base):
     )
     kind: Mapped[str] = mapped_column(String(32), nullable=False)
     payload: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
-    # Stable IDs for rows whose document payload does not already carry an ID.
-    # Kept out of the public payload so renderer/schema data stays unchanged.
-    row_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

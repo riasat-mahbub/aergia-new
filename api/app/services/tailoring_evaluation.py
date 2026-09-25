@@ -1,4 +1,4 @@
-"""Pure server-side evaluation for tailoring protocol v8.
+"""Pure server-side evaluation for tailoring protocol v9.
 
 The scanner owns deterministic facts.  This module only aggregates those
 facts into bounded issue groups and contextual deltas; it never extracts a
@@ -11,7 +11,6 @@ import json
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from hashlib import sha256
 from typing import Any
 
 from app.http_schemas.tailoring_evaluation import (

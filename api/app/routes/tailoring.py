@@ -12,13 +12,9 @@ from app.http_schemas.tailoring import (
     PROTOCOL_VERSION,
     TailoringCodeExchange,
     TailoringContextResponse,
-    TailoringEvidenceContextResponse,
-    TailoringEvidenceSourcesResponse,
-    TailoringEvidenceSubmission,
     TailoringExchangeResponse,
     TailoringPreviewRequest,
     TailoringPreviewResponse,
-    TailoringSourcePreviewResponse,
     TailoringReviewResponse,
     TailoringSessionCreateResponse,
     TailoringSessionStatusResponse,
@@ -204,57 +200,6 @@ async def get_tailoring_context(
 ):
     try:
         return await TailoringService(db).context(capability)
-    except Exception as exc:  # noqa: BLE001
-        _raise_service_error(exc)
-
-
-@router.get("/tailoring/context/index-refresh", response_model=TailoringEvidenceSourcesResponse)
-@limiter.limit("30/minute")
-async def get_tailoring_index_refresh_context(
-    request: Request,
-    response: Response,
-    capability: str | None = Header(default=None, alias="X-Aergia-Tailoring-Capability"),
-    db: AsyncSession = Depends(get_db),
-):
-    try:
-        return await TailoringService(db).candidate_index_refresh_context(capability)
-    except Exception as exc:  # noqa: BLE001
-        _raise_service_error(exc)
-
-
-@router.post(
-    "/tailoring/context/index-refresh",
-    response_model=TailoringEvidenceContextResponse,
-)
-@limiter.limit("10/minute")
-async def submit_tailoring_evidence(
-    request: Request,
-    response: Response,
-    body: TailoringEvidenceSubmission,
-    capability: str | None = Header(default=None, alias="X-Aergia-Tailoring-Capability"),
-    db: AsyncSession = Depends(get_db),
-):
-    try:
-        return await TailoringService(db).evidence_context(capability, body)
-    except Exception as exc:  # noqa: BLE001
-        _raise_service_error(exc)
-
-
-@router.get(
-    "/tailoring/source-preview",
-    response_model=TailoringSourcePreviewResponse,
-)
-@limiter.limit("5/minute")
-async def get_tailoring_source_preview(
-    request: Request,
-    response: Response,
-    capability: str | None = Header(default=None, alias="X-Aergia-Tailoring-Capability"),
-    db: AsyncSession = Depends(get_db),
-):
-    """Return a capability-scoped PDF of the unchanged source CV."""
-
-    try:
-        return await TailoringService(db).source_preview(capability)
     except Exception as exc:  # noqa: BLE001
         _raise_service_error(exc)
 

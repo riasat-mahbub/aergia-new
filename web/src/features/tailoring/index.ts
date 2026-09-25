@@ -5,6 +5,7 @@ export { default as TailoringSessionPage } from "./pages/TailoringSessionPage";
 export type { TailoringSessionPageProps } from "./pages/TailoringSessionPage";
 export type {
   TailoringSession,
+  TailoringSessionCreateResponse,
   TailoringReviewResponse,
   TailoringSessionResult,
   TailoringSessionStatus,

@@ -99,33 +99,3 @@ def client() -> Generator[AsyncClient, None, None]:
     transport = ASGITransport(app=app)
     client = AsyncClient(transport=transport, base_url="http://test")
     yield client
-
-
-@pytest.fixture
-async def user_id(client):
-    from uuid import uuid4
-
-    from app.models.user import User
-    from sqlalchemy import select
-
-    email = f"candidate-index-{uuid4().hex}@example.com"
-    await client.post("/api/v1/auth/register", json={"email": email, "password": "testpass123"})
-    async with async_session() as db:
-        result = await db.execute(select(User.id).where(User.email == email))
-        return result.scalar_one()
-
-
-@pytest.fixture
-async def clean_library():
-    import sqlalchemy
-
-    from app.models.candidate_index import CandidateIndexSource, CandidateIndexState, CandidateSemanticRecord
-    from app.models.library import Library, LibraryEntry
-
-    async with async_session() as db:
-        await db.execute(sqlalchemy.delete(CandidateSemanticRecord))
-        await db.execute(sqlalchemy.delete(CandidateIndexSource))
-        await db.execute(sqlalchemy.delete(CandidateIndexState))
-        await db.execute(sqlalchemy.delete(LibraryEntry))
-        await db.execute(sqlalchemy.delete(Library))
-        await db.commit()

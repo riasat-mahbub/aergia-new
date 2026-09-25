@@ -12,8 +12,6 @@ from app.scanner.results import EvidenceStatus, EvidenceStrength
 from app.scanner.scoring import score_semantic_analysis
 from app.scanner.service import ScannerService
 from app.scanner.skills import extract_skills
-from app.services.candidate_evidence import iter_candidate_sources
-from app.services.tailoring_opportunities import map_tailoring_opportunities
 
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "scanner" / "convverge"
@@ -116,21 +114,14 @@ def test_convverge_fixture_produces_a_scored_job_fit_summary() -> None:
     assert summary.preferred_fit.total_weight > 0
 
 
-def test_convverge_grounded_tailoring_surfaces_agile_and_collaboration_without_fabricating_client_work() -> None:
+def test_convverge_scanner_measures_a_composed_candidate_without_invented_client_work() -> None:
     job, before_cv = _load_fixture()
     after_cv = json.loads((FIXTURE_DIR / "candidate-after.json").read_text(encoding="utf-8"))
-    library = json.loads((FIXTURE_DIR / "library-opportunities.json").read_text(encoding="utf-8"))
+    library = json.loads((FIXTURE_DIR / "library-source-material.json").read_text(encoding="utf-8"))
     extraction = extract_requirements_from_entities(job, {"entities": {}})
     scanner = ScannerService()
     before = scanner.scan_with_extraction(job, before_cv, extraction, as_of=date(2026, 9, 22))
     after = scanner.scan_with_extraction(job, after_cv, extraction, as_of=date(2026, 9, 22))
-    opportunities, sources = map_tailoring_opportunities(
-        extraction, before, before_cv, iter_candidate_sources(library),
-    )
-    assert any("Agile" in item["label"] and item["source_ids"] for item in opportunities)
-    assert any("collaboration" in item["label"].casefold() and item["source_ids"] for item in opportunities)
-    assert len(sources) == 2
-
     before_by_id = {item.requirement_id: item for item in before.semantic.requirements}
     after_by_id = {item.requirement_id: item for item in after.semantic.requirements}
     def status(prefix: str) -> tuple[EvidenceStatus, EvidenceStatus]:

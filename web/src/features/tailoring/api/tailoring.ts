@@ -1,12 +1,12 @@
 import client from "@/shared/api/client";
 import type {
   TailoringReviewResponse,
-  TailoringSession,
+  TailoringSessionCreateResponse,
   TailoringSessionStatusResponse,
 } from "../types";
 
-export async function createTailoringSession(applicationId: string): Promise<TailoringSession> {
-  const { data } = await client.post(`/applications/${applicationId}/tailoring-sessions?protocol_version=8`);
+export async function createTailoringSession(applicationId: string): Promise<TailoringSessionCreateResponse> {
+  const { data } = await client.post(`/applications/${applicationId}/tailoring-sessions?protocol_version=9`);
   return data;
 }
 

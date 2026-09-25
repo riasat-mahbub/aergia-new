@@ -1,5 +1,8 @@
 import type { ScanResult } from "@/features/applications";
 
+export type HistoricalTailoringProtocolVersion = 4 | 5 | 6 | 7 | 8;
+export type TailoringProtocolVersion = HistoricalTailoringProtocolVersion | 9;
+
 export interface TailoringIssue {
   id: string;
   kind: "risk" | "blocker" | "review" | "recommendation" | "non_actionable_gap";
@@ -80,6 +83,7 @@ export interface TailoringEvaluation {
   render_warnings: string[];
 }
 
+/** Stored only on historical protocol-v8 results. Protocol v9 has no editorial review payload. */
 export interface TailoringEditorialFinding {
   category: "evidence_selection" | "targeting" | "framing" | "impact" | "clarity" | "natural_writing" | "visual_balance";
   severity: "important" | "polish" | "blocking";
@@ -105,7 +109,7 @@ export interface HistoricalTailoringEditorialReview {
 }
 
 export interface TailoringSession {
-  protocol_version: 4 | 5 | 6 | 7 | 8;
+  protocol_version: TailoringProtocolVersion;
   session_id: string;
   application_id: string;
   source_cv_id: string | null;
@@ -117,6 +121,11 @@ export interface TailoringSession {
   status: "created";
   expires_at: string;
 }
+
+/** Newly created sessions use the active whole-dossier protocol. */
+export type TailoringSessionCreateResponse = Omit<TailoringSession, "protocol_version"> & {
+  protocol_version: 9;
+};
 
 export type TailoringSessionStatus =
   | "created"
@@ -138,26 +147,45 @@ export interface TailoringCandidate {
   customizations: Record<string, unknown>;
 }
 
-export interface TailoringSessionResult {
-  protocol_version: 4 | 5 | 6 | 7 | 8;
+interface TailoringSessionResultBase {
   session_id: string;
   application_id: string;
   status: "draft_ready";
   source_cv_id: string | null;
   draft_cv_id: string;
-  evaluation_id?: string;
-  candidate_hash: string;
-  candidate?: TailoringCandidate;
   scanner_result?: ScanResult | null;
   evaluation?: TailoringEvaluation | null;
   tailoring_evaluation?: TailoringEvaluation | null;
-  editorial_review?: TailoringEditorialReview | HistoricalTailoringEditorialReview | null;
   render_warnings?: string[];
   review_notes?: string[];
 }
 
+/** The compact historical result variants remain readable for owner review. */
+export type TailoringSessionResult =
+  | (TailoringSessionResultBase & {
+      protocol_version: Exclude<HistoricalTailoringProtocolVersion, 8>;
+      evaluation_id?: string;
+      candidate_hash?: string;
+      candidate?: TailoringCandidate;
+      editorial_review?: never;
+    })
+  | (TailoringSessionResultBase & {
+      protocol_version: 8;
+      evaluation_id?: string;
+      candidate_hash: string;
+      candidate?: TailoringCandidate;
+      editorial_review?: TailoringEditorialReview | HistoricalTailoringEditorialReview | null;
+    })
+  | (TailoringSessionResultBase & {
+      protocol_version: 9;
+      evaluation_id: string;
+      candidate_hash: string;
+      candidate: TailoringCandidate;
+      editorial_review?: never;
+    });
+
 export interface TailoringSessionStatusResponse {
-  protocol_version: 4 | 5 | 6 | 7 | 8;
+  protocol_version: TailoringProtocolVersion;
   session_id: string;
   application_id: string;
   source_cv_id: string | null;
@@ -175,7 +203,7 @@ export interface TailoringSessionStatusResponse {
 }
 
 export interface TailoringReviewResponse {
-  protocol_version: 4 | 5 | 6 | 7 | 8;
+  protocol_version: TailoringProtocolVersion;
   session_id: string;
   application_id: string;
   status: "accepted" | "rejected";

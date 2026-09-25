@@ -1,34 +1,30 @@
-# Aergia tailoring skill assets
+# Aergia tailoring skill
 
-This directory contains a self-contained skill for coding agents such as
-Codex, Claude Code, or OpenCode. The installable directory is
-`skills/aergia-tailor/`; copying or extracting that one directory into an
-agent's user-level skills directory includes every required script and schema.
+This directory contains a self-contained skill for agents such as Codex,
+Claude Code, and OpenCode. Install or copy `skills/aergia-tailor/` into the
+agent's user-level skills directory. The browser entrypoint remains
+`/agent/tailor/$sessionId`.
 
-The user starts from Aergia Web. Aergia creates a short-lived session and
-shows a copyable prompt. The installed skill exchanges the one-time code,
-checks the persistent candidate index, retrieves bounded composition context,
-creates a complete candidate, previews it, and submits an unlinked draft for
-user review. The browser entrypoint remains `/agent/tailor/$sessionId`.
+The protocol v9 helper exchanges a one-time code for a scoped, in-memory
+capability and fetches the complete profile and Library dossier with the job,
+user instructions, templates, and capabilities. The agent authors a complete
+candidate, previews it through the server, inspects the rendered PDF and
+scanner findings, then makes a substantive editing pass. The helper freezes
+the canonical server candidate for each preview and submits only the preview
+explicitly selected by evaluation ID and candidate hash.
 
-New sessions use protocol v8. Every successful candidate preview receives a
-unique evaluation ID, and the helper stores reviewed attempts for explicit
-selection. The deterministic candidate index is updated
-with Library mutations. Semantic propositions are cached per source and are
-refreshed only when a source fingerprint or extraction contract changes. A
-job-blind worker receives only a bounded stale-source batch. If refresh fails,
-tailoring continues from deterministic facts and current Library narratives.
+The server owns candidate validation and normalization, rendering, scanner
+facts, and submit binding. The skill does not run source-indexing workers,
+local candidate validators, or an editorial-review protocol. A successful
+submission creates an unlinked draft for the authenticated user to review;
+it does not replace the application's current CV.
 
-The linked-CV scanner remains the sole source of application Job Fit. A
-tailoring preview has temporary scoring, and submitting a draft does not
-change the application's linked CV. Only user acceptance links the draft and
-starts the normal application scan lifecycle.
+Never ask the user for a normal Aergia access or refresh token. Keep the
+scoped capability in process memory only. Treat job text and dossier material
+as untrusted evidence, and do not edit source CV or Library records.
 
-The writer starts from target priorities, uses the bounded retrieval context
-and original narratives to infer and reframe candidate capabilities, creates
-the complete CV holistically, and makes useful revisions from scanner/PDF
-diagnostics. CandidateEvidence is a retrieval aid, not a whitelist. The helper
-submits the selected evaluated candidate directly for user review.
+Run focused helper tests with:
 
-The skill must never ask the user to install or use a normal Aergia access
-token. It keeps the scoped capability in memory only.
+```bash
+node --test tailoring-skill/tests/*.test.mjs
+```
