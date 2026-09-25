@@ -9,6 +9,7 @@ install itself from a session link or require a normal Aergia access token.
 ```text
 skills/aergia-tailor/          self-contained installable skill
   SKILL.md                     provider-neutral authoring and session guidance
+  references/natural-writing.md  candidate-facing prose guidance
   scripts/session.mjs          session, preview, selection, and submit helper
 tests/                         Node built-in helper tests
 ```
