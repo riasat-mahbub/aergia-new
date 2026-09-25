@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { createInterface } from "node:readline/promises";
-import { access, chmod, mkdir, readdir, readFile, rm, unlink, writeFile } from "node:fs/promises";
+import { access, chmod, lstat, mkdir, open, readdir, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,6 +9,9 @@ import { fileURLToPath } from "node:url";
 export const PROTOCOL_VERSION = 9;
 const SUBMIT_MARKER = "SUBMIT";
 const RENDER_MARKER = "RENDER";
+const IDEAL_TARGET_FILE = "ideal-target.md";
+const MAX_IDEAL_TARGET_BYTES = 1_048_576;
+const STAGE_ZERO_JOB_FIELDS = ["company", "role", "job_url", "description", "user_instructions"];
 
 function parseArgs(argv) {
   const args = {};
@@ -147,6 +150,13 @@ async function exposeComposerWorkspace(paths, context) {
   await writeProtectedJson(resolve(paths.evidence, "context.json"), context);
 }
 
+async function exposeJobOnlyWorkspace(paths, context) {
+  const job = Object.fromEntries(STAGE_ZERO_JOB_FIELDS
+    .filter((field) => Object.hasOwn(context.job, field))
+    .map((field) => [field, context.job[field]]));
+  await writeProtectedJson(resolve(paths.evidence, "job.json"), job);
+}
+
 async function exists(path) {
   try {
     await access(path, fsConstants.F_OK);
@@ -176,6 +186,90 @@ async function readReviewNotes(output) {
 
 function wait(milliseconds) {
   return new Promise((accept) => setTimeout(accept, milliseconds));
+}
+
+async function inspectIdealTarget(path) {
+  let before;
+  try {
+    before = await lstat(path);
+  } catch (error) {
+    if (error?.code === "ENOENT") return { ready: false, reason: null };
+    throw error;
+  }
+
+  if (!before.isFile()) return { ready: false, reason: `${IDEAL_TARGET_FILE} must be a regular file` };
+  if (before.size === 0) return { ready: false, reason: `${IDEAL_TARGET_FILE} must not be empty` };
+  if (before.size > MAX_IDEAL_TARGET_BYTES) {
+    return { ready: false, reason: `${IDEAL_TARGET_FILE} must be no larger than ${MAX_IDEAL_TARGET_BYTES} bytes` };
+  }
+
+  let handle;
+  try {
+    handle = await open(path, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+  } catch (error) {
+    if (error?.code === "ENOENT") return { ready: false, reason: null };
+    if (error?.code === "ELOOP") return { ready: false, reason: `${IDEAL_TARGET_FILE} must be a regular file` };
+    throw error;
+  }
+  try {
+    const opened = await handle.stat();
+    if (!opened.isFile()) return { ready: false, reason: `${IDEAL_TARGET_FILE} must be a regular file` };
+    if (opened.size === 0) return { ready: false, reason: `${IDEAL_TARGET_FILE} must not be empty` };
+    if (opened.size > MAX_IDEAL_TARGET_BYTES) {
+      return { ready: false, reason: `${IDEAL_TARGET_FILE} must be no larger than ${MAX_IDEAL_TARGET_BYTES} bytes` };
+    }
+
+    const buffer = Buffer.alloc(opened.size + 1);
+    let bytesRead = 0;
+    while (bytesRead < buffer.byteLength) {
+      const result = await handle.read(buffer, bytesRead, buffer.byteLength - bytesRead, bytesRead);
+      if (result.bytesRead === 0) break;
+      bytesRead += result.bytesRead;
+    }
+    const contents = buffer.subarray(0, bytesRead);
+    const after = await handle.stat();
+    let pathAfter;
+    try {
+      pathAfter = await lstat(path);
+    } catch (error) {
+      if (error?.code === "ENOENT") return { ready: false, reason: null };
+      throw error;
+    }
+    if (!after.isFile() || !pathAfter.isFile() || before.dev !== opened.dev || before.ino !== opened.ino
+      || opened.dev !== after.dev || opened.ino !== after.ino || opened.dev !== pathAfter.dev || opened.ino !== pathAfter.ino
+      || before.size !== opened.size || opened.size !== after.size || contents.byteLength !== after.size
+      || before.mtimeMs !== opened.mtimeMs || opened.mtimeMs !== after.mtimeMs
+      || before.ctimeMs !== opened.ctimeMs || opened.ctimeMs !== after.ctimeMs) {
+      return { ready: false, reason: `${IDEAL_TARGET_FILE} changed while it was being checked; atomically rename a complete file into place` };
+    }
+    if (!contents.toString("utf8").trim()) return { ready: false, reason: `${IDEAL_TARGET_FILE} must not be blank` };
+    return { ready: true, reason: null };
+  } finally {
+    await handle.close();
+  }
+}
+
+async function waitForIdealTarget(paths, context) {
+  const targetPath = resolve(paths.output, IDEAL_TARGET_FILE);
+  let lastReportedReason;
+  await writeSessionStatus(paths, { state: "awaiting_ideal_target" });
+  process.stderr.write(`Write a complete fictional CV for this job to ${targetPath}, using ${resolve(paths.evidence, "job.json")} only. Atomically rename the completed file to ${IDEAL_TARGET_FILE}; the full candidate history will be exposed after it is ready.\n`);
+
+  while (Date.now() < Date.parse(context.expires_at)) {
+    const target = await inspectIdealTarget(targetPath);
+    if (target.ready && Date.now() < Date.parse(context.expires_at)) return;
+    if (target.reason && target.reason !== lastReportedReason) {
+      lastReportedReason = target.reason;
+      await writeSessionStatus(paths, { state: "ideal_target_invalid", error: target.reason });
+      process.stderr.write(`${target.reason}. Repair the file or atomically replace it with the complete ideal target.\n`);
+    } else if (!target.reason && lastReportedReason) {
+      lastReportedReason = undefined;
+      await writeSessionStatus(paths, { state: "awaiting_ideal_target" });
+    }
+    await wait(250);
+  }
+  await writeSessionStatus(paths, { state: "session_expired", error: "The tailoring session expired before the ideal target was completed" });
+  throw new Error("The tailoring session expired before the ideal target was completed");
 }
 
 function ensurePreview(preview) {
@@ -423,8 +517,10 @@ export async function runSession(sessionUrl, workspace, options = {}) {
     || typeof context.dossier !== "string" || !context.dossier.trim()) {
     throw new Error("The server returned an incompatible protocol v9 tailoring context");
   }
+  await exposeJobOnlyWorkspace(paths, context);
+  await waitForIdealTarget(paths, context);
   await exposeComposerWorkspace(paths, context);
-  process.stdout.write(`Complete candidate dossier and job instructions ready in ${resolve(paths.evidence, "context.json")}. Write a complete candidate to ${resolve(paths.output, "candidate.json")}, then create RENDER.\n`);
+  process.stdout.write(`Complete candidate dossier and job instructions ready in ${resolve(paths.evidence, "context.json")}. Rebuild the candidate from supported evidence in that dossier, write it to ${resolve(paths.output, "candidate.json")}, then create RENDER.\n`);
   return waitForCandidate(paths, context, origin, capability);
 }
 

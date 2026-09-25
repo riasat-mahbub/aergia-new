@@ -64,19 +64,57 @@ initial keyword or semantic search.
 
 ## Tailoring flow
 
-Protocol v9 follows this full-dossier flow:
+Protocol v9 keeps the full-dossier API and submission contract. The helper
+fetches the complete context into memory but gates what the agent can read:
 
 1. Freeze the application's job details, user instructions, profile, complete
    Library dossier, template choices, and rendering capabilities into a
-   context snapshot.
-2. Read the dossier as a whole, select and shape the most relevant experience,
-   projects, skills, and other material, then compose a complete target CV.
-3. Preview the candidate through the canonical renderer and scanner. The
-   preview returns the server-normalized candidate, evaluation ID, and
-   candidate hash.
-4. Submit that exact preview candidate with its context hash, evaluation ID,
-   and candidate hash. The user reviews the saved draft and chooses whether to
-   accept it.
+   context snapshot. The helper initially writes only the whitelisted job
+   object to `evidence/job.json`, with `company`, `role`, `job_url`,
+   `description`, and `user_instructions` at the root.
+2. Before seeing the dossier, write a complete fictional CV for the target
+   role to `output/ideal-target.md` and atomically rename it into place. The
+   helper exposes the full context, including the dossier, in
+   `evidence/context.json` only after this file is complete. The ideal target
+   is a temporary authoring aid and is never submitted.
+3. Rebuild the candidate from the now-visible dossier. Translate useful ideas
+   from the ideal target through direct evidence, plausible ordinary
+   inference, transferable framing, or truthful forward-looking language.
+   Keep fixed facts and claims of completed work accurate; use role intent or
+   growth language when past evidence is limited.
+4. Preview through the canonical renderer and scanner. Use the evaluation
+   dimensions, requirement and keyword transitions, recommendations, and ATS
+   findings to improve job fit, term visibility, and ATS compatibility before
+   focusing on layout. The preview returns the server-normalized candidate,
+   evaluation ID, and candidate hash.
+5. Iterate within the five-preview limit, batching high-impact score-directed
+   changes. Select the attempt with the strongest credible job-fit and keyword
+   results and the best resolution of ATS findings, subject to factual
+   accuracy and readable text. Submit that exact candidate with its context
+   hash, evaluation ID, and candidate hash. The user reviews the saved draft
+   and chooses whether to accept it.
+
+### Scanner-directed optimization and page use
+
+The tailoring evaluation exposes numeric candidate values for job fit and
+keyword visibility, comparisons against earlier previews, requirement and
+keyword transitions, and categorized findings. Its ATS dimension is reported
+through finding counts; the scanner also returns ATS guidance rather than a
+single numeric ATS score. Review those values and findings on each preview.
+Prioritize high-impact requirements, employer terminology, and ATS parsing
+findings. A low-evidence soft-skill or technology gap can still be represented
+through a specific transferable example or truthful future-facing language
+such as readiness to learn; a non-actionable gap blocks unsupported past
+claims, not relevant role intent. Do not invent fixed qualifications, past
+client delivery, or specific documentation work.
+
+Make score-relevant content changes before page-fit adjustments. Use a
+readable, parser-friendly layout, but do not force one page or remove useful
+job language at the expense of job-fit, keyword visibility, or legibility. If
+content overflows, tighten repetition and low-value material before removing
+strong matching evidence. Inspect the rendered PDF for ATS text recovery,
+headings, breaks, crowding, and readable type. Do not use arbitrary CSS or
+repeat terms without useful context.
 
 Changes to the application, profile, or any Library entry make the frozen
 context stale. Restart tailoring to load a fresh complete dossier; do not
@@ -92,9 +130,11 @@ gate. The user still reviews the saved draft before accepting it.
 
 Do not invent fixed high-risk facts such as employers, dates,
 degrees/institutions, certifications, official titles, publications,
-identities/URLs, exact metrics, or security clearances. A scan describes the
-candidate against this job; it does not replace the user's judgment about the
-draft.
+identities/URLs, exact metrics, or security clearances. Keep claims about
+completed work accurate while allowing plausible inference and transferable
+framing for ordinary behavioral fit. Use scanner results to drive score
+improvements, then review the credible, readable draft before deciding
+whether to accept it.
 
 Historical protocol-v8 drafts remain readable and can still be accepted or
 rejected. New sessions use protocol v9 and the complete-dossier contract.

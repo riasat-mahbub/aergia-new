@@ -37,6 +37,12 @@ Avoid vague phrases such as:
 
 Prefer concrete information over generic positive language.
 
+Keep important employer terms when they accurately describe the candidate's
+skills, transferable work, or credible intent. A term such as "communication"
+or "motivated" may matter for job fit; attach it to this role and the
+candidate's actual work or goal instead of omitting it because it sounds
+generic in isolation.
+
 ## 4. Prefer ordinary verbs when they are more precise
 
 Use direct verbs such as:

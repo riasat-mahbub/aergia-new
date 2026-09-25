@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -38,6 +38,26 @@ async function allWorkspaceText(directory) {
     else contents.push(await readFile(path, "utf8"));
   }
   return contents.join("\n");
+}
+
+async function writeIdealTargetAtomically(output, contents = "# Ideal target\n\nA fictional CV for the target role.\n") {
+  const temporaryPath = join(output, ".ideal-target.md.tmp");
+  const targetPath = join(output, "ideal-target.md");
+  await writeFile(temporaryPath, contents);
+  await rename(temporaryPath, targetPath);
+  return targetPath;
+}
+
+async function releaseIdealTarget(evidence, output) {
+  const jobPath = join(evidence, "job.json");
+  const contextPath = join(evidence, "context.json");
+  const job = await waitForJson(jobPath, (value) => value.company === "Example");
+  await waitForJson(join(output, "tailoring-status.json"), (value) => value.state === "awaiting_ideal_target");
+  assert.deepEqual((await readdir(evidence)).sort(), ["job.json"]);
+  await assert.rejects(readFile(contextPath, "utf8"), { code: "ENOENT" });
+  await writeIdealTargetAtomically(output);
+  await waitForJson(contextPath, (value) => value.protocol_version === PROTOCOL_VERSION);
+  return job;
 }
 
 function makeContext() {
@@ -103,6 +123,9 @@ async function runComposerSession({
   const calls = [];
   const previewBodies = [];
   const submitBodies = [];
+  const helperOutput = [];
+  const originalStdoutWrite = process.stdout.write;
+  const originalStderrWrite = process.stderr.write;
   let submitCount = 0;
   let savedSubmitResult = null;
   const originalFetch = globalThis.fetch;
@@ -162,14 +185,29 @@ async function runComposerSession({
     }
     throw new Error(`Unexpected request ${path}`);
   };
+  process.stdout.write = function (chunk, ...args) {
+    helperOutput.push(Buffer.isBuffer(chunk) ? chunk.toString("utf8") : String(chunk));
+    return originalStdoutWrite.call(this, chunk, ...args);
+  };
+  process.stderr.write = function (chunk, ...args) {
+    helperOutput.push(Buffer.isBuffer(chunk) ? chunk.toString("utf8") : String(chunk));
+    return originalStderrWrite.call(this, chunk, ...args);
+  };
 
   try {
     const resultPromise = runSession("https://aergia.example/agent/tailor/session-1", workspace, { code: "code-1234567890123456" });
     void resultPromise.catch(() => undefined);
-    await waitForJson(join(evidence, "context.json"), (value) => value.protocol_version === PROTOCOL_VERSION);
+    const stagedJob = await releaseIdealTarget(evidence, output);
 
     const stagedContext = JSON.parse(await readFile(join(evidence, "context.json"), "utf8"));
     assert.equal(stagedContext.dossier, context.dossier);
+    assert.deepEqual(stagedJob, {
+      company: "Example",
+      role: "Engineer",
+      job_url: null,
+      description: "Build APIs",
+      user_instructions: "Emphasize backend delivery",
+    });
     assert.equal(stagedContext.job.user_instructions, "Emphasize backend delivery");
 
     const previews = [];
@@ -219,8 +257,10 @@ async function runComposerSession({
     const result = await resultPromise;
     const frozenCandidate = JSON.parse(await readFile(join(output, "attempts", selectedPreview.evaluation_id, "candidate.json"), "utf8"));
     const workspaceText = await allWorkspaceText(workspace);
-    return { result, calls, previewBodies, submitBodies, previews, selectedPreview, frozenCandidate, workspaceText };
+    return { result, calls, previewBodies, submitBodies, previews, selectedPreview, frozenCandidate, workspaceText, helperOutput: helperOutput.join("\n") };
   } finally {
+    process.stdout.write = originalStdoutWrite;
+    process.stderr.write = originalStderrWrite;
     globalThis.fetch = originalFetch;
     await rm(workspace, { recursive: true, force: true });
   }
@@ -233,8 +273,8 @@ test("session helper accepts only scoped Aergia session links", () => {
   assert.throws(() => serverOriginFromSessionUrl("javascript:alert(1)"), /safe HTTP\(S\)/);
 });
 
-test("v9 fetches one complete dossier, freezes the canonical preview, and binds explicit submission", { concurrency: false }, async () => {
-  const { result, calls, previewBodies, submitBodies, selectedPreview, frozenCandidate, workspaceText } = await runComposerSession();
+test("v9 withholds the dossier until an ideal target is complete, then freezes and explicitly submits a canonical preview", { concurrency: false }, async () => {
+  const { result, calls, previewBodies, submitBodies, selectedPreview, frozenCandidate, workspaceText, helperOutput } = await runComposerSession();
   assert.equal(result.status, "draft_ready");
   assert.deepEqual(calls.map((call) => call.path), [
     "/api/v1/tailoring/exchange",
@@ -252,7 +292,84 @@ test("v9 fetches one complete dossier, freezes the canonical preview, and binds 
   assert.equal(submit.evaluation_id, selectedPreview.evaluation_id);
   assert.equal(submit.candidate_hash, selectedPreview.candidate_hash);
   assert.equal(workspaceText.includes(capability), false);
+  assert.equal(helperOutput.includes(makeContext().dossier), false);
   assert.doesNotMatch(workspaceText, /EDITORIAL_REVIEW|editorial-review|candidate-propositions|index-refresh/);
+});
+
+test("stage zero accepts only a bounded, nonblank regular ideal target", { concurrency: false }, async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "aergia-tailor-ideal-gate-"));
+  const output = join(workspace, "output");
+  const evidence = join(workspace, "evidence");
+  const context = makeContext();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const path = new URL(String(url)).pathname;
+    if (path.endsWith("/exchange")) return Response.json({ protocol_version: PROTOCOL_VERSION, capability });
+    if (path.endsWith("/context")) return Response.json(context);
+    if (path.endsWith("/preview")) return Response.json({ detail: "The tailoring context changed; start a new session" }, { status: 409 });
+    throw new Error(`Unexpected request ${path}`);
+  };
+  try {
+    const resultPromise = runSession("https://aergia.example/agent/tailor/session-1", workspace, { code: "code-1234567890123456" });
+    void resultPromise.catch(() => undefined);
+    await waitForJson(join(evidence, "job.json"), (value) => value.user_instructions === "Emphasize backend delivery");
+    await waitForJson(join(output, "tailoring-status.json"), (value) => value.state === "awaiting_ideal_target");
+    assert.deepEqual((await readdir(evidence)).sort(), ["job.json"]);
+
+    const targetPath = join(output, "ideal-target.md");
+    await mkdir(targetPath);
+    const directoryStatus = await waitForJson(join(output, "tailoring-status.json"), (value) => value.state === "ideal_target_invalid");
+    assert.match(directoryStatus.error, /regular file/);
+    await assert.rejects(readFile(join(evidence, "context.json"), "utf8"), { code: "ENOENT" });
+    await rm(targetPath, { recursive: true });
+
+    await writeIdealTargetAtomically(output, "x".repeat(1_048_577));
+    const oversizedStatus = await waitForJson(join(output, "tailoring-status.json"), (value) => value.state === "ideal_target_invalid" && /no larger than/.test(value.error));
+    assert.match(oversizedStatus.error, /no larger than/);
+    await assert.rejects(readFile(join(evidence, "context.json"), "utf8"), { code: "ENOENT" });
+
+    await writeIdealTargetAtomically(output, " \n\t ");
+    const blankStatus = await waitForJson(join(output, "tailoring-status.json"), (value) => value.state === "ideal_target_invalid" && /blank/.test(value.error));
+    assert.match(blankStatus.error, /blank/);
+    await assert.rejects(readFile(join(evidence, "context.json"), "utf8"), { code: "ENOENT" });
+
+    await writeIdealTargetAtomically(output);
+    await waitForJson(join(evidence, "context.json"), (value) => value.protocol_version === PROTOCOL_VERSION);
+    await writeFile(join(output, "candidate.json"), JSON.stringify({ title: "Candidate", raw_content: "Supported draft" }));
+    await writeFile(join(output, "RENDER"), "");
+    await assert.rejects(resultPromise, /Start a new tailoring session/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("expires while waiting for the ideal target without revealing the dossier", { concurrency: false }, async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "aergia-tailor-ideal-expiry-"));
+  const output = join(workspace, "output");
+  const evidence = join(workspace, "evidence");
+  const context = makeContext();
+  context.expires_at = new Date(Date.now() + 1_200).toISOString();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const path = new URL(String(url)).pathname;
+    if (path.endsWith("/exchange")) return Response.json({ protocol_version: PROTOCOL_VERSION, capability });
+    if (path.endsWith("/context")) return Response.json(context);
+    throw new Error(`Unexpected request ${path}`);
+  };
+  try {
+    const resultPromise = runSession("https://aergia.example/agent/tailor/session-1", workspace, { code: "code-1234567890123456" });
+    void resultPromise.catch(() => undefined);
+    await waitForJson(join(evidence, "job.json"), (value) => value.company === "Example");
+    await assert.rejects(resultPromise, /expired before the ideal target was completed/);
+    const status = JSON.parse(await readFile(join(output, "tailoring-status.json"), "utf8"));
+    assert.equal(status.state, "session_expired");
+    assert.deepEqual((await readdir(evidence)).sort(), ["job.json"]);
+    await assert.rejects(readFile(join(evidence, "context.json"), "utf8"), { code: "ENOENT" });
+  } finally {
+    globalThis.fetch = originalFetch;
+    await rm(workspace, { recursive: true, force: true });
+  }
 });
 
 test("selects an earlier frozen canonical preview after a later edit", { concurrency: false }, async () => {
@@ -334,7 +451,7 @@ test("stops when the server says the tailoring context is stale", { concurrency:
   try {
     const resultPromise = runSession("https://aergia.example/agent/tailor/session-1", workspace, { code: "code-1234567890123456" });
     void resultPromise.catch(() => undefined);
-    await waitForJson(join(evidence, "context.json"), (value) => value.protocol_version === PROTOCOL_VERSION);
+    await releaseIdealTarget(evidence, output);
     await writeFile(join(output, "candidate.json"), JSON.stringify({ title: "Candidate" }));
     await writeFile(join(output, "RENDER"), "");
     await assert.rejects(resultPromise, /Start a new tailoring session/);
@@ -393,7 +510,7 @@ test("lets the agent submit a saved preview after the server declines another on
   try {
     const resultPromise = runSession("https://aergia.example/agent/tailor/session-1", workspace, { code: "code-1234567890123456" });
     void resultPromise.catch(() => undefined);
-    await waitForJson(join(evidence, "context.json"), (value) => value.protocol_version === PROTOCOL_VERSION);
+    await releaseIdealTarget(evidence, output);
     await writeFile(join(output, "candidate.json"), JSON.stringify({ title: "First draft", raw_content: "First version" }));
     await writeFile(join(output, "RENDER"), "");
     const firstPreview = await waitForJson(join(output, "candidate-preview.json"), (value) => value.evaluation_id === "evaluation_0123456789abcdef");
@@ -477,7 +594,7 @@ test("shows safe server validation locations and messages so a candidate can be 
   try {
     const resultPromise = runSession("https://aergia.example/agent/tailor/session-1", workspace, { code: "code-1234567890123456" });
     void resultPromise.catch(() => undefined);
-    await waitForJson(join(evidence, "context.json"), (value) => value.protocol_version === PROTOCOL_VERSION);
+    await releaseIdealTarget(evidence, output);
     await writeFile(join(output, "candidate.json"), JSON.stringify({ title: "Invalid first attempt" }));
     await writeFile(join(output, "RENDER"), "");
     const validationStatus = await waitForJson(join(output, "tailoring-status.json"), (value) => value.state === "candidate_or_preview_error");
