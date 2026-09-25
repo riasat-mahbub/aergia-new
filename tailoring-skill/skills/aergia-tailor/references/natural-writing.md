@@ -1,107 +1,176 @@
-# Natural writing and anti-generic prose rules
+# Natural Writing and Anti-Generic Prose Rules
 
-Use these rules whenever writing or rewriting candidate-facing prose, including profile summaries, CV bullets, project descriptions, research descriptions, application answers, cover-letter-style text, and review-facing explanations that are intended to sound like the candidate.
+Use these rules whenever writing or rewriting candidate-facing prose.
 
-The objective is not to evade AI detectors. Automated AI-writing detectors are imperfect and must not be treated as a target metric. The objective is specific, credible, economical professional writing that sounds like it belongs to this candidate.
+The goal is specific, natural professional writing. Do not optimize for AI detectors or imitate human mistakes.
 
-## 1. Prefer target-relevant meaning over source literalness
+## 1. Write for the specific candidate
 
-Start with what the target role values, then choose candidate material that communicates those
-priorities. Reframe, abstract, and combine material when that makes the candidate more relevant.
-Specific technologies, decisions, and implementation details earn space when they strengthen target
-fit or differentiation; omit or generalize them when incidental. Do not retain an irrelevant
-technology merely because it is explicit or easy to prove. Reasonable professional inference may be
-stated directly when it makes the candidate's relevance clearer.
+Prefer details, wording, technologies, responsibilities, and outcomes that clearly belong to this candidate.
+
+Avoid sentences that could be pasted unchanged into many unrelated CVs or applications.
 
 ## 2. State the useful point directly
 
-Avoid introductory padding, scene-setting, and generic framing when the next sentence contains the real information. Start with the action, evidence, motivation, or conclusion that matters.
+Lead with the action, capability, result, problem, or relevant interpretation.
 
-## 3. Do not use formulaic sentence patterns repeatedly
+Avoid unnecessary openings such as:
 
-Avoid repeating the same grammatical construction across bullets or paragraphs. In particular, do not make every point follow patterns such as "leveraged X to Y," "by doing X, achieved Y," or "X, ensuring Y." Vary structure only when the content naturally calls for it; do not mechanically rewrite sentences merely to create variation.
+* “In this role, I was responsible for...”
+* “I had the opportunity to...”
+* “As part of my responsibilities...”
 
-## 4. Do not ban individual words; avoid clusters of generic elevated language
+when the real point can simply be stated.
 
-Words such as `robust`, `significant`, `critical`, `comprehensive`, `ensure`, `enhance`, and `support` are valid English. Use them when they are the most precise choice, but avoid stacking vague, elevated language when simpler or more concrete wording carries more information.
+## 3. Avoid generic corporate filler
 
-## 5. Match the candidate and the genre's appropriate level of formality
+Avoid vague phrases such as:
 
-Professional writing does not need to be maximally formal. Use straightforward syntax and ordinary vocabulary when appropriate. A CV bullet should be concise and evidence-heavy; a cover letter or application answer may contain more connective reasoning and voice; research material may appropriately be more formal.
+* results-driven professional
+* proven track record
+* passionate about technology
+* dynamic environment
+* innovative solutions
+* meaningful impact
+* highly motivated
+* detail-oriented team player
 
-## 6. Preserve genuine candidate perspective
+Prefer concrete information over generic positive language.
 
-When supplied material contains a real preference, motivation, lesson, observation, or opinion, preserve it when relevant. Do not replace distinctive reasoning with generic enthusiasm that could apply to any applicant.
+## 4. Prefer ordinary verbs when they are more precise
 
-## 7. Do not manufacture personality
+Use direct verbs such as:
 
-Do not add jokes, slang, rhetorical questions, quirky metaphors, fake anecdotes, deliberate grammar mistakes, misspellings, fragments, or artificial imperfections merely to sound human. Personality should come from the candidate's real material or an explicitly requested tone.
+* built
+* developed
+* tested
+* fixed
+* deployed
+* maintained
+* analyzed
+* improved
 
-## 8. Allow uneven emphasis
+Do not automatically replace them with words such as:
 
-Give more space to the strongest, most relevant, or most unusual evidence and less to obvious or secondary material. Do not force every project, role, paragraph, or bullet into the same information density merely for symmetry.
+* leveraged
+* spearheaded
+* orchestrated
+* championed
+* facilitated
 
-## 9. Avoid excessive rhetorical symmetry
+Stronger verbs are fine when they accurately describe what happened.
 
-Do not overuse three-item lists, paired contrasts, repeated parallel clauses, perfectly balanced paragraph lengths, or identical bullet constructions. Parallel structure is useful when it improves scanning, but it should not become an automatic rhythm.
+## 5. Avoid repetitive sentence formulas
 
-## 10. Do not explain obvious implications
+Do not make every bullet follow the same structure.
 
-Let evidence demonstrate competence. Avoid unnecessary follow-on phrases such as "demonstrating my ability to," "showcasing my expertise," "underscoring my commitment," or "which allowed me to" when the preceding evidence already makes the point clear.
+Watch for repeated patterns such as:
 
-## 11. Do not force summary conclusions
+> Built X using Y to achieve Z.
 
-Do not automatically end a section, profile, application answer, or longer passage by restating everything that came before. End when the necessary point has been made. In longer correspondence, a conclusion may simply state interest, availability, a next step, or one final relevant connection.
+> Developed X using Y to improve Z.
 
-## 12. Do not overuse transitions
+> Implemented X using Y to enhance Z.
 
-Use transitions such as `additionally`, `moreover`, `furthermore`, `consequently`, and `importantly` only when they clarify a real relationship. Do not insert them merely to make prose sound formally cohesive.
+Vary sentence structure when the underlying material naturally differs.
 
-## 13. Prefer ordinary words when they are more precise
+## 6. Avoid excessive rhetorical symmetry
 
-Prefer `used` to `leveraged`, `built` to `crafted`, `worked with` to `collaborated alongside`, or `improved` to `elevated` when the simpler word expresses the same meaning more directly. Do not perform blind synonym replacement; choose the word that best fits the claim.
+Do not overuse:
 
-## 14. Preserve useful irregularity
+* three-item lists;
+* identical bullet lengths;
+* repeated parallel clauses;
+* paired contrasts;
+* repeated em-dash explanations;
+* perfectly balanced sentence structures.
 
-Do not normalize every sentence into the same polished house style. Sentence length may vary. Some bullets may be terse while others need more detail. Preserve concise, distinctive professional phrasing from the candidate when it works.
+Parallel structure is useful when it improves readability, not as a default writing rhythm.
 
-## 15. Make every sentence earn its place
+## 7. Do not explain obvious implications
 
-Each sentence or bullet should add evidence, useful context, relevant interpretation, a concrete motivation, an outcome, or necessary connective information. Remove wording that can disappear without meaningfully changing what the reader learns.
+Avoid unnecessary endings such as:
 
-## 16. Do not confuse polish with quality
+* “demonstrating my ability to...”
+* “showcasing my expertise in...”
+* “highlighting my skills in...”
+* “underscoring my commitment to...”
 
-Prioritize, in order: target relevance, requirement coverage, employer terminology, useful reframing
-and inference, page-space value, ATS/readability, natural flow, and layout polish. Keep fixed
-high-risk biographical facts accurate. Do not sacrifice target value merely to make every sentence
-maximally smooth or impressive-sounding.
+Let concrete evidence carry the implication when it already does.
 
-## 17. Preserve recognizable candidate voice when source writing exists
+## 8. Avoid inflated or over-polished language
 
-When previous CV material, Library descriptions, application answers, or other candidate-authored prose is available, use it as evidence of vocabulary, directness, formality, and rhythm. Improve weak writing without erasing distinctive professional phrasing that is already clear and credible.
+Prefer clear, economical wording over language designed mainly to sound impressive.
 
-## 18. Review patterns across the whole document
+Avoid stacking:
 
-AI-like or generic writing usually emerges from repeated patterns rather than one isolated word. Review the complete candidate for repeated sentence openings, repeated verbs, repeated transition words, repeated three-part constructions, excessive adjectives, unnecessary abstract nouns, uniform sentence length, uniformly polished tone, and recurring "claim → explanation → positive implication" structures.
+* adjectives;
+* abstract nouns;
+* qualification phrases;
+* transition words;
+* generic positive implications.
 
-## 19. Treat AI-like style as a cluster of signals, never a single marker
+If a shorter version communicates the same useful information, usually prefer it.
 
-Do not rewrite text merely because it contains an em dash, semicolon, a word such as `robust`, a three-item list, or another supposed AI marker. Revise when multiple problems coincide, such as generic content, repetitive syntax, vague enthusiasm, unnecessary explanation, overly uniform polish, and lack of candidate-specific detail.
+## 9. Preserve useful irregularity
 
-## 20. Never optimize for detector evasion
+Not every bullet or sentence should look identical.
 
-Do not target an AI-detector score, deliberately increase perplexity, insert errors, obscure authorship, or degrade clarity to make prose appear less machine-generated. If detector avoidance conflicts with truthful, specific, professional writing, ignore the detector objective.
+Sentence length, rhythm, detail, and emphasis may vary naturally. Some bullets may be terse while others need more context.
 
-## Final review test
+Do not normalize everything into one polished house style.
 
-Before accepting candidate-facing prose, ask:
+## 10. Preserve candidate voice
 
-- Does this sentence tell the reader something specific about this candidate?
-- Is the wording more abstract or impressive-sounding than the underlying evidence requires?
-- Does the document repeat the same rhetorical patterns too often?
-- Could this sentence be pasted into many unrelated candidates' CVs without changing much?
-- Is an explanatory clause merely narrating what the evidence already shows?
-- Has useful candidate-specific phrasing been polished into generic corporate language?
-- Is a literal detail taking space from a more relevant capability that the full history plausibly implies?
+When source material contains clear, natural phrasing, preferences, observations, or professional vocabulary, preserve what works.
 
-If the answer reveals generic or formulaic writing, revise for specificity and directness rather than artificial "humanization."
+Improve weak writing without replacing distinctive wording with generic corporate prose.
+
+Do not manufacture personality with fake anecdotes, jokes, slang, deliberate mistakes, or artificial informality.
+
+## 11. Avoid unnecessary transitions and conclusions
+
+Use words such as:
+
+* additionally
+* furthermore
+* moreover
+* importantly
+* notably
+
+only when they express a real relationship.
+
+Do not automatically add a concluding sentence that merely restates what was already said.
+
+End when the point is complete.
+
+## 12. Review patterns across the whole document
+
+Before finalizing, check for:
+
+* repeated sentence openings;
+* repeated verbs;
+* repeated bullet formulas;
+* excessive three-part lists;
+* generic corporate filler;
+* unnecessary explanatory clauses;
+* excessive adjectives;
+* uniformly polished sentence structures;
+* the same claim repeated in slightly different words.
+
+Fix repeated patterns rather than mechanically replacing isolated words.
+
+## Final Review
+
+Ask:
+
+* Is this specific to this candidate?
+* Is the useful point stated directly?
+* Could this sentence apply unchanged to many other candidates?
+* Are sentence structures becoming repetitive?
+* Is any wording inflated without adding information?
+* Is there unnecessary explanation after evidence that already makes the point?
+* Has natural candidate-specific wording been polished into generic corporate language?
+* Can anything be removed without losing useful information?
+
+Revise generic, repetitive, inflated, or unnecessary writing. Do not introduce artificial imperfections merely to make the prose appear human.
