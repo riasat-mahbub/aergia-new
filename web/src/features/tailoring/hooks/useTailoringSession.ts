@@ -105,7 +105,7 @@ export function useTailoringSession({
       setTailoringStatus(null);
       setTailoringResult(null);
       setPromptCopied(false);
-      addToast("Local tailoring session created", "info");
+      addToast("Tailoring session created", "info");
     } catch {
       addToast("Unable to create a local tailoring session", "error");
     } finally {

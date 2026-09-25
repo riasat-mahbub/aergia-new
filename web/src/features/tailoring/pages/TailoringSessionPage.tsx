@@ -18,7 +18,7 @@ export default function TailoringSessionPage({ sessionId }: TailoringSessionPage
         <p className="text-xs font-medium uppercase tracking-[0.14em] text-app-primary">Aergia tailoring session</p>
         <h1 className="mt-2 text-2xl font-bold text-app-ink">Use your coding agent</h1>
         <p className="mt-3 text-sm leading-6 text-app-ink-2">
-          Paste the complete prompt from Aergia into Codex, Claude Code, or OpenCode. The Aergia tailoring skill will retrieve the evidence, compose a tailored CV, validate it, and submit it for your review.
+          Paste the complete prompt from Aergia into Codex, Claude Code, or OpenCode. The Aergia tailoring skill will use your full profile and every Library entry, compose a tailored CV, preview the rendered result, and submit the draft for your review.
         </p>
         <p className="mt-4 rounded-md bg-app-canvas px-3 py-2 text-xs text-app-ink-3">Session: {sessionId}</p>
         <p className="mt-4 text-xs leading-5 text-app-ink-3">

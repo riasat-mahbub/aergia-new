@@ -1,4 +1,4 @@
-"""Typed contracts for server-owned tailoring evaluation (protocol v8)."""
+"""Typed contracts for server-owned tailoring evaluation (protocol v9)."""
 
 from __future__ import annotations
 
@@ -131,37 +131,9 @@ class TailoringEvaluation(_StrictModel):
     render_warnings: list[str] = Field(default_factory=list, max_length=50)
 
 
-class TailoringEditorialFinding(_StrictModel):
-    category: Literal[
-        "evidence_selection",
-        "targeting",
-        "framing",
-        "impact",
-        "clarity",
-        "natural_writing",
-        "visual_balance",
-    ]
-    severity: Literal["important", "polish", "blocking"]
-    section_id: str = Field(min_length=1, max_length=128)
-    item_id: str | None = Field(default=None, max_length=128)
-    field_path: str | None = Field(default=None, max_length=256)
-    excerpt: str = Field(min_length=1, max_length=2_000)
-    problem: str = Field(min_length=1, max_length=1_000)
-    recommended_change: str = Field(min_length=1, max_length=1_000)
-
-
-class TailoringEditorialReview(_StrictModel):
-    review_version: Literal["aergia-editorial-review-v2"] = "aergia-editorial-review-v2"
-    evaluation_id: str = Field(min_length=16, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
-    candidate_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
-    findings: list[TailoringEditorialFinding] = Field(default_factory=list, max_length=50)
-
-
 __all__ = [
     "TAILORING_EVALUATION_VERSION",
     "TailoringDimensions",
-    "TailoringEditorialFinding",
-    "TailoringEditorialReview",
     "TailoringEvaluation",
     "TailoringFindingDimension",
     "TailoringIssue",

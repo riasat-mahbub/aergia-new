@@ -10,7 +10,7 @@ export function sessionStatusLabel(status: TailoringSessionStatusResponse["statu
     case "failed": return "Tailoring failed";
     case "expired": return "Expired";
     case "cancelled": return "Cancelled";
-    case "stale": return "Context changed — restart required";
+    case "stale": return "Source data changed — restart required";
     default: return status;
   }
 }
@@ -31,7 +31,7 @@ export function terminalTailoringToast(
     case "failed": return { message: "Tailoring failed. No CV changes were saved.", type: "error" };
     case "expired": return { message: "The tailoring session expired. Start a new session to try again.", type: "info" };
     case "cancelled": return { message: "Tailoring session cancelled.", type: "info" };
-    case "stale": return { message: "The tailoring context changed. Start a new session to try again.", type: "error" };
+    case "stale": return { message: "The application, profile, or Library changed during this session. Start a new session to load the current information.", type: "error" };
     default: return null;
   }
 }

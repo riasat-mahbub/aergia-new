@@ -1,6 +1,6 @@
-"""Persistent-index whole-document tailoring and review lifecycle.
+"""Full-history whole-document tailoring and review lifecycle.
 
-Protocol v8 intentionally has one write primitive: a complete CV candidate.
+Protocol v9 intentionally has one write primitive: a complete CV candidate.
 The candidate is rendered and stored as an ordinary, unlinked CV draft.  The
 browser owner later accepts or rejects it; the scoped capability can neither
 change application linkage nor perform that review action.
@@ -12,10 +12,8 @@ import base64
 import copy
 import hashlib
 import json
-import re
 import secrets
 import asyncio
-import time
 from collections.abc import Mapping, Sequence
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -32,24 +30,17 @@ from app.http_schemas.tailoring import (
     PROTOCOL_VERSION,
     TailoringCandidateCV,
     TailoringContextResponse,
-    TailoringCV,
     TailoringExchangeResponse,
     TailoringJob,
     TailoringPreviewRequest,
     TailoringPreviewResponse,
-    TailoringRenderArtifact,
     TailoringReviewResponse,
     TailoringSection,
     TailoringSessionCreateResponse,
     TailoringSessionStatusResponse,
     TailoringScannerContext,
-    TailoringEvidenceContextResponse,
-    TailoringEvidenceSourcesResponse,
-    TailoringEvidenceSubmission,
-    TailoringEvidenceVersions,
     TailoringSubmitRequest,
     TailoringSubmitResponse,
-    TailoringSourcePreviewResponse,
     TailoringTemplate,
     TailoringCodeExchange,
 )
@@ -64,33 +55,15 @@ from app.models.tailoring_session import TailoringSession
 from app.models.template import Template
 from app.models.user import User
 from app.scanner.freshness import configured_extractor_version, scanner_result_freshness
-from app.scanner.requirements import RequirementExtraction
 from app.scanner.results import ScanResult
 from app.scanner.service import ScannerService, canonicalize_scanner_cv, scanner_versions_for_extraction
 from app.services.cv import CVService, coerce_customizations
 from app.services.pdf import PDFService, pdf_page_count
 from app.services.profile import ProfileService
 from app.services.renderer.html import HTMLDocumentRenderer
-from app.services.renderer.pipeline import prepare_render_source, resolve_source
 from app.services.rich_text import normalize_rich_text_ids
 from app.services.tailoring_validation import CandidateValidationError, validate_section_payload
 from app.services.tailoring_evaluation import evaluate_tailoring
-from app.services.candidate_evidence import (
-    CANDIDATE_EVIDENCE_EXTRACTOR_VERSION,
-    CANDIDATE_EVIDENCE_PROMPT_VERSION,
-    CANDIDATE_EVIDENCE_PROPOSITION_MODEL,
-    CANDIDATE_EVIDENCE_PROPOSITION_MODEL_REVISION,
-    CANDIDATE_EVIDENCE_SCHEMA_VERSION,
-    CandidateEvidenceSource,
-    build_candidate_evidence,
-    composer_projection,
-)
-from app.services.candidate_index import (
-    CandidateIndexService,
-    MAX_REFRESH_CHARACTERS,
-    MAX_REFRESH_SOURCES,
-)
-from app.services.tailoring_opportunities import map_tailoring_opportunities
 
 
 TAILORING_SESSION_TTL = timedelta(hours=1)
@@ -114,6 +87,8 @@ _FRESH_SECTION_ORDER: tuple[tuple[str, str], ...] = (
     ("projects", "Projects"),
     ("research", "Research"),
 )
+_RICH_TEXT_BLOCK_TYPES = frozenset({"paragraph", "bullet_list", "numbered_list"})
+_DOSSIER_LABELS = {"id": "ID", "url": "URL", "cv": "CV", "api": "API", "ats": "ATS"}
 
 
 def _utcnow() -> datetime:
@@ -179,21 +154,6 @@ def library_entry_content_hash(entry: LibraryEntry | Mapping[str, Any]) -> str:
     return _content_hash({"id": entry_id, "kind": kind, "payload": payload})
 
 
-def requirements_snapshot_hash(requirements: Any) -> str:
-    """Hash frozen scanner requirements or a complete extraction snapshot."""
-
-    if isinstance(requirements, RequirementExtraction):
-        payload = requirements.model_dump(mode="json")
-    elif hasattr(requirements, "model_dump"):
-        payload = requirements.model_dump(mode="json")
-    else:
-        payload = [
-            item.model_dump(mode="json") if hasattr(item, "model_dump") else item
-            for item in requirements
-        ]
-    return _content_hash(payload)
-
-
 def profile_snapshot_hash(profile: Mapping[str, Any]) -> str:
     return _content_hash(dict(profile))
 
@@ -209,14 +169,14 @@ def build_tailoring_prompt(
     protocol_version: int = PROTOCOL_VERSION,
 ) -> str:
     return (
-        "Use the Aergia persistent-index tailoring skill for this session:\n\n"
+        "Use the Aergia full-history tailoring skill for this session:\n\n"
         f"{session_url}\n\n"
         f"One-time session code: {code}\n\n"
-        "The skill checks and refreshes stale candidate-index sources in an isolated job-blind worker, "
-        "then gives the writer a bounded set of current Library narratives with the job, linked CV, "
-        "requirements, and renderer capabilities. Re-author one complete truthful CV, verify it, "
-        "render and review each candidate. Fix any known serious issue, make another truthful revision "
-        "when it is worthwhile, or select the strongest reviewed candidate for my review. "
+        "The session provides the job and notes, one complete readable dossier from the profile and "
+        "every Library entry, and the available templates and renderer constraints. Compose one complete "
+        "truthful CV from that material. Preview candidates through Aergia, use the canonical candidate "
+        "returned by the selected preview exactly as returned, and submit it with that preview's context "
+        "and candidate hashes. The context is frozen; if Aergia reports it is stale, start a new session. "
         "Never accept or reject the draft through the agent capability.\n\n"
         "If the aergia-tailor skill is missing or incompatible, ask for my "
         "approval to download and install this official bundle:\n\n"
@@ -289,6 +249,157 @@ def _profile_payload(profile: Any) -> dict[str, Any]:
     return profile.model_dump(mode="json", exclude_none=True, exclude={"photo_url"})
 
 
+def _dossier_label(value: object) -> str:
+    words = str(value).replace("_", " ").split()
+    return " ".join(_DOSSIER_LABELS.get(word.casefold(), word.capitalize()) for word in words)
+
+
+def _is_rich_text_block(value: object) -> bool:
+    return (
+        isinstance(value, Mapping)
+        and value.get("type") in _RICH_TEXT_BLOCK_TYPES
+        and isinstance(value.get("items"), list)
+        and all(isinstance(item, Mapping) and isinstance(item.get("text"), str) for item in value["items"])
+    )
+
+
+def _is_rich_text_blocks(value: object) -> bool:
+    return isinstance(value, list) and bool(value) and all(_is_rich_text_block(block) for block in value)
+
+
+def _rich_text_item_text(item: Mapping[str, Any]) -> str:
+    text = item.get("text", "")
+    style = item.get("style")
+    link = style.get("link") if isinstance(style, Mapping) else None
+    if isinstance(link, str) and link:
+        text += f" [link: {link}]"
+    extra = {key: value for key, value in item.items() if key not in {"id", "text", "style"}}
+    if extra:
+        text += f" [additional fields: {json.dumps(extra, ensure_ascii=False, default=str)}]"
+    return text
+
+
+def _append_dossier_text(lines: list[str], label: str, value: str, indent: int) -> None:
+    prefix = "  " * indent
+    value_lines = value.splitlines() or [""]
+    lines.append(f"{prefix}{label}: {value_lines[0]}")
+    lines.extend(f"{prefix}  {line}" for line in value_lines[1:])
+
+
+def _append_rich_text(lines: list[str], label: str, value: list[Any], indent: int) -> None:
+    prefix = "  " * indent
+    if label:
+        lines.append(f"{prefix}{label}:")
+        prefix += "  "
+    for block in value:
+        if not _is_rich_text_block(block):
+            continue
+        block_type = block["type"]
+        rendered_items = [_rich_text_item_text(item) for item in block["items"]]
+        if block_type == "paragraph":
+            paragraph = "".join(rendered_items)
+            if paragraph:
+                lines.extend(f"{prefix}{line}" for line in paragraph.splitlines())
+        else:
+            marker = "- " if block_type == "bullet_list" else None
+            for index, item_text in enumerate(rendered_items, start=1):
+                if not item_text:
+                    continue
+                item_marker = marker if marker is not None else f"{index}. "
+                lines.extend(f"{prefix}{item_marker}{line}" for line in item_text.splitlines())
+        extra = {
+            key: child
+            for key, child in block.items()
+            if key not in {"id", "type", "items", "style"}
+        }
+        for key, child in extra.items():
+            _append_dossier_value(lines, _dossier_label(key), child, indent + (1 if label else 0))
+
+
+def _append_dossier_value(lines: list[str], label: str, value: Any, indent: int = 0) -> None:
+    prefix = "  " * indent
+    if value is None:
+        return
+    if _is_rich_text_block(value):
+        _append_rich_text(lines, label, [value], indent)
+        return
+    if isinstance(value, str):
+        if value:
+            _append_dossier_text(lines, label, value, indent)
+        return
+    if isinstance(value, Mapping):
+        if not value:
+            return
+        lines.append(f"{prefix}{label}:")
+        for key, child in value.items():
+            if key == "style":
+                continue
+            _append_dossier_value(lines, _dossier_label(key), child, indent + 1)
+        return
+    if isinstance(value, list):
+        if _is_rich_text_blocks(value):
+            _append_rich_text(lines, label, value, indent)
+            return
+        if not value:
+            return
+        lines.append(f"{prefix}{label}:")
+        for index, child in enumerate(value, start=1):
+            if isinstance(child, Mapping):
+                child_id = child.get("id")
+                item_label = f"Entry {index}"
+                if child_id is not None:
+                    item_label += f" (ID: {child_id})"
+                _append_dossier_value(lines, item_label, child, indent + 1)
+            elif isinstance(child, (str, int, float, bool)):
+                child_lines = str(child).splitlines() or [""]
+                lines.append(f"{'  ' * (indent + 1)}- {child_lines[0]}")
+                lines.extend(f"{'  ' * (indent + 2)}{line}" for line in child_lines[1:])
+            else:
+                fallback = json.dumps(child, ensure_ascii=False, indent=2, default=str)
+                _append_dossier_text(lines, f"Entry {index}", fallback, indent + 1)
+        return
+    if isinstance(value, bool):
+        _append_dossier_text(lines, label, "true" if value else "false", indent)
+        return
+    if isinstance(value, (int, float)):
+        _append_dossier_text(lines, label, str(value), indent)
+        return
+    fallback = json.dumps(value, ensure_ascii=False, indent=2, default=str)
+    _append_dossier_text(lines, label, fallback, indent)
+
+
+def _build_dossier(profile: Mapping[str, Any], entries: Sequence[LibraryEntry]) -> str:
+    """Render all profile and Library facts without exposing renderer JSON."""
+
+    parts = ["# Candidate dossier", "", "## Profile"]
+    for key, value in profile.items():
+        _append_dossier_value(parts, _dossier_label(key), value, indent=1)
+    if not profile:
+        parts.append("  No profile fields are available.")
+    parts.extend(("", "## Library history"))
+    if not entries:
+        parts.append("No Library entries are available.")
+    for entry in entries:
+        parts.extend(("", f"### {entry.kind.title()} — Library entry ID: {entry.id}"))
+        payload = entry.payload or []
+        if not payload:
+            parts.append("  No saved rows.")
+        for index, row in enumerate(payload, start=1):
+            if isinstance(row, Mapping):
+                row_id = row.get("id")
+                heading = f"  {entry.kind.title()} {index}"
+                if row_id is not None:
+                    heading += f" — Row ID: {row_id}"
+                parts.append(f"{heading}:")
+                for key, value in row.items():
+                    if key in {"id", "style"}:
+                        continue
+                    _append_dossier_value(parts, _dossier_label(key), value, indent=2)
+            else:
+                _append_dossier_value(parts, f"Row {index}", row, indent=1)
+    return "\n".join(parts)
+
+
 def _application_context_snapshot(application: Application) -> dict[str, Any]:
     return {
         "id": application.id,
@@ -308,28 +419,6 @@ def _template_manifest(template: Template) -> dict[str, Any] | None:
         return TemplateManifest.model_validate(template.manifest).model_dump(mode="json")
     except ValidationError:
         return None
-
-
-def _job_terms(requirements: Sequence[Any]) -> list[str]:
-    terms: set[str] = set()
-
-    def visit(value: Any) -> None:
-        if isinstance(value, Mapping):
-            concept = value.get("concept")
-            if isinstance(concept, Mapping):
-                name = concept.get("name")
-                if isinstance(name, str) and name.strip():
-                    terms.add(name.strip())
-            for child in value.values():
-                visit(child)
-        elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
-            for child in value:
-                visit(child)
-
-    for requirement in requirements:
-        payload = requirement.model_dump(mode="python") if hasattr(requirement, "model_dump") else requirement
-        visit(payload)
-    return sorted(terms, key=str.casefold)[:500]
 
 
 class TailoringService:
@@ -358,7 +447,7 @@ class TailoringService:
             select(LibraryEntry)
             .join(Library, LibraryEntry.library_id == Library.id)
             .where(Library.user_id == user_id)
-            .order_by(LibraryEntry.created_at.asc())
+            .order_by(LibraryEntry.created_at.asc(), LibraryEntry.id.asc())
         )
         return list(result.scalars().all())
 
@@ -391,27 +480,6 @@ class TailoringService:
         )
         if not selected_template_id:
             raise TailoringUnavailableError("No renderable templates are available")
-        effective: dict[str, Any] = {}
-        if source_cv is not None:
-            try:
-                source = prepare_render_source(
-                    source_cv.sections or [],
-                    manifest_by_id.get(source_cv.template_id),
-                    source_cv.customizations or {},
-                )
-                resolved = resolve_source(source, HTMLDocumentRenderer())
-                effective = {
-                    "template_id": source_cv.template_id,
-                    "body_font": resolved.body_font,
-                    "heading_font": resolved.heading_font,
-                    "css_vars": resolved.css_vars,
-                    "sections": {
-                        section_id: section.model_dump(mode="json", exclude_none=True)
-                        for section_id, section in resolved.sections.items()
-                    },
-                }
-            except (ValidationError, ValueError, KeyError):
-                effective = {"template_id": source_cv.template_id, "unavailable": True}
         return {
             "application": application,
             "source_cv": source_cv,
@@ -422,7 +490,6 @@ class TailoringService:
             "manifest_by_id": manifest_by_id,
             "selected_template_id": selected_template_id,
             "capabilities": capabilities,
-            "effective": effective,
         }
 
     async def _render_cv_pdf(self, cv: CV) -> bytes | None:
@@ -488,15 +555,33 @@ class TailoringService:
         application: Application = resources["application"]
         source_cv: CV | None = resources["source_cv"]
         libraries: list[LibraryEntry] = resources["libraries"]
-        manifest_by_id: dict[str, dict[str, Any]] = resources["manifest_by_id"]
+        templates: list[Template] = resources["templates"]
         capabilities: dict[str, Any] = resources["capabilities"]
         return {
             "application": _application_context_snapshot(application),
-            "profile": resources["profile_data"],
+            "profile": resources["profile"].model_dump(mode="json", exclude_none=True),
             "source_cv": cv_snapshot_hash(source_cv),
-            "library": {entry.id: library_entry_content_hash(entry) for entry in libraries},
+            "library": {
+                entry.id: {
+                    "content_hash": library_entry_content_hash(entry),
+                    "updated_at": entry.updated_at.isoformat() if entry.updated_at else None,
+                }
+                for entry in libraries
+            },
             "scanner": scanner_context.model_dump(mode="json"),
-            "templates": manifest_by_id,
+            "templates": [
+                {
+                    "id": template.id,
+                    "name": template.name,
+                    "description": template.description,
+                    "preview_image_url": template.preview_image_url,
+                    "manifest": template.manifest,
+                    "assets": template.assets,
+                    "created_at": template.created_at.isoformat() if template.created_at else None,
+                }
+                for template in templates
+            ],
+            "selected_template_id": resources["selected_template_id"],
             "capabilities": capabilities_hash(capabilities),
             "evaluation_version": TAILORING_EVALUATION_VERSION,
         }
@@ -510,12 +595,9 @@ class TailoringService:
         if session.protocol_version != PROTOCOL_VERSION:
             raise TailoringStaleError("This tailoring session uses an older protocol; start a new session")
         resources = await self._context_resources(session)
-        index_service = CandidateIndexService(self.db)
-        indexed_sources = await index_service.ensure_current(session.user_id)
-        fresh_sources, semantic_results, source_counts = await index_service.fresh_semantic_results(session.user_id)
         if not session.context_snapshot:
             if not initialize:
-                raise TailoringStaleError("This tailoring session predates protocol v8; start a new session")
+                raise TailoringStaleError("This tailoring session predates protocol v9; start a new session")
             scanner_context = await self._freeze_scanner_context(resources)
             basis = self._context_basis(resources, scanner_context)
             session.context_snapshot = {
@@ -544,93 +626,24 @@ class TailoringService:
                 raise TailoringStaleError("The scanner contract changed; start a new tailoring session")
             current_basis = self._context_basis(resources, scanner_context)
             if _content_hash(current_basis) != _content_hash(frozen_basis):
-                current_without_library = {key: value for key, value in current_basis.items() if key != "library"}
-                frozen_without_library = {key: value for key, value in frozen_basis.items() if key != "library"}
-                if _content_hash(current_without_library) != _content_hash(frozen_without_library):
-                    raise TailoringStaleError("The tailoring context changed; start a new session")
-                # Candidate Library material is live-indexed. If a source was
-                # edited while its old fingerprint was being refreshed, use
-                # the current source version and leave the old result stale.
-                snapshot = copy.deepcopy(session.context_snapshot)
-                snapshot["basis"] = current_basis
-                session.context_snapshot = snapshot
-                session.context_hash = _content_hash(current_basis)
-                await self.db.flush()
+                raise TailoringStaleError("The tailoring context changed; start a new session")
 
         context_snapshot = session.context_snapshot
         scanner_context = TailoringScannerContext.model_validate(context_snapshot["scanner"])
         basis = self._context_basis(resources, scanner_context)
-        application: Application = resources["application"]
-        retrieval_query = " ".join((
-            application.job_description,
-            *_job_terms(scanner_context.requirement_extraction.requirements),
-        ))[:60_000]
-        retrieved_index_sources = await index_service.search_sources(
-            session.user_id,
-            retrieval_query,
-            max_sources=500,
-        )
         return {
             **resources,
-            # The context hash freezes these rows for the session. Pass a
-            # serialized copy into the pure evaluator rather than exposing
-            # database/ORM access to tailoring_evaluation.py.
+            # Pass a serialized copy to the pure evaluation service rather
+            # than exposing database/ORM access to it.
             "authoritative_library": [
                 {
                     "id": entry.id,
                     "kind": entry.kind,
                     "payload": copy.deepcopy(entry.payload or []),
-                    "_row_ids": list(entry.row_ids or []),
                 }
                 for entry in resources["libraries"]
             ],
-            "candidate_index_sources": [
-                CandidateEvidenceSource(
-                    source_id=source.source_id,
-                    entry_id=source.library_entry_id,
-                    row_id=source.row_id,
-                    kind=source.kind,
-                    identity=source.identity or {},
-                    structured_facts=source.structured_facts or {},
-                    source_field=source.field_path,
-                    source_hash=source.source_fingerprint,
-                    raw_value=source.narrative,
-                    text=source.narrative,
-                    canonical_skills=list(source.canonical_skills or []),
-                )
-                for source in retrieved_index_sources
-                if source.field_path != "$row"
-            ],
-            "candidate_index_rows": [
-                {
-                    "source_id": source.source_id,
-                    "kind": source.kind,
-                    "identity": source.identity or {},
-                    "structured_facts": source.structured_facts or {},
-                    "canonical_skills": list(source.canonical_skills or []),
-                    "normalized_text": source.normalized_text,
-                }
-                for source in retrieved_index_sources
-                if source.field_path == "$row"
-            ],
-            "fresh_candidate_sources": fresh_sources,
-            "fresh_candidate_semantics": semantic_results,
-            "candidate_source_counts": source_counts,
-            "candidate_index_summary": {
-                "schema_version": "candidate-index-v1",
-                "canonical_skills": sorted({skill for item in indexed_sources for skill in (item.canonical_skills or [])}),
-                "source_count": len([item for item in indexed_sources if item.field_path != "$row"]),
-                "row_count": sum(source.field_path == "$row" for source in indexed_sources),
-                "semantic_source_counts": {key.lower(): value for key, value in source_counts.items()},
-                "cache_state": (
-                    "warm" if source_counts["STALE"] == 0 and source_counts["MISSING"] == 0
-                    else "mixed" if source_counts["STALE"] and source_counts["MISSING"]
-                    else "stale" if source_counts["STALE"]
-                    else "missing"
-                ),
-            },
             "scanner_context": scanner_context,
-            "requirements": scanner_context.requirement_extraction.requirements,
             "context_hash": _content_hash(basis),
         }
 
@@ -735,8 +748,8 @@ class TailoringService:
     @staticmethod
     def _status_response(session: TailoringSession) -> TailoringSessionStatusResponse:
         return TailoringSessionStatusResponse(
-            # Historical v4-v7 drafts remain readable/reviewable. New sessions
-            # use the v8 contract through review.
+            # Historical v4-v8 drafts remain readable/reviewable. New sessions
+            # use the v9 contract through review.
             protocol_version=session.protocol_version or PROTOCOL_VERSION,
             session_id=session.id,
             application_id=session.application_id,
@@ -999,78 +1012,7 @@ class TailoringService:
             for template in parts["templates"]
             if template.id in parts["manifest_by_id"]
         ]
-        previous = None
-        if source_cv is not None:
-            previous = TailoringCV.model_validate(
-                {
-                    "id": source_cv.id,
-                    "title": source_cv.title,
-                    "description": source_cv.description,
-                    "template_id": source_cv.template_id,
-                    "sections": source_cv.sections or [],
-                    "customizations": source_cv.customizations or {},
-                }
-            )
-        linked_cv = previous
-        opportunities, rich_sources = map_tailoring_opportunities(
-            parts["scanner_context"].requirement_extraction,
-            parts["scanner_context"].source_scan,
-            linked_cv,
-            parts["candidate_index_sources"],
-        )
-        retrieved_ids = {source["source_id"] for source in rich_sources}
-        semantic_by_id = {
-            item["source_id"]: item
-            for item in parts["fresh_candidate_semantics"]
-            if isinstance(item, Mapping)
-            and isinstance(item.get("source_id"), str)
-            and item["source_id"] in retrieved_ids
-        }
-        extraction = build_candidate_evidence(
-            parts["authoritative_library"],
-            list(semantic_by_id.values()),
-            require_complete=False,
-            source_ids=retrieved_ids,
-        )
-        projection = composer_projection(extraction)
-        for source in rich_sources:
-            source["source_fingerprint"] = source.pop("content_hash", "")
-            semantic = semantic_by_id.get(source["source_id"], {})
-            source["semantic_claims"] = copy.deepcopy(semantic.get("claims", []))
-        focus_terms = {
-            str(term).casefold()
-            for term in _job_terms(parts["requirements"])
-            if isinstance(term, str) and len(term.strip()) >= 3
-        }
-        focus_terms.update(
-            word
-            for word in re.findall(r"[a-z][a-z0-9.+#-]{2,}", application.job_description.casefold())[:300]
-        )
-        ranked_facts: list[tuple[int, dict[str, Any]]] = []
-        for row in parts["candidate_index_rows"]:
-            indexed_text = str(row["normalized_text"])
-            score = sum(
-                1
-                for term in focus_terms
-                if re.search(rf"(?<![\w]){re.escape(term)}(?![\w])", indexed_text)
-            )
-            if score:
-                ranked_facts.append((score, row))
-        ranked_facts.sort(key=lambda item: (-item[0], str(item[1]["source_id"])))
-        deterministic_facts: list[dict[str, Any]] = []
-        facts_characters = 0
-        for _score, row in ranked_facts:
-            fact = {key: row[key] for key in ("source_id", "kind", "identity", "structured_facts", "canonical_skills")}
-            cost = len(json.dumps(fact, ensure_ascii=False, default=str))
-            if facts_characters + cost > 12_000 or len(deterministic_facts) >= 40:
-                continue
-            deterministic_facts.append(fact)
-            facts_characters += cost
-        candidate_index = {
-            **parts["candidate_index_summary"],
-            "relevant_structured_facts": deterministic_facts,
-        }
-        response = TailoringContextResponse(
+        return TailoringContextResponse(
             protocol_version=PROTOCOL_VERSION,
             session_id=session.id,
             application_id=application.id,
@@ -1084,10 +1026,7 @@ class TailoringService:
                 description=application.job_description,
                 user_instructions=application.notes,
             ),
-            profile=copy.deepcopy(parts["profile_data"]),
-            previous_cv=previous,
-            scanner=parts["scanner_context"],
-            requirements=[requirement.model_dump(mode="json") for requirement in parts["requirements"]],
+            dossier=_build_dossier(parts["profile_data"], parts["libraries"]),
             templates=templates,
             selected_template_id=parts["selected_template_id"],
             selected_template_manifest=copy.deepcopy(
@@ -1095,141 +1034,7 @@ class TailoringService:
             ),
             capabilities=parts["capabilities"],
             capabilities_hash=capabilities_hash(parts["capabilities"]),
-            candidate_index=candidate_index,
-            candidate_evidence=projection.model_dump(mode="json"),
-            linked_cv_scan=parts["scanner_context"].source_scan,
-            opportunities=opportunities,
-            retrieved_sources=rich_sources,
-            writer_context_characters=0,
-            effective_appearance=parts["effective"],
-            rendered_source=TailoringRenderArtifact(endpoint="/api/v1/tailoring/source-preview") if source_cv else None,
             evaluation_version=TAILORING_EVALUATION_VERSION,
-        )
-        writer_context_characters = len(json.dumps(
-            response.model_dump(mode="json", exclude={"writer_context_characters"}),
-            ensure_ascii=False,
-            separators=(",", ":"),
-            default=str,
-        ))
-        return response.model_copy(update={"writer_context_characters": writer_context_characters})
-
-    async def candidate_index_refresh_context(self, capability: str | None) -> TailoringEvidenceSourcesResponse:
-        """Return a bounded, job-blind batch of only stale/missing sources."""
-
-        session = await self._session_for_capability(capability)
-        if session.protocol_version != PROTOCOL_VERSION:
-            raise TailoringConflictError("Candidate index refresh requires protocol v8")
-        stale, counts = await CandidateIndexService(self.db).refresh_batch_sources(
-            session.user_id,
-            max_sources=MAX_REFRESH_SOURCES,
-            max_characters=MAX_REFRESH_CHARACTERS,
-        )
-        stale_count = counts["STALE"]
-        missing_count = counts["MISSING"]
-        if stale_count == 0 and missing_count == 0:
-            cache_state = "warm"
-        elif stale_count and missing_count:
-            cache_state = "mixed"
-        elif stale_count:
-            cache_state = "stale"
-        else:
-            cache_state = "missing"
-        return TailoringEvidenceSourcesResponse(
-            session_id=session.id,
-            expires_at=session.expires_at,
-            cache_state=cache_state,
-            source_counts={key.lower(): value for key, value in counts.items()},
-            semantic_contract=TailoringEvidenceVersions(
-                proposition_extractor="isolated-job-blind-worker",
-                proposition_model=CANDIDATE_EVIDENCE_PROPOSITION_MODEL,
-                proposition_model_revision=CANDIDATE_EVIDENCE_PROPOSITION_MODEL_REVISION,
-                prompt_version=CANDIDATE_EVIDENCE_PROMPT_VERSION,
-                schema_version=CANDIDATE_EVIDENCE_SCHEMA_VERSION,
-                extractor_version=CANDIDATE_EVIDENCE_EXTRACTOR_VERSION,
-            ),
-            sources=[
-                {
-                    "source_id": source.source_id,
-                    "source_fingerprint": source.source_fingerprint,
-                    "kind": source.kind,
-                    "identity": source.identity or {},
-                    "structured_facts": source.structured_facts or {},
-                    "narrative": source.narrative,
-                }
-                for source in stale
-            ],
-        )
-
-    async def evidence_context(
-        self,
-        capability: str | None,
-        request: TailoringEvidenceSubmission,
-    ) -> TailoringEvidenceContextResponse:
-        """Validate each worker result independently and persist current source versions."""
-
-        session = await self._session_for_capability(capability)
-        if session.protocol_version != PROTOCOL_VERSION:
-            raise TailoringConflictError("Candidate index refresh requires protocol v8")
-        started = time.perf_counter()
-        outcome = await CandidateIndexService(self.db).persist_refresh_results(
-            session.user_id,
-            request.source_results,
-        )
-        duration_ms = round((time.perf_counter() - started) * 1000)
-        snapshot = copy.deepcopy(session.context_snapshot or {})
-        metrics = snapshot.get("runtime_metrics")
-        metrics = metrics if isinstance(metrics, dict) else {}
-        metrics.update({
-            "candidate_semantic_refresh_duration_ms": duration_ms,
-            "candidate_semantic_batches_processed": int(metrics.get("candidate_semantic_batches_processed", 0)) + 1,
-            "candidate_semantic_refresh_sources_accepted": len(outcome["accepted_source_ids"]),
-            "candidate_semantic_refresh_sources_rejected": len(outcome["rejected_source_ids"]),
-            "candidate_cue_calls": 0,
-        })
-        snapshot["runtime_metrics"] = metrics
-        session.context_snapshot = snapshot
-        await self.db.flush()
-        return TailoringEvidenceContextResponse(
-            session_id=session.id,
-            expires_at=session.expires_at,
-            accepted_source_ids=outcome["accepted_source_ids"],
-            rejected_source_ids=outcome["rejected_source_ids"],
-            source_counts={key.lower(): value for key, value in outcome["source_counts"].items()},
-        )
-
-    async def source_preview(self, capability: str | None) -> TailoringSourcePreviewResponse:
-        session = await self._session_for_capability(capability)
-        if session.protocol_version != PROTOCOL_VERSION:
-            raise TailoringConflictError("This tailoring session uses an unsupported protocol")
-        parts = await self._current_context(session)
-        source_cv: CV | None = parts["source_cv"]
-        if source_cv is None:
-            raise TailoringCandidateError("This session has no source CV preview")
-        pdf = await PDFService(self.db).render_payload(
-            source_cv.template_id,
-            source_cv.sections or [],
-            source_cv.customizations or {},
-        )
-        source_scan = parts["scanner_context"].source_scan
-        if source_scan is None:
-            raise TailoringCandidateError("This session has no source scanner analysis")
-        source_hash = cv_snapshot_hash(source_cv) or _content_hash({})
-        source_evaluation = evaluate_tailoring(
-            parts["scanner_context"].requirement_extraction,
-            source_scan,
-            source_hash,
-            source_scan=source_scan,
-            current_candidate=source_cv,
-            source_cv=source_cv,
-            library=parts["authoritative_library"],
-            user_instructions=parts["application"].notes,
-        )
-        return TailoringSourcePreviewResponse(
-            pdf_base64=base64.b64encode(pdf).decode("ascii"),
-            page_count=pdf_page_count(pdf),
-            candidate_hash=source_hash,
-            scanner_result=source_scan,
-            evaluation=source_evaluation,
         )
 
     @staticmethod
@@ -1389,8 +1194,10 @@ class TailoringService:
             page_count=page_count,
             evaluation_id=evaluation_id,
             candidate_hash=self._candidate_hash(candidate),
+            candidate=TailoringCandidateCV.model_validate(candidate),
             scanner_result=scanner_result,
             evaluation=evaluation,
+            render_warnings=evaluation.render_warnings,
         )
 
     async def submit(
@@ -1417,7 +1224,6 @@ class TailoringService:
                     "candidate": saved["candidate"],
                     "scanner_result": saved["scanner_result"],
                     "evaluation": saved["tailoring_evaluation"],
-                    "editorial_review": saved["editorial_review"],
                     "render_warnings": saved["render_warnings"],
                     "review_notes": saved["review_notes"],
                 }
@@ -1429,7 +1235,7 @@ class TailoringService:
             raise TailoringStaleError("The tailoring context changed; start a new session")
         candidate, sections = self._normalize_candidate(request.candidate, parts)
         candidate_hash = self._candidate_hash(candidate)
-        if request.expected_candidate_hash != candidate_hash:
+        if request.candidate_hash != candidate_hash:
             raise TailoringStaleError("The candidate changed after preview; render the current candidate before submitting")
         history = self._evaluation_history(session)
         reviewed_record = next(
@@ -1451,10 +1257,6 @@ class TailoringService:
             reviewed_evaluation = TailoringEvaluation.model_validate(reviewed_state.get("evaluation"))
         except (ValidationError, TypeError) as exc:
             raise TailoringStaleError("The preview evaluation is invalid; render the candidate again") from exc
-        if request.editorial_review.evaluation_id != request.evaluation_id:
-            raise TailoringStaleError("The editorial review belongs to a different evaluation")
-        if request.editorial_review.candidate_hash != candidate_hash:
-            raise TailoringStaleError("The editorial review belongs to a different candidate")
         if reviewed_evaluation.candidate_hash != candidate_hash:
             raise TailoringStaleError("The selected evaluation is bound to a different candidate")
         application: Application = parts["application"]
@@ -1497,7 +1299,6 @@ class TailoringService:
                     "evaluation_id": request.evaluation_id,
                     "scanner_result": scanner_result.model_dump(mode="json"),
                     "review_notes": request.review_notes,
-                    "editorial_review": request.editorial_review.model_dump(mode="json"),
                     "tailoring_evaluation": evaluation.model_dump(mode="json"),
                 },
             ),
@@ -1517,10 +1318,8 @@ class TailoringService:
             "candidate": candidate,
             "scanner_result": scanner_result.model_dump(mode="json"),
             "tailoring_evaluation": evaluation.model_dump(mode="json"),
-            "editorial_review": request.editorial_review.model_dump(mode="json"),
             "render_warnings": evaluation.render_warnings,
             "review_notes": request.review_notes,
-            "runtime_metrics": request.runtime_metrics.model_dump(mode="json"),
             "context_hash": request.context_hash,
             "submit_request_digest": submit_request_digest,
         }
@@ -1557,7 +1356,6 @@ class TailoringService:
             candidate=TailoringCandidateCV.model_validate(candidate),
             scanner_result=scanner_result,
             evaluation=evaluation,
-            editorial_review=request.editorial_review,
             render_warnings=evaluation.render_warnings,
             review_notes=request.review_notes,
         )
@@ -1582,8 +1380,8 @@ class TailoringService:
                 await self.db.flush()
                 raise TailoringConflictError("The tailoring context changed; start a new session") from exc
         else:
-            # Historical v4 drafts remain owner-reviewable, but an exchanged
-            # v4 session cannot resume under the v5 context contract.
+            # Historical drafts remain owner-reviewable, but cannot resume
+            # under the active v9 context contract.
             parts = None
         stored_result = (session.result or {}).get("scanner_result") if isinstance(session.result, dict) else None
         try:
@@ -1722,5 +1520,4 @@ __all__ = [
     "fresh_tailoring_sections",
     "library_entry_content_hash",
     "profile_snapshot_hash",
-    "requirements_snapshot_hash",
 ]
