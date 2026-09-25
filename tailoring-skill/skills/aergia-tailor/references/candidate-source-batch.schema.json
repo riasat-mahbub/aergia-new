@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aergia.local/schemas/candidate-source-batch-v1.schema.json",
+  "title": "Aergia bounded job-blind candidate source batch v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "semantic_contract", "sources"],
+  "properties": {
+    "schema_version": {"const": "candidate-source-batch-v1"},
+    "semantic_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["proposition_extractor", "proposition_model", "proposition_model_revision", "prompt_version", "schema_version", "extractor_version"],
+      "properties": {
+        "proposition_extractor": {"const": "isolated-job-blind-worker"},
+        "proposition_model": {"type": "string"},
+        "proposition_model_revision": {"type": "string"},
+        "prompt_version": {"type": "string"},
+        "schema_version": {"const": "candidate-semantic-v1"},
+        "extractor_version": {"type": "string"}
+      }
+    },
+    "sources": {
+      "type": "array",
+      "maxItems": 24,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source_id", "source_fingerprint", "kind", "identity", "structured_facts", "narrative"],
+        "properties": {
+          "source_id": {"type": "string", "minLength": 1, "maxLength": 96},
+          "source_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "kind": {"type": "string"},
+          "identity": {"type": "object"},
+          "structured_facts": {"type": "object"},
+          "narrative": {"type": "string", "maxLength": 48000}
+        }
+      }
+    }
+  }
+}

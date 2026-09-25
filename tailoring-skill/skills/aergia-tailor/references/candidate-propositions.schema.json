@@ -1,12 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://aergia.local/schemas/candidate-propositions-v3.schema.json",
-  "title": "Aergia Isolated Candidate Propositions v3",
+  "$id": "https://aergia.local/schemas/candidate-propositions-v4.schema.json",
+  "title": "Aergia Job-Blind Candidate Proposition Result v4",
   "type": "object",
   "additionalProperties": false,
-  "required": ["source_id", "claims"],
+  "required": ["source_id", "source_fingerprint", "claims"],
   "properties": {
     "source_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "source_fingerprint": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "claims": {
       "type": "array",
       "maxItems": 80,

@@ -47,6 +47,7 @@ export default function ApplicationCvPanel({
   const scannerSummary = result?.scanner_result?.semantic.summary;
   const jobFit = typeof scannerSummary?.job_fit === "number" ? `${Math.round(scannerSummary.job_fit * 100)}%` : "—";
   const evaluation = result?.evaluation ?? result?.tailoring_evaluation ?? null;
+  const riskFindings = evaluation?.risk_findings ?? evaluation?.blockers ?? [];
   const draftReady = tailoringStatus?.status === "draft_ready" && result?.draft_cv_id;
   const activeSessionStatus = tailoringStatus?.status ?? tailoringSession?.status;
   const tailoringBlocksNewSession = activeSessionStatus === "created" || activeSessionStatus === "exchanged" || activeSessionStatus === "draft_ready";
@@ -101,8 +102,7 @@ export default function ApplicationCvPanel({
               {(result.review_notes ?? []).length > 0 && <div className="mt-2"><p className="font-medium">Agent notes</p><ul className="mt-1 list-disc pl-4">{result.review_notes?.map((note, index) => <li key={`${index}-${note.slice(0, 32)}`}>{note}</li>)}</ul></div>}
               {evaluation && <div className="mt-3 rounded-md border border-app-rule-soft bg-app-surface px-3 py-3">
                 <p className="font-medium text-app-ink">Review before accepting</p>
-                <p className="mt-1">Server readiness: {evaluation.readiness.status.replace(/_/g, " ")}</p>
-                {evaluation.inference_notes.length > 0 && <div className="mt-2"><p className="font-medium">Inferred — verify</p><ul className="mt-1 list-disc pl-4">{evaluation.inference_notes.slice(0, 5).map((note) => <li key={`${note.claim}-${note.field_path ?? "document"}`}>{note.claim}<span className="text-app-ink-3"> — {note.basis.join("; ")}</span></li>)}</ul></div>}
+                {riskFindings.length > 0 && <div className="mt-2 rounded-md border border-app-danger/30 bg-app-danger-soft px-3 py-2 text-app-danger" role="alert"><p className="font-medium">Serious concerns</p><ul className="mt-1 list-disc pl-4">{riskFindings.slice(0, 8).map((item) => <li key={item.id}>{item.message}{item.detail && <span className="text-app-ink-2"> — {item.detail}</span>}</li>)}</ul></div>}
                 {(evaluation.improvements.length > 0 || evaluation.regressions.length > 0) && <div className="mt-2"><p className="font-medium">Important changes</p><ul className="mt-1 list-disc pl-4">{[...evaluation.improvements.slice(0, 3).map((item) => `Improved: ${item.message}`), ...evaluation.regressions.slice(0, 3).map((item) => `Trade-off to review: ${item.message}`)].map((item) => <li key={item}>{item}</li>)}</ul></div>}
                 {evaluation.non_actionable_gaps.length > 0 && <div className="mt-2"><p className="font-medium">Remaining genuine gaps</p><ul className="mt-1 list-disc pl-4">{evaluation.non_actionable_gaps.slice(0, 5).map((item) => <li key={item.id}>{item.message}</li>)}</ul></div>}
                 {evaluation.recommendations.length > 0 && <div className="mt-2"><p className="font-medium">Recommendations</p><ul className="mt-1 list-disc pl-4">{evaluation.recommendations.slice(0, 4).map((item) => <li key={item.id}>{item.message}</li>)}</ul></div>}

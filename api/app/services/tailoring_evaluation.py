@@ -1,7 +1,7 @@
-"""Pure server-side evaluation for tailoring protocol v5.
+"""Pure server-side evaluation for tailoring protocol v8.
 
 The scanner owns deterministic facts.  This module only aggregates those
-facts into bounded readiness states and contextual deltas; it never extracts a
+facts into bounded issue groups and contextual deltas; it never extracts a
 new requirement or writes a candidate.
 """
 
@@ -19,19 +19,15 @@ from app.http_schemas.tailoring_evaluation import (
     TailoringDimensions,
     TailoringEvaluation,
     TailoringFindingDimension,
-    TailoringInferenceNote,
     TailoringIssue,
     TailoringKeywordTransition,
     TailoringNumericDimension,
     TailoringPassChange,
-    TailoringPreviousPassComparison,
-    TailoringReadiness,
+    TailoringPreviousEvaluationComparison,
     TailoringRequirementTransition,
     TailoringSourceComparison,
 )
 from app.scanner.matching import flatten_cv_text
-from app.scanner.skills import extract_skills
-from app.services.relevance import flatten_library_fields
 from app.scanner.requirements import RequirementExtraction, RequirementImportance
 from app.scanner.results import (
     EvidenceStatus,
@@ -111,15 +107,6 @@ def _candidate_text(candidate: object) -> str:
     except (TypeError, ValueError):
         parts.append(str(candidate))
     return "\n".join(parts)
-
-
-def _skill_set(document: object | None) -> set[str]:
-    if document is None:
-        return set()
-    return set().union(*(
-        extract_skills(field.text, skill_section=field.section_type == "skills")
-        for field in flatten_cv_text(document)
-    ))
 
 
 def _contains_term(text: str, term: str) -> bool:
@@ -510,9 +497,7 @@ def evaluate_tailoring(
     library: Sequence[object] = (),
     user_confirmed_facts: Sequence[Mapping[str, Any]] = (),
     render_warnings: Sequence[str] = (),
-    inference_notes: Sequence[TailoringInferenceNote] = (),
     user_instructions: str | None = None,
-    pass_number: int = 1,
 ) -> TailoringEvaluation:
     """Aggregate scanner facts into a bounded, issue-driven evaluation.
 
@@ -531,11 +516,10 @@ def evaluate_tailoring(
     requirement_by_id = {item.id: item for item in requirements.requirements}
     improvements: list[TailoringIssue] = []
     regressions: list[TailoringIssue] = []
-    blockers: list[TailoringIssue] = []
+    risk_findings: list[TailoringIssue] = []
     review_items: list[TailoringIssue] = []
     recommendations: list[TailoringIssue] = []
     non_actionable_gaps: list[TailoringIssue] = []
-    revise_needed = False
 
     source_semantic = _semantic_map(source_scan)
     candidate_semantic = _semantic_map(candidate_scan)
@@ -590,8 +574,6 @@ def evaluate_tailoring(
                         }
                     ),
                 )
-                if requirement.importance is RequirementImportance.REQUIRED:
-                    revise_needed = True
             elif classification == "changed_needs_review":
                 _add_issue(
                     review_items,
@@ -762,10 +744,10 @@ def evaluate_tailoring(
         location = finding.location.field_path if finding.location is not None else None
         if severity == FindingSeverity.ERROR.value:
             _add_issue(
-                blockers,
+                risk_findings,
                 _issue(
                     issue_id=f"quality-error-{finding.code}-{location or 'document'}",
-                    kind="blocker",
+                    kind="risk",
                     category="resume_quality",
                     message=finding.explanation,
                     code=finding.code,
@@ -783,7 +765,6 @@ def evaluate_tailoring(
                     code=finding.code,
                 ),
             )
-            revise_needed = True
         else:
             _add_issue(
                 recommendations,
@@ -802,10 +783,10 @@ def evaluate_tailoring(
         status = _enum_value(check.status)
         if status == PDFRecoveryStatus.FAIL.value and check.code in _CRITICAL_PDF_CHECKS:
             _add_issue(
-                blockers,
+                risk_findings,
                 _issue(
                     issue_id=f"pdf-critical-{check.code}",
-                    kind="blocker",
+                    kind="risk",
                     category="pdf_recovery",
                     message=check.explanation or f"Critical PDF recovery failure: {check.code}",
                     detail="Aergia could not reliably recover a critical part of the rendered candidate.",
@@ -842,7 +823,7 @@ def evaluate_tailoring(
         if severity == "pass":
             continue
         # PDF findings are projections of the observed PDF checks and would
-        # otherwise duplicate their blocker/review classification.
+        # otherwise duplicate their risk/review classification.
         if finding_id.startswith("pdf-"):
             continue
         message = str(_value(finding, "action") or _value(finding, "explanation") or "ATS guidance needs review.")
@@ -872,7 +853,6 @@ def evaluate_tailoring(
                     code=finding_id,
                 ),
             )
-            revise_needed = True
         else:
             _add_issue(
                 review_items,
@@ -899,51 +879,14 @@ def evaluate_tailoring(
             ),
         )
 
-    normalized_inference_notes = [
-        item if isinstance(item, TailoringInferenceNote) else TailoringInferenceNote.model_validate(item)
-        for item in inference_notes
-    ][:20]
-    for index, note in enumerate(normalized_inference_notes):
-        if note.review_recommended or note.confidence in {"reasonable", "speculative"}:
-            _add_issue(
-                review_items,
-                _issue(
-                    issue_id=f"inference-{index}-{sha256(note.claim.encode('utf-8')).hexdigest()[:12]}",
-                    kind="review",
-                    category="inference",
-                    message=f"Inferred — verify: {note.claim}",
-                    detail="Basis: " + "; ".join(note.basis),
-                    priority="high" if note.confidence == "speculative" else "normal",
-                ),
-            )
-
     candidate_text = _candidate_text(current_candidate) if current_candidate is not None else ""
-    if current_candidate is not None and (source_cv is not None or library or user_confirmed_facts):
-        supplied_skills = _skill_set(source_cv)
-        for field in flatten_library_fields(library):
-            supplied_skills.update(extract_skills(field.text, skill_section=field.section_type == "skills"))
-        supplied_skills.update(extract_skills(json.dumps(list(user_confirmed_facts), default=str)))
-        new_skills = _skill_set(current_candidate) - supplied_skills
-        for skill in sorted(new_skills - {"c", "r", "go"}):
-            _add_issue(
-                blockers,
-                _issue(
-                    issue_id=f"unsupported-skill-{skill.replace(' ', '-')}",
-                    kind="blocker",
-                    category="fabrication",
-                    message=f"The candidate names {skill}, but it is absent from the supplied CV and Library sources.",
-                    detail="Remove the claim or supply authoritative evidence before using this skill.",
-                    priority="high",
-                    code="unsupported_skill",
-                ),
-            )
     for index, (term, reason) in enumerate(_user_forbidden_terms(user_instructions)):
         if _contains_term(candidate_text, term):
             _add_issue(
-                blockers,
+                risk_findings,
                 _issue(
                     issue_id=f"user-constraint-{index}",
-                    kind="blocker",
+                    kind="risk",
                     category="user_constraint",
                     message=f"Explicit user instruction violated: '{term}' appears in the candidate.",
                     detail=reason,
@@ -959,10 +902,10 @@ def evaluate_tailoring(
     candidate_employers = _employers(current_candidate) if current_candidate is not None else set()
     for employer in sorted(candidate_employers - authoritative_facts.employers):
         _add_issue(
-            blockers,
+            risk_findings,
             _issue(
                 issue_id=f"fabricated-employer-{re.sub(r'[^a-z0-9]+', '-', employer).strip('-')[:120]}",
-                kind="blocker",
+                kind="risk",
                 category="fabrication",
                 message=f"Candidate employer '{employer}' is not present in the supplied authoritative evidence.",
                 detail="Employer identity is a high-risk factual claim; add it only when authoritative evidence supports it.",
@@ -976,7 +919,7 @@ def evaluate_tailoring(
         keyword_transitions=keyword_transitions,
     )
 
-    previous_comparison = TailoringPreviousPassComparison(
+    previous_comparison = TailoringPreviousEvaluationComparison(
         available=previous_candidate_scan is not None,
         previous_candidate_hash=previous_candidate_hash,
         candidate_hash=candidate_hash,
@@ -1018,55 +961,19 @@ def evaluate_tailoring(
         ),
     )
 
-    if blockers:
-        readiness = TailoringReadiness(
-            status="blocked",
-            submission_allowed=False,
-            reasons=[item.message for item in blockers[:20]],
-        )
-    elif revise_needed:
-        readiness = TailoringReadiness(
-            status="revise",
-            submission_allowed=False,
-            reasons=[
-                "Concrete fixable issues remain; make a reasonable revision if it improves the candidate.",
-                *[item.message for item in review_items[:5]],
-                *[item.message for item in recommendations[:5]],
-            ][:20],
-        )
-    elif review_items or recommendations or non_actionable_gaps or normalized_inference_notes:
-        readiness = TailoringReadiness(
-            status="ready_with_review",
-            submission_allowed=True,
-            reasons=[
-                "The candidate is mechanically sound; review the surfaced inferences, recommendations, and genuine gaps.",
-                *[item.message for item in review_items[:5]],
-                *[item.message for item in non_actionable_gaps[:5]],
-            ][:20],
-        )
-    else:
-        readiness = TailoringReadiness(
-            status="ready",
-            submission_allowed=True,
-            reasons=["No meaningful server-owned issue remains."],
-        )
-
     return TailoringEvaluation(
         version=TAILORING_EVALUATION_VERSION,
         candidate_hash=candidate_hash,
-        pass_number=max(1, min(5, pass_number)),
         source_comparison=source_comparison,
-        previous_pass_comparison=previous_comparison,
+        previous_evaluation_comparison=previous_comparison,
         dimensions=dimensions,
         improvements=improvements,
         regressions=regressions,
-        blockers=blockers,
+        risk_findings=risk_findings,
         review_items=review_items,
         recommendations=recommendations,
         non_actionable_gaps=non_actionable_gaps,
-        inference_notes=normalized_inference_notes,
         render_warnings=warning_list,
-        readiness=readiness,
     )
 
 

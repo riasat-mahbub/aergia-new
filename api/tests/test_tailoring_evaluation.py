@@ -1,4 +1,4 @@
-"""Server-owned tailoring evaluation fixtures and readiness semantics."""
+"""Server-owned tailoring evaluation fixtures and diagnostics."""
 
 from __future__ import annotations
 
@@ -197,10 +197,8 @@ def test_low_job_fit_and_term_visibility_describe_genuine_gaps_without_a_gate() 
 
     assert evaluation.dimensions.job_fit.candidate == 0.45
     assert evaluation.dimensions.keywords.candidate == 0.40
-    assert evaluation.blockers == []
+    assert evaluation.risk_findings == []
     assert evaluation.non_actionable_gaps
-    assert evaluation.readiness.status == "ready_with_review"
-    assert evaluation.readiness.submission_allowed is True
 
 
 def test_supported_semantics_with_absent_employer_wording_are_a_recommendation() -> None:
@@ -215,26 +213,20 @@ def test_supported_semantics_with_absent_employer_wording_are_a_recommendation()
     evaluation = evaluate_tailoring(extraction, scan, "b" * 64)
 
     assert any(item.id == "keyword-opportunity-term-python" for item in evaluation.recommendations)
-    assert evaluation.blockers == []
-    assert evaluation.readiness.submission_allowed is True
+    assert evaluation.risk_findings == []
 
 
-def test_reasonable_inference_is_reviewable_but_not_blocked_by_not_evidenced() -> None:
+def test_inferred_professional_skill_does_not_create_a_fabrication_finding() -> None:
     extraction = _extraction()
     scan = _clean_scan(extraction)
-    note = {
-        "claim": "Jest familiarity",
-        "basis": ["React/TypeScript experience", "documented unit testing"],
-        "confidence": "reasonable",
-        "review_recommended": True,
-    }
+    source = deepcopy(CANDIDATE)
+    source["sections"][1]["data"][0]["description"] = "Built PostgreSQL services."
+    candidate = deepcopy(source)
+    candidate["sections"][1]["data"][0]["description"] = "Built PostgreSQL and Kubernetes services."
 
-    evaluation = evaluate_tailoring(extraction, scan, "c" * 64, inference_notes=[note])
+    evaluation = evaluate_tailoring(extraction, scan, "c" * 64, current_candidate=candidate, source_cv=source)
 
-    assert evaluation.blockers == []
-    assert any(item.category == "inference" for item in evaluation.review_items)
-    assert evaluation.inference_notes[0].claim == "Jest familiarity"
-    assert evaluation.readiness.submission_allowed is True
+    assert not any(item.code == "unsupported_skill" for item in evaluation.risk_findings)
 
 
 def test_explicit_user_correction_overrides_a_tool_inference() -> None:
@@ -260,9 +252,8 @@ def test_explicit_user_correction_overrides_a_tool_inference() -> None:
         user_instructions="I used Vitest, not Jest.",
     )
 
-    assert any(item.category == "user_constraint" for item in blocked.blockers)
-    assert blocked.readiness.submission_allowed is False
-    assert not any(item.category == "user_constraint" for item in allowed.blockers)
+    assert any(item.category == "user_constraint" for item in blocked.risk_findings)
+    assert not any(item.category == "user_constraint" for item in allowed.risk_findings)
 
 
 def test_high_risk_new_employer_is_blocked_without_banning_reframing() -> None:
@@ -280,8 +271,7 @@ def test_high_risk_new_employer_is_blocked_without_banning_reframing() -> None:
         source_cv=source,
     )
 
-    assert any(item.category == "fabrication" for item in evaluation.blockers)
-    assert evaluation.readiness.status == "blocked"
+    assert any(item.category == "fabrication" for item in evaluation.risk_findings)
 
 
 def _candidate_with_employer(employer: str) -> dict:
@@ -311,7 +301,7 @@ def test_library_only_employer_is_authoritative_evidence() -> None:
         library=_library_experience("Employer B"),
     )
 
-    assert not any(item.category == "fabrication" for item in evaluation.blockers)
+    assert not any(item.category == "fabrication" for item in evaluation.risk_findings)
 
 
 def test_employer_absent_from_source_and_library_is_blocked() -> None:
@@ -327,8 +317,7 @@ def test_employer_absent_from_source_and_library_is_blocked() -> None:
         library=_library_experience("Employer B"),
     )
 
-    assert any(item.category == "fabrication" for item in evaluation.blockers)
-    assert evaluation.readiness.status == "blocked"
+    assert any(item.category == "fabrication" for item in evaluation.risk_findings)
 
 
 def test_library_can_authorize_employer_without_a_source_cv() -> None:
@@ -343,11 +332,10 @@ def test_library_can_authorize_employer_without_a_source_cv() -> None:
         library=_library_experience("Employer B"),
     )
 
-    assert not any("employer" in item.id for item in evaluation.blockers)
-    assert any(item.code == "unsupported_skill" for item in evaluation.blockers)
+    assert not any("employer" in item.id for item in evaluation.risk_findings)
 
 
-def test_known_skill_alias_is_grounded_but_new_product_is_blocked() -> None:
+def test_candidate_skill_wording_is_not_gated_by_source_skill_mentions() -> None:
     extraction = _extraction()
     scan = _clean_scan(extraction)
     source = deepcopy(CANDIDATE)
@@ -358,8 +346,7 @@ def test_known_skill_alias_is_grounded_but_new_product_is_blocked() -> None:
     evaluation = evaluate_tailoring(
         extraction, scan, "8" * 64, current_candidate=candidate, source_cv=source,
     )
-    unsupported = [item for item in evaluation.blockers if item.code == "unsupported_skill"]
-    assert [item.id for item in unsupported] == ["unsupported-skill-kubernetes"]
+    assert not any(item.code == "unsupported_skill" for item in evaluation.risk_findings)
 
 
 def test_employer_is_blocked_when_source_and_library_are_empty() -> None:
@@ -373,8 +360,7 @@ def test_employer_is_blocked_when_source_and_library_are_empty() -> None:
         current_candidate=_candidate_with_employer("Employer C"),
     )
 
-    assert any(item.category == "fabrication" for item in evaluation.blockers)
-    assert evaluation.readiness.status == "blocked"
+    assert any(item.category == "fabrication" for item in evaluation.risk_findings)
 
 
 def test_source_regression_is_a_contextual_tradeoff_and_required_regression_is_prioritized() -> None:
@@ -384,18 +370,16 @@ def test_source_regression_is_a_contextual_tradeoff_and_required_regression_is_p
 
     peripheral = evaluate_tailoring(extraction, candidate_scan, "1" * 64, source_scan=source_scan)
 
-    assert peripheral.blockers == []
+    assert peripheral.risk_findings == []
     assert peripheral.regressions
     assert peripheral.recommendations
-    assert peripheral.readiness.submission_allowed is True
 
     required_extraction = _extraction()
     required_source = _clean_scan(required_extraction, semantic_status=EvidenceStatus.SUPPORTED)
     required_candidate = _clean_scan(required_extraction)
     central = evaluate_tailoring(required_extraction, required_candidate, "2" * 64, source_scan=required_source)
 
-    assert central.blockers == []
-    assert central.readiness.status == "revise"
+    assert central.risk_findings == []
     assert central.recommendations
 
 
@@ -415,10 +399,8 @@ def test_critical_pdf_failure_blocks_but_noncritical_link_failure_does_not() -> 
     blocked = evaluate_tailoring(extraction, critical, "3" * 64)
     reviewable = evaluate_tailoring(extraction, noncritical, "4" * 64)
 
-    assert any(item.category == "pdf_recovery" for item in blocked.blockers)
-    assert blocked.readiness.submission_allowed is False
-    assert reviewable.blockers == []
-    assert reviewable.readiness.submission_allowed is True
+    assert any(item.category == "pdf_recovery" for item in blocked.risk_findings)
+    assert reviewable.risk_findings == []
 
 
 def test_ats_informational_vendor_advice_is_not_a_blocker() -> None:
@@ -447,12 +429,11 @@ def test_ats_informational_vendor_advice_is_not_a_blocker() -> None:
 
     evaluation = evaluate_tailoring(extraction, scan, "5" * 64)
 
-    assert evaluation.blockers == []
+    assert evaluation.risk_findings == []
     assert any(item.category == "ats" for item in evaluation.review_items)
-    assert evaluation.readiness.submission_allowed is True
 
 
-def test_source_and_previous_pass_deltas_use_requirement_and_term_identity() -> None:
+def test_source_and_previous_evaluation_deltas_use_requirement_and_term_identity() -> None:
     extraction = _extraction()
     source = _clean_scan(extraction, semantic_status=EvidenceStatus.PARTIAL, lexical_visibility=LexicalVisibility.VARIANT)
     previous = _clean_scan(extraction, semantic_status=EvidenceStatus.PARTIAL, lexical_visibility=LexicalVisibility.VARIANT)
@@ -469,8 +450,8 @@ def test_source_and_previous_pass_deltas_use_requirement_and_term_identity() -> 
 
     assert evaluation.source_comparison.requirement_transitions[0].classification == "improved"
     assert evaluation.source_comparison.keyword_transitions[0].classification == "improved"
-    assert evaluation.previous_pass_comparison.available is True
-    assert {change.classification for change in evaluation.previous_pass_comparison.changes} >= {"fixed", "improved"}
+    assert evaluation.previous_evaluation_comparison.available is True
+    assert {change.classification for change in evaluation.previous_evaluation_comparison.changes} >= {"fixed", "improved"}
 
 
 def test_evaluation_rejects_scans_that_do_not_share_frozen_requirements() -> None:

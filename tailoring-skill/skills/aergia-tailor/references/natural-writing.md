@@ -4,15 +4,14 @@ Use these rules whenever writing or rewriting candidate-facing prose, including 
 
 The objective is not to evade AI detectors. Automated AI-writing detectors are imperfect and must not be treated as a target metric. The objective is specific, credible, economical professional writing that sounds like it belongs to this candidate.
 
-## 1. Prefer specific, target-relevant evidence over polished generalities
+## 1. Prefer target-relevant meaning over source literalness
 
-Use concrete technologies, decisions, constraints, actions, methods, and outcomes when they help
-communicate a relevant capability, accomplishment, constraint, or differentiator. Specificity is
-valuable only when it serves the target. Generalize or omit platform, product, subsystem, or domain
-details when their specificity is incidental to the role. Do not retain an irrelevant technology
-merely because naming it makes the sentence more concrete. Prefer a precise description of what the
-candidate did over broad claims about being innovative, impactful, passionate, strategic, or
-results-driven.
+Start with what the target role values, then choose candidate material that communicates those
+priorities. Reframe, abstract, and combine material when that makes the candidate more relevant.
+Specific technologies, decisions, and implementation details earn space when they strengthen target
+fit or differentiation; omit or generalize them when incidental. Do not retain an irrelevant
+technology merely because it is explicit or easy to prove. Reasonable professional inference may be
+stated directly when it makes the candidate's relevance clearer.
 
 ## 2. State the useful point directly
 
@@ -72,7 +71,10 @@ Each sentence or bullet should add evidence, useful context, relevant interpreta
 
 ## 16. Do not confuse polish with quality
 
-Prioritize, in order: factual substance, relevance, specificity, candidate voice, clarity, natural flow, and grammatical polish. Do not sacrifice the earlier qualities merely to make every sentence maximally smooth or impressive-sounding.
+Prioritize, in order: target relevance, requirement coverage, employer terminology, useful reframing
+and inference, page-space value, ATS/readability, natural flow, and layout polish. Keep fixed
+high-risk biographical facts accurate. Do not sacrifice target value merely to make every sentence
+maximally smooth or impressive-sounding.
 
 ## 17. Preserve recognizable candidate voice when source writing exists
 
@@ -100,5 +102,6 @@ Before accepting candidate-facing prose, ask:
 - Could this sentence be pasted into many unrelated candidates' CVs without changing much?
 - Is an explanatory clause merely narrating what the evidence already shows?
 - Has useful candidate-specific phrasing been polished into generic corporate language?
+- Is a literal detail taking space from a more relevant capability that the full history plausibly implies?
 
 If the answer reveals generic or formulaic writing, revise for specificity and directness rather than artificial "humanization."

@@ -1,4 +1,4 @@
-"""Model-free contracts for isolated candidate propositions and GLiNER cues."""
+"""Model-free contracts for source-granular candidate propositions."""
 
 from __future__ import annotations
 
@@ -8,15 +8,12 @@ from typing import Any
 import pytest
 
 from app.services.candidate_evidence import (
-    CANDIDATE_EVIDENCE_CUE_LABELS,
     CandidateEvidenceExtractionError,
     build_candidate_evidence,
     composer_projection,
-    extract_semantic_cues,
     iter_candidate_sources,
     validate_provenance,
 )
-from app.services.requirement_extractor import GlinerRuntime
 
 
 CLAIMS = [
@@ -50,24 +47,6 @@ CLAIMS = [
 ]
 
 
-def _span(source: str, value: str, label: str = "technology", confidence: float = 0.91) -> dict[str, Any]:
-    start = source.index(value)
-    return {"text": value, "start": start, "end": start + len(value), "confidence": confidence, "label": label}
-
-
-class CueModel:
-    def __init__(self) -> None:
-        self.calls: list[tuple[str, tuple[str, ...]]] = []
-
-    def extract_entities(self, text: str, labels: dict[str, str], **_kwargs: Any) -> dict[str, Any]:
-        self.calls.append((text, tuple(labels)))
-        entities: dict[str, list[dict[str, Any]]] = {}
-        for technology in ("Docker", "CI/CD", "Angular", "Laravel", "Ionic"):
-            if technology in text:
-                entities.setdefault("technology", []).append(_span(text, technology))
-        return {"entities": entities}
-
-
 def _library(description: Any) -> list[dict[str, Any]]:
     return [
         {
@@ -96,20 +75,6 @@ def _source_results(library: list[dict[str, Any]], claims: list[dict[str, Any]])
     return [{"source_id": source.source_id, "claims": claims}]
 
 
-def test_gliner_cues_are_supporting_only_and_keep_exact_source_offsets() -> None:
-    source = iter_candidate_sources(_library("Deployed containerized applications with Docker and CI/CD."))[0]
-    model = CueModel()
-    cues, model_name, revision, warning = extract_semantic_cues(source, GlinerRuntime(model=model))
-
-    assert not warning
-    assert model_name == "fastino/gliner2.5-small-v1"
-    assert revision
-    assert model.calls == [(source.text, tuple(CANDIDATE_EVIDENCE_CUE_LABELS))]
-    assert {cue.text for cue in cues} == {"Docker", "CI/CD"}
-    assert all(source.text[cue.start:cue.end] == cue.text for cue in cues)
-    assert "evidence_claim" not in model.calls[0][1]
-
-
 def test_proposition_projection_is_independent_of_source_bullet_boundaries_and_order() -> None:
     variants = [
         [{"type": "bullet_list", "items": [{"text": claim["source_excerpt"]}]} for claim in CLAIMS],
@@ -128,8 +93,6 @@ def test_proposition_projection_is_independent_of_source_bullet_boundaries_and_o
         extracted = build_candidate_evidence(
             library,
             [{"source_id": source.source_id, "claims": CLAIMS}],
-            semantic_cue_model="gliner2.5-small-v1",
-            semantic_cue_model_revision="fixture",
         )
         projections.append(composer_projection(extracted).model_dump(mode="json"))
 
@@ -149,8 +112,6 @@ def test_projection_preserves_structured_facts_and_relations_but_hides_provenanc
     extraction = build_candidate_evidence(
         library,
         results,
-        semantic_cue_model="gliner2.5-small-v1",
-        semantic_cue_model_revision="test",
     )
     internal = extraction.groups[0].claims[0]
     validate_provenance(
@@ -191,8 +152,6 @@ def test_source_hashes_offsets_and_ids_resolve_after_rich_text_flattening() -> N
     extraction = build_candidate_evidence(
         library,
         [{"source_id": source.source_id, "claims": claims}],
-        semantic_cue_model="gliner2.5-small-v1",
-        semantic_cue_model_revision="test",
     )
     validate_provenance(
         extraction,
@@ -223,8 +182,6 @@ def test_claim_must_be_short_source_grounded_and_relations_must_be_local() -> No
             build_candidate_evidence(
                 library,
                 [{"source_id": source.source_id, "claims": [claim]}],
-                semantic_cue_model="gliner2.5-small-v1",
-                semantic_cue_model_revision="test",
             )
 
 
@@ -243,8 +200,6 @@ def test_claim_rejects_a_multi_sentence_provenance_excerpt() -> None:
                     "associated_concepts": [],
                 }],
             }],
-            semantic_cue_model="gliner2.5-small-v1",
-            semantic_cue_model_revision="test",
         )
 
 
@@ -257,7 +212,7 @@ def test_extraction_rejects_missing_duplicate_and_cross_source_results() -> None
     claim = {"statement": "Built web features", "support": "explicit", "source_excerpt": "Built web features.", "associated_concepts": []}
 
     with pytest.raises(CandidateEvidenceExtractionError, match="cover each narrative source"):
-        build_candidate_evidence(library, [{"source_id": sources[0].source_id, "claims": [claim]}], semantic_cue_model="g", semantic_cue_model_revision="r")
+        build_candidate_evidence(library, [{"source_id": sources[0].source_id, "claims": [claim]}])
     with pytest.raises(CandidateEvidenceExtractionError, match="duplicate source ID"):
         build_candidate_evidence(
             library,
@@ -265,8 +220,6 @@ def test_extraction_rejects_missing_duplicate_and_cross_source_results() -> None
                 {"source_id": sources[0].source_id, "claims": [claim]},
                 {"source_id": sources[0].source_id, "claims": [claim]},
             ],
-            semantic_cue_model="g",
-            semantic_cue_model_revision="r",
         )
     assert first_source.source_id in {source.source_id for source in sources}
 
@@ -277,10 +230,33 @@ def test_structured_facts_survive_without_narrative_claims() -> None:
     extraction = build_candidate_evidence(
         library,
         [],
-        semantic_cue_model="gliner2.5-small-v1",
-        semantic_cue_model_revision="test",
     )
     projection = composer_projection(extraction).model_dump(mode="json")
     assert projection["groups"][0]["identity"]["company"] == "Brain Station"
     assert projection["groups"][0]["structured_facts"]["items"] == ["Python", "TypeScript"]
     assert projection["groups"][0]["claims"] == []
+
+
+def test_composer_projection_includes_only_retrieved_source_claims() -> None:
+    library = _library("Built Python API services.")
+    library[0]["payload"][0]["achievements"] = "Led engineering teams."
+    sources = iter_candidate_sources(library)
+    description = next(source for source in sources if source.source_field == "description")
+    extraction = build_candidate_evidence(
+        library,
+        [{
+            "source_id": description.source_id,
+            "claims": [{
+                "statement": "Built Python API services",
+                "support": "explicit",
+                "source_excerpt": "Built Python API services.",
+                "associated_concepts": [],
+            }],
+        }],
+        require_complete=False,
+        source_ids={description.source_id},
+    )
+    projection = composer_projection(extraction).model_dump(mode="json")
+    assert projection["groups"][0]["claims"][0]["statement"] == "Built Python API services"
+    assert len(projection["groups"][0]["claims"]) == 1
+    assert all(claim.statement != "Led engineering teams" for claim in extraction.groups[0].claims)

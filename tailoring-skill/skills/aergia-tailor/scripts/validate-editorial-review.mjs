@@ -1,14 +1,12 @@
 #!/usr/bin/env node
 
-export const EDITORIAL_REVIEW_VERSION = "aergia-editorial-review-v1";
-export const MAX_EVALUATED_PASSES = 5;
+export const EDITORIAL_REVIEW_VERSION = "aergia-editorial-review-v2";
 
 const REVIEW_KEYS = [
   "review_version",
+  "evaluation_id",
   "candidate_hash",
-  "pass_number",
   "findings",
-  "inference_notes",
 ];
 
 const FINDING_KEYS = [
@@ -20,16 +18,6 @@ const FINDING_KEYS = [
   "excerpt",
   "problem",
   "recommended_change",
-];
-
-const INFERENCE_KEYS = [
-  "claim",
-  "basis",
-  "confidence",
-  "section_id",
-  "item_id",
-  "field_path",
-  "review_recommended",
 ];
 
 function assert(condition, message) {
@@ -63,36 +51,14 @@ function hasId(value, id) {
   return Object.values(value).some((item) => hasId(item, id));
 }
 
-export function validateInferenceNotes(notes) {
-  assert(Array.isArray(notes), "Inference notes must be an array");
-  assert(notes.length <= 20, "Inference notes must contain at most 20 items");
-  return notes.map((raw, index) => {
-    assertObject(raw, `Inference note ${index + 1}`);
-    assertOnlyKeys(raw, INFERENCE_KEYS, `Inference note ${index + 1}`);
-    assert(Array.isArray(raw.basis) && raw.basis.length >= 1 && raw.basis.length <= 8, `Inference note ${index + 1} basis must contain 1–8 items`);
-    const basis = raw.basis.map((item, basisIndex) => text(item, `Inference note ${index + 1} basis ${basisIndex + 1}`, 500));
-    assert(["entailed", "strong", "reasonable", "speculative"].includes(raw.confidence), `Inference note ${index + 1} confidence is unsupported`);
-    if (raw.review_recommended !== undefined) assert(typeof raw.review_recommended === "boolean", `Inference note ${index + 1} review_recommended must be boolean`);
-    return {
-      claim: text(raw.claim, `Inference note ${index + 1} claim`, 500),
-      basis,
-      confidence: raw.confidence,
-      ...(optionalText(raw.section_id, `Inference note ${index + 1} section_id`, 128) ? { section_id: raw.section_id.trim() } : {}),
-      ...(optionalText(raw.item_id, `Inference note ${index + 1} item_id`, 128) ? { item_id: raw.item_id.trim() } : {}),
-      ...(optionalText(raw.field_path, `Inference note ${index + 1} field_path`, 256) ? { field_path: raw.field_path.trim() } : {}),
-      review_recommended: raw.review_recommended ?? true,
-    };
-  });
-}
-
 export function validateEditorialReview(review, expected = {}) {
   assertObject(review, "Editorial review");
   assertOnlyKeys(review, REVIEW_KEYS, "Editorial review");
   assert(review.review_version === EDITORIAL_REVIEW_VERSION, "Editorial review version is unsupported");
+  assert(typeof review.evaluation_id === "string" && /^[A-Za-z0-9_-]{16,128}$/.test(review.evaluation_id), "Editorial review evaluation_id is invalid");
+  if (expected.evaluationId) assert(review.evaluation_id === expected.evaluationId, "Editorial review belongs to a different evaluation");
   assert(typeof review.candidate_hash === "string" && /^[0-9a-f]{64}$/.test(review.candidate_hash), "Editorial review candidate_hash must be a SHA-256 digest");
   if (expected.candidateHash) assert(review.candidate_hash === expected.candidateHash, "Editorial review is for a different rendered candidate");
-  assert(Number.isInteger(review.pass_number) && review.pass_number >= 1 && review.pass_number <= MAX_EVALUATED_PASSES, "Editorial review pass_number is out of range");
-  if (expected.passNumber !== undefined) assert(review.pass_number === expected.passNumber, "Editorial review pass_number does not match the latest render");
 
   const candidate = expected.candidate;
   const sectionIds = new Set(Array.isArray(candidate?.sections) ? candidate.sections.map((section) => section?.id).filter(Boolean) : []);
@@ -132,9 +98,8 @@ export function validateEditorialReview(review, expected = {}) {
 
   return {
     review_version: EDITORIAL_REVIEW_VERSION,
+    evaluation_id: review.evaluation_id,
     candidate_hash: review.candidate_hash,
-    pass_number: review.pass_number,
     findings,
-    inference_notes: validateInferenceNotes(review.inference_notes ?? []),
   };
 }

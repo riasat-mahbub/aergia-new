@@ -7,7 +7,7 @@ import {
 } from "../skills/aergia-tailor/scripts/validate-candidate.mjs";
 
 const context = {
-  protocol_version: 5,
+  protocol_version: 8,
   templates: [{ id: "generic-minimal", manifest: {} }],
 };
 

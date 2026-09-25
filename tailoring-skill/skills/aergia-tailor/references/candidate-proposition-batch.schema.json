@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aergia.local/schemas/candidate-proposition-batch-v2.schema.json",
+  "title": "Aergia Job-Blind Candidate Proposition Batch v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "results"],
+  "properties": {
+    "schema_version": { "const": "candidate-proposition-batch-v2" },
+    "results": {
+      "type": "array",
+      "maxItems": 24,
+      "items": { "$ref": "candidate-propositions.schema.json" }
+    }
+  }
+}

@@ -1,9 +1,4 @@
-"""Job-blind, source-grounded narrative evidence for staged tailoring.
-
-GLiNER supplies semantic cues only. An isolated agent decomposes each narrative
-field into explicit propositions; this module validates the returned source
-quotes and constructs the internal evidence model and composer projection.
-"""
+"""Validation and projection for source-granular candidate semantics."""
 
 from __future__ import annotations
 
@@ -11,29 +6,17 @@ import hashlib
 import json
 import unicodedata
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.services.requirement_extractor import GlinerRuntime, GlinerRuntimeError, get_gliner_runtime
-
-CANDIDATE_EVIDENCE_SCHEMA_VERSION = "candidate-evidence-v2"
-CANDIDATE_EVIDENCE_EXTRACTOR_VERSION = "codex-isolated-propositions-v3"
-CANDIDATE_EVIDENCE_PROMPT_VERSION = "candidate-proposition-prompt-v6"
-CANDIDATE_EVIDENCE_PROPOSITION_MODEL = "codex-agent-managed"
-CANDIDATE_EVIDENCE_PROPOSITION_MODEL_REVISION = "runtime-managed"
+CANDIDATE_EVIDENCE_SCHEMA_VERSION = "candidate-semantic-v1"
+CANDIDATE_EVIDENCE_EXTRACTOR_VERSION = "isolated-propositions-v1"
+CANDIDATE_EVIDENCE_PROMPT_VERSION = "candidate-proposition-prompt-v7"
+CANDIDATE_EVIDENCE_PROPOSITION_MODEL = "isolated-worker"
+CANDIDATE_EVIDENCE_PROPOSITION_MODEL_REVISION = "contract-managed"
 MAX_PROPOSITION_EXCERPT_CHARACTERS = 250
-
-# GLiNER is a secondary concept detector. It does not generate propositions.
-CANDIDATE_EVIDENCE_CUE_LABELS: dict[str, str] = {
-    "technology": "A named programming language, framework, tool, platform, system, or technical method explicitly used.",
-    "outcome": "An explicit result, change, delivery, or outcome of the candidate's work.",
-    "quantitative_scope": "An explicit number, measure, scale, duration, or quantity associated with the work.",
-    "collaboration": "An explicit collaborator, team relationship, or way the candidate worked with others.",
-    "artifact": "A concrete artifact the candidate created, maintained, tested, deployed, or documented.",
-    "domain": "An explicit product, industry, research, or subject-matter domain for the work.",
-}
 
 _NARRATIVE_KEYS = frozenset(
     {"description", "summary", "details", "achievements", "responsibilities", "findings", "abstract"}
@@ -62,14 +45,6 @@ class _StrictModel(BaseModel):
 
 class CandidateEvidenceExtractionError(ValueError):
     """Candidate evidence could not be validated against its authoritative source."""
-
-
-class CandidateEvidenceCue(_StrictModel):
-    label: str
-    text: str
-    start: int = Field(ge=0)
-    end: int = Field(gt=0)
-    confidence: float = Field(ge=0, le=1)
 
 
 class EvidenceRelation(_StrictModel):
@@ -111,10 +86,8 @@ class CandidateEvidenceGroup(_StrictModel):
 
 
 class CandidateEvidenceExtraction(_StrictModel):
-    schema_version: Literal["candidate-evidence-v2"] = CANDIDATE_EVIDENCE_SCHEMA_VERSION
-    semantic_cue_model: str
-    semantic_cue_model_revision: str
-    proposition_extractor: Literal["codex-isolated-subagent"] = "codex-isolated-subagent"
+    schema_version: Literal["candidate-semantic-v1"] = CANDIDATE_EVIDENCE_SCHEMA_VERSION
+    proposition_extractor: Literal["isolated-job-blind-worker"] = "isolated-job-blind-worker"
     proposition_model: str = CANDIDATE_EVIDENCE_PROPOSITION_MODEL
     proposition_model_revision: str = CANDIDATE_EVIDENCE_PROPOSITION_MODEL_REVISION
     prompt_version: str = CANDIDATE_EVIDENCE_PROMPT_VERSION
@@ -138,7 +111,7 @@ class ComposerEvidenceGroup(_StrictModel):
 
 
 class CandidateEvidenceProjection(_StrictModel):
-    schema_version: Literal["candidate-evidence-v2"] = CANDIDATE_EVIDENCE_SCHEMA_VERSION
+    schema_version: Literal["candidate-evidence-v2"] = "candidate-evidence-v2"
     groups: list[ComposerEvidenceGroup]
 
 
@@ -154,6 +127,7 @@ class CandidateEvidenceSource:
     source_hash: str
     raw_value: Any
     text: str
+    canonical_skills: list[str] = field(default_factory=list)
 
 
 def _hash(value: Any) -> str:
@@ -211,11 +185,20 @@ def _narrative_fields(value: Any, prefix: str = "") -> list[tuple[str, Any]]:
     return fields
 
 
-def _row_id(entry_id: str, row: Mapping[str, Any], identity: Mapping[str, Any]) -> str:
+def _row_id(
+    entry_id: str,
+    row: Mapping[str, Any],
+    index: int,
+    persisted_ids: Sequence[Any] = (),
+) -> str:
+    if index < len(persisted_ids) and isinstance(persisted_ids[index], str) and persisted_ids[index].strip():
+        return persisted_ids[index].strip()
     explicit = row.get("id")
     if isinstance(explicit, str) and explicit.strip():
         return explicit.strip()
-    return f"row_{_hash({"entry": entry_id, "identity": identity, "row": row})[:20]}"
+    # Legacy, not-yet-backfilled callers get an identity independent of mutable
+    # row contents. The persistent index writes a UUID before exposing sources.
+    return f"legacy_{_hash([entry_id, index])[:20]}"
 
 
 def _identity_and_facts(row: Mapping[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -241,14 +224,24 @@ def iter_candidate_sources(library: Sequence[Mapping[str, Any]]) -> list[Candida
         kind = str(entry.get("kind") or "other")
         payload = entry.get("payload")
         rows = [row for row in payload if isinstance(row, Mapping)] if isinstance(payload, list) else []
-        for row in rows:
+        persisted_ids = entry.get("_row_ids") or entry.get("row_ids") or []
+        for index, row in enumerate(rows):
             identity, structured = _identity_and_facts(row)
-            row_id = _row_id(entry_id, row, identity)
+            row_id = _row_id(entry_id, row, index, persisted_ids)
             for field_path, raw_value in _narrative_fields(row):
                 text = _plain_text(raw_value)
                 if not text.strip():
                     continue
                 source_id = f"source_{_hash([entry_id, row_id, field_path])[:24]}"
+                source_fingerprint = _hash({
+                    "entry_id": entry_id,
+                    "row_id": row_id,
+                    "field_path": field_path,
+                    "kind": kind,
+                    "identity": identity,
+                    "structured_facts": structured,
+                    "normalized_narrative": _normalized(text),
+                })
                 sources.append(
                     CandidateEvidenceSource(
                         source_id=source_id,
@@ -258,7 +251,7 @@ def iter_candidate_sources(library: Sequence[Mapping[str, Any]]) -> list[Candida
                         identity=identity,
                         structured_facts=structured,
                         source_field=field_path,
-                        source_hash=_hash(raw_value),
+                        source_hash=source_fingerprint,
                         raw_value=raw_value,
                         text=text,
                     )
@@ -275,57 +268,29 @@ def candidate_evidence_groups(library: Sequence[Mapping[str, Any]]) -> list[tupl
         kind = str(entry.get("kind") or "other")
         payload = entry.get("payload")
         rows = [row for row in payload if isinstance(row, Mapping)] if isinstance(payload, list) else []
-        for row in rows:
+        persisted_ids = entry.get("_row_ids") or entry.get("row_ids") or []
+        for index, row in enumerate(rows):
             identity, structured = _identity_and_facts(row)
-            row_id = _row_id(entry_id, row, identity)
-            group_id = f"source_{_hash([entry_id, row_id])[:20]}"
+            row_id = _row_id(entry_id, row, index, persisted_ids)
+            group_id = candidate_group_id(entry_id, row_id)
             groups.append((group_id, kind, identity, structured))
     return sorted(groups, key=lambda item: item[0])
-
-
-def extract_semantic_cues(
-    source: CandidateEvidenceSource,
-    runtime: GlinerRuntime | None = None,
-) -> tuple[list[CandidateEvidenceCue], str, str, str | None]:
-    """Run GLiNER as a best-effort named-concept source, never for claims."""
-
-    active_runtime = runtime or get_gliner_runtime()
-    model = str(getattr(active_runtime, "model_name", "gliner2.5-small-v1"))
-    revision = str(getattr(active_runtime, "revision", None) or "default")
-    try:
-        spans = active_runtime.extract_entities(source.text, CANDIDATE_EVIDENCE_CUE_LABELS)
-    except GlinerRuntimeError:
-        return [], model, revision, "GLiNER semantic cues were unavailable for this source"
-
-    cues_by_key: dict[tuple[str, str, int, int], CandidateEvidenceCue] = {}
-    for span in spans:
-        if span.label not in CANDIDATE_EVIDENCE_CUE_LABELS or span.start is None or span.end is None:
-            continue
-        if span.start < 0 or span.end > len(source.text) or span.start >= span.end:
-            continue
-        exact_text = source.text[span.start:span.end]
-        if not exact_text.strip():
-            continue
-        cue = CandidateEvidenceCue(
-            label=span.label,
-            text=exact_text,
-            start=span.start,
-            end=span.end,
-            confidence=span.confidence,
-        )
-        cues_by_key[(cue.label, _normalized(cue.text), cue.start, cue.end)] = cue
-    cues = sorted(cues_by_key.values(), key=lambda cue: (cue.start, cue.end, cue.label))
-    return cues, model, revision, None
 
 
 def _claim_identifier(entry_id: str, row_id: str, statement: str) -> str:
     return f"claim_{_hash([entry_id, row_id, _normalized(statement)])[:24]}"
 
 
+def candidate_group_id(entry_id: str, row_id: str) -> str:
+    return f"source_{_hash([entry_id, row_id])[:20]}"
+
+
 def _validate_and_resolve_claim(
     source: CandidateEvidenceSource,
     claim: Mapping[str, Any],
 ) -> CandidateEvidenceClaim:
+    if set(claim) - {"statement", "support", "source_excerpt", "associated_concepts"}:
+        raise CandidateEvidenceExtractionError("A proposition contains unsupported fields")
     statement = claim.get("statement")
     excerpt = claim.get("source_excerpt")
     support = claim.get("support", "explicit")
@@ -351,6 +316,8 @@ def _validate_and_resolve_claim(
     for raw_relation in raw_relations:
         if not isinstance(raw_relation, Mapping):
             raise CandidateEvidenceExtractionError("A proposition relation is invalid")
+        if set(raw_relation) != {"kind", "value", "relation"}:
+            raise CandidateEvidenceExtractionError("A proposition relation contains unsupported fields")
         kind = raw_relation.get("kind")
         value = raw_relation.get("value")
         relation = raw_relation.get("relation")
@@ -385,12 +352,19 @@ def build_candidate_evidence(
     library: Sequence[Mapping[str, Any]],
     source_results: Sequence[Mapping[str, Any]],
     *,
-    semantic_cue_model: str,
-    semantic_cue_model_revision: str,
+    require_complete: bool = True,
+    source_ids: set[str] | None = None,
 ) -> CandidateEvidenceExtraction:
     """Validate isolated extraction results and construct provenance-backed evidence."""
 
-    sources = iter_candidate_sources(library)
+    all_sources = iter_candidate_sources(library)
+    if source_ids is None:
+        sources = all_sources
+    else:
+        all_source_ids = {source.source_id for source in all_sources}
+        if not source_ids <= all_source_ids:
+            raise CandidateEvidenceExtractionError("A selected source ID is not in the current Library")
+        sources = [source for source in all_sources if source.source_id in source_ids]
     source_by_id = {source.source_id: source for source in sources}
     results_by_id: dict[str, Mapping[str, Any]] = {}
     for result in source_results:
@@ -400,12 +374,12 @@ def build_candidate_evidence(
         if not isinstance(source_id, str) or source_id not in source_by_id or source_id in results_by_id:
             raise CandidateEvidenceExtractionError("An isolated result has an unknown or duplicate source ID")
         results_by_id[source_id] = result
-    if set(results_by_id) != set(source_by_id):
+    if require_complete and set(results_by_id) != set(source_by_id):
         raise CandidateEvidenceExtractionError("Isolated results do not cover each narrative source exactly once")
 
     claims_by_group: dict[str, dict[str, CandidateEvidenceClaim]] = {}
     source_to_group = {
-        source.source_id: f"source_{_hash([source.entry_id, source.row_id])[:20]}"
+        source.source_id: candidate_group_id(source.entry_id, source.row_id)
         for source in sources
     }
     for source_id in sorted(results_by_id):
@@ -431,13 +405,19 @@ def build_candidate_evidence(
                 )
 
     groups: list[CandidateEvidenceGroup] = []
-    for group_id, kind, identity, structured in candidate_evidence_groups(library):
+    all_groups = candidate_evidence_groups(library)
+    selected_group_ids = (
+        {group_id for group_id, _kind, _identity, _facts in all_groups}
+        if source_ids is None
+        else set(source_to_group.values())
+    )
+    for group_id, kind, identity, structured in all_groups:
+        if group_id not in selected_group_ids:
+            continue
         claims = sorted(claims_by_group.get(group_id, {}).values(), key=lambda item: item.id)
         groups.append(CandidateEvidenceGroup(id=group_id, kind=kind, identity=identity, structured_facts=structured, claims=claims))
 
     extraction = CandidateEvidenceExtraction(
-        semantic_cue_model=semantic_cue_model,
-        semantic_cue_model_revision=semantic_cue_model_revision,
         groups=groups,
     )
     validate_provenance(
@@ -488,22 +468,20 @@ def validate_provenance(
 
 
 __all__ = [
-    "CANDIDATE_EVIDENCE_CUE_LABELS",
     "CANDIDATE_EVIDENCE_EXTRACTOR_VERSION",
     "CANDIDATE_EVIDENCE_PROMPT_VERSION",
     "CANDIDATE_EVIDENCE_PROPOSITION_MODEL",
     "CANDIDATE_EVIDENCE_PROPOSITION_MODEL_REVISION",
     "CANDIDATE_EVIDENCE_SCHEMA_VERSION",
     "MAX_PROPOSITION_EXCERPT_CHARACTERS",
-    "CandidateEvidenceCue",
     "CandidateEvidenceExtractionError",
     "CandidateEvidenceExtraction",
     "CandidateEvidenceProjection",
     "CandidateEvidenceSource",
     "build_candidate_evidence",
+    "candidate_group_id",
     "candidate_evidence_groups",
     "composer_projection",
-    "extract_semantic_cues",
     "iter_candidate_sources",
     "validate_provenance",
 ]

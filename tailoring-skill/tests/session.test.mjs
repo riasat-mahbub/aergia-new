@@ -1,101 +1,47 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { runSession, serverOriginFromSessionUrl, sourcePropositionsPath, validateSourcePropositions } from "../skills/aergia-tailor/scripts/session.mjs";
+import {
+  PROTOCOL_VERSION,
+  runSession,
+  serverOriginFromSessionUrl,
+  validateBatchPropositions,
+  validateSourcePropositions,
+} from "../skills/aergia-tailor/scripts/session.mjs";
 
-const candidateHash = (candidate) => createHash("sha256").update(JSON.stringify(candidate)).digest("hex");
-
-const evaluation = (hash, pass, status = "ready_with_review", recommendationCount = 0) => ({
-  version: "tailoring-evaluation-v1",
-  candidate_hash: hash,
-  pass_number: pass,
-  source_comparison: { available: false, requirement_transitions: [], keyword_transitions: [] },
-  previous_pass_comparison: { available: false, previous_candidate_hash: null, candidate_hash: hash, changes: [], job_fit_delta: null, term_visibility_delta: null },
-  dimensions: {
-    job_fit: { source: 0.45, candidate: 0.52 },
-    keywords: { source: 0.2, candidate: 0.4 },
-    ats: { source_count: 0, candidate_count: 0, candidate_error_count: 0, candidate_warning_count: 0, candidate_info_count: 0 },
-    resume_quality: { source_count: 0, candidate_count: 0, candidate_error_count: 0, candidate_warning_count: 0, candidate_info_count: 0 },
-    pdf_recovery: { source: null, candidate: 0.99 },
-  },
-  improvements: [],
-  regressions: [],
-  blockers: [],
-  review_items: [],
-  recommendations: Array.from({ length: recommendationCount }, (_, index) => ({
-    id: `recommendation-${index}`,
-    kind: "recommendation",
-    category: "lexical",
-    message: `Review recommendation ${index + 1}`,
-    detail: null,
-    priority: "normal",
-    requirement_id: null,
-    term_id: null,
-    code: null,
-    importance: null,
-  })),
-  non_actionable_gaps: [],
-  inference_notes: [],
-  render_warnings: [],
-  readiness: {
-    status,
-    submission_allowed: status === "ready" || status === "ready_with_review",
-    reasons: status === "revise" ? ["A concrete fixable issue remains."] : ["The candidate is available for review."],
-  },
-});
-
-const editorialReview = (hash, pass, inferenceNotes = []) => ({
-  review_version: "aergia-editorial-review-v1",
-  candidate_hash: hash,
-  pass_number: pass,
-  findings: [],
-  inference_notes: inferenceNotes,
-});
-
-const blockingEditorialReview = (hash, pass) => ({
-  ...editorialReview(hash, pass),
-  findings: [{
-    category: "framing",
-    severity: "blocking",
-    section_id: "profile",
-    excerpt: "Platform engineer",
-    problem: "The factual framing is contradictory.",
-    recommended_change: "Revise the candidate before submission.",
-  }],
-});
+const sha = (value) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+const sleep = (duration = 25) => new Promise((resolve) => setTimeout(resolve, duration));
 
 async function waitForJson(path, predicate, timeoutMs = 8_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
-      const parsed = JSON.parse(await readFile(path, "utf8"));
-      if (predicate(parsed)) return parsed;
+      const value = JSON.parse(await readFile(path, "utf8"));
+      if (predicate(value)) return value;
     } catch {
-      // The helper may be atomically replacing this status file.
+      // The helper may still be creating or replacing the file.
     }
-    await new Promise((accept) => setTimeout(accept, 25));
+    await sleep();
   }
-  throw new Error("Timed out waiting for " + path);
+  throw new Error(`Timed out waiting for ${path}`);
 }
 
-async function makeSessionWorkspace() {
-  const workspace = await mkdtemp(join(tmpdir(), "aergia-tailor-session-"));
-  const context = {
-    protocol_version: 5,
-    evaluation_version: "tailoring-evaluation-v1",
+function makeContext(candidateIndex) {
+  return {
+    protocol_version: PROTOCOL_VERSION,
+    evaluation_version: "tailoring-evaluation-v2",
     session_id: "session-1",
     application_id: "application-1",
     source_cv_id: null,
-    expires_at: new Date(Date.now() + 20_000).toISOString(),
+    expires_at: new Date(Date.now() + 60_000).toISOString(),
     context_hash: "a".repeat(64),
     job: { company: "Example", role: "Engineer", description: "Build APIs", user_instructions: null },
     profile: { name: "Ada" },
     previous_cv: null,
-    library: [],
     scanner: {
       schema_version: "scanner-v1",
       versions: {},
@@ -108,497 +54,329 @@ async function makeSessionWorkspace() {
     selected_template_manifest: {},
     capabilities: {},
     capabilities_hash: "b".repeat(64),
+    candidate_index: candidateIndex,
+    candidate_evidence: { schema_version: "candidate-evidence-v2", groups: [] },
+    linked_cv_scan: null,
+    opportunities: [],
+    retrieved_sources: [],
+    writer_context_characters: 0,
     effective_appearance: {},
+    evaluation_version: "tailoring-evaluation-v2",
   };
-  const candidate = {
-    title: "Platform Engineer",
-    template_id: "generic-minimal",
-    sections: [{ id: "profile", type: "profile", title: "Profile", enabled: true, data: { name: "Ada" } }],
-    customizations: {},
-  };
-  const targetStrategy = {
-    schema_version: "target-strategy-v1",
-    priorities: [
-      { id: "p1", label: "Software delivery", requirement_ids: ["r1"], reason: "Central to the role.", importance: "primary" },
-      { id: "p2", label: "Testing", requirement_ids: ["r2"], reason: "A defining responsibility.", importance: "primary" },
-      { id: "p3", label: "Collaboration", requirement_ids: ["r3"], reason: "Repeated in the posting.", importance: "secondary" },
-    ],
-    secondary: [],
-    do_not_force: [],
-    terminology: [],
-  };
-  const output = join(workspace, "output");
-  await mkdir(output, { recursive: true });
-  await writeFile(join(output, "candidate.json"), JSON.stringify(candidate));
-  await writeFile(join(output, "target-strategy.json"), JSON.stringify(targetStrategy));
-  return { workspace, output, context, candidate, targetStrategy };
 }
 
-function mockTailoringServer(context, evaluator = ({ candidate, pass }) => evaluation(candidateHash(candidate), pass), sessionProtocol = 5) {
-  const calls = [];
-  let previewNumber = 0;
-  const evidenceSource = {
-    source_id: "source_fixture",
-    kind: "experience",
-    identity: { company: "Example Systems", position: "Developer" },
-    content_hash: "a".repeat(64),
-    narrative: "Worked in Agile/Scrum delivery.",
-    semantic_cues: [],
-    semantic_cue_model: "gliner2.5-small-v1",
-    semantic_cue_model_revision: "fixture",
-    semantic_cue_warning: null,
+const candidate = {
+  title: "Platform Engineer",
+  template_id: "generic-minimal",
+  sections: [{ id: "profile", type: "profile", title: "Profile", enabled: true, data: { name: "Ada" } }],
+  customizations: {},
+};
+
+const semanticContract = {
+  proposition_extractor: "isolated-job-blind-worker",
+  proposition_model: "isolated-worker",
+  proposition_model_revision: "contract-managed",
+  prompt_version: "candidate-proposition-prompt-v7",
+  schema_version: "candidate-semantic-v1",
+  extractor_version: "isolated-propositions-v1",
+};
+
+async function runComposerSession({ staleSources = [], failRefreshSubmit = false, previewCount = 1, selectedPreviewIndex = previewCount - 1, blockingReview = false, candidateSummary = null, firstSubmitStatus = null, loseFirstSubmitResponse = false } = {}) {
+  const workspace = await mkdtemp(join(tmpdir(), "aergia-tailor-v8-"));
+  const output = join(workspace, "output");
+  const evidence = join(workspace, "evidence");
+  const extraction = join(workspace, "extraction");
+  const candidateIndex = {
+    schema_version: "candidate-index-v1",
+    canonical_skills: [],
+    source_count: staleSources.length,
+    row_count: staleSources.length,
+    semantic_source_counts: { fresh: 0, stale: 0, missing: staleSources.length },
+    cache_state: staleSources.length ? "missing" : "warm",
   };
-  const secondEvidenceSource = {
-    ...evidenceSource,
-    source_id: "source_fixture_2",
-    content_hash: "b".repeat(64),
-    narrative: "Documented REST API behavior and tested fixes.",
-  };
-  const evidenceSources = [evidenceSource, secondEvidenceSource];
-  const evidenceContext = {
-    protocol_version: 6,
-    stage: "evidence",
+  const context = makeContext(candidateIndex);
+  const indexResponse = {
+    protocol_version: PROTOCOL_VERSION,
+    stage: "candidate_index_refresh",
     session_id: context.session_id,
     expires_at: context.expires_at,
-    context_hash: context.context_hash,
-    profile: context.profile,
-    candidate_evidence: { schema_version: "candidate-evidence-v2", groups: [] },
-    evidence_versions: {
-      semantic_cue_model: "gliner2.5-small-v1",
-      semantic_cue_model_revision: "fixture",
-      proposition_extractor: "codex-isolated-subagent",
-      proposition_model: "codex-agent-managed",
-      proposition_model_revision: "runtime-managed",
-      prompt_version: "candidate-proposition-prompt-v6",
-      schema_version: "candidate-evidence-v2",
-      extractor_version: "codex-isolated-propositions-v3",
-    },
-    templates: context.templates,
-    selected_template_id: context.selected_template_id,
-    selected_template_manifest: context.selected_template_manifest,
-    capabilities: context.capabilities,
-    capabilities_hash: context.capabilities_hash,
-    effective_appearance: context.effective_appearance,
-    evaluation_version: context.evaluation_version,
+    cache_state: staleSources.length ? "missing" : "warm",
+    source_counts: { fresh: 0, stale: 0, missing: staleSources.length },
+    semantic_contract: semanticContract,
+    sources: staleSources,
   };
+  const calls = [];
+  const submitBodies = [];
+  let submitCount = 0;
+  let savedSubmitResult = null;
+  let outputBatch = null;
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, options = {}) => {
-    calls.push({ url: String(url), options });
-    if (String(url).endsWith("/exchange")) {
-      return Response.json({ protocol_version: sessionProtocol, capability: "scoped-capability" });
-    }
-    if (String(url).endsWith("/context/strategy")) {
+    const path = new URL(String(url)).pathname;
+    calls.push({ path, options });
+    if (path.endsWith("/exchange")) return Response.json({ protocol_version: PROTOCOL_VERSION, capability: "scoped-capability" });
+    if (path.endsWith("/context/index-refresh") && options.method === "POST") {
+      outputBatch = JSON.parse(options.body);
+      if (failRefreshSubmit) return Response.json({ detail: "semantic refresh unavailable" }, { status: 503 });
       return Response.json({
-        protocol_version: 6,
-        stage: "strategy",
+        protocol_version: PROTOCOL_VERSION,
+        stage: "candidate_index_refresh_result",
         session_id: context.session_id,
         expires_at: context.expires_at,
-        context_hash: context.context_hash,
-        job: context.job,
-        requirement_extraction: context.scanner.requirement_extraction,
-        job_terms: ["Python", "testing"],
+        accepted_source_ids: outputBatch.source_results.map((item) => item.source_id),
+        rejected_source_ids: [],
+        source_counts: { fresh: staleSources.length, stale: 0, missing: 0 },
       });
     }
-    if (String(url).endsWith("/context/evidence/sources")) {
-      return Response.json({
-        protocol_version: 6,
-        stage: "evidence_sources",
-        session_id: context.session_id,
-        expires_at: context.expires_at,
-        context_hash: context.context_hash,
-        sources: evidenceSources.map((source) => ({ source_id: source.source_id, kind: source.kind, identity: source.identity, content_hash: source.content_hash })),
-      });
-    }
-    if (String(url).includes("/context/evidence/sources/")) {
-      const sourceId = decodeURIComponent(new URL(String(url)).pathname.split("/").at(-1));
-      const source = evidenceSources.find((item) => item.source_id === sourceId);
-      return Response.json({
-        protocol_version: 6,
-        stage: "evidence_source",
-        session_id: context.session_id,
-        expires_at: context.expires_at,
-        context_hash: context.context_hash,
-        source,
-      });
-    }
-    if (String(url).endsWith("/context/evidence") && options.method === "POST") {
-      return Response.json(evidenceContext);
-    }
-    if (String(url).endsWith("/context")) return Response.json(context);
-    if (String(url).endsWith("/preview")) {
-      previewNumber += 1;
+    if (path.endsWith("/context/index-refresh")) return Response.json(indexResponse);
+    if (path.endsWith("/context")) return Response.json(context);
+    if (path.endsWith("/preview")) {
       const body = JSON.parse(options.body);
-      const hash = candidateHash(body.candidate);
+      const hash = sha(body.candidate);
       return Response.json({
         format: "pdf",
-        pdf_base64: Buffer.from("pdf-" + previewNumber).toString("base64"),
+        pdf_base64: Buffer.from("pdf").toString("base64"),
         page_count: 1,
+        evaluation_id: `evaluation_${String(calls.filter((call) => call.path.endsWith("/preview")).length).padStart(20, "0")}`,
         candidate_hash: hash,
-        scanner_result: { schema_version: "scanner-v1", semantic: { summary: { job_fit: 0.52 } } },
-        evaluation: evaluator({ candidate: body.candidate, pass: previewNumber, hash }),
+        scanner_result: {},
+        evaluation: {
+          version: "tailoring-evaluation-v2",
+          candidate_hash: hash,
+          risk_findings: [],
+          review_items: [],
+          recommendations: [],
+          regressions: [],
+          non_actionable_gaps: [],
+          improvements: [],
+          dimensions: { job_fit: { candidate: 0.5 }, keywords: { candidate: 0.5 }, pdf_recovery: { candidate: 1 } },
+        },
         render_warnings: [],
       });
     }
-    const submitBody = JSON.parse(options.body);
-    return Response.json({
-      protocol_version: 5,
-      status: "draft_ready",
-      draft_cv_id: "draft-1",
-      candidate_hash: submitBody.expected_candidate_hash,
-      scanner_result: {},
-      evaluation: evaluator({ candidate: submitBody.candidate, pass: previewNumber, hash: submitBody.expected_candidate_hash }),
-      render_warnings: [],
-    });
+    if (path.endsWith("/submit")) {
+      const body = JSON.parse(options.body);
+      submitBodies.push(body);
+      submitCount += 1;
+      if (firstSubmitStatus && submitCount === 1) return Response.json({ detail: "temporary request issue; retry the selected attempt" }, { status: firstSubmitStatus });
+      savedSubmitResult = savedSubmitResult ?? {
+        protocol_version: PROTOCOL_VERSION,
+        status: "draft_ready",
+        draft_cv_id: "draft-1",
+        evaluation_id: body.evaluation_id,
+        candidate_hash: body.expected_candidate_hash,
+        evaluation: {
+          version: "tailoring-evaluation-v2",
+          candidate_hash: body.expected_candidate_hash,
+        },
+      };
+      if (loseFirstSubmitResponse && submitCount === 1) throw new Error("connection reset after the server saved the draft");
+      return Response.json(savedSubmitResult);
+    }
+    throw new Error(`Unexpected request ${path}`);
   };
-  return { calls, evidenceSource, secondEvidenceSource, restore: () => { globalThis.fetch = originalFetch; } };
+
+  try {
+    const resultPromise = runSession("https://aergia.example/agent/tailor/session-1", workspace, { code: "code-1234567890123456" });
+    void resultPromise.catch(() => undefined);
+
+    if (staleSources.length) {
+      const batch = await waitForJson(join(extraction, "source-batch.json"), (value) => value.sources?.length === staleSources.length);
+      assert.deepEqual(batch.semantic_contract, semanticContract);
+      assert.doesNotMatch(JSON.stringify(batch), /job_description|linked_cv|target_strategy|scanner/i);
+      const results = batch.sources.map((source) => ({
+        source_id: source.source_id,
+        source_fingerprint: source.source_fingerprint,
+        claims: [],
+      }));
+      await writeFile(join(output, "candidate-propositions-batch.json"), JSON.stringify({
+        schema_version: "candidate-proposition-batch-v2",
+        results,
+      }));
+    }
+
+    await waitForJson(join(evidence, "context.json"), (value) => value.protocol_version === PROTOCOL_VERSION);
+    const previews = [];
+    for (let index = 0; index < previewCount; index += 1) {
+      const candidateWithSummary = candidateSummary
+        ? { ...candidate, sections: [{ ...candidate.sections[0], data: { ...candidate.sections[0].data, summary: candidateSummary } }] }
+        : candidate;
+      const attemptCandidate = index === 0 ? candidateWithSummary : { ...candidateWithSummary, title: `${candidateWithSummary.title} ${index + 1}` };
+      await writeFile(join(output, "candidate.json"), JSON.stringify(attemptCandidate));
+      await writeFile(join(output, "RENDER"), "");
+      const preview = await waitForJson(join(output, "candidate-preview.json"), (value) => value.evaluation_id && !previews.some((item) => item.evaluation_id === value.evaluation_id));
+      const review = {
+        review_version: "aergia-editorial-review-v2",
+        evaluation_id: preview.evaluation_id,
+        candidate_hash: preview.candidate_hash,
+        findings: [],
+      };
+      if (blockingReview && index === 0) review.findings = [{
+        category: "framing",
+        severity: "blocking",
+        section_id: "profile",
+        excerpt: "Ada",
+        problem: "The review initially marked a concern that is not in the candidate.",
+        recommended_change: "Correct the mistaken review finding.",
+      }];
+      await writeFile(join(output, "editorial-review.json"), JSON.stringify(review));
+      await writeFile(join(output, "EDITORIAL_REVIEW"), "");
+      const reviewedStatus = await waitForJson(join(output, "tailoring-status.json"), (value) => value.state === "awaiting_agent_decision" && value.evaluation_id === preview.evaluation_id);
+      assert.equal(reviewedStatus.candidate_hash, preview.candidate_hash);
+      previews.push(preview);
+    }
+    const selectedPreview = previews[selectedPreviewIndex];
+    await writeFile(join(output, "selection.json"), JSON.stringify({ evaluation_id: selectedPreview.evaluation_id, candidate_hash: selectedPreview.candidate_hash }));
+    await writeFile(join(output, "SUBMIT"), "");
+    if (firstSubmitStatus) {
+      const failure = await waitForJson(join(output, "tailoring-status.json"), (value) => value.state === "submit_rejected" && value.error?.includes(`HTTP ${firstSubmitStatus}`));
+      assert.equal(failure.evaluation_id, selectedPreview.evaluation_id);
+      await writeFile(join(output, "SUBMIT"), "");
+    }
+    const result = await resultPromise;
+    const metrics = JSON.parse(await readFile(join(output, "runtime-metrics.json"), "utf8"));
+    const frozenCandidate = JSON.parse(await readFile(join(output, "attempts", selectedPreview.evaluation_id, "candidate.json"), "utf8"));
+    return { result, calls, outputBatch, metrics, previews, selectedPreview, frozenCandidate, submitBodies };
+  } finally {
+    globalThis.fetch = originalFetch;
+    await rm(workspace, { recursive: true, force: true });
+  }
 }
 
-test("session helper accepts only scoped Aergia session links", { concurrency: false }, () => {
+test("session helper accepts only scoped Aergia session links", () => {
   assert.equal(serverOriginFromSessionUrl("https://aergia.example/agent/tailor/session-1"), "https://aergia.example");
   assert.throws(() => serverOriginFromSessionUrl("https://aergia.example/applications"), /not an Aergia tailoring session/);
   assert.throws(() => serverOriginFromSessionUrl("javascript:alert(1)"), /safe HTTP\(S\)/);
 });
 
-test("isolated propositions enforce concise claims and narrow source excerpts", () => {
+test("semantic batch validation keeps valid peers and rejects bad IDs, fingerprints, and claims", () => {
+  const a = { source_id: "source_a", source_fingerprint: "a".repeat(64) };
+  const b = { source_id: "source_b", source_fingerprint: "b".repeat(64) };
+  const c = { source_id: "source_c", source_fingerprint: "c".repeat(64) };
+  const result = validateBatchPropositions({
+    schema_version: "candidate-proposition-batch-v2",
+    results: [
+      { ...a, claims: [] },
+      { ...b, source_fingerprint: "d".repeat(64), claims: [] },
+      { source_id: "source_unknown", source_fingerprint: "d".repeat(64), claims: [] },
+      { ...c, claims: [{ statement: "bad claim", support: "inferred", source_excerpt: "evidence", associated_concepts: [] }] },
+    ],
+  }, [a, b, c]);
+  assert.deepEqual(result.map((item) => item.source_id), ["source_a"]);
+
   const claim = {
     statement: "Deployed containerized applications",
     support: "explicit",
     source_excerpt: "Deployed containerized applications with Docker.",
     associated_concepts: [],
   };
-  assert.equal(validateSourcePropositions({ source_id: "source_fixture", claims: [claim] }, "source_fixture").claims.length, 1);
-  assert.throws(() => validateSourcePropositions({
-    source_id: "source_fixture",
-    claims: [{ ...claim, statement: Array(19).fill("evidence").join(" ") }],
-  }, "source_fixture"), /invalid proposition/);
-  assert.throws(() => validateSourcePropositions({
-    source_id: "source_fixture",
-    claims: [{ ...claim, source_excerpt: "x".repeat(251) }],
-  }, "source_fixture"), /invalid proposition/);
-  assert.notEqual(sourcePropositionsPath("/tmp/output", "source_fixture"), sourcePropositionsPath("/tmp/output", "source_fixture_2"));
+  assert.equal(validateSourcePropositions({ ...a, claims: [claim] }, a.source_id, a.source_fingerprint).claims.length, 1);
+  assert.throws(() => validateSourcePropositions({ ...a, claims: [claim] }, a.source_id, "f".repeat(64)), /fingerprint/);
 });
 
-test("session helper submits an exact reviewed candidate and carries inference notes", { concurrency: false }, async () => {
-  const { workspace, output, context, candidate, targetStrategy } = await makeSessionWorkspace();
-  await rm(join(output, "candidate.json"));
-  await rm(join(output, "target-strategy.json"));
-  const server = mockTailoringServer(context, undefined, 6);
-  try {
-    const source = join(workspace, "strategy");
-    const resultPromise = runSession("https://aergia.example/agent/tailor/session-1", workspace, { code: "code-1234567890123456" });
-    void resultPromise.catch(() => undefined);
-    await waitForJson(join(source, "context.json"), (value) => value.stage === "strategy");
-    await writeFile(join(output, "target-strategy.json"), JSON.stringify(targetStrategy));
-    const extractionSourcePath = join(workspace, "extraction", "current-source.json");
-    const extractionSource = await waitForJson(extractionSourcePath, (value) => value.source?.source_id === "source_fixture");
-    assert.deepEqual(Object.keys(extractionSource), ["source"]);
-    assert.equal(extractionSource.source.narrative, server.evidenceSource.narrative);
-    assert.doesNotMatch(JSON.stringify(extractionSource), /Convverge|target-strategy|previous_cv|job_description/i);
-    await assert.rejects(readFile(join(workspace, "strategy", "context.json"), "utf8"));
-    const firstPropositionsPath = sourcePropositionsPath(output, server.evidenceSource.source_id);
-    await writeFile(firstPropositionsPath, JSON.stringify({
-      source_id: "source_fixture",
-      claims: [{ statement: "Worked in Agile/Scrum delivery", support: "explicit", source_excerpt: server.evidenceSource.narrative, associated_concepts: [] }],
-    }));
-    const secondExtractionSource = await waitForJson(extractionSourcePath, (value) => value.source?.source_id === "source_fixture_2");
-    assert.equal(secondExtractionSource.source.narrative, server.secondEvidenceSource.narrative);
-    await assert.rejects(readFile(firstPropositionsPath, "utf8"));
-    await writeFile(join(output, "current-propositions.json"), JSON.stringify({ source_id: "source_fixture", claims: [] }));
-    const secondPropositionsPath = sourcePropositionsPath(output, server.secondEvidenceSource.source_id);
-    await writeFile(secondPropositionsPath, JSON.stringify({
-      source_id: "source_fixture_2",
-      claims: [{ statement: "Documented and tested REST API fixes", support: "explicit", source_excerpt: server.secondEvidenceSource.narrative, associated_concepts: [] }],
-    }));
-    await waitForJson(join(workspace, "evidence", "context.json"), (value) => value.stage === "evidence");
-    await assert.rejects(readFile(join(workspace, "extraction", "current-source.json"), "utf8"));
-    await assert.rejects(readFile(firstPropositionsPath, "utf8"));
-    await assert.rejects(readFile(secondPropositionsPath, "utf8"));
-    await assert.rejects(readFile(join(output, "current-propositions.json"), "utf8"));
-    assert.deepEqual(JSON.parse(await readFile(join(workspace, "strategy", "target-strategy.json"), "utf8")), targetStrategy);
-    await writeFile(join(output, "candidate.json"), JSON.stringify(candidate));
-    const notes = [{ claim: "Jest familiarity", basis: ["React/TypeScript work", "documented unit testing"], confidence: "reasonable", review_recommended: true }];
-    await writeFile(join(output, "inference-notes.json"), JSON.stringify(notes));
-    await writeFile(join(output, "RENDER"), "");
-    const preview = await waitForJson(join(output, "candidate-preview.json"), (value) => value.pass_number === 1);
-    assert.equal(preview.evaluation.readiness.status, "ready_with_review");
-    await writeFile(join(output, "editorial-review.json"), JSON.stringify(editorialReview(preview.candidate_hash, 1, notes)));
-    await writeFile(join(output, "EDITORIAL_REVIEW"), "");
-    await waitForJson(join(output, "tailoring-status.json"), (value) => value.state === "ready_for_submission");
-
-    await writeFile(join(output, "candidate.json"), JSON.stringify({ ...candidate, title: "Edited after preview" }));
-    await writeFile(join(output, "SUBMIT"), "");
-    const rejected = await waitForJson(join(output, "tailoring-status.json"), (value) => value.state === "submit_rejected");
-    assert.match(rejected.error, /exact reviewed non-blocked candidate|candidate changed/);
-    assert.equal(server.calls.filter((call) => call.url.endsWith("/submit")).length, 0);
-
-    await writeFile(join(output, "candidate.json"), JSON.stringify(candidate));
-    await writeFile(join(output, "SUBMIT"), "");
-    const result = await resultPromise;
-    assert.equal(result.status, "draft_ready");
-    assert.equal(server.calls.length, 8);
-    assert.equal(server.calls[1].options.headers["X-Aergia-Tailoring-Capability"], "scoped-capability");
-    const body = JSON.parse(server.calls[7].options.body);
-    assert.deepEqual(body.inference_notes, notes);
-    assert.deepEqual(body.editorial_review.inference_notes, notes);
-    assert.equal(body.allow_bounded_fallback, false);
-    assert.doesNotMatch(await readFile(join(output, "result.json"), "utf8"), /scoped-capability/);
-    assert.deepEqual(await readFile(join(source, "target-strategy.json"), "utf8"), `${JSON.stringify(targetStrategy, null, 2)}\n`);
-    assert.equal(await readFile(join(workspace, "evidence", "candidate-evidence.json"), "utf8"), '{\n  "schema_version": "candidate-evidence-v2",\n  "groups": []\n}\n');
-    await assert.rejects(readFile(join(workspace, "strategy", "previous-cv.json"), "utf8"));
-    await assert.rejects(readFile(join(workspace, "strategy", "library.json"), "utf8"));
-  } finally {
-    server.restore();
-    await rm(workspace, { recursive: true, force: true });
-  }
+test("warm protocol v8 session keeps and submits the explicitly selected frozen preview", { concurrency: false }, async () => {
+  const { result, calls, outputBatch, metrics, selectedPreview, frozenCandidate, submitBodies } = await runComposerSession();
+  assert.equal(result.status, "draft_ready");
+  assert.equal(outputBatch, null);
+  assert.deepEqual(calls.map((call) => call.path), [
+    "/api/v1/tailoring/exchange",
+    "/api/v1/tailoring/context/index-refresh",
+    "/api/v1/tailoring/context",
+    "/api/v1/tailoring/preview",
+    "/api/v1/tailoring/submit",
+  ]);
+  assert.equal(metrics.candidate_cue_calls, 0);
+  assert.equal(metrics.semantic_indexing_calls, 0);
+  assert.equal(metrics.indexing_workers, 0);
+  assert.equal(metrics.main_writer_calls, 1);
+  assert.equal(result.evaluation_id, selectedPreview.evaluation_id);
+  assert.deepEqual(frozenCandidate, candidate);
+  const submit = calls.find((call) => call.path.endsWith("/submit"));
+  const submitBody = JSON.parse(submit.options.body);
+  assert.equal(submitBody.evaluation_id, selectedPreview.evaluation_id);
+  assert.equal(submitBody.expected_candidate_hash, selectedPreview.candidate_hash);
+  assert.equal(Object.hasOwn(submitBody, "allow_bounded_fallback"), false);
+  assert.deepEqual(submitBodies, [submitBody]);
 });
 
-test("staged bundle keeps the protocol v5 context path working", { concurrency: false }, async () => {
-  const { workspace, output, context, candidate } = await makeSessionWorkspace();
-  const server = mockTailoringServer(context, undefined, 5);
-  try {
-    await writeFile(join(output, "RENDER"), "");
-    const resultPromise = runSession("https://aergia.example/agent/tailor/session-1", workspace, { code: "code-1234567890123456" });
-    void resultPromise.catch(() => undefined);
-    const preview = await waitForJson(join(output, "candidate-preview.json"), (value) => value.pass_number === 1);
-    await writeFile(join(output, "editorial-review.json"), JSON.stringify(editorialReview(preview.candidate_hash, 1)));
-    await writeFile(join(output, "EDITORIAL_REVIEW"), "");
-    await waitForJson(join(output, "tailoring-status.json"), (value) => value.state === "ready_for_submission");
-    await writeFile(join(output, "SUBMIT"), "");
-    const result = await resultPromise;
-
-    assert.equal(result.status, "draft_ready");
-    assert.equal(server.calls.length, 4);
-    assert.ok(JSON.parse(await readFile(join(workspace, "source", "library.json"), "utf8")));
-    assert.ok(JSON.parse(await readFile(join(workspace, "source", "previous-cv.json"), "utf8")));
-    assert.equal(JSON.parse(await readFile(join(output, "normalized-candidate.json"), "utf8")).title, candidate.title);
-  } finally {
-    server.restore();
-    await rm(workspace, { recursive: true, force: true });
-  }
+test("selects an earlier frozen preview when a later attempt changes", { concurrency: false }, async () => {
+  const { result, previews, submitBodies, frozenCandidate } = await runComposerSession({ previewCount: 2, selectedPreviewIndex: 0 });
+  assert.notEqual(previews[0].evaluation_id, previews[1].evaluation_id);
+  assert.notEqual(previews[0].candidate_hash, previews[1].candidate_hash);
+  assert.equal(submitBodies.length, 1);
+  assert.equal(submitBodies[0].evaluation_id, previews[0].evaluation_id);
+  assert.equal(submitBodies[0].expected_candidate_hash, previews[0].candidate_hash);
+  assert.equal(Object.hasOwn(submitBodies[0], "inference_notes"), false);
+  assert.deepEqual(frozenCandidate, candidate);
+  assert.equal(result.evaluation_id, previews[0].evaluation_id);
 });
 
-test("five revise passes use issue-based best-candidate fallback, not score maximization", { concurrency: false }, async () => {
-  const { workspace, output, context, candidate } = await makeSessionWorkspace();
-  const recommendationCounts = [3, 2, 1, 2, 2];
-  const server = mockTailoringServer(context, ({ pass, hash }) => {
-    const result = evaluation(hash, pass, pass === 5 ? "blocked" : "revise", recommendationCounts[pass - 1] ?? 1);
-    result.dimensions.job_fit.candidate = pass === 5 ? 0.9 : 0.6;
-    if (pass === 5) {
-      result.blockers = [{
-        id: "pdf-critical-text_retention",
-        kind: "blocker",
-        category: "pdf_recovery",
-        message: "Rendered text retention failed.",
-        detail: null,
-        priority: "high",
-        requirement_id: null,
-        term_id: null,
-        code: "text_retention",
-        importance: null,
-      }];
-      result.readiness.reasons = ["Rendered text retention failed."];
-    }
-    return result;
-  });
-  try {
-    await writeFile(join(output, "RENDER"), "");
-    const resultPromise = runSession("https://aergia.example/agent/tailor/session-1", workspace, { code: "code-1234567890123456" });
-    void resultPromise.catch(() => undefined);
-    let bestTitle = null;
-    for (let pass = 1; pass <= 5; pass += 1) {
-      const preview = await waitForJson(join(output, "candidate-preview.json"), (value) => value.pass_number === pass);
-      await writeFile(join(output, "editorial-review.json"), JSON.stringify(editorialReview(preview.candidate_hash, pass)));
-      await writeFile(join(output, "EDITORIAL_REVIEW"), "");
-      await waitForJson(join(output, "tailoring-status.json"), (value) => value.pass_number === pass && (pass < 5 ? value.state === "revision_required" : value.state === "fallback_available"));
-      if (pass === 3) bestTitle = "Candidate pass 3";
-      if (pass < 5) {
-        await writeFile(join(output, "candidate.json"), JSON.stringify({ ...candidate, title: `Candidate pass ${pass + 1}` }));
-        await writeFile(join(output, "RENDER"), "");
-      }
-    }
-    await writeFile(join(output, "SUBMIT"), "");
-    await resultPromise;
-    const submitCall = server.calls.find((call) => call.url.endsWith("/submit"));
-    assert.ok(submitCall);
-    const body = JSON.parse(submitCall.options.body);
-    assert.equal(body.candidate.title, bestTitle);
-    assert.equal(body.allow_bounded_fallback, true);
-    assert.ok(body.review_notes.some((note) => /five-pass evaluation limit/.test(note)));
-    assert.equal(server.calls.filter((call) => call.url.endsWith("/preview")).length, 5);
-  } finally {
-    server.restore();
-    await rm(workspace, { recursive: true, force: true });
-  }
+test("keeps the helper running after a recoverable submit error so the agent can retry", { concurrency: false }, async () => {
+  const { calls, submitBodies, result } = await runComposerSession({ firstSubmitStatus: 409 });
+  const posts = calls.filter((call) => call.path.endsWith("/submit"));
+  assert.equal(posts.length, 2);
+  assert.deepEqual(submitBodies[0], submitBodies[1]);
+  assert.equal(result.status, "draft_ready");
 });
 
-test("blocking editorial findings require a material revision before submission", { concurrency: false }, async () => {
-  const { workspace, output, context, candidate } = await makeSessionWorkspace();
-  const server = mockTailoringServer(context);
-  try {
-    await writeFile(join(output, "RENDER"), "");
-    const resultPromise = runSession("https://aergia.example/agent/tailor/session-1", workspace, { code: "code-1234567890123456" });
-    void resultPromise.catch(() => undefined);
-    const firstPreview = await waitForJson(join(output, "candidate-preview.json"), (value) => value.pass_number === 1);
-    await writeFile(join(output, "editorial-review.json"), JSON.stringify(blockingEditorialReview(firstPreview.candidate_hash, 1)));
-    await writeFile(join(output, "EDITORIAL_REVIEW"), "");
-    const editorialRejected = await waitForJson(join(output, "tailoring-status.json"), (value) => value.state === "editorial_revision_required");
-    assert.match(editorialRejected.error, /blocking finding/);
-    await writeFile(join(output, "SUBMIT"), "");
-    const submitRejected = await waitForJson(join(output, "tailoring-status.json"), (value) => value.state === "submit_rejected");
-    assert.match(submitRejected.error, /exact reviewed non-blocked candidate|submission/);
-    assert.equal(server.calls.filter((call) => call.url.endsWith("/submit")).length, 0);
-
-    await writeFile(join(output, "candidate.json"), JSON.stringify({ ...candidate, title: "Materially revised platform engineer" }));
-    await writeFile(join(output, "RENDER"), "");
-    const secondPreview = await waitForJson(join(output, "candidate-preview.json"), (value) => value.pass_number === 2);
-    await writeFile(join(output, "editorial-review.json"), JSON.stringify(editorialReview(secondPreview.candidate_hash, 2)));
-    await writeFile(join(output, "EDITORIAL_REVIEW"), "");
-    await waitForJson(join(output, "tailoring-status.json"), (value) => value.state === "ready_for_submission");
-    await writeFile(join(output, "SUBMIT"), "");
-    await resultPromise;
-    assert.equal(server.calls.filter((call) => call.url.endsWith("/submit")).length, 1);
-  } finally {
-    server.restore();
-    await rm(workspace, { recursive: true, force: true });
-  }
+test("retries an identical submit after the success response is lost", { concurrency: false }, async () => {
+  const { calls, submitBodies, result } = await runComposerSession({ loseFirstSubmitResponse: true });
+  const posts = calls.filter((call) => call.path.endsWith("/submit"));
+  assert.equal(posts.length, 2);
+  assert.deepEqual(submitBodies[0], submitBodies[1]);
+  assert.equal(result.status, "draft_ready");
 });
 
-test("action-state changes count as progress when an issue keeps its ID", { concurrency: false }, async () => {
-  const { workspace, output, context, candidate } = await makeSessionWorkspace();
-  const server = mockTailoringServer(context, ({ pass, hash }) => {
-    const result = evaluation(hash, pass, "revise");
-    result.recommendations = [{
-      id: "recommendation-stable",
-      kind: "recommendation",
-      category: "lexical",
-      message: "Generated prose varies by pass.",
-      detail: null,
-      priority: pass === 1 ? "high" : "normal",
-      requirement_id: null,
-      term_id: null,
-      code: "terminology",
-      importance: null,
-    }];
-    result.readiness.reasons = ["A concrete fixable issue remains."];
-    return result;
-  });
-  try {
-    await writeFile(join(output, "RENDER"), "");
-    const resultPromise = runSession("https://aergia.example/agent/tailor/session-1", workspace, { code: "code-1234567890123456" });
-    void resultPromise.catch(() => undefined);
-    for (let pass = 1; pass <= 4; pass += 1) {
-      const preview = await waitForJson(join(output, "candidate-preview.json"), (value) => value.pass_number === pass);
-      await writeFile(join(output, "editorial-review.json"), JSON.stringify(editorialReview(preview.candidate_hash, pass)));
-      await writeFile(join(output, "EDITORIAL_REVIEW"), "");
-      const status = await waitForJson(join(output, "tailoring-status.json"), (value) => value.pass_number === pass && (pass < 4 ? value.state === "revision_required" : value.state === "fallback_available"));
-      if (pass === 2) assert.equal(status.state, "revision_required");
-      if (pass < 4) {
-        await writeFile(join(output, "candidate.json"), JSON.stringify({ ...candidate, title: `State pass ${pass + 1}` }));
-        await writeFile(join(output, "RENDER"), "");
-      }
-    }
-    assert.equal((await readFile(join(output, "tailoring-status.json"), "utf8")).includes("unchanged_instrumentation"), true);
-    await writeFile(join(output, "SUBMIT"), "");
-    await resultPromise;
-  } finally {
-    server.restore();
-    await rm(workspace, { recursive: true, force: true });
-  }
+test("submits inferred target-relevant prose without a claim audit", { concurrency: false }, async () => {
+  const summary = "Client-facing software development with testing and QA experience";
+  const { selectedPreview, submitBodies, frozenCandidate, result } = await runComposerSession({ candidateSummary: summary });
+  assert.equal(frozenCandidate.sections[0].data.summary, summary);
+  assert.equal(result.status, "draft_ready");
+  assert.equal(submitBodies[0].evaluation_id, selectedPreview.evaluation_id);
+  assert.equal(submitBodies[0].expected_candidate_hash, selectedPreview.candidate_hash);
+  assert.equal(Object.hasOwn(submitBodies[0], "inference_notes"), false);
 });
 
-test("exact fallback ties prefer the latest evaluated pass", { concurrency: false }, async () => {
-  const { workspace, output, context, candidate } = await makeSessionWorkspace();
-  const server = mockTailoringServer(context, ({ pass, hash }) => evaluation(hash, pass, "revise", 1));
-  try {
-    await writeFile(join(output, "RENDER"), "");
-    const resultPromise = runSession("https://aergia.example/agent/tailor/session-1", workspace, { code: "code-1234567890123456" });
-    void resultPromise.catch(() => undefined);
-    for (let pass = 1; pass <= 3; pass += 1) {
-      const preview = await waitForJson(join(output, "candidate-preview.json"), (value) => value.pass_number === pass);
-      await writeFile(join(output, "editorial-review.json"), JSON.stringify(editorialReview(preview.candidate_hash, pass)));
-      await writeFile(join(output, "EDITORIAL_REVIEW"), "");
-      await waitForJson(join(output, "tailoring-status.json"), (value) => value.pass_number === pass && (pass < 3 ? value.state === "revision_required" : value.state === "fallback_available"));
-      if (pass < 3) {
-        await writeFile(join(output, "candidate.json"), JSON.stringify({ ...candidate, title: `Tie pass ${pass + 1}` }));
-        await writeFile(join(output, "RENDER"), "");
-      }
-    }
-    await writeFile(join(output, "SUBMIT"), "");
-    await resultPromise;
-    const submitCall = server.calls.find((call) => call.url.endsWith("/submit"));
-    assert.equal(JSON.parse(submitCall.options.body).candidate.title, "Tie pass 3");
-  } finally {
-    server.restore();
-    await rm(workspace, { recursive: true, force: true });
-  }
+test("submits a selected evaluation when editorial findings are advisory", { concurrency: false }, async () => {
+  const { calls, selectedPreview, result } = await runComposerSession({ blockingReview: true });
+  assert.equal(calls.filter((call) => call.path.endsWith("/preview")).length, 1);
+  assert.equal(result.evaluation_id, selectedPreview.evaluation_id);
 });
 
-test("repeated candidates stop early and cannot trigger another preview", { concurrency: false }, async () => {
-  const { workspace, output, context, candidate } = await makeSessionWorkspace();
-  const server = mockTailoringServer(context, ({ pass, hash }) => evaluation(hash, pass, "revise", 1));
-  try {
-    await writeFile(join(output, "RENDER"), "");
-    const resultPromise = runSession("https://aergia.example/agent/tailor/session-1", workspace, { code: "code-1234567890123456" });
-    void resultPromise.catch(() => undefined);
-    for (let pass = 1; pass <= 2; pass += 1) {
-      const preview = await waitForJson(join(output, "candidate-preview.json"), (value) => value.pass_number === pass);
-      await writeFile(join(output, "editorial-review.json"), JSON.stringify(editorialReview(preview.candidate_hash, pass)));
-      await writeFile(join(output, "EDITORIAL_REVIEW"), "");
-      await waitForJson(join(output, "tailoring-status.json"), (value) => value.pass_number === pass && value.state === (pass === 1 ? "revision_required" : "fallback_available"));
-      if (pass === 1) await writeFile(join(output, "RENDER"), "");
-    }
-    const stopped = await waitForJson(join(output, "tailoring-status.json"), (value) => value.state === "fallback_available");
-    assert.equal(stopped.stop_reason, "repeated_candidate");
-    await writeFile(join(output, "SUBMIT"), "");
-    await resultPromise;
-    assert.equal(server.calls.filter((call) => call.url.endsWith("/preview")).length, 2);
-    const submitCall = server.calls.find((call) => call.url.endsWith("/submit"));
-    assert.equal(JSON.parse(submitCall.options.body).candidate.title, candidate.title);
-  } finally {
-    server.restore();
-    await rm(workspace, { recursive: true, force: true });
-  }
+test("one stale source is isolated, refreshed, and submitted as one bounded worker batch", { concurrency: false }, async () => {
+  const staleSources = [{
+    source_id: "source_a",
+    source_fingerprint: "a".repeat(64),
+    kind: "experience",
+    identity: { company: "Example" },
+    structured_facts: {},
+    narrative: "Built Python services.",
+  }];
+  const { result, calls, outputBatch, metrics } = await runComposerSession({ staleSources });
+  assert.equal(result.status, "draft_ready");
+  assert.deepEqual(outputBatch.source_results, [{
+    source_id: "source_a",
+    source_fingerprint: "a".repeat(64),
+    claims: [],
+  }]);
+  assert.equal(calls.filter((call) => call.path.endsWith("/context/index-refresh")).length, 2);
+  assert.equal(metrics.candidate_cue_calls, 0);
+  assert.equal(metrics.semantic_indexing_calls, 1);
+  assert.equal(metrics.semantic_batches_processed, 1);
+  assert.equal(metrics.indexing_workers, 1);
 });
 
-test("persistent blockers stop after two meaningful unchanged revisions", { concurrency: false }, async () => {
-  const { workspace, output, context, candidate } = await makeSessionWorkspace();
-  const server = mockTailoringServer(context, ({ pass, hash }) => {
-    const blocked = evaluation(hash, pass, "blocked");
-    blocked.blockers = [{
-      id: "pdf-critical-text_retention",
-      kind: "blocker",
-      category: "pdf_recovery",
-      message: "Rendered text retention failed.",
-      detail: null,
-      priority: "high",
-      requirement_id: null,
-      term_id: null,
-      code: "text_retention",
-      importance: null,
-    }];
-    blocked.readiness.reasons = ["Rendered text retention failed."];
-    return blocked;
-  });
-  try {
-    await writeFile(join(output, "RENDER"), "");
-    const resultPromise = runSession("https://aergia.example/agent/tailor/session-1", workspace, { code: "code-1234567890123456" });
-    void resultPromise.catch(() => undefined);
-    for (let pass = 1; pass <= 3; pass += 1) {
-      const preview = await waitForJson(join(output, "candidate-preview.json"), (value) => value.pass_number === pass);
-      await writeFile(join(output, "editorial-review.json"), JSON.stringify(editorialReview(preview.candidate_hash, pass)));
-      await writeFile(join(output, "EDITORIAL_REVIEW"), "");
-      const expectedState = pass === 3 ? "blocked" : "blocked";
-      await waitForJson(join(output, "tailoring-status.json"), (value) => value.pass_number === pass && value.state === expectedState && (pass < 3 || value.stop_reason === "unchanged_blockers"));
-      if (pass < 3) {
-        await writeFile(join(output, "candidate.json"), JSON.stringify({ ...candidate, title: `Blocked pass ${pass + 1}` }));
-        await writeFile(join(output, "RENDER"), "");
-      }
-    }
-    await assert.rejects(resultPromise, /unresolved blocking issues/);
-    assert.equal(server.calls.filter((call) => call.url.endsWith("/preview")).length, 3);
-    assert.equal(server.calls.filter((call) => call.url.endsWith("/submit")).length, 0);
-  } finally {
-    server.restore();
-    await rm(workspace, { recursive: true, force: true });
-  }
+test("failed semantic persistence falls back to deterministic context and continues composition", { concurrency: false }, async () => {
+  const staleSources = [{
+    source_id: "source_stale",
+    source_fingerprint: "c".repeat(64),
+    kind: "experience",
+    identity: { company: "Example" },
+    structured_facts: {},
+    narrative: "Built Python APIs.",
+  }];
+  const { result, calls, outputBatch } = await runComposerSession({ staleSources, failRefreshSubmit: true });
+  assert.equal(result.status, "draft_ready");
+  assert.equal(outputBatch.source_results[0].source_id, "source_stale");
+  assert.ok(calls.some((call) => call.path.endsWith("/context")));
 });

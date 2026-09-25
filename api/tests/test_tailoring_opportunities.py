@@ -1,4 +1,5 @@
 from datetime import date
+from types import SimpleNamespace
 
 from app.scanner.extraction import extract_requirements_from_entities
 from app.scanner.matching import evaluate_semantic_coverage
@@ -69,3 +70,34 @@ def test_library_work_context_can_promote_a_skill_listed_without_work_context() 
     assert git["poorly_surfaced_skills"] == ["git"]
     assert git["operation"] == "PROMOTE"
     assert retrieved[0]["source_id"] == sources[0].source_id
+
+
+def test_role_relevant_library_material_is_retrieved_even_when_scan_says_covered() -> None:
+    extraction = extract_requirements_from_entities(
+        "Qualifications\nBasic familiarity with version control tools such as Git.",
+        {"entities": {}},
+    )
+    cv = {"sections": [{"id": "skills", "type": "skills", "enabled": True, "data": [
+        {"id": "tools", "category": "Tools", "items": ["Git"]}
+    ]}]}
+    library = [{"id": "brain-station", "kind": "experience", "payload": [{
+        "id": "brain-station-role", "company": "Brain Station 23", "position": "Associate Software Engineer",
+        "description": "Used Git for version control while shipping software features in a collaborative team.",
+    }]}]
+    sources = iter_candidate_sources(library)
+    source_scan = SimpleNamespace(
+        semantic=SimpleNamespace(requirements=[SimpleNamespace(
+            requirement_id=extraction.requirements[0].id,
+            status=EvidenceStatus.SUPPORTED,
+        )]),
+        lexical=SimpleNamespace(terms=[]),
+    )
+
+    opportunities, retrieved = map_tailoring_opportunities(extraction, source_scan, cv, sources)
+
+    git = next(item for item in opportunities if item["requirement_id"] == extraction.requirements[0].id)
+    assert git["current_cv_status"] == "supported"
+    assert git["target_priority"] == extraction.requirements[0].importance.value
+    assert git["source_ids"] == [sources[0].source_id]
+    assert retrieved[0]["narrative"] == library[0]["payload"][0]["description"]
+    assert "verify before making a claim" not in git["source_note"]

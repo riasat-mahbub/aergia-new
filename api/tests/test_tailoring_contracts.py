@@ -1,4 +1,4 @@
-"""Pure protocol-v5 contract tests (no database or browser runtime)."""
+"""Pure protocol-v8 contract tests (no database or browser runtime)."""
 
 import asyncio
 from datetime import datetime, timedelta, timezone
@@ -17,6 +17,7 @@ from app.http_schemas.tailoring import (
     TailoringCodeExchange,
     TailoringContextResponse,
     TailoringPreviewResponse,
+    TailoringSourcePreviewResponse,
     TailoringSessionStatusResponse,
     TailoringSubmitRequest,
 )
@@ -69,9 +70,9 @@ def _scanner_result() -> tuple[dict, object]:
     return result.model_dump(mode="json"), result
 
 
-def test_protocol_v5_is_complete_candidate_only():
+def test_protocol_v8_is_complete_candidate_only_and_requires_preview_binding():
     candidate = _candidate()
-    assert PROTOCOL_VERSION == 5
+    assert PROTOCOL_VERSION == 8
     assert candidate.customizations.accent_color == "#123456"
     assert candidate.sections[0].style is not None
     with pytest.raises(ValidationError):
@@ -82,6 +83,18 @@ def test_protocol_v5_is_complete_candidate_only():
         TailoringSubmitRequest.model_validate(
             {"context_hash": "a" * 64, "candidate": _candidate(), "review_notes": ["x" * 1_001]}
         )
+    with pytest.raises(ValidationError):
+        TailoringSubmitRequest.model_validate({
+            "context_hash": "a" * 64,
+            "expected_candidate_hash": "b" * 64,
+            "candidate": _candidate(),
+            "editorial_review": {
+                "review_version": "aergia-editorial-review-v2",
+                "evaluation_id": "evaluation_0123456789abcdef",
+                "candidate_hash": "b" * 64,
+                "findings": [],
+            },
+        })
 
 
 def test_preview_scanner_result_and_expected_candidate_hash_are_part_of_the_tailoring_contract():
@@ -92,6 +105,7 @@ def test_preview_scanner_result_and_expected_candidate_hash_are_part_of_the_tail
             "format": "pdf",
             "pdf_base64": "cGRm",
             "page_count": 1,
+            "evaluation_id": "evaluation_0123456789abcdef",
             "candidate_hash": "b" * 64,
             "scanner_result": scanner_result,
             "evaluation": evaluation.model_dump(mode="json"),
@@ -101,20 +115,32 @@ def test_preview_scanner_result_and_expected_candidate_hash_are_part_of_the_tail
     request = TailoringSubmitRequest.model_validate(
         {
             "context_hash": "a" * 64,
+            "evaluation_id": preview.evaluation_id,
             "expected_candidate_hash": preview.candidate_hash,
             "candidate": _candidate(),
+            "editorial_review": {
+                "review_version": "aergia-editorial-review-v2",
+                "evaluation_id": preview.evaluation_id,
+                "candidate_hash": preview.candidate_hash,
+                "findings": [],
+            },
         }
     )
 
     assert preview.scanner_result.schema_version == "scanner-v1"
-    assert preview.scanner_result.versions.semantic_score_version == "job-fit-v2"
+    assert preview.scanner_result.versions.semantic_score_version == "job-fit-v3"
     assert preview.evaluation.version == TAILORING_EVALUATION_VERSION
     assert preview.evaluation.candidate_hash == preview.candidate_hash
     assert preview.render_warnings == ["Review length for the target role."]
     assert request.expected_candidate_hash == preview.candidate_hash
+    assert request.evaluation_id == preview.evaluation_id
+    source_preview = TailoringSourcePreviewResponse.model_validate(
+        {key: value for key, value in preview.model_dump(mode="json").items() if key != "evaluation_id"}
+    )
+    assert not hasattr(source_preview, "evaluation_id")
 
 
-def test_context_and_status_contracts_are_v5_and_do_not_expose_capabilities():
+def test_context_and_status_contracts_are_v8_and_do_not_expose_capabilities():
     capabilities = renderer_capabilities()
     assert capabilities["version"] == 2
     assert capabilities["tailoring"]["mode"] == "complete_candidate"
@@ -133,7 +159,7 @@ def test_context_and_status_contracts_are_v5_and_do_not_expose_capabilities():
     scanner_result, result_model = _scanner_result()
     context = TailoringContextResponse.model_validate(
         {
-            "protocol_version": 5,
+            "protocol_version": 8,
             "session_id": "session",
             "application_id": "application",
             "source_cv_id": None,
@@ -142,7 +168,6 @@ def test_context_and_status_contracts_are_v5_and_do_not_expose_capabilities():
             "job": {"company": "Example", "role": "Engineer", "description": "Build APIs", "user_instructions": None},
             "profile": {"name": "Ada"},
             "previous_cv": None,
-            "library": [],
             "scanner": {
                 "schema_version": "scanner-v1",
                 "versions": scanner_result["versions"],
@@ -155,11 +180,21 @@ def test_context_and_status_contracts_are_v5_and_do_not_expose_capabilities():
             "selected_template_manifest": {},
             "capabilities": capabilities,
             "capabilities_hash": capabilities_hash(capabilities),
+            "candidate_index": {
+                "schema_version": "candidate-index-v1",
+                "canonical_skills": [],
+                "source_count": 0,
+                "row_count": 0,
+                "semantic_source_counts": {"fresh": 0, "stale": 0, "missing": 0},
+                "cache_state": "warm",
+            },
+            "candidate_evidence": {"schema_version": "candidate-evidence-v2", "groups": []},
+            "writer_context_characters": 0,
             "evaluation_version": TAILORING_EVALUATION_VERSION,
         }
     )
     assert context.previous_cv is None
-    assert context.protocol_version == 5
+    assert context.protocol_version == 8
     assert context.evaluation_version == TAILORING_EVALUATION_VERSION
     assert context.scanner.source_scan is None
     assert context.scanner.requirement_extraction.extractor_version
@@ -240,7 +275,7 @@ def test_ready_draft_remains_reviewable_after_agent_capability_expiry():
     assert status.draft_cv_id == "draft"
 
 
-def test_historical_v4_status_remains_readable_while_new_protocol_is_v5():
+def test_historical_v4_status_remains_readable_while_new_protocol_is_v8():
     now = datetime.now(timezone.utc)
     session = TailoringSession(
         id="legacy-session",
@@ -261,7 +296,7 @@ def test_historical_v4_status_remains_readable_while_new_protocol_is_v5():
 
     assert status.protocol_version == 4
     assert status.result["protocol_version"] == 4
-    assert PROTOCOL_VERSION == 5
+    assert PROTOCOL_VERSION == 8
 
 
 def test_expired_agent_draft_still_blocks_a_second_session_until_reviewed():

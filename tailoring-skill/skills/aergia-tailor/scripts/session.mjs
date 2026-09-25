@@ -1,26 +1,22 @@
 #!/usr/bin/env node
 
 import { createInterface } from "node:readline/promises";
-import { createHash } from "node:crypto";
 import { access, chmod, mkdir, readdir, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { candidateInputHash, materializeCandidate, validateCandidate } from "./validate-candidate.mjs";
-import { candidateNarrativeClaims, validateClaimVerification } from "./verify-claims.mjs";
+import { materializeCandidate, validateCandidate } from "./validate-candidate.mjs";
 import {
   EDITORIAL_REVIEW_VERSION,
-  MAX_EVALUATED_PASSES,
   validateEditorialReview,
-  validateInferenceNotes,
 } from "./validate-editorial-review.mjs";
 
-export const PROTOCOL_VERSION = 6;
+export const PROTOCOL_VERSION = 8;
 const SUBMIT_MARKER = "SUBMIT";
 const RENDER_MARKER = "RENDER";
 const EDITORIAL_REVIEW_MARKER = "EDITORIAL_REVIEW";
-const STRATEGY_FILE = "target-strategy.json";
+const SEMANTIC_REFRESH_TIMEOUT_MS = 90_000;
 
 function parseArgs(argv) {
   const args = {};
@@ -67,11 +63,13 @@ async function requestJson(url, options = {}) {
     let detail = `HTTP ${response.status}`;
     try {
       const body = await response.json();
-      if (typeof body?.detail === "string") detail = body.detail;
+      if (typeof body?.detail === "string") detail = body.detail.replace(/\s+/g, " ").slice(0, 500);
     } catch {
       // Do not echo arbitrary remote response bodies.
     }
-    throw new Error(detail);
+    const error = new Error(detail);
+    error.status = response.status;
+    throw error;
   }
   return response.json();
 }
@@ -111,8 +109,6 @@ async function replaceProtectedJson(path, value) {
   await chmod(path, 0o400);
 }
 
-export { candidateInputHash } from "./validate-candidate.mjs";
-
 async function assertFreshStagedWorkspace(workspace) {
   async function walk(directory) {
     let entries;
@@ -131,55 +127,13 @@ async function assertFreshStagedWorkspace(workspace) {
   await walk(workspace);
 }
 
-function validateTargetStrategy(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("target-strategy.json must be an object");
-  if (value.schema_version !== "target-strategy-v1") throw new Error("target-strategy.json has an incompatible schema_version");
-  if (!Array.isArray(value.priorities) || value.priorities.length < 3 || value.priorities.length > 6) {
-    throw new Error("target-strategy.json must contain 3 to 6 priorities");
-  }
-  for (const priority of value.priorities) {
-    if (!priority || typeof priority !== "object"
-      || typeof priority.id !== "string" || !priority.id.trim()
-      || typeof priority.label !== "string" || !priority.label.trim()
-      || typeof priority.reason !== "string" || !priority.reason.trim()) {
-      throw new Error("Each target priority needs an id, label, and reason");
-    }
-    if (!Array.isArray(priority.requirement_ids) || !["primary", "secondary"].includes(priority.importance)) {
-      throw new Error("Each target priority needs requirement_ids and primary/secondary importance");
-    }
-  }
-  if (!Array.isArray(value.secondary ?? []) || !Array.isArray(value.do_not_force ?? []) || !Array.isArray(value.terminology ?? [])) {
-    throw new Error("target-strategy.json has invalid optional lists");
-  }
-  return value;
-}
-
-async function prepareStrategyWorkspace(workspace, context) {
+async function prepareIndexWorkspace(workspace) {
   await assertFreshStagedWorkspace(workspace);
-  const strategy = resolve(workspace, "strategy");
+  const extraction = resolve(workspace, "extraction");
   const evidence = resolve(workspace, "evidence");
   const output = resolve(workspace, "output");
-  await Promise.all([strategy, evidence, output].map((path) => mkdir(path, { recursive: true, mode: 0o700 })));
-  await Promise.all([
-    writeProtectedJson(resolve(strategy, "context.json"), context),
-    writeProtectedJson(resolve(strategy, "job.json"), context.job),
-    writeProtectedJson(resolve(strategy, "requirements.json"), context.requirement_extraction),
-    writeProtectedJson(resolve(strategy, "job-terms.json"), context.job_terms ?? []),
-  ]);
-  return { strategy, evidence, output, workspace };
-}
-
-async function waitForTargetStrategy(paths, expiresAt) {
-  const path = resolve(paths.output, STRATEGY_FILE);
-  while (Date.now() < Date.parse(expiresAt)) {
-    if (await exists(path)) {
-      const value = validateTargetStrategy(JSON.parse(await readFile(path, "utf8")));
-      await chmod(path, 0o400).catch(() => undefined);
-      return value;
-    }
-    await wait(750);
-  }
-  throw new Error("The tailoring session expired before a target strategy was ready");
+  await Promise.all([extraction, evidence, output].map((path) => mkdir(path, { recursive: true, mode: 0o700 })));
+  return { extraction, evidence, output, workspace };
 }
 
 async function prepareEvidenceWorkspace(paths, context) {
@@ -188,7 +142,8 @@ async function prepareEvidenceWorkspace(paths, context) {
     writeProtectedJson(resolve(paths.evidence, "context.json"), context),
     writeProtectedJson(resolve(paths.evidence, "profile.json"), context.profile),
     writeProtectedJson(resolve(paths.evidence, "candidate-evidence.json"), context.candidate_evidence),
-    writeProtectedJson(resolve(paths.evidence, "linked-cv.json"), context.linked_cv ?? null),
+    writeProtectedJson(resolve(paths.evidence, "candidate-index.json"), context.candidate_index),
+    writeProtectedJson(resolve(paths.evidence, "linked-cv.json"), context.previous_cv ?? null),
     writeProtectedJson(resolve(paths.evidence, "linked-cv-scan.json"), context.linked_cv_scan ?? null),
     writeProtectedJson(resolve(paths.evidence, "opportunities.json"), context.opportunities ?? []),
     writeProtectedJson(resolve(paths.evidence, "retrieved-sources.json"), context.retrieved_sources ?? []),
@@ -199,13 +154,18 @@ async function prepareEvidenceWorkspace(paths, context) {
   ]);
 }
 
-export function validateSourcePropositions(value, expectedSourceId) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("current-propositions.json must be an object");
-  if (value.source_id !== expectedSourceId || !Array.isArray(value.claims) || value.claims.length > 80) {
-    throw new Error("current-propositions.json does not match the active source or has an invalid claims list");
+export function validateSourcePropositions(value, expectedSourceId, expectedFingerprint) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("source proposition result must be an object");
+  const allowedSourceKeys = new Set(["source_id", "source_fingerprint", "claims"]);
+  if (value.source_id !== expectedSourceId || value.source_fingerprint !== expectedFingerprint
+    || Object.keys(value).some((key) => !allowedSourceKeys.has(key))
+    || !Array.isArray(value.claims) || value.claims.length > 80) {
+    throw new Error("source proposition result does not match the active source or fingerprint");
   }
   const allowedClaimKeys = new Set(["statement", "support", "source_excerpt", "associated_concepts"]);
   const allowedConceptKeys = new Set(["kind", "value", "relation"]);
+  const allowedConceptKinds = new Set(["technology", "method", "collaborator", "artifact", "domain", "outcome", "scope", "other"]);
+  const allowedConceptRelations = new Set(["used", "deployed_with", "tested_with", "tested_across", "collaborated_with", "created", "documented", "within", "associated_with"]);
   for (const claim of value.claims) {
     if (!claim || typeof claim !== "object" || Array.isArray(claim)
       || Object.keys(claim).some((key) => !allowedClaimKeys.has(key))
@@ -214,22 +174,47 @@ export function validateSourcePropositions(value, expectedSourceId) {
       || claim.support !== "explicit"
       || typeof claim.source_excerpt !== "string" || !claim.source_excerpt.trim() || claim.source_excerpt.length > 250
       || !Array.isArray(claim.associated_concepts ?? [])) {
-      throw new Error("current-propositions.json contains an invalid proposition");
+      throw new Error("source proposition result contains an invalid proposition");
     }
     for (const concept of claim.associated_concepts ?? []) {
       if (!concept || typeof concept !== "object" || Array.isArray(concept)
         || Object.keys(concept).some((key) => !allowedConceptKeys.has(key))
-        || typeof concept.kind !== "string" || typeof concept.value !== "string" || typeof concept.relation !== "string") {
-        throw new Error("current-propositions.json contains an invalid concept relation");
+        || !allowedConceptKinds.has(concept.kind)
+        || typeof concept.value !== "string" || !concept.value.trim() || concept.value.length > 160
+        || !allowedConceptRelations.has(concept.relation)) {
+        throw new Error("source proposition result contains an invalid concept relation");
       }
     }
   }
-  return { source_id: value.source_id, claims: value.claims };
+  return { source_id: value.source_id, source_fingerprint: value.source_fingerprint, claims: value.claims };
 }
 
-export function sourcePropositionsPath(output, sourceId) {
-  const suffix = createHash("sha256").update(sourceId).digest("hex").slice(0, 16);
-  return resolve(output, `current-propositions-${suffix}.json`);
+const BATCH_PROPOSITIONS_FILE = "candidate-propositions-batch.json";
+
+export function validateBatchPropositions(value, expectedSourceIds) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("candidate-propositions-batch.json must be an object");
+  if (value.schema_version !== "candidate-proposition-batch-v2"
+    || Object.keys(value).some((key) => !["schema_version", "results"].includes(key))
+    || !Array.isArray(value.results) || value.results.length > 24) {
+    throw new Error("candidate-propositions-batch.json has an invalid shape");
+  }
+  const expected = new Map(expectedSourceIds.map((source) => [source.source_id, source.source_fingerprint]));
+  const occurrences = new Map();
+  for (const raw of value.results) {
+    if (typeof raw?.source_id === "string") occurrences.set(raw.source_id, (occurrences.get(raw.source_id) ?? 0) + 1);
+  }
+  const results = [];
+  for (const raw of value.results) {
+    const fingerprint = expected.get(raw?.source_id);
+    if (typeof raw?.source_id !== "string" || !fingerprint || occurrences.get(raw.source_id) !== 1
+      || raw.source_fingerprint !== fingerprint) continue;
+    try {
+      results.push(validateSourcePropositions(raw, raw.source_id, fingerprint));
+    } catch {
+      // A malformed source remains stale. Valid peers still reach the backend.
+    }
+  }
+  return results;
 }
 
 async function removeStagedFile(path) {
@@ -241,16 +226,21 @@ async function removeStagedFile(path) {
   if (await exists(path)) throw new Error("The isolated source extraction files could not be cleared");
 }
 
-async function waitForSourcePropositions(paths, sourceId, expiresAt) {
-  const path = sourcePropositionsPath(paths.output, sourceId);
-  while (Date.now() < Date.parse(expiresAt)) {
+async function waitForBatchPropositions(paths, sources, expiresAt) {
+  const path = resolve(paths.output, BATCH_PROPOSITIONS_FILE);
+  const deadline = Math.min(Date.now() + SEMANTIC_REFRESH_TIMEOUT_MS, Date.parse(expiresAt));
+  while (Date.now() < deadline) {
     if (await exists(path)) {
-      const value = validateSourcePropositions(JSON.parse(await readFile(path, "utf8")), sourceId);
-      return value;
+      try {
+        const value = JSON.parse(await readFile(path, "utf8"));
+        return validateBatchPropositions(value, sources);
+      } catch {
+        return [];
+      }
     }
     await wait(500);
   }
-  throw new Error(`The tailoring session expired while extracting source ${sourceId}`);
+  return [];
 }
 
 async function clearWorkspaceContents(workspace) {
@@ -258,43 +248,10 @@ async function clearWorkspaceContents(workspace) {
   await Promise.all(entries.map((entry) => rm(resolve(workspace, entry.name), { recursive: true, force: true })));
 }
 
-async function resetForIsolatedExtraction(paths) {
-  // The strategy stays in process memory. Remove all job-side files before an
-  // isolated child is given a source path, then expose only one source at once.
+async function exposeComposerWorkspace(paths, context) {
   await clearWorkspaceContents(paths.workspace);
-  await Promise.all([paths.strategy, paths.evidence, paths.output, resolve(paths.workspace, "extraction")].map((path) => mkdir(path, { recursive: true, mode: 0o700 })));
-  return { ...paths, extraction: resolve(paths.workspace, "extraction") };
-}
-
-async function exposeComposerWorkspace(paths, context, strategy) {
-  await clearWorkspaceContents(paths.workspace);
-  await Promise.all([paths.strategy, paths.evidence, paths.output].map((path) => mkdir(path, { recursive: true, mode: 0o700 })));
-  await writeProtectedJson(resolve(paths.strategy, STRATEGY_FILE), strategy);
+  await Promise.all([paths.extraction, paths.evidence, paths.output].map((path) => mkdir(path, { recursive: true, mode: 0o700 })));
   await prepareEvidenceWorkspace(paths, context);
-}
-
-async function prepareLegacyWorkspace(workspace, context) {
-  const source = resolve(workspace, "source");
-  const output = resolve(workspace, "output");
-  await mkdir(source, { recursive: true, mode: 0o700 });
-  await mkdir(output, { recursive: true, mode: 0o700 });
-  const previous = context.previous_cv ?? {};
-  const scanner = context.scanner ?? {};
-  const requirementExtraction = scanner.requirement_extraction ?? {};
-  await Promise.all([
-    writeProtectedJson(resolve(source, "context.json"), context),
-    writeProtectedJson(resolve(source, "job.json"), context.job),
-    writeProtectedJson(resolve(source, "profile.json"), context.profile),
-    writeProtectedJson(resolve(source, "previous-cv.json"), previous),
-    writeProtectedJson(resolve(source, "library.json"), context.library ?? []),
-    writeProtectedJson(resolve(source, "scanner-context.json"), scanner),
-    writeProtectedJson(resolve(source, "requirements.json"), requirementExtraction.requirements ?? context.requirements ?? []),
-    writeProtectedJson(resolve(source, "source-scan.json"), scanner.source_scan ?? null),
-    writeProtectedJson(resolve(source, "templates.json"), context.templates ?? []),
-    writeProtectedJson(resolve(source, "capabilities.json"), context.capabilities ?? {}),
-    writeProtectedJson(resolve(source, "effective-appearance.json"), context.effective_appearance ?? {}),
-  ]);
-  return { source, output };
 }
 
 async function exists(path) {
@@ -324,52 +281,50 @@ async function readReviewNotes(output) {
   });
 }
 
-async function readInferenceNotes(output) {
-  let source;
-  try {
-    source = await readFile(resolve(output, "inference-notes.json"), "utf8");
-  } catch (error) {
-    if (error?.code === "ENOENT") return [];
-    throw error;
-  }
-  return validateInferenceNotes(JSON.parse(source));
-}
-
 function wait(milliseconds) {
   return new Promise((accept) => setTimeout(accept, milliseconds));
 }
 
-function ensureEvaluation(evaluation, candidateHash) {
+function ensureEvaluation(evaluation, evaluationId, candidateHash) {
   if (!evaluation || typeof evaluation !== "object") throw new Error("The server preview did not return a tailoring evaluation");
-  if (evaluation.version !== "tailoring-evaluation-v1") throw new Error("The server returned an incompatible tailoring evaluation");
+  if (evaluation.version !== "tailoring-evaluation-v2") throw new Error("The server returned an incompatible tailoring evaluation");
+  if (typeof evaluationId !== "string" || !/^[A-Za-z0-9_-]{16,128}$/.test(evaluationId)) throw new Error("The server returned an invalid evaluation ID");
   if (evaluation.candidate_hash !== candidateHash) throw new Error("The server evaluation is bound to a different candidate");
-  if (!["ready", "ready_with_review", "revise", "blocked"].includes(evaluation.readiness?.status)) throw new Error("The server returned an invalid tailoring readiness state");
   return evaluation;
 }
 
-async function renderCandidate(paths, origin, capability, context, candidate, passNumber) {
-  const candidateInputDigest = candidateInputHash(candidate);
-  const inferenceNotes = await readInferenceNotes(paths.output);
+async function renderCandidate(paths, origin, capability, context, candidate) {
   const preview = await requestJson(`${origin}/api/v1/tailoring/preview`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Aergia-Tailoring-Capability": capability },
-    body: JSON.stringify({ context_hash: context.context_hash, candidate, inference_notes: inferenceNotes }),
+    body: JSON.stringify({ context_hash: context.context_hash, candidate }),
   });
-  const evaluation = ensureEvaluation(preview.evaluation, preview.candidate_hash);
+  const evaluation = ensureEvaluation(preview.evaluation, preview.evaluation_id, preview.candidate_hash);
   await replaceProtectedBinary(resolve(paths.output, "candidate-preview.pdf"), preview.pdf_base64);
   const details = {
     format: preview.format,
     page_count: preview.page_count,
+    evaluation_id: preview.evaluation_id,
     candidate_hash: preview.candidate_hash,
-    candidate_input_hash: candidateInputDigest,
-    pass_number: passNumber,
     scanner_result: preview.scanner_result ?? null,
     evaluation,
-    inference_notes: inferenceNotes,
     render_warnings: Array.isArray(preview.render_warnings) ? preview.render_warnings : [],
   };
   await replaceProtectedJson(resolve(paths.output, "candidate-preview.json"), details);
-  return { candidate, candidateInputHash: candidateInputDigest, candidateHash: preview.candidate_hash, passNumber, pdfBase64: preview.pdf_base64, inferenceNotes, preview: details, evaluation };
+  const attemptDirectory = resolve(paths.output, "attempts", preview.evaluation_id);
+  await mkdir(attemptDirectory, { recursive: true, mode: 0o700 });
+  await writeProtectedJson(resolve(attemptDirectory, "candidate.json"), candidate);
+  await writeProtectedJson(resolve(attemptDirectory, "candidate-preview.json"), details);
+  await writeProtectedBinary(resolve(attemptDirectory, "candidate-preview.pdf"), preview.pdf_base64);
+  return {
+    candidate,
+    candidateHash: preview.candidate_hash,
+    evaluationId: preview.evaluation_id,
+    pdfBase64: preview.pdf_base64,
+    preview: details,
+    evaluation,
+    attemptDirectory,
+  };
 }
 
 async function writeSessionStatus(paths, state) {
@@ -380,165 +335,63 @@ async function writeEditorialReviewResult(paths, result) {
   await replaceProtectedJson(resolve(paths.output, "editorial-review-result.json"), result);
 }
 
-async function appendReviewNote(notes, note) {
-  return [...notes.slice(0, 19), note.slice(0, 1_000)];
+function statusForHttpError(error) {
+  return Number.isInteger(error?.status) ? `HTTP ${error.status}` : "network error";
 }
 
-function readinessRank(status) {
-  return { blocked: 0, revise: 1, ready_with_review: 2, ready: 3 }[status] ?? 0;
+function isAccessFailure(error) {
+  return [401, 403, 410].includes(error?.status)
+    || /expired|revoked|capability is no longer active/i.test(error?.message ?? "");
 }
 
-function issueList(evaluation, key) {
-  return Array.isArray(evaluation?.[key]) ? evaluation[key] : [];
+async function submitWithBackoff(url, options, expiresAt) {
+  const delays = [500, 1_500, 3_000];
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await requestJson(url, options);
+    } catch (error) {
+      const retryable = error?.status === 429 || error?.status >= 500 || error?.status === undefined;
+      if (!retryable || attempt >= delays.length || Date.now() + delays[attempt] >= Date.parse(expiresAt)) throw error;
+      process.stderr.write(`Submit ${statusForHttpError(error)}; retrying after ${delays[attempt]} ms.\n`);
+      await wait(delays[attempt]);
+    }
+  }
 }
 
-const ISSUE_STATE_FIELDS = ["id", "kind", "category", "priority", "importance", "code", "requirement_id", "term_id"];
-
-function issueStateSignature(items) {
-  return items.map((item) => {
-    if (typeof item === "string") return JSON.stringify({ id: item });
-    return JSON.stringify(Object.fromEntries(ISSUE_STATE_FIELDS.map((field) => [field, item?.[field] ?? null])));
-  }).sort();
-}
-
-function issueCount(evaluation) {
-  return ["blockers", "review_items", "recommendations", "regressions", "non_actionable_gaps"].reduce((total, key) => total + issueList(evaluation, key).length, 0);
-}
-
-function highPriorityRecommendations(evaluation) {
-  return issueList(evaluation, "recommendations").filter((item) => item?.priority === "high").length;
-}
-
-function materialRegressions(evaluation) {
-  return issueList(evaluation, "regressions").filter((item) => item?.priority === "high" || item?.importance === "required").length;
-}
-
-function qualityPenalty(attempt) {
-  const dimensions = attempt.evaluation?.dimensions ?? {};
-  const ats = dimensions.ats ?? {};
-  const quality = dimensions.resume_quality ?? {};
-  const editorial = attempt.editorialReview?.findings ?? [];
-  return (ats.candidate_error_count ?? 0) * 10 + (quality.candidate_error_count ?? 0) * 10
-    + (ats.candidate_warning_count ?? 0) * 3 + (quality.candidate_warning_count ?? 0) * 3
-    + editorial.filter((finding) => finding.severity === "important").length * 3;
-}
-
-function isBetterAttempt(current, best) {
-  if (!best) return true;
-  const currentStatus = current.evaluation?.readiness?.status;
-  const bestStatus = best.evaluation?.readiness?.status;
-  if (readinessRank(currentStatus) !== readinessRank(bestStatus)) return readinessRank(currentStatus) > readinessRank(bestStatus);
-  if (issueList(current.evaluation, "blockers").length !== issueList(best.evaluation, "blockers").length) return issueList(current.evaluation, "blockers").length < issueList(best.evaluation, "blockers").length;
-  if (materialRegressions(current.evaluation) !== materialRegressions(best.evaluation)) return materialRegressions(current.evaluation) < materialRegressions(best.evaluation);
-  const currentErrors = issueList(current.evaluation, "blockers").filter((item) => ["pdf_recovery", "resume_quality"].includes(item?.category)).length;
-  const bestErrors = issueList(best.evaluation, "blockers").filter((item) => ["pdf_recovery", "resume_quality"].includes(item?.category)).length;
-  if (currentErrors !== bestErrors) return currentErrors < bestErrors;
-  if (qualityPenalty(current) !== qualityPenalty(best)) return qualityPenalty(current) < qualityPenalty(best);
-  const currentPdf = current.evaluation?.dimensions?.pdf_recovery?.candidate ?? 0;
-  const bestPdf = best.evaluation?.dimensions?.pdf_recovery?.candidate ?? 0;
-  if (Math.abs(currentPdf - bestPdf) >= 0.05) return currentPdf > bestPdf;
-  if (highPriorityRecommendations(current.evaluation) !== highPriorityRecommendations(best.evaluation)) return highPriorityRecommendations(current.evaluation) < highPriorityRecommendations(best.evaluation);
-  if (issueCount(current.evaluation) !== issueCount(best.evaluation)) return issueCount(current.evaluation) < issueCount(best.evaluation);
-  const currentFit = current.evaluation?.dimensions?.job_fit?.candidate ?? 0;
-  const bestFit = best.evaluation?.dimensions?.job_fit?.candidate ?? 0;
-  if (Math.abs(currentFit - bestFit) >= 0.01) return currentFit > bestFit;
-  const currentVisibility = current.evaluation?.dimensions?.keywords?.candidate ?? 0;
-  const bestVisibility = best.evaluation?.dimensions?.keywords?.candidate ?? 0;
-  if (Math.abs(currentVisibility - bestVisibility) >= 0.01) return currentVisibility > bestVisibility;
-  if (current.passNumber !== best.passNumber) return current.passNumber > best.passNumber;
-  return current.candidateHash < best.candidateHash;
-}
-
-function actionSignature(evaluation) {
-  return JSON.stringify({
-    blockers: issueStateSignature(issueList(evaluation, "blockers")),
-    review_items: issueStateSignature(issueList(evaluation, "review_items")),
-    recommendations: issueStateSignature(issueList(evaluation, "recommendations")),
-    regressions: issueStateSignature(issueList(evaluation, "regressions")),
-    gaps: issueStateSignature(issueList(evaluation, "non_actionable_gaps")),
-  });
-}
-
-function hasEditorialBlockingFinding(review) {
-  return review?.findings?.some((finding) => finding.severity === "blocking") === true;
-}
-
-function isEligibleFallback(attempt, editorialBlockedCandidateHashes) {
-  return Boolean(
-    attempt
-      && attempt.evaluation.readiness.status !== "blocked"
-      && !editorialBlockedCandidateHashes.has(attempt.candidateHash)
-      && !hasEditorialBlockingFinding(attempt.editorialReview),
-  );
-}
-
-function fallbackReviewNote(attempt, passCount, stopReason) {
-  const unresolved = [...issueList(attempt.evaluation, "review_items").slice(0, 3), ...issueList(attempt.evaluation, "recommendations").slice(0, 3)]
-    .map((item) => typeof item === "string" ? item : item?.message).filter(Boolean);
-  const reason = stopReason === "repeated_candidate" ? "the candidate hash repeated" : stopReason === "unchanged_instrumentation" ? "two revisions left the actionable server issues unchanged" : stopReason === "unchanged_blockers" ? "two revisions left the same blocking issues unresolved" : "the five-pass evaluation limit was reached";
-  const remaining = unresolved.length > 0 ? unresolved.join("; ") : "review the server's remaining issue state";
-  return (`Bounded tailoring review stopped after ${passCount} evaluated pass(es) because ${reason}. Remaining review: ${remaining}`).slice(0, 1_000);
-}
-
-async function waitForCandidate(paths, context, origin, capability) {
+async function waitForCandidate(paths, context, origin, capability, runtimeMetrics) {
   const submitPath = resolve(paths.output, SUBMIT_MARKER);
   const renderPath = resolve(paths.output, RENDER_MARKER);
   const reviewMarkerPath = resolve(paths.output, EDITORIAL_REVIEW_MARKER);
   const candidatePath = resolve(paths.output, "candidate.json");
   const reviewFilePath = resolve(paths.output, "editorial-review.json");
-  const attempts = [];
-  const seenCandidateHashes = new Set();
-  let latestRender = null;
-  let latestReview = null;
-  let bestAttempt = null;
-  let passCount = 0;
-  let fallbackReady = false;
-  let stopReason = null;
-  let unchangedActionRevisions = 0;
-  let unchangedBlockerRevisions = 0;
-  const editorialBlockedCandidateHashes = new Set();
+  const selectionPath = resolve(paths.output, "selection.json");
+  const attempts = new Map();
+  let previewCount = 0;
 
-  await writeSessionStatus(paths, { state: "awaiting_candidate", pass_number: 0, max_passes: MAX_EVALUATED_PASSES });
+  await writeSessionStatus(paths, { state: "awaiting_candidate" });
   while (Date.now() < Date.parse(context.expires_at)) {
     if (await exists(renderPath)) {
       await unlink(renderPath).catch(() => undefined);
-      await unlink(reviewMarkerPath).catch(() => undefined);
-      await unlink(reviewFilePath).catch(() => undefined);
-      await unlink(resolve(paths.output, "editorial-review-result.json")).catch(() => undefined);
-      if (passCount >= MAX_EVALUATED_PASSES) {
-        fallbackReady = isEligibleFallback(bestAttempt, editorialBlockedCandidateHashes);
-        stopReason = "max_passes";
-        await writeSessionStatus(paths, { state: fallbackReady ? "fallback_available" : "blocked", pass_number: passCount, max_passes: MAX_EVALUATED_PASSES, stop_reason: stopReason });
-        continue;
-      }
       try {
         const raw = JSON.parse(await readFile(candidatePath, "utf8"));
         validateCandidate(raw, context);
         const candidate = materializeCandidate(raw);
-        if (context.protocol_version === PROTOCOL_VERSION && candidateNarrativeClaims(candidate).length > 0) {
-          const verification = JSON.parse(await readFile(resolve(paths.output, "claim-verification.json"), "utf8"));
-          validateClaimVerification(verification, candidate, context, candidateInputHash(candidate), await readInferenceNotes(paths.output));
-        }
-        if (
-          latestRender
-          && editorialBlockedCandidateHashes.has(latestRender.candidateHash)
-          && candidateInputHash(candidate) === latestRender.candidateInputHash
-        ) {
-          throw new Error("The candidate has an editorial blocking finding; make a material candidate revision before rendering again");
-        }
         await replaceProtectedJson(resolve(paths.output, "normalized-candidate.json"), candidate);
-        const passNumber = passCount + 1;
-        const rendered = await renderCandidate(paths, origin, capability, context, candidate, passNumber);
-        latestRender = rendered;
-        latestReview = null;
-        passCount = passNumber;
-        await writeSessionStatus(paths, { state: "awaiting_editorial_review", pass_number: passNumber, max_passes: MAX_EVALUATED_PASSES, candidate_hash: rendered.candidateHash, readiness: rendered.evaluation.readiness });
-        process.stderr.write(`Candidate evaluated for pass ${passNumber}/${MAX_EVALUATED_PASSES}. Read candidate-preview.pdf and candidate-preview.json, then write editorial-review.json and create EDITORIAL_REVIEW.\n`);
+        const attempt = await renderCandidate(paths, origin, capability, context, candidate);
+        attempts.set(attempt.evaluationId, attempt);
+        previewCount += 1;
+        runtimeMetrics.renders = previewCount;
+        runtimeMetrics.revision_count = Math.max(0, previewCount - 1);
+        await replaceProtectedJson(resolve(paths.output, "runtime-metrics.json"), runtimeMetrics);
+        await writeSessionStatus(paths, {
+          state: "awaiting_editorial_review",
+          evaluation_id: attempt.evaluationId,
+          candidate_hash: attempt.candidateHash,
+        });
+        process.stderr.write(`Candidate preview ${previewCount} is ready. Review candidate-preview.pdf and candidate-preview.json. Write editorial-review.json with this evaluation_id (${attempt.evaluationId}) and candidate_hash (${attempt.candidateHash}), then create EDITORIAL_REVIEW.\n`);
       } catch (error) {
-        await unlink(submitPath).catch(() => undefined);
-        await writeSessionStatus(paths, { state: "candidate_or_preview_error", pass_number: passCount, error: error instanceof Error ? error.message : "validation failed" });
-        process.stderr.write(`Candidate rejected locally or by preview: ${error instanceof Error ? error.message : "validation failed"}\n`);
-        process.stderr.write(`Repair ${candidatePath}, then create ${RENDER_MARKER} to try again.\n`);
+        await writeSessionStatus(paths, { state: "candidate_or_preview_error", error: error instanceof Error ? error.message : "validation failed" });
+        process.stderr.write(`Candidate rejected locally or by preview: ${error instanceof Error ? error.message : "validation failed"}. Repair candidate.json and create RENDER to try again.\n`);
       }
       continue;
     }
@@ -546,211 +399,251 @@ async function waitForCandidate(paths, context, origin, capability) {
     if (await exists(reviewMarkerPath)) {
       await unlink(reviewMarkerPath).catch(() => undefined);
       try {
-        if (!latestRender) throw new Error("Evaluate a candidate before submitting its editorial review");
-        const rawCandidate = JSON.parse(await readFile(candidatePath, "utf8"));
-        validateCandidate(rawCandidate, context);
-        const currentCandidate = materializeCandidate(rawCandidate);
-        if (candidateInputHash(currentCandidate) !== latestRender.candidateInputHash) throw new Error("The candidate changed after evaluation; render the current candidate again before reviewing it");
         const rawReview = JSON.parse(await readFile(reviewFilePath, "utf8"));
-        const review = validateEditorialReview(rawReview, { candidateHash: latestRender.candidateHash, passNumber: latestRender.passNumber, candidate: latestRender.candidate });
-        if (hasEditorialBlockingFinding(review)) {
-          editorialBlockedCandidateHashes.add(review.candidate_hash);
-          latestReview = null;
-          const message = "The editorial review contains a blocking finding; revise the candidate before submission";
-          await writeEditorialReviewResult(paths, {
-            valid: true,
-            submission_allowed: false,
-            review_version: EDITORIAL_REVIEW_VERSION,
-            candidate_hash: review.candidate_hash,
-            pass_number: review.pass_number,
-            error: message,
-            findings: review.findings,
-          });
-          await writeSessionStatus(paths, {
-            state: "editorial_revision_required",
-            pass_number: passCount,
-            max_passes: MAX_EVALUATED_PASSES,
-            candidate_hash: review.candidate_hash,
-            readiness: latestRender.evaluation.readiness,
-            error: message,
-          });
-          process.stderr.write(`${message}. Make a material candidate revision, then create RENDER.\n`);
-          continue;
-        }
-        latestReview = review;
-        const evaluation = latestRender.evaluation;
-        await writeEditorialReviewResult(paths, { valid: true, review_version: EDITORIAL_REVIEW_VERSION, candidate_hash: review.candidate_hash, pass_number: review.pass_number, readiness: evaluation.readiness, blockers: evaluation.blockers ?? [], review_items: evaluation.review_items ?? [], recommendations: evaluation.recommendations ?? [], non_actionable_gaps: evaluation.non_actionable_gaps ?? [], inference_notes: evaluation.inference_notes ?? [], findings: review.findings });
-        const attempt = { ...latestRender, evaluation, editorialReview: review };
-        const previousAttempt = attempts.at(-1);
-        if (previousAttempt && previousAttempt.candidateHash !== attempt.candidateHash) {
-          unchangedActionRevisions = actionSignature(previousAttempt.evaluation) === actionSignature(attempt.evaluation) ? unchangedActionRevisions + 1 : 0;
-          const previousBlockers = issueStateSignature(issueList(previousAttempt.evaluation, "blockers"));
-          const currentBlockers = issueStateSignature(issueList(attempt.evaluation, "blockers"));
-          unchangedBlockerRevisions = previousAttempt.evaluation.readiness?.status === "blocked"
-            && attempt.evaluation.readiness?.status === "blocked"
-            && currentBlockers.length > 0
-            && JSON.stringify(previousBlockers) === JSON.stringify(currentBlockers)
-            ? unchangedBlockerRevisions + 1
-            : 0;
-        }
-        attempts.push(attempt);
-        if (isBetterAttempt(attempt, bestAttempt)) {
-          bestAttempt = attempt;
-          await replaceProtectedJson(resolve(paths.output, "best-candidate.json"), bestAttempt.candidate);
-          await replaceProtectedBinary(resolve(paths.output, "best-candidate-preview.pdf"), bestAttempt.pdfBase64);
-          await replaceProtectedJson(resolve(paths.output, "best-candidate-preview.json"), bestAttempt.preview);
-        }
-        const repeatedCandidate = seenCandidateHashes.has(attempt.candidateHash);
-        seenCandidateHashes.add(attempt.candidateHash);
-        await replaceProtectedJson(resolve(paths.output, "evaluation-history.json"), attempts.map((item) => ({ candidate_hash: item.candidateHash, pass_number: item.passNumber, readiness: item.evaluation.readiness, improvements: item.evaluation.improvements, regressions: item.evaluation.regressions })));
-        if (evaluation.readiness.status === "ready" || evaluation.readiness.status === "ready_with_review") {
-          fallbackReady = false;
-          stopReason = null;
-          await writeSessionStatus(paths, { state: "ready_for_submission", pass_number: passCount, max_passes: MAX_EVALUATED_PASSES, candidate_hash: attempt.candidateHash, readiness: evaluation.readiness });
-          process.stderr.write(`Server evaluation is ${evaluation.readiness.status}. Submit this exact reviewed candidate when ready, or render a material revision first.\n`);
-        } else if (evaluation.readiness.status === "blocked") {
-          const repeatedBlockers = unchangedBlockerRevisions >= 2;
-          fallbackReady = (repeatedBlockers || passCount >= MAX_EVALUATED_PASSES)
-            && isEligibleFallback(bestAttempt, editorialBlockedCandidateHashes);
-          stopReason = repeatedBlockers ? "unchanged_blockers" : passCount >= MAX_EVALUATED_PASSES ? "max_passes" : null;
-          await writeSessionStatus(paths, { state: fallbackReady ? "fallback_available" : "blocked", pass_number: passCount, max_passes: MAX_EVALUATED_PASSES, candidate_hash: attempt.candidateHash, readiness: evaluation.readiness, ...(stopReason ? { stop_reason: stopReason } : {}) });
-          if (fallbackReady) process.stderr.write(`Server evaluation is blocked, but a reviewed non-blocked fallback is available (${stopReason}).\n`);
-          else if (stopReason) {
-            const terminalError = new Error(`Bounded tailoring loop stopped with unresolved blocking issues (${stopReason})`);
-            terminalError.code = "TAILORING_TERMINAL";
-            throw terminalError;
-          }
-          else process.stderr.write("Server evaluation is blocked. Resolve the concrete blocker before submitting.\n");
-        } else {
-          fallbackReady = passCount >= MAX_EVALUATED_PASSES || repeatedCandidate || unchangedActionRevisions >= 2;
-          stopReason = repeatedCandidate ? "repeated_candidate" : unchangedActionRevisions >= 2 ? "unchanged_instrumentation" : passCount >= MAX_EVALUATED_PASSES ? "max_passes" : null;
-          await writeSessionStatus(paths, { state: fallbackReady ? "fallback_available" : "revision_required", pass_number: passCount, max_passes: MAX_EVALUATED_PASSES, candidate_hash: attempt.candidateHash, readiness: evaluation.readiness, stop_reason: stopReason });
-          process.stderr.write(fallbackReady ? `Bounded revision loop stopped (${stopReason}). SUBMIT may use the best reviewed non-blocked candidate.\n` : `Concrete server issues remain. Revise candidate.json and create RENDER for pass ${passCount + 1}/${MAX_EVALUATED_PASSES}.\n`);
-        }
+        const attempt = attempts.get(rawReview?.evaluation_id);
+        if (!attempt) throw new Error("Editorial review evaluation_id does not name a preview in this session");
+        const review = validateEditorialReview(rawReview, {
+          evaluationId: attempt.evaluationId,
+          candidateHash: attempt.candidateHash,
+          candidate: attempt.candidate,
+        });
+        attempt.editorialReview = review;
+        await replaceProtectedJson(resolve(attempt.attemptDirectory, "editorial-review.json"), review);
+        const evaluation = attempt.evaluation;
+        await writeEditorialReviewResult(paths, {
+          valid: true,
+          review_version: EDITORIAL_REVIEW_VERSION,
+          evaluation_id: review.evaluation_id,
+          candidate_hash: review.candidate_hash,
+          risk_findings: evaluation.risk_findings ?? [],
+          review_items: evaluation.review_items ?? [],
+          recommendations: evaluation.recommendations ?? [],
+          non_actionable_gaps: evaluation.non_actionable_gaps ?? [],
+          findings: review.findings,
+        });
+        await replaceProtectedJson(resolve(paths.output, "evaluation-history.json"), [...attempts.values()]
+          .filter((item) => item.editorialReview)
+          .map((item) => ({
+            evaluation_id: item.evaluationId,
+            candidate_hash: item.candidateHash,
+            improvements: item.evaluation.improvements,
+            regressions: item.evaluation.regressions,
+            risk_findings: item.evaluation.risk_findings ?? [],
+          })));
+        await writeSessionStatus(paths, {
+          state: "awaiting_agent_decision",
+          evaluation_id: attempt.evaluationId,
+          candidate_hash: attempt.candidateHash,
+        });
+        process.stderr.write(`Editorial review saved for evaluation ${attempt.evaluationId}. Review any concerns, make another useful revision if warranted, or write selection.json with this evaluation_id and candidate_hash and create SUBMIT.\n`);
       } catch (error) {
-        if (error?.code === "TAILORING_TERMINAL") throw error;
         const message = error instanceof Error ? error.message : "invalid editorial review";
-        await writeEditorialReviewResult(paths, { valid: false, candidate_hash: latestRender?.candidateHash ?? null, pass_number: latestRender?.passNumber ?? passCount, error: message });
-        await writeSessionStatus(paths, { state: "editorial_review_rejected", pass_number: latestRender?.passNumber ?? passCount, error: message });
+        await writeEditorialReviewResult(paths, { valid: false, error: message });
+        await writeSessionStatus(paths, { state: "editorial_review_rejected", error: message });
         process.stderr.write(`Editorial review rejected: ${message}. Repair editorial-review.json and recreate EDITORIAL_REVIEW.\n`);
       }
       continue;
     }
 
     if (await exists(submitPath)) {
+      await unlink(submitPath).catch(() => undefined);
+      let selectedAttempt;
       try {
-        const notes = await readReviewNotes(paths.output);
-        const currentInferenceNotes = await readInferenceNotes(paths.output);
-        let selectedAttempt = null;
-        if (!fallbackReady && latestRender && latestReview) {
-          const rawCandidate = JSON.parse(await readFile(candidatePath, "utf8"));
-          validateCandidate(rawCandidate, context);
-          const currentCandidate = materializeCandidate(rawCandidate);
-          if (candidateInputHash(currentCandidate) === latestRender.candidateInputHash) selectedAttempt = { ...latestRender, editorialReview: latestReview };
+        const selection = JSON.parse(await readFile(selectionPath, "utf8"));
+        if (!selection || typeof selection !== "object" || Array.isArray(selection)
+          || Object.keys(selection).some((key) => !["evaluation_id", "candidate_hash"].includes(key))) {
+          throw new Error("selection.json must contain only evaluation_id and candidate_hash");
         }
-        // A normal ready submission must use the exact candidate currently
-        // present in candidate.json.  Selecting a prior best attempt is only
-        // a bounded-fallback behavior after the loop has explicitly stopped.
-        if (!selectedAttempt && fallbackReady && isEligibleFallback(bestAttempt, editorialBlockedCandidateHashes)) selectedAttempt = bestAttempt;
-        if (!selectedAttempt) throw new Error("No exact reviewed non-blocked candidate is available for submission");
-        const readinessStatus = selectedAttempt.evaluation.readiness.status;
-        const fallback = fallbackReady;
-        if (readinessStatus === "revise" && !fallbackReady) throw new Error("The server still requests revision; reach the bounded fallback before submitting");
-        if (readinessStatus === "blocked") throw new Error("Blocked candidates cannot be submitted");
-        if (hasEditorialBlockingFinding(selectedAttempt.editorialReview)) throw new Error("Editorial review contains a blocking finding; revise the candidate before submitting");
-        if (JSON.stringify(currentInferenceNotes) !== JSON.stringify(selectedAttempt.inferenceNotes ?? [])) throw new Error("inference-notes.json changed after the selected candidate was reviewed");
-        const finalNotes = fallback ? await appendReviewNote(notes, fallbackReviewNote(selectedAttempt, passCount, stopReason)) : notes;
-        await replaceProtectedJson(resolve(paths.output, "normalized-candidate.json"), selectedAttempt.candidate);
-        return { candidate: selectedAttempt.candidate, candidateHash: selectedAttempt.candidateHash, reviewNotes: finalNotes, inferenceNotes: selectedAttempt.inferenceNotes ?? [], editorialReview: selectedAttempt.editorialReview, allowBoundedFallback: fallback };
+        if (typeof selection.evaluation_id !== "string" || !/^[A-Za-z0-9_-]{16,128}$/.test(selection.evaluation_id)
+          || typeof selection.candidate_hash !== "string" || !/^[0-9a-f]{64}$/.test(selection.candidate_hash)) {
+          throw new Error("selection.json must name a valid evaluation_id and candidate_hash");
+        }
+        const attempt = attempts.get(selection.evaluation_id);
+        if (!attempt || attempt.candidateHash !== selection.candidate_hash || !attempt.editorialReview) {
+          throw new Error("selection.json must name a reviewed preview from this session with the matching candidate_hash");
+        }
+        const attemptDirectory = resolve(paths.output, "attempts", attempt.evaluationId);
+        const frozenCandidate = materializeCandidate(JSON.parse(await readFile(resolve(attemptDirectory, "candidate.json"), "utf8")));
+        const frozenPreview = JSON.parse(await readFile(resolve(attemptDirectory, "candidate-preview.json"), "utf8"));
+        const frozenReviewInput = JSON.parse(await readFile(resolve(attemptDirectory, "editorial-review.json"), "utf8"));
+        const frozenReview = validateEditorialReview(frozenReviewInput, {
+          evaluationId: attempt.evaluationId,
+          candidateHash: attempt.candidateHash,
+          candidate: frozenCandidate,
+        });
+        if (frozenPreview.evaluation_id !== attempt.evaluationId
+          || frozenPreview.candidate_hash !== attempt.candidateHash) {
+          throw new Error("The frozen attempt no longer matches its preview and evaluation binding");
+        }
+        const reviewNotes = await readReviewNotes(paths.output);
+        selectedAttempt = { ...attempt, candidate: frozenCandidate, editorialReview: frozenReview, reviewNotes };
+        await replaceProtectedJson(resolve(paths.output, "normalized-candidate.json"), frozenCandidate);
       } catch (error) {
-        await unlink(submitPath).catch(() => undefined);
-        const message = error instanceof Error ? error.message : "submission is not ready";
-        await writeSessionStatus(paths, { state: "submit_rejected", pass_number: passCount, error: message });
-        process.stderr.write(`Submission rejected: ${message}\n`);
+        const message = error instanceof Error ? error.message : "submission selection is invalid";
+        await writeSessionStatus(paths, { state: "submit_rejected", error: message });
+        process.stderr.write(`Submission selection rejected: ${message}\n`);
+        continue;
+      }
+
+      const metrics = await exists(resolve(paths.output, "runtime-metrics.json"))
+        ? JSON.parse(await readFile(resolve(paths.output, "runtime-metrics.json"), "utf8"))
+        : runtimeMetrics;
+      Object.assign(runtimeMetrics, metrics, {
+        renders: previewCount,
+        revision_count: Math.max(0, previewCount - 1),
+      });
+      const requestBody = {
+        context_hash: context.context_hash,
+        evaluation_id: selectedAttempt.evaluationId,
+        expected_candidate_hash: selectedAttempt.candidateHash,
+        candidate: selectedAttempt.candidate,
+        review_notes: selectedAttempt.reviewNotes,
+        editorial_review: selectedAttempt.editorialReview,
+        runtime_metrics: runtimeMetrics,
+      };
+      try {
+        const result = await submitWithBackoff(`${origin}/api/v1/tailoring/submit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Aergia-Tailoring-Capability": capability },
+          body: JSON.stringify(requestBody),
+        }, context.expires_at);
+        if (result.candidate_hash !== selectedAttempt.candidateHash
+          || result.evaluation_id !== selectedAttempt.evaluationId
+          || result.evaluation?.candidate_hash !== selectedAttempt.candidateHash) {
+          throw new Error("The submitted draft did not match the selected frozen evaluation");
+        }
+        await writeFile(resolve(paths.output, "result.json"), `${JSON.stringify(result, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+        await writeSessionStatus(paths, {
+          state: "submitted",
+          evaluation_id: result.evaluation_id,
+          draft_cv_id: result.draft_cv_id,
+          candidate_hash: result.candidate_hash,
+        });
+        process.stdout.write(`${JSON.stringify(result)}\n`);
+        return result;
+      } catch (error) {
+        if (isAccessFailure(error)) {
+          const message = error instanceof Error ? error.message : "Tailoring access expired or was revoked";
+          await writeSessionStatus(paths, { state: "access_expired_or_revoked", error: `${statusForHttpError(error)}: ${message}` });
+          throw new Error(`${statusForHttpError(error)}: ${message}`);
+        }
+        const message = error instanceof Error ? error.message : "submission failed";
+        const transient = error?.status === 429 || error?.status >= 500 || error?.status === undefined;
+        await writeSessionStatus(paths, {
+          state: transient ? "submit_recoverable_error" : "submit_rejected",
+          evaluation_id: selectedAttempt.evaluationId,
+          candidate_hash: selectedAttempt.candidateHash,
+          error: `${statusForHttpError(error)}: ${message}`,
+        });
+        process.stderr.write(`Submit ${statusForHttpError(error)}: ${message}. Correct selection.json or the selected attempt's review/request inputs if needed, then recreate SUBMIT to retry.\n`);
       }
       continue;
     }
 
-    if (!(await exists(renderPath)) && !(await exists(reviewMarkerPath)) && !(await exists(submitPath))) await wait(750);
+    await wait(750);
   }
-  throw new Error("The tailoring session expired before a valid candidate was ready");
+  await writeSessionStatus(paths, { state: "session_expired", error: "The tailoring session expired before submission completed" });
+  throw new Error("The tailoring session expired before submission completed");
 }
 
 export async function runSession(sessionUrl, workspace, options = {}) {
   const origin = serverOriginFromSessionUrl(sessionUrl);
   const code = options.code === undefined ? await readCode() : validateCode(options.code);
   const exchange = await requestJson(`${origin}/api/v1/tailoring/exchange`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ protocol_version: PROTOCOL_VERSION, code }) });
-  if (![5, PROTOCOL_VERSION].includes(exchange.protocol_version) || typeof exchange.capability !== "string") throw new Error("The server returned an incompatible tailoring protocol");
+  if (exchange.protocol_version !== PROTOCOL_VERSION || typeof exchange.capability !== "string") throw new Error("The server returned an incompatible tailoring protocol");
   const capability = exchange.capability;
   const headers = { "X-Aergia-Tailoring-Capability": capability };
-  let context;
-  let paths;
-  if (exchange.protocol_version === PROTOCOL_VERSION) {
-    const strategyContext = await requestJson(`${origin}/api/v1/tailoring/context/strategy`, { headers });
-    if (strategyContext.protocol_version !== PROTOCOL_VERSION || strategyContext.stage !== "strategy") throw new Error("The server returned an incompatible job strategy context");
-    paths = await prepareStrategyWorkspace(workspace, strategyContext);
-    process.stdout.write(`Job-only strategy context ready in ${paths.strategy}. Write ${resolve(paths.output, STRATEGY_FILE)} before requesting candidate evidence.\n`);
-    const strategy = await waitForTargetStrategy(paths, strategyContext.expires_at);
-    paths = await resetForIsolatedExtraction(paths);
-    const sourceIndex = await requestJson(`${origin}/api/v1/tailoring/context/evidence/sources`, { headers });
-    if (sourceIndex.protocol_version !== PROTOCOL_VERSION || sourceIndex.stage !== "evidence_sources"
-      || sourceIndex.context_hash !== strategyContext.context_hash || !Array.isArray(sourceIndex.sources)) {
-      throw new Error("The server returned an incompatible candidate evidence source index");
-    }
-    const sourceResults = [];
-    for (const reference of sourceIndex.sources) {
-      if (typeof reference?.source_id !== "string" || typeof reference.content_hash !== "string") {
-        throw new Error("The candidate evidence source index contains an invalid reference");
-      }
-      const sourceContext = await requestJson(
-        `${origin}/api/v1/tailoring/context/evidence/sources/${encodeURIComponent(reference.source_id)}`,
-        { headers },
-      );
-      const source = sourceContext.source;
-      if (sourceContext.protocol_version !== PROTOCOL_VERSION || sourceContext.stage !== "evidence_source"
-        || sourceContext.context_hash !== strategyContext.context_hash || source?.source_id !== reference.source_id
-        || source.content_hash !== reference.content_hash || typeof source.narrative !== "string") {
-        throw new Error("The server returned a mismatched candidate evidence source");
-      }
-      const sourcePath = resolve(paths.extraction, "current-source.json");
-      const propositionsPath = sourcePropositionsPath(paths.output, reference.source_id);
-      await writeProtectedJson(sourcePath, { source: sourceContext.source });
-      process.stdout.write(`Isolated proposition extraction ready for ${reference.source_id}. Give a fresh fork_turns=none child only ${sourcePath}; ask it to write ${propositionsPath}. The helper will remove both files before exposing the next source.\n`);
-      const propositions = await waitForSourcePropositions(paths, reference.source_id, strategyContext.expires_at);
-      sourceResults.push(propositions);
-      await Promise.all([removeStagedFile(sourcePath), removeStagedFile(propositionsPath)]);
-    }
-    context = await requestJson(`${origin}/api/v1/tailoring/context/evidence`, {
-      method: "POST",
-      headers: { ...headers, "Content-Type": "application/json" },
-      body: JSON.stringify({ context_hash: strategyContext.context_hash, source_results: sourceResults }),
-    });
-    if (context.protocol_version !== PROTOCOL_VERSION || context.stage !== "evidence" || context.evaluation_version !== "tailoring-evaluation-v1") throw new Error("The server returned an incompatible candidate evidence context");
-    if (context.context_hash !== strategyContext.context_hash) throw new Error("The staged tailoring context changed between strategy and evidence");
-    await exposeComposerWorkspace(paths, context, strategy);
-    process.stdout.write(`Presentation-blind candidate evidence ready in ${paths.evidence}. Write ${resolve(paths.output, "candidate.json")} and create RENDER. After each server evaluation, write editorial-review.json and create EDITORIAL_REVIEW.\n`);
-  } else {
-    context = await requestJson(`${origin}/api/v1/tailoring/context`, { headers });
-    if (context.protocol_version !== 5 || context.evaluation_version !== "tailoring-evaluation-v1") throw new Error("The server returned an incompatible v5 tailoring context");
-    paths = await prepareLegacyWorkspace(workspace, context);
-    if (context.rendered_source?.endpoint) {
-      try {
-        const sourcePreview = await requestJson(`${origin}${context.rendered_source.endpoint}`, { headers });
-        await writeProtectedBinary(resolve(paths.source, "source-cv.pdf"), sourcePreview.pdf_base64);
-        await writeFile(resolve(paths.source, "source-cv-render.json"), `${JSON.stringify({ format: sourcePreview.format, page_count: sourcePreview.page_count, candidate_hash: sourcePreview.candidate_hash, scanner_result: sourcePreview.scanner_result ?? null, evaluation: sourcePreview.evaluation ?? null }, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
-      } catch (error) {
-        process.stderr.write(`Source PDF preview unavailable: ${error instanceof Error ? error.message : "render failed"}\n`);
-      }
-    }
-    process.stdout.write(`Protocol v5 context ready in ${paths.source}. Write ${resolve(paths.output, "candidate.json")} and create RENDER.\n`);
+  const paths = await prepareIndexWorkspace(workspace);
+  const runtimeMetrics = {
+    candidate_cue_calls: 0,
+    semantic_indexing_calls: 0,
+    indexing_workers: 0,
+    semantic_refresh_duration_ms: 0,
+    semantic_batches_processed: 0,
+    main_writer_calls: 1,
+    renders: 0,
+    revision_count: 0,
+  };
+
+  // Candidate indexing is checked before the job context is fetched. The
+  // refresh worker sees only this source batch and its schema.
+  let indexState = null;
+  try {
+    indexState = await requestJson(`${origin}/api/v1/tailoring/context/index-refresh`, { headers });
+    if (indexState.protocol_version !== PROTOCOL_VERSION || indexState.stage !== "candidate_index_refresh"
+      || !Array.isArray(indexState.sources)) throw new Error("The server returned an incompatible candidate index state");
+  } catch (error) {
+    process.stderr.write(`Candidate semantic refresh unavailable; continuing with deterministic Library sources: ${error instanceof Error ? error.message : "refresh state unavailable"}\n`);
   }
-  const selected = await waitForCandidate(paths, context, origin, capability);
-  const result = await requestJson(`${origin}/api/v1/tailoring/submit`, { method: "POST", headers: { "Content-Type": "application/json", "X-Aergia-Tailoring-Capability": capability }, body: JSON.stringify({ context_hash: context.context_hash, expected_candidate_hash: selected.candidateHash, candidate: selected.candidate, review_notes: selected.reviewNotes, inference_notes: selected.inferenceNotes, editorial_review: selected.editorialReview, allow_bounded_fallback: selected.allowBoundedFallback }) });
-  if (result.candidate_hash !== selected.candidateHash || result.evaluation?.candidate_hash !== selected.candidateHash) throw new Error("The submitted draft hash did not match its rendered evaluation");
-  await writeFile(resolve(paths.output, "result.json"), `${JSON.stringify(result, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
-  await writeSessionStatus(paths, { state: "submitted", draft_cv_id: result.draft_cv_id, candidate_hash: result.candidate_hash, readiness: result.evaluation?.readiness ?? null });
-  process.stdout.write(`${JSON.stringify(result)}\n`);
-  return result;
+
+  if (indexState) {
+    runtimeMetrics.candidate_cache_state = indexState.cache_state;
+    runtimeMetrics.fresh_source_count = indexState.source_counts?.fresh ?? 0;
+    runtimeMetrics.stale_source_count = indexState.source_counts?.stale ?? 0;
+    runtimeMetrics.missing_source_count = indexState.source_counts?.missing ?? 0;
+    if (indexState.sources.length > 0) {
+      const refreshStartedAt = Date.now();
+      const batchPath = resolve(paths.extraction, "source-batch.json");
+      const batchOutputPath = resolve(paths.output, BATCH_PROPOSITIONS_FILE);
+      await writeProtectedJson(batchPath, {
+        schema_version: "candidate-source-batch-v1",
+        semantic_contract: indexState.semantic_contract,
+        sources: indexState.sources,
+      });
+      process.stdout.write(`Job-blind semantic refresh batch ready at ${batchPath}. Start ONE isolated worker with no inherited job/application context. Give it only this batch, candidate-source-batch.schema.json, candidate-proposition-batch.schema.json, and ${batchOutputPath}. The worker must keep each source independent. Do not provide a job, strategy, linked CV, scan, or tailoring conversation.\n`);
+      const sourceResults = await waitForBatchPropositions(paths, indexState.sources, indexState.expires_at);
+      runtimeMetrics.semantic_refresh_duration_ms = Date.now() - refreshStartedAt;
+      runtimeMetrics.semantic_batches_processed = 1;
+      runtimeMetrics.semantic_indexing_calls = sourceResults.length;
+      runtimeMetrics.indexing_workers = 1;
+      if (sourceResults.length) {
+        try {
+          const refreshResult = await requestJson(`${origin}/api/v1/tailoring/context/index-refresh`, {
+            method: "POST",
+            headers: { ...headers, "Content-Type": "application/json" },
+            body: JSON.stringify({ source_results: sourceResults }),
+          });
+          runtimeMetrics.accepted_semantic_sources = refreshResult.accepted_source_ids?.length ?? 0;
+          runtimeMetrics.rejected_semantic_sources = refreshResult.rejected_source_ids?.length ?? 0;
+          runtimeMetrics.source_counts_after_refresh = refreshResult.source_counts ?? {};
+        } catch (error) {
+          process.stderr.write(`Semantic refresh result was not persisted; continuing with deterministic data: ${error instanceof Error ? error.message : "refresh write failed"}\n`);
+        }
+      } else {
+        process.stderr.write("No valid semantic source results arrived within the refresh budget; continuing with deterministic data and current Library narratives.\n");
+      }
+      await Promise.all([removeStagedFile(batchPath), removeStagedFile(batchOutputPath)]);
+    }
+  }
+
+  let context;
+  try {
+    context = await requestJson(`${origin}/api/v1/tailoring/context`, { headers });
+  } catch (error) {
+    // Semantic enrichment is optional, but the deterministic composition
+    // context itself remains required to create a safe draft.
+    throw error;
+  }
+  if (context.protocol_version !== PROTOCOL_VERSION || context.evaluation_version !== "tailoring-evaluation-v2") throw new Error("The server returned an incompatible protocol v8 tailoring context");
+  runtimeMetrics.fresh_source_count = context.candidate_index?.semantic_source_counts?.fresh ?? runtimeMetrics.fresh_source_count ?? 0;
+  runtimeMetrics.stale_source_count = context.candidate_index?.semantic_source_counts?.stale ?? runtimeMetrics.stale_source_count ?? 0;
+  runtimeMetrics.missing_source_count = context.candidate_index?.semantic_source_counts?.missing ?? runtimeMetrics.missing_source_count ?? 0;
+  runtimeMetrics.sources_retrieved = context.retrieved_sources?.length ?? 0;
+  runtimeMetrics.writer_context_characters = context.writer_context_characters ?? 0;
+  await exposeComposerWorkspace(paths, context);
+  await replaceProtectedJson(resolve(paths.output, "runtime-metrics.json"), runtimeMetrics);
+  process.stdout.write(`Complete job-aware composition context ready in ${paths.evidence}. Candidate cache: ${runtimeMetrics.fresh_source_count} fresh, ${runtimeMetrics.stale_source_count} stale, ${runtimeMetrics.missing_source_count} missing. Retrieve only this bounded source set, write one complete candidate to ${resolve(paths.output, "candidate.json")}, then create RENDER.\n`);
+
+  if (context.rendered_source?.endpoint) {
+    try {
+      const sourcePreview = await requestJson(`${origin}${context.rendered_source.endpoint}`, { headers });
+      await writeProtectedBinary(resolve(paths.evidence, "linked-cv.pdf"), sourcePreview.pdf_base64);
+      await writeFile(resolve(paths.evidence, "linked-cv-render.json"), `${JSON.stringify({ format: sourcePreview.format, page_count: sourcePreview.page_count, candidate_hash: sourcePreview.candidate_hash, scanner_result: sourcePreview.scanner_result ?? null, evaluation: sourcePreview.evaluation ?? null }, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+    } catch (error) {
+      process.stderr.write(`Linked CV PDF preview unavailable: ${error instanceof Error ? error.message : "render failed"}\n`);
+    }
+  }
+  return waitForCandidate(paths, context, origin, capability, runtimeMetrics);
 }
 
 function printHelp() {

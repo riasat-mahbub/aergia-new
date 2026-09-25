@@ -2,68 +2,107 @@
 
 ## Job Fit boundary
 
-Job Fit evaluates the application's currently linked CV against frozen job
-requirements. The scanner never reads the Library or CandidateEvidence to
-calculate that score. A qualification absent from the linked CV remains a scan
-gap even when a Library source could supply it to a later tailored draft.
+Job Fit evaluates the application's target job against its currently linked
+CV. The scanner never reads Library rows, CandidateEvidence, or cached
+candidate semantics when scoring that CV. A Library skill absent from the
+linked CV remains a Job Fit gap; tailoring can retrieve it as recoverable
+candidate material.
 
-The matcher uses `api/app/scanner/skills.py` for technology identity. Known
-spelling and product aliases collapse to a canonical ID, and unknown product
-labels can match themselves with token boundaries. A skill appearing in Skills
-or substantive CV prose is supported by identity; expectation strength does
-not downgrade that presence. Structured constraints such as years, degrees,
-certifications, authorization, and geography still have separate evidence
-checks. Behavioral and contextual requirements remain in semantic rules.
+Tailoring previews use temporary candidate scans. They do not replace the
+application's stored scan. Accepting a draft links that CV and lets the normal
+application scan lifecycle refresh Job Fit. Scanner results produced under an
+older matching contract are stale by version and refresh through that same
+lifecycle; historical applications are not eagerly rescanned.
 
-## Vocabulary audit
+## Skill identity
 
-| Previous owner | Classification and role after refactor |
-|---|---|
-| `scanner.skills.SKILL_ALIASES` | The one identity alias owner. It contains spelling and product-label identities, including Postgres/PostgreSQL, k8s/Kubernetes, JS/JavaScript, and React.js/React. |
-| `relevance_taxonomy.HARD_SKILL_ALIASES` | Compatibility name pointing to `SKILL_ALIASES`; it no longer owns another mapping. Broader REST/RESTful, ASP.NET/.NET, and cloud/provider relationships were removed as identity aliases. |
-| `relevance_taxonomy.TECHNICAL_CONCEPT_ALIASES` | Extraction concepts such as distributed systems and test automation. These keep independently meaningful terms in requirement parsing without defining product aliases. |
-| `relevance_taxonomy.RESPONSIBILITY_ALIASES`; `scanner.matching._SEMANTIC_ALIASES` and `_SEMANTIC_PATTERNS` | Semantic relationship cues for behavior and context. Ordinary skill leaves bypass these rules. |
-| `scanner.lexical._CUSTOM_TERMS` | Employer-term extraction cues that drive keyword visibility; not Job Fit identity. |
-| `scanner.lexical._SURFACE_VARIANTS` | Display/wording variants for lexical visibility; they do not establish semantic or skill identity. |
-| `candidate_evidence._normalized` | Provenance/excerpt validation and claim deduplication; not technology identity. |
-| Frontend scanner report code | Display and explanation only; it performs no independent skill normalization. |
+`api/app/scanner/skills.py` owns canonical skill identity for job extraction,
+linked-CV scanning, deterministic Library indexing, and tailoring retrieval.
+Known aliases collapse to one canonical ID, including Postgres/PostgreSQL,
+k8s/Kubernetes, JS/JavaScript, and React.js/React. Aliases express identity;
+they do not imply broader relationships such as cloud/provider or
+container/tool equivalence.
 
-The legacy application-relevance service still has separate free-text/FTS
-matching and builds a lowercase lookup table for its broader relevance
-workflow. Its hard-skill alias source is the shared vocabulary, while the new
-linked-CV scanner uses the shared boundary-aware extractor. Removing the
-legacy service or its broader FTS behavior is outside this refactor.
+Known skills use canonical lookup. Unknown job terms use safe whole-token
+search against indexed CV and Library text, so a new product name does not
+need to be pre-enumerated. Ordinary exact skill identity matches without a
+separate proficiency or practical-use proof. Experience duration, degree,
+certification, language, authorization, and reliable location constraints
+remain separate structured checks. Collaboration and other behavioral
+requirements remain semantic.
 
-## Tailoring stages
+## Persistent candidate index
 
-The staged tailoring protocol first interprets the job without candidate
-material and extracts CandidateEvidence from one Library source at a time
-without job context. The composition stage then receives the linked CV and
-scan, an Opportunity Mapper result, CandidateEvidence, and a bounded selection
-of original Library narratives. Opportunities are high-recall retrieval hints;
-they do not modify Job Fit or assert that a claim is true.
+The deterministic index stores current source identity, fingerprints,
+structured facts, canonical skills, and normalized searchable text. Library
+mutations update the affected entry in the same database transaction. Legacy
+rows receive persisted stable row IDs on their first index access. Narrative
+source IDs combine the Library entry, row ID, and field path; fingerprints
+hash the current extraction inputs.
 
-Before rendering each staged draft, the local helper requires a hash-bound
-claim-verification ledger for every enabled summary/description item. The
-agent classifies each item as explicit, derived, inferred, or unsupported and
-cites CandidateEvidence IDs or exact Library excerpts. Unsupported items cannot
-render. Inferred items require a matching review note. Server evaluation also
-blocks known technologies newly introduced without support in the linked CV,
-Library, or user-confirmed facts. The server retains high-risk structured fact
-checks and compares scan, ATS, quality, PDF, and pass results.
+Semantic propositions are stored per narrative source with the fingerprint,
+model, extractor, prompt, and schema versions. Sources are `FRESH`, `STALE`, or
+`MISSING`. A warm index causes zero candidate cue extraction, proposition
+extraction, or indexing workers. A changed source invalidates only its own
+semantic record. Before persisting a worker result, the backend locks and
+rechecks the authoritative Library row and fingerprint. Deleted sources lose
+both deterministic and semantic records.
 
-The local helper permits up to five evaluated passes. Its fallback choice
-prioritizes safety, important regressions, ATS and resume quality, PDF recovery,
-and concrete issue state before using Job Fit and term visibility as tie
-breakers. The agent must inspect the PDF and perform editorial review on each
-candidate; scores alone do not establish that a pass is acceptable.
+At session start, one job-blind worker may receive a bounded batch of stale
+sources. It receives no job, application, linked CV, scanner, or prior
+conversation context. Each result is validated and persisted independently;
+bad results remain stale without discarding valid peers. Refresh has a bounded
+wait. Failure leaves stale semantic results unusable and tailoring continues
+with the deterministic index and current original narratives.
+
+The candidate index is a retrieval aid, not an authoritative whitelist of what
+the writer may say. It never changes Job Fit. Retrieval is high-recall but
+writer context is bounded by a character budget. Selected sources retain their
+current original narrative, structured facts, stable source identity, and
+fresh semantic record where available. A missing or stale semantic record does
+not make an available original narrative unusable; the writer can interpret
+and reframe it directly.
+
+## Tailoring flow
+
+Protocol v8 follows this relevance-first flow:
+
+1. Check candidate semantic freshness and refresh only stale/missing sources.
+2. Identify the job's highest-value priorities and what a recruiter should see
+   immediately.
+3. Retrieve Library material that supports or plausibly implies those
+   priorities, then infer, abstract, combine, and reframe it aggressively.
+4. Compose a complete target-specific CV, treating the linked CV as context
+   rather than a fixed template.
+5. Render and scan. Review the current CV's requirement, term, ATS, quality,
+   PDF, and page-use diagnostics. Make another revision when it offers a
+   material relevance improvement; otherwise select the strongest reviewed
+   candidate and submit it for user review.
+
+Ordinary professional inference appears directly in prose. Do not classify
+every claim, require inference notes, or invoke another model because wording
+is inferred. Do not invent fixed high-risk facts such as employers, dates,
+degrees/institutions, certifications, official titles, publications,
+identities/URLs, exact metrics, or security clearances. One strong draft and
+one useful revision are latency guidance, not submission gates.
+
+Each successful candidate preview has a unique evaluation ID, even when its
+candidate hash matches an earlier preview. The editorial review and explicit
+selection bind to both values. A finding does not decide whether a candidate
+may be submitted; it remains visible in the user's saved draft review.
+
+Optimize in this order: target relevance, requirement coverage, employer
+terminology, strong reframing and inference, useful page-space allocation,
+ATS/readability, and layout. `not_evidenced` means the current CV does not
+establish a requirement yet; it does not prohibit writing toward it. Use the
+scanner as an adversary for the current draft without mechanically maximizing
+any single score.
 
 ## Limits
 
-The claim ledger validates complete coverage, source references, and candidate
-hashes mechanically. Whether a paraphrase is truly derived or a permitted
-inference remains an editorial judgment by the tailoring agent and user. The
-server's unsupported-skill check covers known technologies; unknown products
-still require careful claim review. Opportunity retrieval uses deterministic
-skill and word overlap, so semantic sources can be missed or retrieved even
-when they ultimately do not support the wording.
+Submission binds the explicitly selected frozen candidate to the server's
+`candidate_hash` and `evaluation_id`. The helper submits that candidate and the
+server checks the normal candidate/evaluation/review binding. There is no local
+claim ledger or inference-note gate. Unknown product names use deterministic
+whole-token matching for retrieval; behavioral and ecosystem inference remain
+part of the writer's relevance judgment and the user's final draft review.

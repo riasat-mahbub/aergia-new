@@ -6,7 +6,7 @@ import type {
 } from "../types";
 
 export async function createTailoringSession(applicationId: string): Promise<TailoringSession> {
-  const { data } = await client.post(`/applications/${applicationId}/tailoring-sessions?protocol_version=6`);
+  const { data } = await client.post(`/applications/${applicationId}/tailoring-sessions?protocol_version=8`);
   return data;
 }
 

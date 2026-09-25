@@ -1,4 +1,4 @@
-"""Typed contracts for server-owned tailoring evaluation (protocol v5)."""
+"""Typed contracts for server-owned tailoring evaluation (protocol v8)."""
 
 from __future__ import annotations
 
@@ -10,9 +10,7 @@ from app.scanner.requirements import RequirementImportance
 from app.scanner.results import EvidenceStatus, LexicalVisibility
 
 
-TAILORING_EVALUATION_VERSION = "tailoring-evaluation-v1"
-
-TailoringReadinessStatus = Literal["ready", "ready_with_review", "revise", "blocked"]
+TAILORING_EVALUATION_VERSION = "tailoring-evaluation-v2"
 TransitionClassification = Literal[
     "improved",
     "regressed",
@@ -20,14 +18,13 @@ TransitionClassification = Literal[
     "changed_needs_review",
 ]
 PassChangeClassification = Literal["fixed", "introduced", "improved", "regressed"]
-TailoringIssueKind = Literal["blocker", "review", "recommendation", "non_actionable_gap"]
+TailoringIssueKind = Literal["risk", "review", "recommendation", "non_actionable_gap"]
 TailoringIssueCategory = Literal[
     "semantic",
     "lexical",
     "ats",
     "resume_quality",
     "pdf_recovery",
-    "inference",
     "comparison",
     "user_constraint",
     "fabrication",
@@ -37,18 +34,6 @@ TailoringIssueCategory = Literal[
 
 class _StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
-
-class TailoringInferenceNote(_StrictModel):
-    """A declared logical leap that should be visible during user review."""
-
-    claim: str = Field(min_length=1, max_length=500)
-    basis: list[str] = Field(min_length=1, max_length=8)
-    confidence: Literal["entailed", "strong", "reasonable", "speculative"]
-    section_id: str | None = Field(default=None, max_length=128)
-    item_id: str | None = Field(default=None, max_length=128)
-    field_path: str | None = Field(default=None, max_length=256)
-    review_recommended: bool = True
 
 
 class TailoringIssue(_StrictModel):
@@ -97,7 +82,7 @@ class TailoringPassChange(_StrictModel):
     term_id: str | None = Field(default=None, max_length=128)
 
 
-class TailoringPreviousPassComparison(_StrictModel):
+class TailoringPreviousEvaluationComparison(_StrictModel):
     available: bool
     previous_candidate_hash: str | None = Field(default=None, min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
     candidate_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
@@ -131,28 +116,19 @@ class TailoringDimensions(_StrictModel):
     pdf_recovery: TailoringNumericDimension
 
 
-class TailoringReadiness(_StrictModel):
-    status: TailoringReadinessStatus
-    submission_allowed: bool
-    reasons: list[str] = Field(default_factory=list, max_length=20)
-
-
 class TailoringEvaluation(_StrictModel):
     version: Literal[TAILORING_EVALUATION_VERSION] = TAILORING_EVALUATION_VERSION
     candidate_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
-    pass_number: int = Field(default=1, ge=1, le=5)
     source_comparison: TailoringSourceComparison
-    previous_pass_comparison: TailoringPreviousPassComparison
+    previous_evaluation_comparison: TailoringPreviousEvaluationComparison
     dimensions: TailoringDimensions
     improvements: list[TailoringIssue] = Field(default_factory=list, max_length=100)
     regressions: list[TailoringIssue] = Field(default_factory=list, max_length=100)
-    blockers: list[TailoringIssue] = Field(default_factory=list, max_length=100)
+    risk_findings: list[TailoringIssue] = Field(default_factory=list, max_length=100)
     review_items: list[TailoringIssue] = Field(default_factory=list, max_length=100)
     recommendations: list[TailoringIssue] = Field(default_factory=list, max_length=100)
     non_actionable_gaps: list[TailoringIssue] = Field(default_factory=list, max_length=100)
-    inference_notes: list[TailoringInferenceNote] = Field(default_factory=list, max_length=20)
     render_warnings: list[str] = Field(default_factory=list, max_length=50)
-    readiness: TailoringReadiness
 
 
 class TailoringEditorialFinding(_StrictModel):
@@ -175,11 +151,10 @@ class TailoringEditorialFinding(_StrictModel):
 
 
 class TailoringEditorialReview(_StrictModel):
-    review_version: Literal["aergia-editorial-review-v1"] = "aergia-editorial-review-v1"
+    review_version: Literal["aergia-editorial-review-v2"] = "aergia-editorial-review-v2"
+    evaluation_id: str = Field(min_length=16, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
     candidate_hash: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
-    pass_number: int = Field(ge=1, le=5)
     findings: list[TailoringEditorialFinding] = Field(default_factory=list, max_length=50)
-    inference_notes: list[TailoringInferenceNote] = Field(default_factory=list, max_length=20)
 
 
 __all__ = [
@@ -189,13 +164,11 @@ __all__ = [
     "TailoringEditorialReview",
     "TailoringEvaluation",
     "TailoringFindingDimension",
-    "TailoringInferenceNote",
     "TailoringIssue",
     "TailoringKeywordTransition",
     "TailoringNumericDimension",
     "TailoringPassChange",
-    "TailoringPreviousPassComparison",
-    "TailoringReadiness",
+    "TailoringPreviousEvaluationComparison",
     "TailoringRequirementTransition",
     "TailoringSourceComparison",
 ]

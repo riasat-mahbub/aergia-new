@@ -36,7 +36,7 @@ from app.scanner.results import (
 )
 
 
-SEMANTIC_SCORE_VERSION = "job-fit-v2"
+SEMANTIC_SCORE_VERSION = "job-fit-v3"
 CLASSIFICATION_WARNING_VERSION = "classification-coverage-warning-v1"
 LEXICAL_SCORE_VERSION = "term-visibility-v2"
 PDF_SCORE_VERSION = "pdf-recovery-score-v1"

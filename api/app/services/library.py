@@ -32,6 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.cv import CV
 from app.models.library import Library, LibraryEntry
+from app.services.candidate_index import CandidateIndexService, assign_stable_row_ids
 from app.document_schema.models import SectionInstance
 from app.http_schemas.library import (
     LIBRARY_ENTRY_KINDS,
@@ -127,9 +128,15 @@ class LibraryService:
         self, user_id: str, data: LibraryEntryCreate
     ) -> LibraryEntry:
         library = await self._get_or_create_library(user_id)
-        entry = LibraryEntry(library_id=library.id, kind=data.kind.value, payload=data.payload)
+        entry = LibraryEntry(
+            library_id=library.id,
+            kind=data.kind.value,
+            payload=data.payload,
+            row_ids=assign_stable_row_ids(data.payload),
+        )
         self.db.add(entry)
         await self.db.flush()
+        await CandidateIndexService(self.db).library_entry_changed(entry, user_id)
         return entry
 
     async def get_entry(self, entry_id: str, user_id: str) -> LibraryEntry | None:
@@ -147,8 +154,11 @@ class LibraryService:
         entry = await self.get_entry(entry_id, user_id)
         if entry is None:
             return None
+        row_ids = assign_stable_row_ids(data.payload, entry.row_ids or [], entry.payload or [])
         entry.payload = data.payload
+        entry.row_ids = row_ids
         await self.db.flush()
+        await CandidateIndexService(self.db).library_entry_changed(entry, user_id)
         return entry
 
     async def delete_entry(self, entry_id: str, user_id: str) -> bool:
@@ -157,6 +167,7 @@ class LibraryService:
             return False
         await self.db.delete(entry)
         await self.db.flush()
+        await CandidateIndexService(self.db).library_entry_deleted(entry_id, user_id)
         return True
 
     async def clone_to_section_instance(
@@ -205,6 +216,7 @@ class LibraryService:
             sections = sections.get("sections", [])
         promoted: dict[str, int] = {}
         skipped: list[str] = []
+        new_entries: list[LibraryEntry] = []
         for section in sections or []:
             section_type = section.get("type") if isinstance(section, dict) else None
             library_kind = (
@@ -223,11 +235,20 @@ class LibraryService:
             h = _content_hash(payload)
             if (library_kind, h) in existing_hashes:
                 continue
-            entry = LibraryEntry(library_id=library.id, kind=library_kind, payload=payload)
+            entry = LibraryEntry(
+                library_id=library.id,
+                kind=library_kind,
+                payload=payload,
+                row_ids=assign_stable_row_ids(payload),
+            )
             self.db.add(entry)
+            new_entries.append(entry)
             existing_hashes.add((library_kind, h))
             promoted[library_kind] = promoted.get(library_kind, 0) + 1
         await self.db.flush()
+        index_service = CandidateIndexService(self.db)
+        for entry in new_entries:
+            await index_service.library_entry_changed(entry, user_id)
         return PromoteResult(library_id=library.id, promoted=promoted, skipped=skipped)
 
     async def add_section_entry_to_library(
@@ -321,10 +342,14 @@ class LibraryService:
                 )
 
         new_entry = LibraryEntry(
-            library_id=library.id, kind=library_kind, payload=payload
+            library_id=library.id,
+            kind=library_kind,
+            payload=payload,
+            row_ids=assign_stable_row_ids(payload),
         )
         self.db.add(new_entry)
         await self.db.flush()
+        await CandidateIndexService(self.db).library_entry_changed(new_entry, user_id)
         return AddEntryResult(
             library_id=library.id, entry_id=new_entry.id, created=True
         )

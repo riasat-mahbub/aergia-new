@@ -9,17 +9,16 @@ from app.core.rate_limit import limiter
 from app.db.session import get_db
 from app.models.user import User
 from app.http_schemas.tailoring import (
-    STAGED_TAILORING_PROTOCOL_VERSION,
+    PROTOCOL_VERSION,
     TailoringCodeExchange,
     TailoringContextResponse,
-    TailoringStrategyContextResponse,
     TailoringEvidenceContextResponse,
     TailoringEvidenceSourcesResponse,
-    TailoringEvidenceSourceContextResponse,
     TailoringEvidenceSubmission,
     TailoringExchangeResponse,
     TailoringPreviewRequest,
     TailoringPreviewResponse,
+    TailoringSourcePreviewResponse,
     TailoringReviewResponse,
     TailoringSessionCreateResponse,
     TailoringSessionStatusResponse,
@@ -38,7 +37,6 @@ from app.services.tailoring import (
     TailoringUnavailableError,
 )
 from app.services.tailoring_skill import build_tailoring_skill_bundle
-from app.services.candidate_evidence import CandidateEvidenceExtractionError
 from app.services.quotas import QuotaExceededError, QuotaResource
 
 router = APIRouter()
@@ -63,7 +61,7 @@ async def download_tailoring_skill(request: Request):
             "Content-Disposition": 'attachment; filename="aergia-tailor.zip"',
             "Cache-Control": "public, max-age=300",
             "ETag": f'"sha256-{bundle.sha256}"',
-            "X-Aergia-Skill-Protocol-Version": str(STAGED_TAILORING_PROTOCOL_VERSION),
+            "X-Aergia-Skill-Protocol-Version": str(PROTOCOL_VERSION),
         },
     )
 
@@ -106,7 +104,7 @@ async def create_tailoring_session(
     request: Request,
     response: Response,
     application_id: str,
-    protocol_version: int = Query(default=5, ge=5, le=6),
+    protocol_version: int = Query(default=PROTOCOL_VERSION, ge=PROTOCOL_VERSION, le=PROTOCOL_VERSION),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -210,62 +208,22 @@ async def get_tailoring_context(
         _raise_service_error(exc)
 
 
-@router.get(
-    "/tailoring/context/strategy",
-    response_model=TailoringStrategyContextResponse,
-)
+@router.get("/tailoring/context/index-refresh", response_model=TailoringEvidenceSourcesResponse)
 @limiter.limit("30/minute")
-async def get_tailoring_strategy_context(
+async def get_tailoring_index_refresh_context(
     request: Request,
     response: Response,
     capability: str | None = Header(default=None, alias="X-Aergia-Tailoring-Capability"),
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        return await TailoringService(db).strategy_context(capability)
-    except Exception as exc:  # noqa: BLE001
-        _raise_service_error(exc)
-
-
-@router.get(
-    "/tailoring/context/evidence/sources",
-    response_model=TailoringEvidenceSourcesResponse,
-)
-@limiter.limit("30/minute")
-async def get_tailoring_evidence_sources(
-    request: Request,
-    response: Response,
-    capability: str | None = Header(default=None, alias="X-Aergia-Tailoring-Capability"),
-    db: AsyncSession = Depends(get_db),
-):
-    try:
-        return await TailoringService(db).evidence_sources(capability)
-    except Exception as exc:  # noqa: BLE001
-        _raise_service_error(exc)
-
-
-@router.get(
-    "/tailoring/context/evidence/sources/{source_id}",
-    response_model=TailoringEvidenceSourceContextResponse,
-)
-@limiter.limit("30/minute")
-async def get_tailoring_evidence_source(
-    source_id: str,
-    request: Request,
-    response: Response,
-    capability: str | None = Header(default=None, alias="X-Aergia-Tailoring-Capability"),
-    db: AsyncSession = Depends(get_db),
-):
-    try:
-        return await TailoringService(db).evidence_source_context(capability, source_id)
-    except CandidateEvidenceExtractionError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate evidence source is unavailable") from exc
+        return await TailoringService(db).candidate_index_refresh_context(capability)
     except Exception as exc:  # noqa: BLE001
         _raise_service_error(exc)
 
 
 @router.post(
-    "/tailoring/context/evidence",
+    "/tailoring/context/index-refresh",
     response_model=TailoringEvidenceContextResponse,
 )
 @limiter.limit("10/minute")
@@ -278,18 +236,13 @@ async def submit_tailoring_evidence(
 ):
     try:
         return await TailoringService(db).evidence_context(capability, body)
-    except CandidateEvidenceExtractionError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="The isolated candidate evidence failed source validation",
-        ) from exc
     except Exception as exc:  # noqa: BLE001
         _raise_service_error(exc)
 
 
 @router.get(
     "/tailoring/source-preview",
-    response_model=TailoringPreviewResponse,
+    response_model=TailoringSourcePreviewResponse,
 )
 @limiter.limit("5/minute")
 async def get_tailoring_source_preview(

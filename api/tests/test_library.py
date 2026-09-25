@@ -71,6 +71,11 @@ async def clean_library():
     tests that assert exact counts (e.g. promote_is_idempotent_via_content_hash).
     """
     async with async_session() as db:
+        from app.models.candidate_index import CandidateIndexSource, CandidateIndexState, CandidateSemanticRecord
+
+        await db.execute(sqlalchemy.delete(CandidateSemanticRecord))
+        await db.execute(sqlalchemy.delete(CandidateIndexSource))
+        await db.execute(sqlalchemy.delete(CandidateIndexState))
         await db.execute(sqlalchemy.delete(LibraryEntry))
         await db.execute(sqlalchemy.delete(Library))
         await db.commit()
