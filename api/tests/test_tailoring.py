@@ -52,7 +52,7 @@ async def test_protocol_v9_exposes_every_library_entry_and_rejects_stale_dossier
 
     monkeypatch.setattr(application_service_module, "ScannerService", _FixtureScanner)
     monkeypatch.setattr(tailoring_service_module, "ScannerService", _FixtureScanner)
-    monkeypatch.setattr(tailoring_service_module, "configured_extractor_version", lambda: "gliner2.5-structured-v7")
+    monkeypatch.setattr(tailoring_service_module, "configured_extractor_version", lambda: "gliner2.5-structured-v11")
 
     email = f"full-dossier-tailoring-{uuid4().hex}@example.com"
     await client.post("/api/v1/auth/register", json={"email": email, "password": "testpass123"})
@@ -361,7 +361,7 @@ async def test_tailoring_submit_creates_owned_review_draft_without_promoting_it(
             super().__init__(extractor=_FixtureExtractor())
 
     monkeypatch.setattr(tailoring_service_module, "ScannerService", _FixtureScanner)
-    monkeypatch.setattr(tailoring_service_module, "configured_extractor_version", lambda: "gliner2.5-structured-v7")
+    monkeypatch.setattr(tailoring_service_module, "configured_extractor_version", lambda: "gliner2.5-structured-v11")
     evaluation_calls = 0
     original_evaluate = tailoring_service_module.evaluate_tailoring
 
@@ -434,7 +434,7 @@ async def test_tailoring_submit_creates_owned_review_draft_without_promoting_it(
     )
     assert preview.status_code == 200
     assert preview.json()["scanner_result"]["schema_version"] == "scanner-v1"
-    assert preview.json()["scanner_result"]["versions"]["semantic_score_version"] == "job-fit-v3"
+    assert preview.json()["scanner_result"]["versions"]["semantic_score_version"] == "job-fit-v4"
     assert preview.json()["evaluation"]["version"] == TAILORING_EVALUATION_VERSION
     assert preview.json()["evaluation"]["candidate_hash"] == preview.json()["candidate_hash"]
     assert preview.json()["evaluation_id"]

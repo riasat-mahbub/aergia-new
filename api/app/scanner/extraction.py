@@ -59,7 +59,7 @@ from app.services.requirement_extractor import (
 
 logger = logging.getLogger(__name__)
 
-SCANNER_EXTRACTOR_VERSION = "gliner2.5-structured-v7"
+SCANNER_EXTRACTOR_VERSION = "gliner2.5-structured-v11"
 _EXAMPLE_LIST_RE = re.compile(r"(?<!\w)(?:such\s+as|e\.g\.?|for\s+example)(?!\w)", re.I)
 _INCLUDING_LIST_RE = re.compile(r"\bincluding\b", re.I)
 _SCOPED_DOMAIN_RE = re.compile(
@@ -105,26 +105,32 @@ _ELIGIBILITY_RE = re.compile(
     r"must\s+be\s+based\s+in|reside\s+in)\b",
     re.IGNORECASE,
 )
-_HARD_BOILERPLATE_RE = re.compile(
-    r"\b(?:during\s+our\s+hiring\s+process|initial\s+screening|automated\s+screening|"
-    r"human\s+review|accommodation\s+during\s+the\s+application\s+process|"
-    r"you(?:['’]ll|\s+will)\s+be\s+supported\s+by|you(?:['’]ll|\s+will)\s+feel\s+safe|"
-    r"share\s+your\s+ideas\s+and\s+career\s+goals|promote[- ]from[- ]within|"
-    r"equal\s+(?:employment\s+)?opportunity|privacy\s+(?:notice|policy))\b",
-    re.IGNORECASE,
+_EMPLOYER_SUBJECT_RE = re.compile(r"^\s*(?:we|our|the\s+company|the\s+employer)\b", re.I)
+_CANDIDATE_RECRUITMENT_RE = re.compile(
+    r"^\s*we\s+(?:are|['’]re)\s+(?:looking\s+for|seeking)\b|"
+    r"^\s*we\s+(?:seek|require|expect)\s+(?:candidates?|applicants?|someone|people)\b",
+    re.I,
 )
-_COMPANY_COPY_RE = re.compile(
-    r"^\s*(?:about\s+(?:us|the\s+company|our\s+team)|we(?:['’]re|\s+are)\s+more\s+than|"
-    r"our\s+(?:cloud[- ]based\s+)?platform|we\s+believe\s+in|we\s+celebrate|"
-    r"employee[- ]led|founded\s+in|headquartered\s+in|with\s+\d+[+]?\s+employees|"
-    r"at\s+[^,.]{2,80},\s+we(?:['’]re|\s+are)\s+more\s+than|"
-    r"at\s+[^,.]{2,80},\s+you(?:['’]ll|\s+will)\s+help\s+build\s+technology)\b",
-    re.IGNORECASE,
+_APPLICATION_STEP_RE = re.compile(
+    r"^\s*(?:(?:(?:you|candidates?|applicants?)\s+(?:must|should|need\s+to|are\s+required\s+to)|"
+    r"we\s+(?:expect|require|ask)\s+(?:candidates?|applicants?)\s+to)\s+)?"
+    r"(?:apply\b(?=\s+(?:online|directly|for|via|through|on\b|to\s+be\s+considered))|"
+    r"(?:submit|upload|send)\b(?=\s+(?:(?:your|an?|the)\s+)?(?:online\s+)?(?:application|resume|cv)\b))",
+    re.I,
 )
 _EMPLOYER_PROSE_RE = re.compile(
     r"^\s*(?:you(?:['’]ll|\s+will)\s+(?:work\s+alongside|join|receive|find|have\s+access\s+to)|"
-    r"in\s+return\b|(?:we|our\s+team)\s+(?:offer|provide|work|lead|value|believe|celebrate|collaborate|expect|show|are\s+more\s+than)|"
+    r"you(?:['’]ll|\s+will)\s+be\s+(?:supported|provided|offered|given|equipped|rewarded)\b|"
+    r"in\s+return\b|(?:we|our\s+team)\s+(?:(?:truly\s+)?believe|offer|provide|work|lead|value|celebrate|collaborate|expect|show|are\s+more\s+than)|"
     r"you(?:['’]ll|\s+will)\s+find\s+(?:a|an|the)\s+(?:team|workplace|company))",
+    re.IGNORECASE,
+)
+_CANDIDATE_OBLIGATION_RE = re.compile(
+    r"^\s*(?:you\s+(?:must|need\s+to|have\s+to|are\s+required\s+to|should\s+have)|"
+    r"you(?:['’]ll|\s+will)\s+(?:need\s+to|have\s+to))\b|"
+    r"^\s*(?:candidates?|applicants?)\s+(?:must|need\s+to|are\s+required\s+to)\s+"
+    r"(?:have|hold|possess|know|understand|demonstrate|be\s+able\s+to)\b|"
+    r"^\s*(?:must\s+have|\d+\+?\s+years?\s+of\s+experience\s+required)\b",
     re.IGNORECASE,
 )
 _CANDIDATE_EXPECTATION_RE = re.compile(
@@ -133,17 +139,36 @@ _CANDIDATE_EXPECTATION_RE = re.compile(
     r"willing\s+to|interest\s+in|curious\s+about)\b",
     re.IGNORECASE,
 )
+_CANDIDATE_JOB_ACTION_RE = re.compile(
+    r"^\s*(?:as\s+(?:a|an|the)\s+[^,.;]{2,80},\s*)?"
+    r"you(?:['’]ll|\s+will|\s+would)\s+"
+    r"(?:assist|use|pair[- ]program|write|help|participate|design|build|"
+    r"develop|test|debug|investigate|maintain|operate|lead|own|collaborate|"
+    r"communicate|implement|create|work|contribute|support|deliver|manage)\b",
+    re.I,
+)
+_CANDIDATE_CAPABILITY_RE = re.compile(
+    r"^\s*you\s+can\s+(?:assist|write|design|build|develop|test|debug|"
+    r"investigate|maintain|operate|lead|collaborate|communicate|implement|"
+    r"create|solve|manage)\b",
+    re.I,
+)
 
 _DIRECTED_PATTERNS: tuple[tuple[re.Pattern[str], float], ...] = (
-    (re.compile(r"\b(?:you(?:['’]ll|\s+will|\s+must|\s+should|\s+have|\s+are|\s+bring|\s+need|\s+can))\b", re.I), 0.82),
-    (re.compile(r"\b(?:familiarity\s+with|experience\s+(?:working|operating)\s+in|experience\s+(?:with|in|of)|knowledge\s+of|"
+    (_CANDIDATE_OBLIGATION_RE, 0.90),
+    (_CANDIDATE_RECRUITMENT_RE, 0.82),
+    (re.compile(r"^\s*you\s+(?:bring|possess|know|understand)\b|"
+                r"^\s*you\s+have\s+(?:(?:\d+\+?\s+years?\s+of)|(?:an?\s+)?(?:experience|skills?|knowledge|ability|degree|certification))\b", re.I), 0.82),
+    (_CANDIDATE_JOB_ACTION_RE, 0.82),
+    (_CANDIDATE_CAPABILITY_RE, 0.82),
+    (re.compile(r"^\s*(?:familiarity\s+with|experience\s+(?:working|operating)\s+in|experience\s+(?:with|in|of)|knowledge\s+of|"
                 r"ability\s+to|able\s+to|proficien(?:t|cy)\s+(?:in|with)|interest\s+in|"
                 r"awareness\s+of|aware\s+of|curiosity\s+about|bilingual\s+in|strong\s+\w+\s+skills|"
-                r"demonstrated\s+interest|willing\s+to)\b", re.I), 0.82),
-    (re.compile(r"^\s*(?:assist|use|pair[- ]program|write|help|participate|learn|design|"
+                r"demonstrated\s+interest|willing\s+to|(?:bachelor(?:['’]s)?|master(?:['’]s)?|doctoral)\s+degree|"
+                r"certification\s+in|licensed\s+to)\b", re.I), 0.82),
+    (re.compile(r"^\s*(?:assist|use|pair[- ]program|write|help|participate|design|"
                 r"build|develop|test|debug|investigate|maintain|operate|lead|own|"
                 r"collaborate|communicate|implement|create)\b", re.I), 0.76),
-    (_REQUIRED_RE, 0.90),
 )
 
 _EXPECTATION_CUES: tuple[tuple[re.Pattern[str], ExpectationKind, float], ...] = (
@@ -383,11 +408,11 @@ def _purpose_for_heading(value: str | None) -> tuple[SectionPurpose, float]:
         return SectionPurpose.CANDIDATE_EXPECTATIONS, 0.80
     if normalized in {"preferred qualifications", "preferred skills", "nice to have", "nice to haves", "bonus qualifications", "desired qualifications", "preferred requirements"}:
         return SectionPurpose.CANDIDATE_PREFERENCES, 0.88
-    if normalized in {"benefits", "benefits and perks", "perks", "compensation", "salary", "total rewards"}:
+    if normalized in {"benefits", "benefits and perks", "perks", "compensation", "salary", "total rewards", "your financial security", "financial security", "retirement benefits", "pension"}:
         return SectionPurpose.BENEFITS, 0.90
     if normalized in {"location", "locations", "location and work model", "work model", "work arrangement", "remote work", "where you work"}:
         return SectionPurpose.LOGISTICS, 0.90
-    if normalized in {"application process", "how to apply", "ready to join us", "apply", "application"}:
+    if normalized in {"application process", "how to apply", "ready to join us", "apply", "application", "what happens once you apply", "what happens after you apply", "what happens when you apply"}:
         return SectionPurpose.APPLICATION_PROCESS, 0.88
     if normalized in {"legal", "equal opportunity", "equal employment opportunity", "privacy", "accessibility", "accommodation"}:
         return SectionPurpose.LEGAL, 0.88
@@ -583,10 +608,7 @@ def _directed_signal(text: str) -> tuple[str, float] | None:
     return None
 
 
-def _candidate_facing_kind(
-    sentence: _Sentence,
-    spans: Sequence[_EntitySpan],
-) -> CandidateFacingKind:
+def _candidate_facing_kind(sentence: _Sentence) -> CandidateFacingKind:
     """Classify a sentence before its concepts are promoted.
 
     Section context is authoritative for employer copy, but an explicit
@@ -596,19 +618,24 @@ def _candidate_facing_kind(
     """
 
     text = sentence.text
-    explicit_requirement = any(
-        span.label in _REQUIREMENT_LABELS and _overlaps(span, sentence)
-        for span in spans
-    )
-    explicit_required_language = bool(_REQUIRED_RE.search(text) or _ELIGIBILITY_RE.search(text))
-    if _HARD_BOILERPLATE_RE.search(text) and not explicit_required_language:
-        return CandidateFacingKind.EMPLOYER_VALUE_PROPOSITION
+    purpose = sentence.section.purpose
+    explicit_required_language = bool(_CANDIDATE_OBLIGATION_RE.search(text) or _ELIGIBILITY_RE.search(text))
+    if _APPLICATION_STEP_RE.search(text):
+        return CandidateFacingKind.EMPLOYER_DESCRIPTION
+    if explicit_required_language:
+        return CandidateFacingKind.CANDIDATE_REQUIREMENT
+    if _EMPLOYER_SUBJECT_RE.search(text) and not _CANDIDATE_RECRUITMENT_RE.search(text):
+        return CandidateFacingKind.EMPLOYER_DESCRIPTION
+    if _CANDIDATE_RECRUITMENT_RE.search(text):
+        return CandidateFacingKind.CANDIDATE_REQUIREMENT
     if _EMPLOYER_PROSE_RE.search(text):
         if text.casefold().startswith("in return"):
             return CandidateFacingKind.EMPLOYER_VALUE_PROPOSITION
         if "team" in text.casefold() or "work alongside" in text.casefold():
             return CandidateFacingKind.TEAM_DESCRIPTION
         return CandidateFacingKind.EMPLOYER_VALUE_PROPOSITION
+    if _CANDIDATE_JOB_ACTION_RE.search(text):
+        return CandidateFacingKind.JOB_RESPONSIBILITY
     if re.search(r"\bwe\s+are\s+looking\s+for\s+(?:someone|a\s+candidate)\b|\byou\s+should\s+have\b", text, re.I):
         return CandidateFacingKind.CANDIDATE_REQUIREMENT
     if re.search(r"\byou\s+will\s+be\s+responsible\s+for\b", text, re.I):
@@ -624,10 +651,17 @@ def _candidate_facing_kind(
         if _CANDIDATE_EXPECTATION_RE.search(text) or sentence.section.purpose is SectionPurpose.CANDIDATE_EXPECTATIONS:
             return CandidateFacingKind.CANDIDATE_EXPECTATION
         return CandidateFacingKind.CANDIDATE_REQUIREMENT
-    if explicit_requirement or explicit_required_language:
+    non_candidate_section = purpose in {
+        SectionPurpose.EMPLOYER_INFORMATION,
+        SectionPurpose.TEAM_DESCRIPTION,
+        SectionPurpose.EMPLOYER_VALUE_PROPOSITION,
+        SectionPurpose.COMPANY_VALUE_STATEMENT,
+        SectionPurpose.BENEFITS,
+        SectionPurpose.APPLICATION_PROCESS,
+        SectionPurpose.LEGAL,
+    }
+    if _CANDIDATE_RECRUITMENT_RE.search(text) or (_directed_signal(text) and not non_candidate_section):
         return CandidateFacingKind.CANDIDATE_REQUIREMENT
-    if _COMPANY_COPY_RE.search(text):
-        return CandidateFacingKind.EMPLOYER_DESCRIPTION
     if sentence.section.purpose is SectionPurpose.TEAM_DESCRIPTION:
         return CandidateFacingKind.TEAM_DESCRIPTION
     if sentence.section.purpose is SectionPurpose.EMPLOYER_VALUE_PROPOSITION:
@@ -638,16 +672,16 @@ def _candidate_facing_kind(
         return CandidateFacingKind.BENEFIT
     if sentence.section.purpose is SectionPurpose.EMPLOYER_INFORMATION:
         return CandidateFacingKind.EMPLOYER_DESCRIPTION
-    return CandidateFacingKind.CANDIDATE_REQUIREMENT
+    return CandidateFacingKind.EMPLOYER_DESCRIPTION
 
 
 def _is_hard_non_candidate(sentence: _Sentence) -> bool:
     return bool(
-        _HARD_BOILERPLATE_RE.search(sentence.text)
-        or _COMPANY_COPY_RE.search(sentence.text)
+        _APPLICATION_STEP_RE.search(sentence.text)
         or (
-            _EMPLOYER_PROSE_RE.search(sentence.text)
-            and not _REQUIRED_RE.search(sentence.text)
+            (_EMPLOYER_SUBJECT_RE.search(sentence.text) or _EMPLOYER_PROSE_RE.search(sentence.text))
+            and not _CANDIDATE_RECRUITMENT_RE.search(sentence.text)
+            and not _CANDIDATE_OBLIGATION_RE.search(sentence.text)
             and not _ELIGIBILITY_RE.search(sentence.text)
         )
     )
@@ -655,15 +689,43 @@ def _is_hard_non_candidate(sentence: _Sentence) -> bool:
 
 def _candidate_eligibility(sentence: _Sentence, spans: Sequence[_EntitySpan]) -> tuple[bool, float, list[CandidateFacingSignal]]:
     purpose = sentence.section.purpose
-    classification = _candidate_facing_kind(sentence, spans)
+    classification = _candidate_facing_kind(sentence)
     explicit = [span for span in spans if span.label in _REQUIREMENT_LABELS and _overlaps(span, sentence)]
     directed = _directed_signal(sentence.text)
     eligibility_language = _ELIGIBILITY_RE.search(sentence.text)
     hard_non_candidate = _is_hard_non_candidate(sentence)
 
-    # Hiring, legal, and company boilerplate is excluded by sentence content;
-    # a section label by itself is only one contextual signal.
-    if hard_non_candidate and classification in {
+    non_candidate_section = purpose in {
+        SectionPurpose.EMPLOYER_INFORMATION,
+        SectionPurpose.TEAM_DESCRIPTION,
+        SectionPurpose.EMPLOYER_VALUE_PROPOSITION,
+        SectionPurpose.COMPANY_VALUE_STATEMENT,
+        SectionPurpose.BENEFITS,
+        SectionPurpose.APPLICATION_PROCESS,
+        SectionPurpose.LEGAL,
+    }
+    has_candidate_directive = bool(
+        _CANDIDATE_OBLIGATION_RE.search(sentence.text)
+        or _CANDIDATE_RECRUITMENT_RE.search(sentence.text)
+        or _CANDIDATE_JOB_ACTION_RE.search(sentence.text)
+    )
+    if _APPLICATION_STEP_RE.search(sentence.text):
+        return False, sentence.section.confidence, []
+    if (
+        non_candidate_section
+        and not eligibility_language
+        and not has_candidate_directive
+    ):
+        return False, sentence.section.confidence, [
+            CandidateFacingSignal(
+                kind=CandidateSignalKind.SECTION_CONTEXT,
+                polarity=CandidateSignalPolarity.OPPOSES,
+                confidence=sentence.section.confidence,
+                source_text=sentence.section.title or "non-candidate section",
+            )
+        ]
+
+    if hard_non_candidate or classification in {
         CandidateFacingKind.EMPLOYER_DESCRIPTION,
         CandidateFacingKind.TEAM_DESCRIPTION,
         CandidateFacingKind.EMPLOYER_VALUE_PROPOSITION,
@@ -678,6 +740,17 @@ def _candidate_eligibility(sentence: _Sentence, spans: Sequence[_EntitySpan]) ->
                 source_text=sentence.section.title or sentence.text[:160],
             )
         ]
+
+    # A model requirement span only corroborates independent evidence. Its
+    # label cannot turn employer copy or application instructions into a CV
+    # requirement when the section and sentence supply no candidate signal.
+    if not directed and not eligibility_language and purpose not in {
+        SectionPurpose.CANDIDATE_RESPONSIBILITIES,
+        SectionPurpose.CANDIDATE_QUALIFICATIONS,
+        SectionPurpose.CANDIDATE_EXPECTATIONS,
+        SectionPurpose.CANDIDATE_PREFERENCES,
+    }:
+        return False, sentence.section.confidence, []
 
     signals: list[CandidateFacingSignal] = []
     positive_scores: list[float] = []
@@ -2011,7 +2084,7 @@ def _build_requirement(sentence: _Sentence, spans: Sequence[_EntitySpan], index:
             ]
             expression = _relation_tree(sentence, components, component_nodes, requirement_id, confidence)
             family_components = components
-    classification = _candidate_facing_kind(sentence, spans)
+    classification = _candidate_facing_kind(sentence)
     importance, importance_confidence, importance_evidence = _importance(sentence, spans)
     section_start = sentence.section.heading_start if sentence.section.heading_start is not None else sentence.section.content_start
     section = SectionContext(

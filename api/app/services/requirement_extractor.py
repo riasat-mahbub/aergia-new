@@ -107,10 +107,11 @@ class EntityModel(Protocol):
 
 MODEL_LABELS: dict[str, str] = {
     "candidate_requirement": (
-        "A complete sentence or bullet from a job posting stating what a candidate must, should, or will be able "
-        "to do. Include qualifications and implicit requirements expressed as responsibilities. Return the whole "
-        "sentence or bullet. Exclude company descriptions, compensation, benefits, location prose, legal boilerplate, "
-        "section headings, and isolated technology names."
+        "A complete sentence or bullet stating a candidate qualification, eligibility condition, or responsibility "
+        "performed in the job. Include implicit requirements expressed as job duties. Return the whole sentence "
+        "or bullet. Exclude employer descriptions and offers, benefits, application or interview instructions, "
+        "legal notices, section headings, and isolated technology names. A mention of 'you', 'candidate', 'must', "
+        "or 'required' alone does not make a sentence a job requirement."
     ),
     "hard_skill": "A named technical skill, programming language, tool, platform, framework, or method expected from a candidate.",
     "experience_requirement": "A statement about years of experience, ownership, seniority, or work performed by a candidate.",

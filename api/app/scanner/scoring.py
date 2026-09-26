@@ -36,7 +36,7 @@ from app.scanner.results import (
 )
 
 
-SEMANTIC_SCORE_VERSION = "job-fit-v3"
+SEMANTIC_SCORE_VERSION = "job-fit-v4"
 CLASSIFICATION_WARNING_VERSION = "classification-coverage-warning-v1"
 LEXICAL_SCORE_VERSION = "term-visibility-v2"
 PDF_SCORE_VERSION = "pdf-recovery-score-v1"
@@ -186,9 +186,36 @@ def _count_unverifiable_components(
     )
 
 
+def _is_candidate_facing_requirement(requirement: Requirement) -> bool:
+    purpose = requirement.source.section.purpose if requirement.source.section else SectionPurpose.UNKNOWN
+    if "classification" not in requirement.model_fields_set and purpose in {
+        SectionPurpose.EMPLOYER_INFORMATION,
+        SectionPurpose.TEAM_DESCRIPTION,
+        SectionPurpose.EMPLOYER_VALUE_PROPOSITION,
+        SectionPurpose.COMPANY_VALUE_STATEMENT,
+        SectionPurpose.BENEFITS,
+        SectionPurpose.LOGISTICS,
+        SectionPurpose.APPLICATION_PROCESS,
+        SectionPurpose.LEGAL,
+    }:
+        return False
+    return requirement.classification in {
+        CandidateFacingKind.CANDIDATE_REQUIREMENT,
+        CandidateFacingKind.CANDIDATE_EXPECTATION,
+        CandidateFacingKind.CANDIDATE_PREFERENCE,
+        CandidateFacingKind.JOB_RESPONSIBILITY,
+    }
+
+
 def _bucket_for(requirement: Requirement) -> str | None:
+    if not _is_candidate_facing_requirement(requirement):
+        return None
     if requirement.classification == CandidateFacingKind.CANDIDATE_EXPECTATION:
         return "qualification"
+    if requirement.classification == CandidateFacingKind.CANDIDATE_PREFERENCE:
+        return "preferred"
+    if requirement.classification == CandidateFacingKind.JOB_RESPONSIBILITY:
+        return "responsibility"
     if requirement.importance is RequirementImportance.UNKNOWN:
         return None
     if requirement.importance is RequirementImportance.PREFERRED:
@@ -237,6 +264,8 @@ def _required_constraint_conflicts(
 ) -> int:
     required_leaf_constraints: dict[str, tuple[str, set[str]]] = {}
     for requirement in requirements:
+        if not _is_candidate_facing_requirement(requirement):
+            continue
         if requirement.importance is not RequirementImportance.REQUIRED:
             continue
         for leaf in _walk_required_constraint_leaves(requirement.expression):
@@ -291,6 +320,8 @@ def score_semantic_analysis(
 
     for requirement in requirements:
         bucket_name = _bucket_for(requirement)
+        if not _is_candidate_facing_requirement(requirement):
+            continue
         effective_weight = requirement.weight
         if bucket_name and requirement.concept_group_id:
             effective_weight /= concept_group_counts[(bucket_name, requirement.concept_group_id)]

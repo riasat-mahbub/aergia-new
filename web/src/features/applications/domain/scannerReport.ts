@@ -376,10 +376,39 @@ function requirementTitle(requirement: ScannerRequirement): string {
 
 function bucketFor(requirement: ScannerRequirement): ScannerRequirementViewModel["bucket"] {
   if (requirement.classification === "candidate_expectation") return "qualification";
+  if (requirement.classification === "candidate_preference") return "preferred";
+  if (requirement.classification === "job_responsibility") return "responsibility";
   if (requirement.importance === "preferred") return "preferred";
   if (requirement.importance === "unknown") return "unknown";
   if (requirement.family === "responsibility") return "responsibility";
   return "qualification";
+}
+
+const CANDIDATE_FACING_CLASSIFICATIONS = new Set([
+  "candidate_requirement",
+  "candidate_expectation",
+  "candidate_preference",
+  "job_responsibility",
+]);
+const NONCANDIDATE_SECTION_PURPOSES = new Set([
+  "employer_information",
+  "team_description",
+  "employer_value_proposition",
+  "company_value_statement",
+  "benefits",
+  "logistics",
+  "application_process",
+  "legal",
+]);
+
+function isCandidateFacing(requirement: ScannerRequirement): boolean {
+  if (requirement.classification != null) {
+    return CANDIDATE_FACING_CLASSIFICATIONS.has(requirement.classification);
+  }
+  // Legacy scans can lack classification; known employer sections still
+  // provide enough context to keep their copy out of candidate Job Fit.
+  const purpose = requirement.source.section?.purpose;
+  return purpose == null || !NONCANDIDATE_SECTION_PURPOSES.has(purpose);
 }
 
 function relationLabel(node: ScannerExpressionNode): string | null {
@@ -703,7 +732,7 @@ export function buildScannerReportViewModel(result: ScanResult, application: App
   const summary = result.semantic.summary;
   const evidenceById = new Map(result.semantic.evidence.map((item) => [item.id, item]));
   const evaluationById = new Map(result.semantic.requirements.map((item) => [item.requirement_id, item]));
-  const requirements = result.requirement_extraction.requirements.map((requirement) =>
+  const requirements = result.requirement_extraction.requirements.filter(isCandidateFacing).map((requirement) =>
     buildRequirementViewModel(requirement, evaluationById.get(requirement.id), evidenceById),
   );
   const sortedNeeds = [...requirements].sort((left, right) => {

@@ -175,6 +175,67 @@ test("builds a user-facing report without exposing expression node kinds", () =>
   assert.equal(report.diagnostics.extractionWarnings[0], "concept_spans_not_promoted:1");
 });
 
+test("keeps employer copy out of Job Fit and buckets candidate-facing classifications", () => {
+  const result = makeResult();
+  const addRequirement = (id: string, text: string, classification: string, importance: ScannerRequirement["importance"], family: string): ScannerRequirement => ({
+    id,
+    source: {
+      original_text: text,
+      source_start: 100,
+      source_end: 100 + text.length,
+      section: { title: "Additional information", purpose: "employer_information", confidence: 0.99 },
+    },
+    importance,
+    family,
+    weight: 1,
+    classification,
+    expression: leaf(`${id}-leaf`, text),
+    contextual_modifiers: [],
+  });
+  result.requirement_extraction.requirements.push(
+    addRequirement("apply-link", "Click here to apply", "employer_description", "required", "hard_skill"),
+    addRequirement("benefits", "Your financial security includes a pension", "benefit", "required", "hard_skill"),
+    addRequirement("preferred-req", "Experience with scalable engineering tools", "candidate_preference", "required", "hard_skill"),
+    addRequirement("responsibility-req", "Build tools for engineering teams", "job_responsibility", "required", "hard_skill"),
+  );
+
+  const report = buildScannerReportViewModel(result, application(result));
+
+  assert.deepEqual(report.requirements.map(({ id }) => id), ["req-all", "req-examples", "preferred-req", "responsibility-req"]);
+  assert.equal(report.requirements.find(({ id }) => id === "preferred-req")?.bucket, "preferred");
+  assert.equal(report.requirements.find(({ id }) => id === "responsibility-req")?.bucket, "responsibility");
+  assert.equal(report.gaps.some(({ sourceText }) => sourceText.includes("pension") || sourceText.includes("apply")), false);
+});
+
+test("uses known section purpose to filter legacy rows without classification", () => {
+  const result = makeResult();
+  const legacyRow = (id: string, text: string, purpose: string): ScannerRequirement => ({
+    id,
+    source: {
+      original_text: text,
+      source_start: 120,
+      source_end: 120 + text.length,
+      section: { title: "Additional information", purpose, confidence: 0.8 },
+    },
+    importance: "required",
+    family: "hard_skill",
+    weight: 1,
+    expression: leaf(`${id}-leaf`, text),
+    contextual_modifiers: [],
+  });
+  result.requirement_extraction.requirements.push(
+    legacyRow("legacy-employer", "About the company", "employer_information"),
+    legacyRow("legacy-benefit", "Pension plan", "benefits"),
+    legacyRow("legacy-application", "Click here to apply", "application_process"),
+    legacyRow("legacy-unknown", "Legacy requirement with unknown section", "unknown"),
+  );
+
+  const report = buildScannerReportViewModel(result, application(result));
+
+  assert.equal(report.requirements.some(({ id }) => id.startsWith("legacy-employer") || id.startsWith("legacy-benefit") || id.startsWith("legacy-application")), false);
+  assert.equal(report.requirements.some(({ id }) => id === "legacy-unknown"), true);
+});
+
 test("keeps badge states explicit for current, stale, and not-scanned applications", () => {
   const result = makeResult();
   assert.equal(scannerBadgeState(application(result)).label, "Job Fit 51%");

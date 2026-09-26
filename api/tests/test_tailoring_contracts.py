@@ -125,7 +125,7 @@ def test_preview_returns_the_canonical_candidate_used_for_hashing_and_submit_bin
     )
 
     assert preview.scanner_result.schema_version == "scanner-v1"
-    assert preview.scanner_result.versions.semantic_score_version == "job-fit-v3"
+    assert preview.scanner_result.versions.semantic_score_version == "job-fit-v4"
     assert preview.evaluation.version == TAILORING_EVALUATION_VERSION
     assert preview.evaluation.candidate_hash == preview.candidate_hash
     assert preview.render_warnings == ["Review length for the target role."]

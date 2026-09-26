@@ -62,7 +62,7 @@ def test_configured_model_version_includes_requirement_normalization_contract(mo
 
     result = ScannerRequirementExtractor().extract("What You Bring\nFamiliarity with Python.")
 
-    assert SCANNER_EXTRACTOR_VERSION == "gliner2.5-structured-v7"
+    assert SCANNER_EXTRACTOR_VERSION == "gliner2.5-structured-v11"
     assert result.extractor_version == f"example/model@abc123+{SCANNER_EXTRACTOR_VERSION}"
 
 
@@ -278,6 +278,129 @@ def test_candidate_facing_classifier_separates_employer_copy_and_expectations() 
     assert by_text["We are looking for someone who asks thoughtful questions."].classification is CandidateFacingKind.CANDIDATE_REQUIREMENT
     assert by_text["You bring strong fundamentals."].classification is CandidateFacingKind.CANDIDATE_EXPECTATION
     assert by_text["You will be responsible for testing fixes."].classification is CandidateFacingKind.JOB_RESPONSIBILITY
+
+
+def test_employer_and_application_boilerplate_is_not_extracted_from_mixed_posting() -> None:
+    source = (
+        "About Our Team\nOur mission is to help people grow, and we believe essential growth comes from trust.\n"
+        "What Happens Once You Apply?\nClick Here to apply.\n"
+        "You must be able to build scalable engineering tools.\n"
+        "Legal Disclaimer\nThis disclaimer is provided for informational purposes only.\n"
+        "Accessibility\nIf you require accommodation during the application process, contact us.\n"
+        "Your Financial Security\nOur pension plan and retirement benefits support employees.\n"
+        "Qualifications\nExperience building scalable engineering tools.\n"
+    )
+
+    requirements = extract_requirements_from_entities(source, {"entities": {}}).requirements
+    extracted_text = {item.source.original_text for item in requirements}
+
+    assert "Our mission is to help people grow, and we believe essential growth comes from trust." not in extracted_text
+    assert "Click Here to apply." not in extracted_text
+    assert "This disclaimer is provided for informational purposes only." not in extracted_text
+    assert "If you require accommodation during the application process, contact us." not in extracted_text
+    assert "Our pension plan and retirement benefits support employees." not in extracted_text
+    assert "You must be able to build scalable engineering tools." in extracted_text
+    assert "Experience building scalable engineering tools." in extracted_text
+
+
+def test_ericsson_boilerplate_phrasing_does_not_trigger_requirement_cues() -> None:
+    source = (
+        "Click Here to find all you need to know about what our typical hiring process looks like.\n"
+        "We truly believe this approach drives innovation, which is essential for our future growth.\n"
+        "They are not an exhaustive list of all responsibilities, duties and skills required and may be subject to change.\n"
+    )
+
+    requirements = extract_requirements_from_entities(source, {"entities": {}}).requirements
+
+    assert requirements == []
+
+
+def test_scotiabank_employer_benefit_and_application_copy_are_not_requirements() -> None:
+    copy = [
+        "We hire you for your talent — not just a job — so you can grow with us.",
+        "Access to thousands of online and in-person courses so you can hone your current skills, or learn new ones.",
+        "Candidates must apply directly online to be considered for this role.",
+        "We thank all applicants for their interest in a career at Scotiabank; however, only those candidates who are selected for an interview will be contacted.",
+    ]
+    source = "\n".join([*copy, "Qualifications", "Experience building scalable engineering tools."])
+    requirement_spans = [_span(source, "candidate_requirement", sentence) for sentence in copy]
+
+    requirements = extract_requirements_from_entities(
+        source,
+        {"entities": {"candidate_requirement": requirement_spans}},
+    ).requirements
+    extracted_text = {item.source.original_text for item in requirements}
+
+    assert extracted_text.isdisjoint(copy)
+    assert "Experience building scalable engineering tools." in extracted_text
+
+
+def test_scotiabank_copy_paraphrases_stay_excluded_without_losing_real_qualifications() -> None:
+    boilerplate = [
+        "We hire people for their talent, not just for a job, so they can grow with us.",
+        "You can access thousands of digital and classroom courses to build your skills.",
+        "Applicants are required to submit an online application to be considered.",
+        "Thank you for your interest. Only shortlisted applicants will be contacted for an interview.",
+    ]
+    qualification = "Experience with online application systems and learning platforms is required."
+    source = "\n".join([*boilerplate, "Qualifications", qualification])
+    spans = [
+        {"text": phrase, "start": source.index(phrase), "end": source.index(phrase) + len(phrase), "confidence": 0.95}
+        for phrase in boilerplate
+    ]
+
+    requirements = extract_requirements_from_entities(
+        source,
+        {"entities": {"candidate_requirement": spans}},
+    ).requirements
+    extracted_text = {item.source.original_text for item in requirements}
+
+    assert extracted_text.isdisjoint(boilerplate)
+    assert qualification in extracted_text
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "Our employees can explore learning resources and grow their careers.",
+        "Access to professional development resources is available to staff.",
+        "You have access to professional development courses.",
+        "You can grow with the team through mentoring.",
+        "You can use our training platform to learn new skills.",
+        "You will learn new skills through employer-sponsored courses.",
+        "Learn new skills through employer-sponsored courses.",
+        "Applicants must upload a resume before submitting the form.",
+        "We require applicants to apply online before the deadline.",
+        "We appreciate every applicant and will contact successful interviewees.",
+    ],
+)
+def test_model_requirement_label_alone_does_not_create_cv_obligation(sentence: str) -> None:
+    output = {"entities": {"candidate_requirement": [_span(sentence, "candidate_requirement", sentence)]}}
+
+    assert extract_requirements_from_entities(sentence, output).requirements == []
+    assert candidate_facing_segments(sentence) == []
+
+
+def test_real_candidate_obligations_survive_model_span_gate() -> None:
+    source = (
+        "Candidates must have three years of Python experience.\n"
+        "You need to know Python and SQL.\n"
+        "You can build reliable APIs.\n"
+        "You must apply Python knowledge to solve customer problems.\n"
+        "About the Company\nYou must be able to build APIs.\n"
+    )
+    sentences = [
+        "Candidates must have three years of Python experience.",
+        "You need to know Python and SQL.",
+        "You can build reliable APIs.",
+        "You must apply Python knowledge to solve customer problems.",
+        "You must be able to build APIs.",
+    ]
+    output = {"entities": {"candidate_requirement": [_span(source, "candidate_requirement", item) for item in sentences]}}
+
+    extracted = extract_requirements_from_entities(source, output).requirements
+
+    assert {item.source.original_text for item in extracted} == set(sentences)
 
 
 def test_candidate_expectation_sentence_is_decomposed_into_provenanced_traits() -> None:

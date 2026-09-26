@@ -4,6 +4,7 @@ from app.scanner.analysis_links import link_lexical_semantic_support
 from app.scanner.requirements import (
     AllExpression,
     AnyExpression,
+    CandidateFacingKind,
     Concept,
     Expectation,
     ExpectationKind,
@@ -70,6 +71,7 @@ def _requirement(
     purpose: SectionPurpose = SectionPurpose.CANDIDATE_QUALIFICATIONS,
     family: RequirementFamily = RequirementFamily.TECHNICAL_SKILL,
     weight: float = 1.0,
+    classification: CandidateFacingKind = CandidateFacingKind.CANDIDATE_REQUIREMENT,
 ) -> Requirement:
     source_text = f"Requirement {requirement_id}"
     return Requirement(
@@ -86,6 +88,7 @@ def _requirement(
         family=family,
         weight=weight,
         expression=expression,
+        classification=classification,
     )
 
 
@@ -353,6 +356,79 @@ def test_absent_bucket_weights_redistribute_across_present_buckets() -> None:
     summary = score_semantic_analysis(_semantic([qualification, responsibility], evaluation), [qualification, responsibility])
 
     assert summary.job_fit == 0.25 / 0.95
+
+
+def test_non_candidate_facing_requirements_do_not_enter_job_fit_or_counts() -> None:
+    candidate_requirement = _requirement("python", _leaf("python", "Python"))
+    excluded = [
+        _requirement(
+            "employer-copy",
+            _leaf("growth", "We are a fast growing company"),
+            classification=CandidateFacingKind.EMPLOYER_DESCRIPTION,
+            weight=10.0,
+        ),
+        _requirement(
+            "benefit",
+            _leaf("pension", "Pension plan"),
+            purpose=SectionPurpose.BENEFITS,
+            classification=CandidateFacingKind.BENEFIT,
+            weight=10.0,
+        ),
+    ]
+    requirements = [candidate_requirement, *excluded]
+    evaluations = [
+        _leaf_result(candidate_requirement.expression, EvidenceStatus.SUPPORTED),
+        *[_leaf_result(item.expression, EvidenceStatus.NOT_EVIDENCED) for item in excluded],
+    ]
+
+    summary = score_semantic_analysis(_semantic(requirements, evaluations), requirements)
+
+    assert summary.job_fit == 1.0
+    assert summary.qualification_fit.requirement_count == 1
+    assert summary.not_evidenced_requirement_count == 0
+    assert summary.classified_fraction == 1.0
+    assert summary.required_constraint_conflicts == 0
+
+
+def test_legacy_missing_classification_uses_section_purpose_as_a_safety_gate() -> None:
+    legacy_employer_rows = [
+        _requirement(
+            f"legacy-{purpose.value}",
+            _leaf(f"leaf-{purpose.value}", purpose.value),
+            purpose=purpose,
+            weight=10.0,
+        )
+        for purpose in (
+            SectionPurpose.EMPLOYER_INFORMATION,
+            SectionPurpose.BENEFITS,
+            SectionPurpose.APPLICATION_PROCESS,
+        )
+    ]
+    # Re-validate without the field to model persisted scanner rows created
+    # before requirement classification was added.
+    legacy_employer_rows = [
+        type(requirement).model_validate(requirement.model_dump(exclude={"classification"}))
+        for requirement in legacy_employer_rows
+    ]
+    legacy_candidate = type(legacy_employer_rows[0]).model_validate(
+        _requirement(
+            "legacy-unknown-purpose",
+            _leaf("legacy-unknown-purpose-leaf", "Python"),
+            purpose=SectionPurpose.UNKNOWN,
+        ).model_dump(exclude={"classification"})
+    )
+    requirements = [*legacy_employer_rows, legacy_candidate]
+    evaluations = [
+        *[_leaf_result(item.expression, EvidenceStatus.NOT_EVIDENCED) for item in legacy_employer_rows],
+        _leaf_result(legacy_candidate.expression, EvidenceStatus.SUPPORTED),
+    ]
+
+    summary = score_semantic_analysis(_semantic(requirements, evaluations), requirements)
+
+    assert summary.job_fit == 1.0
+    assert summary.qualification_fit.requirement_count == 1
+    assert summary.not_evidenced_requirement_count == 0
+    assert summary.classified_fraction == 1.0
 
 
 def test_unknown_importance_is_visible_but_excluded_from_headline_score() -> None:
