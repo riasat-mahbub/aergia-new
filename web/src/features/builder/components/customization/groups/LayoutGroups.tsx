@@ -56,8 +56,7 @@ export function DatesGroup({ instance, style, updateLayout }: SectionStyleGroupP
   );
 }
 
-export function AlignmentGroup({ instance, style, updateSubsection }: SectionStyleGroupProps) {
-  if (instance.type === "profile") return null;
+export function AlignmentGroup({ style, updateSubsection }: SectionStyleGroupProps) {
   const isTwoColumn = style.policy?.entry_layout === "two-column";
   return (
     <Group title="Alignment">
