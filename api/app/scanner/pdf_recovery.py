@@ -17,6 +17,7 @@ from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from app.core.safe_url import normalize_url
 from app.scanner.matching import flatten_cv_text
@@ -28,11 +29,12 @@ from app.scanner.results import (
 from app.services.renderer.pipeline import prepare_render_source, resolve_source
 
 
-PDF_ANALYSIS_VERSION = "aergia-pdf-recovery-v2"
+PDF_ANALYSIS_VERSION = "aergia-pdf-recovery-v3"
 MAX_PDF_INPUT_BYTES = 20 * 1024 * 1024
 MAX_PDF_PAGES = 50
 MAX_EXTRACTED_TEXT_CHARS = 2_000_000
 MAX_PDF_LINKS = 500
+MAX_DATE_ASSOCIATION_TOKEN_DISTANCE = 32
 PDF_WORKER_TIMEOUT_SECONDS = 12.0
 PDF_WORKER_MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 PDF_WORKER_MAX_CONCURRENCY = 2
@@ -75,12 +77,22 @@ class _RenderAnchor:
 class _RenderLink:
     label: str
     target: str
+    visible_text: str = ""
 
     @property
     def identity(self) -> str:
         """Human-readable link identity used by persisted recovery checks."""
 
         return self.label
+
+
+@dataclass(frozen=True, slots=True)
+class _DateAssociation:
+    identity: str
+    section_type: str
+    label: str
+    date_text: str
+    body_anchor: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +103,7 @@ class _RenderExpectations:
     ordered_anchors: tuple[_RenderAnchor, ...]
     contacts: tuple[str, ...]
     links: tuple[_RenderLink, ...]
+    date_associations: tuple[_DateAssociation, ...]
 
 
 def _value(obj: object, key: str, default: object = None) -> object:
@@ -244,6 +257,7 @@ def _render_expectations(cv: object, render_manifest: object | None = None) -> _
     entries: list[_RenderAnchor] = []
     contacts: list[str] = []
     links: list[_RenderLink] = []
+    date_associations: list[_DateAssociation] = []
     ordered_anchors: list[_RenderAnchor] = []
 
     for zone in model.zones:
@@ -264,6 +278,28 @@ def _render_expectations(cv: object, render_manifest: object | None = None) -> _
                     anchor = _RenderAnchor(f"entry:{section.id}:{entry.id}", label, "entry", section.type)
                     entries.append(anchor)
                     ordered_anchors.append(anchor)
+                    date_text = next(
+                        (
+                            text
+                            for field in entry.fields
+                            if str(field.key).casefold() == "date"
+                            and (text := _field_visible_text(field).strip())
+                        ),
+                        "",
+                    )
+                    if date_text:
+                        body_anchor = next(
+                            (
+                                text
+                                for field in entry.fields
+                                if str(_value(field, "group", "")).casefold() in {"body", "summary"}
+                                and (text := _field_visible_text(field).strip())
+                            ),
+                            "",
+                        )
+                        date_associations.append(
+                            _DateAssociation(anchor.identity, section.type, label, date_text, body_anchor)
+                        )
                 for field in entry.fields:
                     text = _field_visible_text(field)
                     if text:
@@ -275,6 +311,7 @@ def _render_expectations(cv: object, render_manifest: object | None = None) -> _
                         normalized = normalize_url(target)
                         if normalized:
                             text = _field_visible_text(field).strip()
+                            run_text = str(_value(run, "text") or "").strip()
                             looks_like_url = bool(
                                 re.match(r"^(?:https?://|www\.|[^\s]+\.[^\s]+$)", text, re.I)
                             )
@@ -287,7 +324,7 @@ def _render_expectations(cv: object, render_manifest: object | None = None) -> _
                             prior = sum(item.label.split(" (", 1)[0] == label for item in links)
                             if prior:
                                 label = f"{label} ({prior + 1})"
-                            links.append(_RenderLink(label, normalized))
+                            links.append(_RenderLink(label, normalized, run_text or text))
 
     return _RenderExpectations(
         visible_text=tuple(visible_text),
@@ -296,6 +333,7 @@ def _render_expectations(cv: object, render_manifest: object | None = None) -> _
         ordered_anchors=tuple(ordered_anchors),
         contacts=tuple(dict.fromkeys(contacts)),
         links=tuple(dict.fromkeys(links)),
+        date_associations=tuple(date_associations),
     )
 
 
@@ -335,6 +373,7 @@ def _fallback_expectations(cv: object) -> _RenderExpectations:
         ordered_anchors=tuple([*headings, *entries]),
         contacts=tuple(dict.fromkeys(contacts)),
         links=(),
+        date_associations=(),
     )
 
 
@@ -389,6 +428,7 @@ def _run_bounded_pdf_worker(pdf_bytes: bytes) -> dict[str, object]:
         page_count = payload.get("page_count")
         plain_text = payload.get("plain_text")
         links = payload.get("links")
+        secondary_plain_text = payload.get("secondary_plain_text")
         if (
             not isinstance(page_count, int)
             or isinstance(page_count, bool)
@@ -398,6 +438,11 @@ def _run_bounded_pdf_worker(pdf_bytes: bytes) -> dict[str, object]:
             or not isinstance(links, list)
             or len(links) > MAX_PDF_LINKS
             or any(not isinstance(link, str) or len(link) > 2_000 for link in links)
+            or secondary_plain_text is not None
+            and (
+                not isinstance(secondary_plain_text, str)
+                or len(secondary_plain_text) > MAX_EXTRACTED_TEXT_CHARS
+            )
         ):
             return {"error": "worker_invalid_response"}
         return payload
@@ -524,6 +569,257 @@ def _anchor_matches(
     return recovered, missing, affected[:20], [f"{ordered_count}/{len(positions)} matched anchors remain ordered"]
 
 
+def _anchor_sequence(anchors: Sequence[_RenderAnchor], recovered_text: str) -> list[str]:
+    """Return renderer anchors in the order a local parser emits them."""
+
+    tokens = _tokens(recovered_text)
+    line_spans = _line_token_spans(recovered_text)
+    used: set[int] = set()
+    found: list[tuple[int, str]] = []
+    for anchor in anchors:
+        pattern = _tokens(anchor.text)
+        candidates: list[int] | None = None
+        if anchor.kind == "heading":
+            candidates = [
+                start
+                for line, start, end in line_spans
+                if _tokens(line) == pattern and end - start == len(pattern)
+            ]
+        match = _find_token_occurrence(tokens, pattern, used, candidates=candidates)
+        if match is None:
+            continue
+        start, end = match
+        used.update(range(start, end))
+        found.append((start, anchor.identity))
+    return [identity for _, identity in sorted(found)]
+
+
+def _date_association_matches(
+    expectations: _RenderExpectations,
+    recovered_text: str,
+) -> tuple[list[_DateAssociation], list[str]]:
+    """Match each rendered entry date to a nearby, unique entry-label occurrence.
+
+    Tokens cross line and page boundaries, so wrapping does not split a date
+    match. Repeated labels and dates consume separate occurrences. A generous
+    local token window tolerates date/title wrapping while avoiding dates that
+    appear after an entry's body text.
+    """
+
+    if not expectations.date_associations:
+        return [], []
+    tokens = _tokens(recovered_text)
+    label_spans: dict[str, tuple[int, int]] = {}
+    used_label_tokens: set[int] = set()
+    for anchor in expectations.entries:
+        match = _find_token_occurrence(tokens, _tokens(anchor.text), used_label_tokens)
+        if match is not None:
+            label_spans[anchor.identity] = match
+            used_label_tokens.update(range(*match))
+
+    body_spans: dict[str, tuple[int, int]] = {}
+    used_body_tokens: set[int] = set()
+    for association in expectations.date_associations:
+        body_pattern = _tokens(association.body_anchor)[:5]
+        if not body_pattern:
+            continue
+        match = _find_token_occurrence(tokens, body_pattern, used_body_tokens)
+        if match is not None:
+            body_spans[association.identity] = match
+            used_body_tokens.update(range(*match))
+
+    # Collect each text occurrence once, then assign it to the closest dated
+    # entry whose expected date has those tokens. This prevents one repeated
+    # date from satisfying several entries.
+    patterns: dict[tuple[str, ...], list[_DateAssociation]] = {}
+    for association in expectations.date_associations:
+        pattern = tuple(_tokens(association.date_text))
+        if pattern:
+            patterns.setdefault(pattern, []).append(association)
+    occurrences: dict[tuple[str, ...], list[tuple[int, int]]] = {pattern: [] for pattern in patterns}
+    pattern_widths = {len(pattern) for pattern in patterns}
+    for start in range(len(tokens)):
+        for width in pattern_widths:
+            end = start + width
+            pattern = tuple(tokens[start:end])
+            if len(pattern) == width and pattern in occurrences:
+                occurrences[pattern].append((start, end))
+
+    candidates: list[tuple[int, int, int, int, int, _DateAssociation]] = []
+    association_order = {item.identity: index for index, item in enumerate(expectations.date_associations)}
+    for pattern, pattern_occurrences in occurrences.items():
+        for start, end in pattern_occurrences:
+            for association in patterns[pattern]:
+                label_span = label_spans.get(association.identity)
+                if label_span is None:
+                    continue
+                label_start, label_end = label_span
+                distance = max(label_start - end, start - label_end, 0)
+                if distance > MAX_DATE_ASSOCIATION_TOKEN_DISTANCE:
+                    continue
+                closer_to_other_entry = any(
+                    identity != association.identity
+                    and max(span[0] - end, start - span[1], 0) < distance
+                    for identity, span in label_spans.items()
+                )
+                if closer_to_other_entry:
+                    continue
+                between_label_and_date = [
+                    span
+                    for identity, span in label_spans.items()
+                    if identity != association.identity
+                    and min(label_start, start) <= span[0]
+                    and span[1] <= max(label_end, end)
+                ]
+                if between_label_and_date:
+                    continue
+                body_span = body_spans.get(association.identity)
+                if body_span is not None:
+                    body_start, _body_end = body_span
+                    if start >= label_end and body_start < start:
+                        # A date after the entry's first rendered body field
+                        # has been detached by extraction order.
+                        continue
+                if end <= label_start:
+                    previous_label = max(
+                        (
+                            (span[1], identity)
+                            for identity, span in label_spans.items()
+                            if identity != association.identity and span[1] <= label_start
+                        ),
+                        default=None,
+                    )
+                    if previous_label is not None:
+                        previous_body = body_spans.get(previous_label[1])
+                        if previous_body is not None and previous_body[0] > start:
+                            # A date before this title but still inside the
+                            # preceding entry's header is not attributable to
+                            # this entry.
+                            continue
+                if distance <= MAX_DATE_ASSOCIATION_TOKEN_DISTANCE:
+                    candidates.append(
+                        (
+                            distance,
+                            -len(pattern),
+                            association_order[association.identity],
+                            start,
+                            end,
+                            association,
+                        )
+                    )
+    matched: dict[str, _DateAssociation] = {}
+    consumed_occurrences: set[tuple[int, int]] = set()
+    for _distance, _pattern_length, _order, start, end, association in sorted(candidates):
+        occurrence = (start, end)
+        if occurrence in consumed_occurrences or association.identity in matched:
+            continue
+        consumed_occurrences.add(occurrence)
+        matched[association.identity] = association
+
+    recovered = [item for item in expectations.date_associations if item.identity in matched]
+    missing = [
+        f"{item.section_type}: {item.label} — {item.date_text}"
+        for item in expectations.date_associations
+        if item.identity not in matched
+    ]
+    return recovered, missing
+
+
+def _normalized_visible_web_url(link: _RenderLink) -> str:
+    """Return the canonical visible address when the label exposes its href."""
+
+    target = normalize_url(link.target, allowed_schemes={"http", "https"})
+    display = normalize_url(link.visible_text, allowed_schemes={"http", "https"})
+    target_parts = _web_url_identity(target)
+    display_parts = _web_url_identity(display)
+    return display if target_parts and display_parts == target_parts else ""
+
+
+def _web_url_identity(value: str) -> tuple[str, str, str, str] | None:
+    if not value:
+        return None
+    try:
+        parsed = urlsplit(value)
+        hostname = parsed.hostname or ""
+        port = parsed.port
+    except ValueError:
+        return None
+    if hostname.casefold().startswith("www."):
+        hostname = hostname[4:]
+    authority = hostname.casefold()
+    if port is not None:
+        authority = f"{authority}:{port}"
+    return authority, parsed.path or "/", parsed.query, parsed.fragment
+
+
+def _normalize_annotation_url(value: object) -> str:
+    """Canonicalize only equivalent empty/root paths for extracted hrefs."""
+
+    normalized = normalize_url(value)
+    if not normalized:
+        return ""
+    try:
+        parsed = urlsplit(normalized)
+    except ValueError:
+        return normalized
+    if parsed.scheme in {"http", "https"} and not parsed.path:
+        return parsed._replace(path="/").geturl()
+    return normalized
+
+
+def _visible_web_url_recovered(link: _RenderLink, recovered_text: str) -> bool:
+    expected = _normalized_visible_web_url(link)
+    if not expected:
+        return False
+    # Remember real text boundaries while joining wrapped URL fragments. A
+    # plain substring search would accept example.com/foo inside either
+    # notexample.com/foo or example.com/foobar. Checking boundaries only after
+    # stripping whitespace would instead reject URLs following a title/date.
+    chunks = re.findall(r"\S+", recovered_text)
+    boundaries = {0}
+    offset = 0
+    for chunk in chunks:
+        offset += len(chunk)
+        boundaries.add(offset)
+    compact_text = "".join(chunks)
+    try:
+        parsed = urlsplit(expected)
+        hostname = parsed.hostname or ""
+        port = parsed.port
+    except ValueError:
+        return False
+    if hostname.casefold().startswith("www."):
+        hostname = hostname[4:]
+    authority_pattern = rf"(?i:(?:https?://)?(?:www\.)?{re.escape(hostname)})"
+    if port is not None:
+        authority_pattern += rf":{port}"
+    path_pattern = re.escape(parsed.path)
+    if parsed.path == "/" and not parsed.query and not parsed.fragment:
+        path_pattern = r"/?"
+    url_pattern = re.compile(
+        rf"{authority_pattern}{path_pattern}"
+        rf"{re.escape('?' + parsed.query) if parsed.query else ''}"
+        rf"{re.escape('#' + parsed.fragment) if parsed.fragment else ''}"
+    )
+    # The host comparison is case-insensitive and optional www/scheme are
+    # accepted. Escaped path/query/fragment text stays case-sensitive.
+    for match in url_pattern.finditer(compact_text):
+        start, end = match.span()
+        starts_at_boundary = start in boundaries or compact_text[start - 1] in '<("\'|'
+        ends_at_boundary = end in boundaries or compact_text[end] in '>)"\'|'
+        if starts_at_boundary and ends_at_boundary:
+            return True
+    return False
+
+
+def _web_links(expectations: _RenderExpectations) -> list[_RenderLink]:
+    return [
+        link
+        for link in expectations.links
+        if normalize_url(link.target, allowed_schemes={"http", "https"})
+    ]
+
+
 def _check(
     *,
     code: str,
@@ -543,10 +839,10 @@ def _check(
         expected_count=expected_count,
         recovered_count=recovered_count,
         evidence=list(evidence)[:100],
-        expected_items=list(dict.fromkeys(expected_items))[:100],
-        recovered_items=list(dict.fromkeys(recovered_items))[:100],
-        missing_items=list(dict.fromkeys(missing_items))[:100],
-        affected_items=list(dict.fromkeys(affected_items))[:100],
+        expected_items=list(expected_items)[:100],
+        recovered_items=list(recovered_items)[:100],
+        missing_items=list(missing_items)[:100],
+        affected_items=list(affected_items)[:100],
         explanation=explanation,
     )
 
@@ -616,6 +912,7 @@ def analyze_pdf_recovery(
         )
     recovered_text = str(extracted["plain_text"])
     recovered_links = [str(link) for link in extracted["links"]]
+    secondary_text = extracted.get("secondary_plain_text")
     text_truncated = extracted.get("text_truncated") is True
     expectations = _expectations_for(cv, render_manifest)
     expected_tokens = _tokens("\n".join(expectations.visible_text))
@@ -755,7 +1052,71 @@ def analyze_pdf_recovery(
         )
     )
 
-    normalized_recovered_urls = [normalize_url(link) for link in recovered_links]
+    dated_entries = expectations.date_associations
+    recovered_dated_entries, missing_dated_entries = _date_association_matches(
+        expectations,
+        recovered_text,
+    )
+    secondary_dated_entries, secondary_missing_dates = (
+        _date_association_matches(expectations, secondary_text)
+        if isinstance(secondary_text, str)
+        else ([], [])
+    )
+    primary_date_ids = {item.identity for item in recovered_dated_entries}
+    secondary_date_ids = {item.identity for item in secondary_dated_entries}
+    if isinstance(secondary_text, str):
+        date_match_ids = primary_date_ids & secondary_date_ids
+        missing_date_items = [
+            *(
+                f"pdfplumber: {item}"
+                for item in missing_dated_entries
+            ),
+            *(
+                f"PDFium: {item}"
+                for item in secondary_missing_dates
+            ),
+        ]
+        date_evidence = [
+            f"{len(primary_date_ids)}/{len(dated_entries)} associated in pdfplumber; "
+            f"{len(secondary_date_ids)}/{len(dated_entries)} in PDFium"
+        ]
+    else:
+        date_match_ids = primary_date_ids
+        missing_date_items = missing_dated_entries
+        date_evidence = [f"{len(primary_date_ids)}/{len(dated_entries)} associated in pdfplumber"]
+    jointly_recovered_dates = [
+        item for item in dated_entries if item.identity in date_match_ids
+    ]
+    date_items = [
+        f"{item.section_type}: {item.label} — {item.date_text}"
+        for item in dated_entries
+    ]
+    date_recovery_status = (
+        _check_status(len(jointly_recovered_dates) / len(dated_entries), "entry_date_association")
+        if dated_entries
+        else PDFRecoveryStatus.UNAVAILABLE
+    )
+    checks.append(
+        _check(
+            code="entry_date_association",
+            status=date_recovery_status,
+            expected_count=len(dated_entries) if dated_entries else None,
+            recovered_count=len(jointly_recovered_dates) if dated_entries else None,
+            evidence=date_evidence if dated_entries else (),
+            expected_items=date_items,
+            recovered_items=[
+                f"{item.section_type}: {item.label} — {item.date_text}"
+                for item in jointly_recovered_dates
+            ],
+            missing_items=missing_date_items,
+            explanation=(
+                "Checks whether each rendered entry date stays near its own title and before the entry body. "
+                "Repeated labels and dates are matched as separate occurrences; this is a local extraction check."
+            ),
+        )
+    )
+
+    normalized_recovered_urls = [_normalize_annotation_url(link) for link in recovered_links]
     retained_links: list[_RenderLink] = []
     missing_links: list[str] = []
     used_link_indexes: set[int] = set()
@@ -764,7 +1125,8 @@ def analyze_pdf_recovery(
             (
                 index
                 for index, recovered_url in enumerate(normalized_recovered_urls)
-                if index not in used_link_indexes and recovered_url == expected_link.target
+                if index not in used_link_indexes
+                and recovered_url == _normalize_annotation_url(expected_link.target)
             ),
             None,
         )
@@ -787,9 +1149,126 @@ def analyze_pdf_recovery(
             expected_items=[link.identity for link in expectations.links],
             recovered_items=[link.identity for link in retained_links],
             missing_items=missing_links,
-            explanation="Checks clickable links emitted by the renderer using canonical href values; visible link text is covered by text recovery.",
+            explanation="Checks clickable links emitted by the renderer using canonical href values; visible URL text is checked separately.",
         )
     )
+
+    web_links = _web_links(expectations)
+    visible_url_links = [link for link in web_links if _normalized_visible_web_url(link)]
+    recovered_visible_urls = [
+        link for link in visible_url_links if _visible_web_url_recovered(link, recovered_text)
+    ]
+    checks.append(
+        _check(
+            code="visible_url_recovery",
+            status=(
+                _check_status(len(recovered_visible_urls) / len(visible_url_links), "visible_url_recovery")
+                if visible_url_links
+                else PDFRecoveryStatus.UNAVAILABLE
+            ),
+            expected_count=len(visible_url_links) if visible_url_links else None,
+            recovered_count=len(recovered_visible_urls) if visible_url_links else None,
+            expected_items=[link.identity for link in visible_url_links],
+            recovered_items=[link.identity for link in recovered_visible_urls],
+            missing_items=[
+                link.identity for link in visible_url_links if link not in recovered_visible_urls
+            ],
+            explanation=(
+                "Checks whether URL-shaped visible link text, including compact addresses without a scheme, "
+                "survives PDF text extraction independently of its clickable annotation."
+            ),
+        )
+    )
+    hidden_web_links = [link for link in web_links if not _normalized_visible_web_url(link)]
+    checks.append(
+        _check(
+            code="link_label_visibility",
+            # This advisory concerns visible text only; clickable annotation
+            # recovery is reported independently above.
+            status=(
+                PDFRecoveryStatus.WARNING
+                if hidden_web_links
+                else PDFRecoveryStatus.PASS
+                if web_links
+                else PDFRecoveryStatus.UNAVAILABLE
+            ),
+            expected_count=len(web_links) if web_links else None,
+            recovered_count=len(visible_url_links) if web_links else None,
+            expected_items=[link.identity for link in web_links],
+            recovered_items=[link.identity for link in visible_url_links],
+            missing_items=[link.identity for link in hidden_web_links],
+            explanation=(
+                "Advises when a web link is displayed as a generic label such as GitHub instead of its address. "
+                "This is a readability advisory, not a claim about any particular ATS."
+            ),
+        )
+    )
+
+    if isinstance(secondary_text, str):
+        primary_sequence = _anchor_sequence(expectations.ordered_anchors, recovered_text)
+        secondary_sequence = _anchor_sequence(expectations.ordered_anchors, secondary_text)
+        primary_url_results = [_visible_web_url_recovered(link, recovered_text) for link in web_links]
+        secondary_url_results = [_visible_web_url_recovered(link, secondary_text) for link in web_links]
+        anchor_agreement = primary_sequence == secondary_sequence
+        agreed_anchor_count = len(expectations.ordered_anchors) if anchor_agreement else 0
+        agreed_url_count = sum(
+            primary == secondary
+            for primary, secondary in zip(primary_url_results, secondary_url_results, strict=True)
+        )
+        date_agreement_ids = {
+            item.identity
+            for item in dated_entries
+            if (item.identity in primary_date_ids) == (item.identity in secondary_date_ids)
+        }
+        agreed_date_count = len(date_agreement_ids)
+        comparison_count = len(expectations.ordered_anchors) + len(web_links) + len(dated_entries)
+        agreed_count = agreed_anchor_count + agreed_url_count + agreed_date_count
+        differing_dates = [
+            f"{item.section_type}: {item.label} — {item.date_text}"
+            for item in dated_entries
+            if (item.identity in primary_date_ids) != (item.identity in secondary_date_ids)
+        ]
+        parser_agreement_status = (
+            PDFRecoveryStatus.UNAVAILABLE
+            if comparison_count == 0
+            else PDFRecoveryStatus.PASS
+            if agreed_count == comparison_count
+            else PDFRecoveryStatus.WARNING
+        )
+        checks.append(
+            _check(
+                code="parser_agreement",
+                status=parser_agreement_status,
+                expected_count=comparison_count if comparison_count else None,
+                recovered_count=agreed_count if comparison_count else None,
+                evidence=[
+                    f"pdfplumber: {len(primary_sequence)} anchors, "
+                    f"{sum(primary_url_results)}/{len(web_links)} visible URLs; "
+                    f"PDFium: {len(secondary_sequence)} anchors, "
+                    f"{sum(secondary_url_results)}/{len(web_links)} visible URLs"
+                ],
+                expected_items=primary_sequence,
+                recovered_items=secondary_sequence,
+                affected_items=(
+                    (["Entry or heading order differs between local parsers"] if not anchor_agreement else [])
+                    + differing_dates
+                    + [
+                        link.identity
+                        for link, primary, secondary in zip(
+                            web_links,
+                            primary_url_results,
+                            secondary_url_results,
+                            strict=True,
+                        )
+                        if primary != secondary
+                    ]
+                ),
+                explanation=(
+                    "Compares renderer-anchor order and visible URL recovery between Aergia's pdfplumber and "
+                    "PDFium extractors. Disagreement is advisory and does not predict third-party ATS behavior."
+                ),
+            )
+        )
 
     overall = _overall_status(checks)
     return PDFTextRecoveryAnalysis(status=overall, page_count=page_count, checks=checks)

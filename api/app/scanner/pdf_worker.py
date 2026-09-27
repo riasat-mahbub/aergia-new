@@ -22,6 +22,7 @@ from app.scanner.pdf_recovery import (
     PDF_WORKER_MEMORY_LIMIT_BYTES,
 )
 from app.services.parser._extract_pdfplumber import extract_with_pdfplumber
+import pypdfium2 as pdfium
 
 MAX_WORKER_INPUT_BYTES = MAX_PDF_INPUT_BYTES + 1
 MAX_WORKER_LINK_CHARS = 2_000
@@ -58,6 +59,58 @@ def _safe_text(text: str) -> str:
     )
 
 
+def _restore_pdfium_hyphens(textpage, text: str, character_limit: int) -> str:
+    """Restore verified PDFium end-of-line hyphen markers, not missing glyphs.
+
+    FPDFText_GetText uses U+FFFE for its hyphen sentinel, but can also use it
+    for unmapped font characters. Restore only when the character API
+    confirms every sentinel is a hyphen; otherwise leave the diagnostic
+    text intact. The scan is bounded by the extraction's character budget.
+    """
+    marker_count = text.count("\ufffe")
+    if not marker_count:
+        return text
+    hyphen_count = sum(
+        pdfium.raw.FPDFText_IsHyphen(textpage, index) == 1
+        for index in range(character_limit)
+    )
+    return text.replace("\ufffe", "-") if marker_count == hyphen_count else text
+
+
+def _extract_pdfium_text(pdf_bytes: bytes) -> str | None:
+    """Return a second bounded local extraction for parser-agreement checks."""
+
+    document = None
+    try:
+        document = pdfium.PdfDocument(pdf_bytes)
+        parts: list[str] = []
+        char_count = 0
+        for index in range(min(len(document), MAX_PDF_PAGES)):
+            remaining = MAX_EXTRACTED_TEXT_CHARS - char_count
+            if remaining <= 0:
+                break
+            page = document[index]
+            textpage = None
+            try:
+                textpage = page.get_textpage()
+                character_limit = min(textpage.count_chars(), remaining)
+                text = textpage.get_text_range(count=character_limit) if character_limit else ""
+                text = _restore_pdfium_hyphens(textpage, text, character_limit)
+                text = text[:remaining]
+                parts.append(text)
+                char_count += len(text)
+            finally:
+                if textpage is not None:
+                    textpage.close()
+                page.close()
+        return _safe_text("\n".join(parts))
+    except Exception:  # noqa: BLE001 - secondary parser is advisory only
+        return None
+    finally:
+        if document is not None:
+            document.close()
+
+
 def _response(pdf_bytes: bytes) -> dict[str, object]:
     extracted = extract_with_pdfplumber(
         pdf_bytes,
@@ -77,6 +130,7 @@ def _response(pdf_bytes: bytes) -> dict[str, object]:
                 break
         if len(links) >= MAX_PDF_LINKS:
             break
+    secondary_plain_text = _extract_pdfium_text(pdf_bytes)
     return {
         "ok": True,
         "page_count": extracted.page_count,
@@ -84,6 +138,7 @@ def _response(pdf_bytes: bytes) -> dict[str, object]:
         "text_truncated": extracted.text_truncated,
         "plain_text": _safe_text(extracted.plain_text),
         "links": links,
+        "secondary_plain_text": secondary_plain_text,
     }
 
 

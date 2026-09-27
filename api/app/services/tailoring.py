@@ -1446,6 +1446,18 @@ class TailoringService:
             session.updated_at = now
             await self.db.flush()
             raise TailoringConflictError("The application changed; review this draft against the current CV")
+        # Retire only the application-owned CV this accepted draft replaces.
+        # Keep history references intact and release its quota through normal
+        # soft deletion, in the same transaction as the current-CV switch.
+        previous_cv = await self._owned_cv(session.cv_id, user_id)
+        if previous_cv is not None and previous_cv.id != draft.id and previous_cv.application_id == application.id:
+            linked_application = await self.db.scalar(
+                select(Application.id).where(Application.cv_id == previous_cv.id).limit(1)
+            )
+            # Historical data can share a CV across applications. A remaining
+            # current-CV reference takes precedence over revision cleanup.
+            if linked_application is None:
+                await CVService(self.db).delete_cv(previous_cv.id, user_id)
         session.status = TAILORING_SESSION_ACCEPTED
         if isinstance(session.result, dict):
             session.result = {**session.result, "scanner_result": scanner_result.model_dump(mode="json")}

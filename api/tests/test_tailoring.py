@@ -17,11 +17,13 @@ from app.http_schemas.tailoring import PROTOCOL_VERSION
 from app.http_schemas.tailoring_evaluation import TAILORING_EVALUATION_VERSION
 
 
-def test_tailoring_skill_bundle_contains_only_the_installable_skill_and_helper():
+def test_tailoring_skill_bundle_contains_the_skill_references_and_helper():
     bundle = build_tailoring_skill_bundle()
     with ZipFile(BytesIO(bundle.content)) as archive:
         assert archive.namelist() == [
             "aergia-tailor/SKILL.md",
+            "aergia-tailor/references/cv-guidelines.md",
+            "aergia-tailor/references/natural-writing.md",
             "aergia-tailor/scripts/session.mjs",
         ]
         assert PROTOCOL_VERSION == 9

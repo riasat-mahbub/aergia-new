@@ -47,12 +47,9 @@ def _text_run_to_style(run: TextRun) -> str:
 def _render_text_run(run: TextRun) -> str:
     """Render a single text run as ``<span>…</span>`` (or ``<a>…</a>`` when linked).
 
-    Linked runs append a trailing ``↗`` glyph as plain inline text so it is
-    selectable, copy-pastable, and underlined together with the link text.
-    A CSS ``::after`` pseudo-element was used previously but Chromium
-    silently drops it from PDF text extraction, breaks text selection, and
-    does not inherit the link's text-decoration. Keeping it inline matches
-    the legacy renderer behavior.
+    Linked runs keep their visible label as plain inline text. The destination
+    remains clickable through the anchor, while omitting a generated arrow
+    avoids exposing a stray arrow as a separate link label to PDF importers.
     """
 
     text = h(run.text)
@@ -60,10 +57,12 @@ def _render_text_run(run: TextRun) -> str:
     safe_link = normalize_url(run.style.link) if run.style and run.style.link else ""
     if safe_link:
         href = attr(safe_link)
-        inner = f'{text}<span aria-hidden="true"> ↗</span>'
-        if style:
-            return f'<a href="{href}"{_style_attr(style)}>{inner}</a>'
-        return f'<a href="{href}">{inner}</a>'
+        # Long readable URLs must wrap inside narrow template columns rather
+        # than pushing across the page or becoming visually clipped.
+        anchor_style = _format_inline_style([style, "overflow-wrap:anywhere;max-width:100%"])
+        if anchor_style:
+            return f'<a href="{href}"{_style_attr(anchor_style)}>{text}</a>'
+        return f'<a href="{href}">{text}</a>'
     if style:
         return f"<span{_style_attr(style)}>{text}</span>"
     return text
@@ -105,10 +104,9 @@ def _render_field_block(
         inner = _render_rich_text_blocks(block.blocks)
         return f'<div class="f-{attr(block.key)}"{_style_attr(extra_style)}>{inner}</div>'
 
-    # Decide whether to hoist the URL onto the wrapper element. Only
-    # social/chip fields need the icon+label (or pill) wrapped in a
-    # single anchor; other fields keep the link emitted by the text-run
-    # pass so the trailing ↗ glyph survives. The builder emits ``key="social"``
+    # Decide whether to hoist the URL onto the wrapper element. Social/chip
+    # fields need the icon+label (or pill) wrapped in one anchor; other fields
+    # keep the link emitted by the text-run pass. The builder emits ``key="social"``
     # for each social link; older payloads may use indexed ``social_links.i``
     # keys — match by prefix to support both.
     wants_external_anchor = (
@@ -135,7 +133,7 @@ def _render_field_block(
     if chip_keys and block.key in chip_keys:
         body = f'<span class="f-chip"{_style_attr(extra_style)}>{inner}</span>'
         if href:
-            return f'<a href="{attr(href)}" class="f-chip-link">{body}</a>'
+            return f'<a href="{attr(href)}" class="f-chip-link" style="overflow-wrap:anywhere;max-width:100%">{body}</a>'
         return body
     # Social links render inline so adjacent icons sit side-by-side with
     # a consistent horizontal gap (see ``.f-social`` in the document CSS).
@@ -144,7 +142,7 @@ def _render_field_block(
     if block.key == "social" or block.key.startswith("social_links."):
         body = f'<span class="f-social"{_style_attr(extra_style)}>{inner}</span>'
         if href:
-            return f'<a class="f-social-link" href="{attr(href)}">{body}</a>'
+            return f'<a class="f-social-link" href="{attr(href)}" style="overflow-wrap:anywhere;max-width:100%">{body}</a>'
         return body
     return f'<div class="f-{attr(block.key)}"{_style_attr(extra_style)}>{inner}</div>'
 

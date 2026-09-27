@@ -34,7 +34,7 @@ def test_every_scan_generates_all_supported_ats_platforms():
         "oracle_recruiting", "taleo", "ashby", "smartrecruiters", "bamboohr",
         "rippling", "workable", "jazzhr", "breezy",
     }
-    assert result.versions.ats_guidance_version == "ats-guidance-v1"
+    assert result.versions.ats_guidance_version == "ats-guidance-v2"
 
 
 def test_ats_registry_is_unique_and_source_references_resolve():
@@ -59,6 +59,20 @@ def test_heading_convention_uses_semantic_section_type():
     assert headings["work"].canonical_section == "experience"
     assert headings["work"].status == "nonstandard"
     assert headings["education"].status == "ambiguous"
+
+
+def test_personal_and_academic_projects_are_conventional_project_headings():
+    result = _scan(
+        "Qualifications\nPython",
+        _cv(
+            _section("personal", "projects", "Personal Projects", [{"id": "p1", "name": "Library"}]),
+            _section("academic", "projects", "Academic Projects", [{"id": "p2", "name": "Research Tool"}]),
+        ),
+    )
+    headings = {item.section_id: item for item in result.ats_guidance.heading_conventions}
+
+    assert headings["personal"].status == "standard"
+    assert headings["academic"].status == "standard"
 
 
 def test_rendered_date_compatibility_does_not_flag_safe_renderer_formats():

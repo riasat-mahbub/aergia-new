@@ -33,6 +33,22 @@ def normalize_url_scheme(value: object) -> str:
     return normalize_url(value)
 
 
+def compact_url_label(value: object) -> str:
+    """Return a readable URL label without its transport scheme.
+
+    Keep the complete hostname, path, query, and fragment so the printed
+    address remains useful when copied from a text-only PDF parser. This is
+    only for builder-generated fallback labels; caller-supplied labels are
+    left untouched.
+    """
+
+    url = normalize_url_scheme(value)
+    if url.lower().startswith(("https://", "http://")):
+        label = url.split("://", 1)[1]
+        return label[4:] if label[:4].lower() == "www." else label
+    return url
+
+
 
 SHORT_MONTH_NAMES = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",

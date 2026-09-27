@@ -6,7 +6,7 @@ Fields per entry: ``project``, ``link`` (the URL), ``date``,
 
 from __future__ import annotations
 from app.document_schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextStyle, TextRun
-from ._utils import format_date_range, normalize_url_scheme, rich_text_to_field_block
+from ._utils import compact_url_label, format_date_range, normalize_url_scheme, rich_text_to_field_block
 
 
 def build_projects(instance: SectionInstance, resolved_layout: LayoutHints | None = None) -> Section:
@@ -26,7 +26,7 @@ def build_projects(instance: SectionInstance, resolved_layout: LayoutHints | Non
         # normalize so legacy/loose data still exports clickable links.
         # Emit `link` before `date` so both header fields share row 0.
         url = normalize_url_scheme(row.get("url"))
-        link_text = str(row.get("link_text") or url)
+        link_text = str(row.get("link_text") or "").strip() or compact_url_label(url)
         if url:
             fields.append(FieldBlock(
                 key="link", group="header", align="right",

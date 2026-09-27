@@ -4,7 +4,7 @@ Regression guard for the preview link contract:
 
 - ``strip_anchor_hrefs`` (render routes) neutralizes preview hrefs to "#"
   so the sandboxed iframe never navigates away while editing; the anchor
-  markup, inline styling, and the .f-link arrow are preserved.
+  markup and inline styling are preserved.
 """
 
 from __future__ import annotations

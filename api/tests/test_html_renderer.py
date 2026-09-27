@@ -81,7 +81,7 @@ def test_reference_model_html_output_is_stable():
 
     html = HTMLDocumentRenderer().render(_model()).encode("utf-8")
     assert hashlib.sha256(html).hexdigest() == (
-        "9563137285c3823aa449cf6548badb345f692808234e882ec9c620720dfeb6e4"
+        "8d78351697fa73a642a1b2f506d4c7b7cef002c735b241722d9dd0c77d53c69f"
     )
 
 def test_renders_preview_page_flow_metadata_without_changing_document_structure():
@@ -372,7 +372,7 @@ def test_social_field_with_link_wraps_icon_and_label_in_anchor():
 
     assert 'href="https://x.com/me"' in html
     # Icon and label live inside the anchor; the glyph is intentionally absent.
-    anchor = re.search(r'<a class=\"f-social-link\" href=\"https://x\.com/me\">(.+?)</a>', html, re.S)
+    anchor = re.search(r'<a class=\"f-social-link\" href=\"https://x\.com/me\"[^>]*>(.+?)</a>', html, re.S)
     assert anchor is not None
     body = anchor.group(1)
     assert '<span class="f-icon"' in body
@@ -402,9 +402,7 @@ def test_social_field_without_link_renders_span_only():
 
 
 def test_site_field_with_url_renders_anchor():
-    """A ``site`` field whose run carries a link wraps the label in an
-    ``<a href>`` with the trailing ↗ glyph so the URL is clickable in the
-    rendered PDF."""
+    """A ``site`` field keeps its clickable destination without an arrow."""
     manifest = TemplateManifest(
         name="M", zones=[Zone(id="main", styles={})], placement={"profile": "main"},
     )
@@ -425,7 +423,7 @@ def test_site_field_with_url_renders_anchor():
 
     assert '<a href="https://aergia.dev"' in html
     assert 'class="f-site"' in html
-    assert '<span aria-hidden="true"> ↗</span>' in html
+    assert '<span aria-hidden="true"> ↗</span>' not in html
 
 
 def test_social_field_with_unknown_icon_renders_text_only():
@@ -518,33 +516,26 @@ def test_default_rows_use_flex_start():
     assert 'justify-content:flex-start' in html
 
 
-def test_link_field_renders_anchor_in_two_column_right_block():
-    """Link fields render as real anchors in the right column of a
-    two-column entry, with the trailing .f-link arrow. The two-column
-    layout supersedes the old right-rail pattern (no ``margin-left:auto``);
-    the link is just one of the fields right-justified in entry-right."""
+def test_link_field_renders_in_full_width_row_after_title_and_date():
+    """Structured links remain clickable and follow the title/date row."""
     manifest = TemplateManifest(name="M", zones=[Zone(id="main", styles={})], placement={"projects": "main"})
-    doc = Document(sections=[Section(id="pr", type="projects", title="Projects", entries=[Entry(id="e", fields=[
+    doc = Document(sections=[Section(
+        id="pr", type="projects", title="Projects", policy=SectionPolicy(entry_layout="stack"),
+        entries=[Entry(id="e", fields=[
         FieldBlock(key="project", group="header", runs=[TextRun(text="Aergia")]),
         FieldBlock(key="link", group="secondary", align="right",
                    runs=[TextRun(text="Repo", style=TextStyle(link="https://aergia.dev"))]),
-    ])])])
+    ])],
+    )])
     model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
     html = HTMLDocumentRenderer().render(model)
-    # The link renders as a real anchor
-    assert "grid-template-columns:5fr 1fr" in html
+    assert "entry-structured" in html
+    assert "entry-link-row" in html
     assert 'class="f-link"' in html
-    # In two-column, the link sits in the right column (right-justified
-    # via the column's align-items:flex-end), not the old rail pattern
-    assert "entry-right" in html
-    right_m = re.search(r'<div class="entry-right"[^>]*>(.+?)</div></div>', html, re.S)
-    assert right_m is not None
-    assert "f-link" in right_m.group(1)
-    # No more ::after pseudo-element or CSS variable arrow
-    assert ".f-link::after" not in html
-    assert "content: \" \u2197\"" not in html
-    # The inline arrow is still present
-    assert '<span aria-hidden="true"> ↗</span>' in html
+    assert 'href="https://aergia.dev"' in html
+    assert "grid-template-columns:5fr 1fr" not in html
+    assert '<span aria-hidden="true"> ↗</span>' not in html
+    assert html.index("Aergia") < html.index("Repo")
 
 
 def test_field_typography_groups_match_section_grammar():
@@ -607,18 +598,12 @@ def test_projects_default_tech_stack_renders_as_one_wrapping_chip_group():
     }])
 
     html = HTMLDocumentRenderer().render(_resolve(cv, manifest))
-    left_match = re.search(r'<div class="entry-left"[^>]*>(.+?)<div class="entry-right"', html, re.S)
-
-    assert left_match is not None
-    left_html = left_match.group(1)
-    assert left_html.count('<div class="f-chip-group">') == 1
-    assert left_html.count('<span class="f-chip">') == 3
-    assert left_html.index("f-description") < left_html.index("f-chip-group")
+    assert html.count('<div class="f-chip-group">') == 1
+    assert html.count('<span class="f-chip">') == 3
+    assert html.index('class="f-description"') < html.index('<div class="f-chip-group">')
     assert ".f-chip-group {" in html
-    assert "background:transparent" in html
-    assert "padding:0" in html
-    assert "border-radius:0" in html
-    assert "text-decoration:underline" in html
+    assert "background:#eff6ff; padding:2px 8px; border-radius:9999px" in html
+    assert ".f-chip-link { display:inline-flex; text-decoration:none;" in html
 
 
 def test_projects_partial_layout_override_keeps_tech_chip_group():
@@ -766,20 +751,15 @@ def test_two_column_field_spacing_does_not_move_right_rail():
         ])],
     )])
     html = HTMLDocumentRenderer().render(resolve(doc, HTMLDocumentRenderer(), manifest, Customizations()))
-    entry_m = re.search(r'<div class="entry entry-two-col"[^>]*>', html)
-    left_m = re.search(r'<div class="entry-left"[^>]*>', html)
-    right_m = re.search(r'<div class="entry-right"[^>]*>', html)
-    assert entry_m is not None and left_m is not None and right_m is not None
-    assert "column-gap:0" in entry_m.group(0)
-    assert "gap:24px" in left_m.group(0)
-    assert "gap:24px" in right_m.group(0)
+    entry_m = re.search(r'<div class="entry entry-structured"[^>]*>', html)
+    link_row = re.search(r'<div class="entry-link-row"[^>]*>', html)
+    assert entry_m is not None and link_row is not None
+    assert "gap:24px" in entry_m.group(0)
+    assert "width:100%" in link_row.group(0)
 
 
-def test_two_column_entry_splits_date_and_link_into_right_column():
-    """policy.entry_layout='two-column' emits a grid with
-    grid-template-columns:5fr 1fr. The right column holds
-    ONLY the date and link fields; everything else (paper title,
-    venue, description) goes in the left column."""
+def test_structured_research_keeps_title_date_metadata_link_and_body_ordered():
+    """Research metadata precedes the full-width link and its description."""
     manifest = TemplateManifest(
         name="M", zones=[Zone(id="main", styles={})], placement={"research": "main"},
     )
@@ -793,35 +773,18 @@ def test_two_column_entry_splits_date_and_link_into_right_column():
     ])])])
     model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
     html = HTMLDocumentRenderer().render(model)
-    # Grid: 2:1 ratio — left 2/3, right 1/3
-    assert "entry-two-col" in html
-    assert "display:grid" in html
-    assert "grid-template-columns:5fr 1fr" in html
-    # Left column: paper, venue, description (NOT date, NOT link)
-    left_m = re.search(r'<div class="entry-left"[^>]*>(.+?)<div class="entry-right"', html, re.S)
-    assert left_m is not None
-    assert "f-paper" in left_m.group(1)
-    assert "f-venue" in left_m.group(1)
-    assert "f-description" in left_m.group(1)
-    assert "f-date" not in left_m.group(1)
-    assert "f-link" not in left_m.group(1)
-    # Right column: ONLY date and link, right-justified
-    right_m = re.search(r'<div class="entry-right"[^>]*>(.+?)</div></div>', html, re.S)
-    assert right_m is not None
-    assert "f-date" in right_m.group(1)
-    assert "f-link" in right_m.group(1)
-    assert "f-paper" not in right_m.group(1)
-    assert "f-venue" not in right_m.group(1)
-    assert "f-description" not in right_m.group(1)
-    assert "align-items:flex-end" in right_m.group(0)
+    assert "entry-structured" in html
+    assert "grid-template-columns:5fr 1fr" not in html
+    assert html.index("Title") < html.index("2026") < html.index("NeurIPS")
+    assert html.index("NeurIPS") < html.index("PDF") < html.index("Summary.")
+    link_row = re.search(r'<div class="entry-link-row"[^>]*>(.+?)</div>', html, re.S)
+    assert link_row is not None
+    assert "f-link" in link_row.group(1)
+    assert "width:100%" in link_row.group(0)
 
 
-def test_two_column_research_without_venue_keeps_description_in_left_column():
-    """A research entry with no publication_value still renders the
-    description in the left column; only the link goes in the right
-    column (no date either when absent). The right column simply has
-    fewer fields — no gap band appears between the link and the
-    description because they live in independent flex containers."""
+def test_structured_research_without_venue_keeps_link_before_description():
+    """Missing venue leaves a full-width link row before the body."""
     manifest = TemplateManifest(
         name="M", zones=[Zone(id="main", styles={})], placement={"research": "main"},
     )
@@ -834,19 +797,9 @@ def test_two_column_research_without_venue_keeps_description_in_left_column():
     ])])])
     model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
     html = HTMLDocumentRenderer().render(model)
-    assert "entry-two-col" in html
-    left_m = re.search(r'<div class="entry-left"[^>]*>(.+?)<div class="entry-right"', html, re.S)
-    right_m = re.search(r'<div class="entry-right"[^>]*>(.+?)</div></div>', html, re.S)
-    # Left column: paper + description (date and link are right)
-    assert "f-paper" in left_m.group(1)
-    assert "f-description" in left_m.group(1)
-    assert "f-date" not in left_m.group(1)
-    assert "f-link" not in left_m.group(1)
-    # Right column: ONLY date and link
-    assert "f-date" in right_m.group(1)
-    assert "f-link" in right_m.group(1)
-    assert "f-paper" not in right_m.group(1)
-    assert "f-description" not in right_m.group(1)
+    assert "entry-structured" in html
+    assert "entry-meta-row" not in html
+    assert html.index("Title") < html.index("2026") < html.index("PDF") < html.index("Summary.")
 
 
 def test_stack_layout_is_default_for_experience():
@@ -865,8 +818,8 @@ def test_stack_layout_is_default_for_experience():
     ])])])
     model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
     html = HTMLDocumentRenderer().render(model)
-    # Stack: no entry-two-col class
-    assert "entry-two-col" not in html
+    # Experience retains the normal stack path.
+    assert "entry-structured" not in html
     # Stack uses display:flex;flex-direction:column
     entry_m = re.search(r'<div class="entry"[^>]*>', html)
     assert entry_m is not None
@@ -1036,7 +989,7 @@ def test_keep_together_false_emits_no_break_inside_on_entries():
 
 def test_keep_together_applies_to_two_column_entries():
     """Two-column entries (policy.entry_layout='two-column', projects / research /
-    certifications) also get ``break-inside:avoid`` on their ``<div class=\"entry entry-two-col\">``."""
+    certifications) also get ``break-inside:avoid`` on their structured entry wrapper."""
     manifest = TemplateManifest(
         name="M", zones=[Zone(id="main", styles={})], placement={"projects": "main"},
     )
@@ -1052,7 +1005,7 @@ def test_keep_together_applies_to_two_column_entries():
     model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
     html = HTMLDocumentRenderer().render(model)
 
-    two_col_m = re.search(r'<div class="entry entry-two-col"[^>]*>', html)
+    two_col_m = re.search(r'<div class="entry entry-structured"[^>]*>', html)
     assert two_col_m is not None
     assert "break-inside:avoid" in two_col_m.group(0)
 

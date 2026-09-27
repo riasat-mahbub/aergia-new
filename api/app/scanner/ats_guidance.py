@@ -147,7 +147,13 @@ _STANDARD_HEADINGS: dict[str, set[str]] = {
     "profile": {"profile", "summary", "professional summary", "objective"},
     "experience": {"experience", "professional experience", "work experience", "employment history", "work history"},
     "education": {"education", "academic background", "academic experience"},
-    "projects": {"projects", "selected projects", "project experience"},
+    "projects": {
+        "projects",
+        "selected projects",
+        "project experience",
+        "personal projects",
+        "academic projects",
+    },
     "skills": {"skills", "technical skills", "core skills", "technical toolkit", "technologies"},
     "research": {"research", "publications", "research experience"},
     "certifications": {"certifications", "certificates", "credentials"},
@@ -373,10 +379,18 @@ def _pdf_findings(pdf: PDFTextRecoveryAnalysis) -> list[AtsFinding]:
         "section_heading_recovery": "visible_section_recovery",
         "entry_recovery": "entry_recovery",
         "link_recovery": "clickable_link_recovery",
+        "visible_url_recovery": "visible_url_recovery",
+        "link_label_visibility": "visible_url_label",
+        "entry_date_association": "date_entry_association",
+        "parser_agreement": "parser_agreement",
     }
     findings: list[AtsFinding] = []
     for check in pdf.checks:
-        if check.status is PDFRecoveryStatus.PASS:
+        if check.code == "link_label_visibility":
+            severity: AtsFindingSeverity = "recommendation" if check.missing_items else "pass"
+        elif check.code == "parser_agreement":
+            severity = "info" if check.status in {PDFRecoveryStatus.WARNING, PDFRecoveryStatus.UNAVAILABLE} else "pass"
+        elif check.status is PDFRecoveryStatus.PASS:
             severity: AtsFindingSeverity = "pass"
         elif check.status is PDFRecoveryStatus.UNAVAILABLE:
             severity = "info"
@@ -389,7 +403,13 @@ def _pdf_findings(pdf: PDFTextRecoveryAnalysis) -> list[AtsFinding]:
                 id=f"pdf-{check.code}",
                 rule_id=rule_ids.get(check.code, "pdf_recovery_diagnostic"),
                 title=check.code.replace("_", " ").title(),
-                category="parsing" if check.code in {"text_retention", "reading_order"} else "links" if check.code == "link_recovery" else "parsing",
+                category=(
+                    "dates"
+                    if check.code == "entry_date_association"
+                    else "links"
+                    if check.code in {"link_recovery", "visible_url_recovery", "link_label_visibility"}
+                    else "parsing"
+                ),
                 scope="common",
                 severity=severity,
                 explanation=check.explanation or "Aergia PDF recovery check completed.",
@@ -604,6 +624,18 @@ ATS_RULES: dict[str, AtsRule] = {
     ),
     "clickable_link_recovery": AtsRule(
         id="clickable_link_recovery", title="Clickable link recovery", description="Clickable PDF annotations may survive export without being universal ATS requirements.", category="links", scope="common", severity="recommendation"
+    ),
+    "visible_url_recovery": AtsRule(
+        id="visible_url_recovery", title="Visible URL recovery", description="Visible web addresses should survive PDF text extraction independently of clickable annotations.", category="links", scope="common", severity="recommendation"
+    ),
+    "visible_url_label": AtsRule(
+        id="visible_url_label", title="Readable link labels", description="Custom labels may hide the destination address from someone reading or copying the CV.", category="links", scope="common", severity="recommendation"
+    ),
+    "date_entry_association": AtsRule(
+        id="date_entry_association", title="Entry date association", description="Rendered entry dates should remain near their matching title and before entry body text in local PDF extraction.", category="dates", scope="common", severity="recommendation"
+    ),
+    "parser_agreement": AtsRule(
+        id="parser_agreement", title="Local parser agreement", description="Aergia's local PDF text extractors may differ; this does not predict third-party ATS behavior.", category="parsing", scope="common", severity="info"
     ),
     "pdf_recovery_diagnostic": AtsRule(
         id="pdf_recovery_diagnostic", title="PDF recovery diagnostic", description="A bounded PDF recovery diagnostic was recorded.", category="parsing", scope="common", severity="info"

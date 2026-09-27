@@ -211,6 +211,7 @@ def _render_section(section: Section) -> str:
                 section.subsection,
                 chip_keys,
                 entry_layout=policy.entry_layout,
+                section_type=section.type,
             )
             entry_html = _add_entry_metadata(entry_html, entry.id, bool(keep_entry))
             if i == 0 and keep_first:

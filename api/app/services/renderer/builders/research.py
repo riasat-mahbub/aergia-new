@@ -6,7 +6,7 @@ Fields per entry: ``paper``, ``venue`` (publication venue), ``link``
 
 from __future__ import annotations
 from app.document_schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextStyle, TextRun
-from ._utils import format_single_date, normalize_url_scheme, rich_text_to_field_block
+from ._utils import compact_url_label, format_single_date, normalize_url_scheme, rich_text_to_field_block
 
 
 def build_research(instance: SectionInstance, resolved_layout: LayoutHints | None = None) -> Section:
@@ -34,7 +34,7 @@ def build_research(instance: SectionInstance, resolved_layout: LayoutHints | Non
         # normalize so legacy/loose data still exports clickable links.
         url = normalize_url_scheme(row.get("paper_url"))
         if url:
-            link_text = str(row.get("paper_link_text") or "Paper")
+            link_text = str(row.get("paper_link_text") or "").strip() or compact_url_label(url)
             fields.append(FieldBlock(
                 key="link", group="secondary", align="right",
                 runs=[TextRun(text=link_text, style=TextStyle(link=url))],

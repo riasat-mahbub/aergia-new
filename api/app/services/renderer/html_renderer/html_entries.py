@@ -39,8 +39,8 @@ def _split_title_row(
     """Split fields into ``(title_fields, paired, rest)``.
 
     ``title_fields`` is the header cluster for the row's left side —
-    the project name, position, degree, etc. — plus any header-group
-    right-aligned field (the link) which becomes the right rail.
+    a project name, position, degree, etc. — plus any right-aligned
+    header field which becomes the row's right rail.
 
     ``paired`` is ``(body_field, date_field)`` when the immediate
     pattern is ``date (secondary, right) -> body_field (body)``: the
@@ -88,17 +88,16 @@ def _split_title_row(
 
 
 def _render_title_row(fields, chip_keys=None) -> str:
-    """Render the title row with the right-aligned link pinned to the top.
+    """Render the title row with its right-aligned field pinned to the top.
 
     The *last* right-aligned field in the row becomes the rail (via
-    ``margin-left:auto``). For project / research / cert entries this is
-    the link — the project title and link share the row, with the link
-    pinned to the top-right.
+    ``margin-left:auto``). In stack entries, the final right-aligned
+    header field becomes the rail.
 
     The cluster's first field carries ``max-width: 70%`` and
     ``min-width: 0`` so a long title that wraps to a second line never
     pushes the link off the row. ``align-items: flex-start`` keeps the
-    link aligned to the top of the title row (the first line of a
+    field aligned to the top of the title row (the first line of a
     wrapped title) instead of vertically centered against it.
     ``column-gap`` is 0 so adjacent fields sit flush; ``row-gap`` would
     only matter if the cluster wraps and pushes the rail to a new line.
@@ -128,10 +127,7 @@ def _render_paired_row(body_field, date_field, chip_keys=None) -> str:
     """Render a body field (description) on the left and a date on the
     right, sharing a single row.
 
-    Implements the visual the user wants for projects / experience:
-    the link sits on the right of the title row, the date sits on the
-    right of the description row — both right-aligned, both at the
-    same x coordinate (no diagonal drift between link and date).
+    Keeps a stack entry's right-aligned date beside its body text.
 
     A grid layout (1fr / auto) keeps the date pinned to the right edge
     while the body field wraps within its column. ``align-items:start``
@@ -183,8 +179,11 @@ def _render_entry(
     section_subsection: SubsectionStyle | None,
     chip_keys: list[str] | None = None,
     entry_layout: str = "stack",
+    section_type: str | None = None,
 ) -> str:
-    if entry_layout == "two-column":
+    # These semantically structured sections use the same readable source
+    # order in every template, including templates that request stack layout.
+    if section_type in {"projects", "research", "certifications"} or entry_layout == "two-column":
         return _render_entry_two_column(entry, section_subsection, chip_keys)
 
     # Field rhythm is independent from the section's outside margin. The
@@ -231,39 +230,18 @@ def _render_entry(
     return f'<div class="entry"{_style_attr(entry_style)}>{fields_html}</div>'
 
 
-# Field keys that always go in the right column of a two-column entry
-# (date, plus any linked text like a project link, paper link, or
-# certification link). Everything else — title, description, tech, venue,
-# issuer, location, etc. — goes in the left column.
-_RIGHT_COLUMN_KEYS: frozenset[str] = frozenset({"date", "link"})
-
-
 def _render_entry_two_column(
     entry: Entry,
     section_subsection: SubsectionStyle | None,
     chip_keys: list[str] | None = None,
 ) -> str:
-    """Render an entry as a two-column grid: title/description/tech/venue/etc.
-    on the left, date+link on the right.
+    """Render structured entries in a readable, source-ordered sequence.
 
-    Used for projects, research, and certifications by default. Solves three
-    visual-diff bugs against the golden PDF:
-
-    1. When a research/cert entry has a sparse secondary row (e.g. just a
-       link when venue is absent), the body sits in the left column with
-       no fixed vertical band between the secondary row and the body —
-       they live in independent flex containers.
-    2. A long title in the left column wraps inside its own block; the
-       right column anchors to the entry's top, not the title's bottom.
-    3. Long body text (descriptions) wrap naturally inside the left
-       column, which is already constrained to 5/6 of the entry width
-       by the grid layout — no extra ``max-width`` cap is needed.
-
-    Layout: ``display:grid; grid-template-columns:5fr 1fr`` — the left
-    column takes 5/6 of the entry width (title, description, tech, etc.),
-    the right column takes 1/6 (date + link, right-justified).
-    ``align-items:start`` so the right column pins to the entry's top
-    regardless of how tall the left column gets.
+    Projects, research, and certifications put their title and date on one
+    row, then their secondary metadata, then a full-width link row, and
+    finally descriptions and other body fields. This keeps each link and
+    date attached to its own entry in extracted PDF text and gives long URLs
+    the full line width instead of a narrow right rail.
     """
 
     gap = (
@@ -274,33 +252,61 @@ def _render_entry_two_column(
         or "0px"
     )
 
-    # Split fields by key: date + link go right, everything else goes left.
-    right_fields: list[FieldBlock] = [f for f in entry.fields if f.key in _RIGHT_COLUMN_KEYS]
-    left_fields: list[FieldBlock] = [f for f in entry.fields if f.key not in _RIGHT_COLUMN_KEYS]
+    title_fields: list[FieldBlock] = []
+    date_fields: list[FieldBlock] = []
+    secondary_fields: list[FieldBlock] = []
+    link_fields: list[FieldBlock] = []
+    body_fields: list[FieldBlock] = []
+    for field in entry.fields:
+        if field.key == "date":
+            date_fields.append(field)
+        elif field.key == "link":
+            link_fields.append(field)
+        elif field.group == "header":
+            title_fields.append(field)
+        elif field.group == "secondary":
+            secondary_fields.append(field)
+        else:
+            body_fields.append(field)
 
-    # Left column: stack fields vertically. Chip fields are kept together as
-    # one wrapping group so the parent column's gap separates the stack from
-    # the preceding field, rather than separating every individual chip.
-    left_html = _render_field_sequence(left_fields, chip_keys)
+    rows: list[str] = []
+    if title_fields or date_fields:
+        title_html = "".join(
+            _render_field_block(f, extra_style="flex:1;min-width:0", chip_keys=chip_keys)
+            for f in title_fields
+        )
+        date_html = "".join(
+            _render_field_block(
+                f,
+                extra_style="margin-left:auto;text-align:right;align-self:flex-start;max-width:40%",
+                chip_keys=chip_keys,
+            )
+            for f in date_fields
+        )
+        heading_style = "display:flex;flex-wrap:wrap;align-items:flex-start;width:100%;column-gap:0.5rem"
+        rows.append(f'<div class="entry-heading-row"{_style_attr(heading_style)}>{title_html}{date_html}</div>')
 
-    # Right column: a single right-justified block of date + link.
-    # No rail logic, no row grouping — just two stacked field blocks,
-    # right-aligned via align-items:flex-end on the column.
-    right_parts = [_render_field_block(f, chip_keys=chip_keys) for f in right_fields]
-    right_html = "".join(right_parts)
+    if secondary_fields:
+        secondary_html = _render_field_sequence(secondary_fields, chip_keys)
+        rows.append(f'<div class="entry-meta-row">{secondary_html}</div>')
 
-    # Keep the two-column rail anchored to the same x position regardless of
-    # the user's vertical field rhythm. The field gap belongs inside each
-    # column; it must not become a horizontal grid gap.
-    entry_style = "display:grid;grid-template-columns:5fr 1fr;column-gap:0;align-items:start"
-    left_style = f"display:flex;flex-direction:column;gap:{gap}"
-    right_style = f"display:flex;flex-direction:column;gap:{gap};align-items:flex-end"
-    return (
-        f'<div class="entry entry-two-col"{_style_attr(entry_style)}>'
-        f'<div class="entry-left"{_style_attr(left_style)}>{left_html}</div>'
-        f'<div class="entry-right"{_style_attr(right_style)}>{right_html}</div>'
-        f"</div>"
-    )
+    if link_fields:
+        links_html = "".join(
+            _render_field_block(
+                f,
+                extra_style="display:block;width:100%;max-width:100%;text-align:left;overflow-wrap:anywhere",
+                chip_keys=chip_keys,
+            )
+            for f in link_fields
+        )
+        link_row_style = "display:block;width:100%;max-width:100%;overflow-wrap:anywhere"
+        rows.append(f'<div class="entry-link-row"{_style_attr(link_row_style)}>{links_html}</div>')
+
+    if body_fields:
+        rows.append(_render_field_sequence(body_fields, chip_keys))
+
+    entry_style = f"display:flex;flex-direction:column;gap:{gap};width:100%;min-width:0"
+    return f'<div class="entry entry-structured"{_style_attr(entry_style)}>{"".join(rows)}</div>'
 
 
 def _render_field_row(

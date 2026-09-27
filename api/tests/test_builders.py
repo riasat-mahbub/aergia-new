@@ -94,9 +94,21 @@ def test_profile_social_run_carries_url_for_clickable_icon():
     social_fields = [f for f in section.entries[0].fields if f.key == "social"]
     assert len(social_fields) == 2
     assert social_fields[0].icon == "github"
+    assert social_fields[0].runs[0].text == "GitHub"
     assert social_fields[0].runs[0].style.link == "https://github.com/ada"
     assert social_fields[1].icon == "linkedin"
+    assert social_fields[1].runs[0].text == "LinkedIn"
     assert social_fields[1].runs[0].style.link == "https://linkedin.com/in/ada"
+
+
+def test_profile_social_fallback_label_is_compact_url():
+    cv = _cv([{
+        "id": "s1", "type": "profile", "title": "Profile", "enabled": True,
+        "data": {"name": "Ada", "social_links": [{"url": "https://www.github.com/ada?tab=repos"}]},
+    }])
+    social = next(f for f in build_document(cv).sections[0].entries[0].fields if f.key == "social")
+    assert social.runs[0].text == "github.com/ada?tab=repos"
+    assert social.runs[0].style.link == "https://www.github.com/ada?tab=repos"
 
 
 def test_profile_site_field_carries_url_when_present():
@@ -118,6 +130,15 @@ def test_profile_site_field_carries_url_when_present():
     site = next(f for f in section.entries[0].fields if f.key == "site")
     assert site.runs[0].text == "aergia.dev"
     assert site.runs[0].style.link == "https://aergia.dev"
+
+    # Without a custom display label, expose a compact but complete URL.
+    cv_compact = _cv([{
+        "id": "s2", "type": "profile", "title": "Profile", "enabled": True,
+        "data": {"name": "Ada", "site_url": "https://www.ada.dev/work?ref=cv"},
+    }])
+    compact_site = next(f for f in build_document(cv_compact).sections[0].entries[0].fields if f.key == "site")
+    assert compact_site.runs[0].text == "ada.dev/work?ref=cv"
+    assert compact_site.runs[0].style.link == "https://www.ada.dev/work?ref=cv"
 
     # Without a URL, ``site_text`` becomes a plain ``site_text`` field.
     cv_no_url = _cv([{
@@ -209,6 +230,16 @@ def test_projects_emits_name_link_date_description_tech():
     assert keys == ["project", "link", "date", "description", "tech", "tech"]
 
 
+def test_project_fallback_link_label_is_compact_but_complete():
+    cv = _cv([{
+        "id": "pr", "type": "projects", "title": "Projects", "enabled": True,
+        "data": [{"id": "p1", "name": "Aergia", "url": "https://www.github.com/ada/aergia?tab=readme"}],
+    }])
+    link = next(f for f in build_document(cv).sections[0].entries[0].fields if f.key == "link")
+    assert link.runs[0].text == "github.com/ada/aergia?tab=readme"
+    assert link.runs[0].style.link == "https://www.github.com/ada/aergia?tab=readme"
+
+
 def test_languages_emits_language_and_proficiency():
     cv = _cv([{
         "id": "lng",
@@ -298,6 +329,8 @@ def test_research_omits_venue_when_publication_value_is_empty():
     doc = build_document(cv)
     keys = [f.key for f in doc.sections[0].entries[0].fields]
     assert keys == ["paper", "date", "link", "description"]
+    link = next(f for f in doc.sections[0].entries[0].fields if f.key == "link")
+    assert link.runs[0].text == "arxiv.org/abs/1"
 
 
 def test_disabled_section_is_dropped():
@@ -664,6 +697,7 @@ def test_projects_fields_carry_row_groups():
     assert fields["date"].align == "right"
     assert fields["link"].group == "header"
     assert fields["link"].align == "right"
+    assert fields["link"].runs[0].text == "site"
     assert fields["link"].runs[0].style.link == "https://aergia.dev"
     assert fields["description"].group == "body"
     # Tech chips share the uniform 'tech' key; both land in the body row.
@@ -699,14 +733,14 @@ def test_certifications_fields_carry_row_groups():
     assert fields["link"].runs[0].style.link == "https://x"
 
 
-def test_certifications_link_text_defaults_to_certificate():
-    """A credential URL without link_text renders 'Certificate' as the link."""
+def test_certifications_link_text_defaults_to_compact_url():
+    """A credential URL without link_text remains readable in text extraction."""
     cv = _cv([{
         "id": "s1", "type": "certifications", "title": "C", "enabled": True,
         "data": [{"id": "e1", "name": "AWS", "issuer": "Amazon", "date": "2026-01", "credential_url": "https://x"}],
     }])
     fields = {f.key: f for f in build_document(cv).sections[0].entries[0].fields}
-    assert fields["link"].runs[0].text == "Certificate"
+    assert fields["link"].runs[0].text == "x"
     assert fields["link"].runs[0].style.link == "https://x"
 
 
@@ -802,6 +836,7 @@ def test_research_fields_carry_row_groups():
     assert fields["venue"].group == "secondary"
     assert fields["link"].group == "secondary"
     assert fields["link"].align == "right"
+    assert fields["link"].runs[0].text == "pdf"
     assert fields["link"].runs[0].style.link == "https://x"
     assert fields["description"].group == "body"
 

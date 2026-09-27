@@ -14,9 +14,11 @@ mandatory.
   just to satisfy a checklist. Aergia restores server-owned profile identity
   fields during preview. Mention material missing information in review notes
   rather than inventing it or editing source records.
-- Use recognizable, visible section headings such as Work Experience,
-  Education, Skills, and Projects. An early-career CV can emphasize education
-  and projects without inventing employment to populate a heading.
+- Use recognizable, visible section headings that match the content, such as
+  Work Experience, Education, Skills, and Projects. Use Personal Projects or
+  Academic Projects only when that distinction is supported by the source. An
+  early-career CV can emphasize education and projects without inventing
+  employment to populate a heading.
 - Include the target job title naturally in the summary when it describes the
   candidate's qualifications or explicit role intent. For example, "Seeking a
   Junior Software Developer role, applying…" does not claim the candidate has
@@ -42,7 +44,16 @@ mandatory.
   guide for tone. Keep transferable ability and future intent distinct from
   claims about completed work.
 - Include relevant supplied portfolio, website, or professional-profile links
-  with clear labels. Do not claim to have verified their contents unless read.
+  with readable labels. For LinkedIn and GitHub profiles, prefer the direct
+  address in visible text (`linkedin.com/in/handle` or `github.com/handle`)
+  unless the user specified a custom label. For project and other links, show
+  the domain and identifying path instead of a generic label. Keep project
+  names, supplied dates, and links ahead of description bullets. Preserve
+  explicit user labels and preferences, and keep link targets at the actual
+  supplied destination, including meaningful path and query information. Use
+  a shortened address only when the user supplies it as an existing URL; never
+  invent one or make a long URL appear to resolve at a different address. Do
+  not claim to have verified link contents unless read.
 - Treat word count as a density signal, not a pass/fail target. Prefer one page
   when relevant coverage and readability are comparable; retain two when the
   additional content materially strengthens the application.
