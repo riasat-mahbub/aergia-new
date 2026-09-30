@@ -48,15 +48,21 @@ mandatory.
   address in visible text (`linkedin.com/in/handle` or `github.com/handle`)
   unless the user specified a custom label. For project and other links, show
   the domain and identifying path instead of a generic label. Keep project
-  names, supplied dates, and links ahead of description bullets. Preserve
+  names, supplied dates, and links ahead of descriptions. Preserve
   explicit user labels and preferences, and keep link targets at the actual
   supplied destination, including meaningful path and query information. Use
   a shortened address only when the user supplies it as an existing URL; never
   invent one or make a long URL appear to resolve at a different address. Do
   not claim to have verified link contents unless read.
-- Treat word count as a density signal, not a pass/fail target. Prefer one page
-  when relevant coverage and readability are comparable; retain two when the
-  additional content materially strengthens the application.
+- Keep voice and formatting consistent across summary and description fields.
+  When most comparable entries use bullets or lists, keep that format; when
+  most use paragraphs, keep paragraphs. Use bullets for distinct points and a
+  concise paragraph for one point when it suits the dominant format. When
+  space is tight, convert related bullets into readable paragraphs across
+  comparable entries before cutting useful content.
+- Treat word count as a density signal, not a pass/fail target. Aim for one
+  readable page while preserving strong job-fit evidence; retain two when a
+  one-page version would materially weaken the application or crowd the text.
 
 ## Typography and layout using Aergia
 
@@ -74,7 +80,8 @@ mandatory.
   bold or giving every element equal emphasis.
 - Check contrast and readable size for all text, including dates and links.
   An acceptable average size can hide tiny individual fields. Avoid `xs` for
-  sustained reading; remove low-value content before shrinking useful text.
+  sustained reading; try paragraph flow and supported spacing before removing
+  useful content or shrinking text.
 - Prefer left alignment for prose. Profile alignment is supported through
   `style.subsection.text_align`; inspect the rendered result because this is
   section-wide, not an independent summary-only control. Centered identity
@@ -113,6 +120,6 @@ certify compatibility with every ATS.
 
 When these recommendations are relevant, batch supported changes within the
 main skill's five-preview budget and keep its priority order: meaningful
-job-fit and keyword improvements, then ATS and layout repairs. These
+job-fit and keyword improvements, then ATS and one-page layout repairs. These
 guidelines add no separate score, checklist artifact, validator, or submission
 requirement. Report only checks actually performed.

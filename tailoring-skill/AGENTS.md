@@ -45,12 +45,14 @@ describes local skill assets only.
   employer terminology in accurate context, including transferable examples
   and truthful future-facing capability language for growth areas. Do not
   fabricate fixed facts or past actions, keyword-stuff, or add meaningless
-  repetition. Address score-relevant content before page fit; keep text
-  readable and PDF parsing reliable as constraints. The server validates
-  and normalizes candidates, assigns stable rich-text IDs, renders the PDF,
+  repetition. Prefer a readable one-page CV; keep narrative style consistent
+  across comparable summary and description fields, and try paragraphs across
+  comparable entries before cutting content for space. Preserve strong job-fit
+  evidence and reliable PDF parsing. The server validates and normalizes
+  candidates, assigns stable rich-text IDs, renders the PDF,
   and owns mechanical and scanner-derived facts. Use the five-preview budget
-  for high-impact improvements and select the highest-performing credible
-  version. Do not use arbitrary CSS.
+  for high-impact improvements and select the strongest credible version
+  consistent with the page preference. Do not use arbitrary CSS.
 - Freeze the server-returned canonical candidate for each preview. Submission
   requires an explicit `evaluation_id` and `candidate_hash` selection and
   sends that frozen candidate with the context hash. Do not add an editorial
