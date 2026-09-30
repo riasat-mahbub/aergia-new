@@ -155,7 +155,6 @@ if RENDERABLE_SECTION_TYPES != frozenset(SECTION_FIELDS):
 SERVER_OWNED_PROFILE_FIELDS = frozenset(
     {
         "name",
-        "title",
         "email",
         "email_link",
         "phone",

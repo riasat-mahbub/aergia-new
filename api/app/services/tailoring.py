@@ -16,6 +16,7 @@ import secrets
 import asyncio
 from collections.abc import Mapping, Sequence
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from typing import Any
 
 from pydantic import ValidationError
@@ -48,6 +49,7 @@ from app.http_schemas.tailoring_evaluation import (
     TAILORING_EVALUATION_VERSION,
     TailoringEvaluation,
 )
+from app.http_schemas.profile import UserProfile
 from app.models.application import Application
 from app.models.cv import CV
 from app.models.library import Library, LibraryEntry
@@ -56,7 +58,12 @@ from app.models.template import Template
 from app.models.user import User
 from app.scanner.freshness import configured_extractor_version, scanner_result_freshness
 from app.scanner.results import ScanResult
-from app.scanner.service import ScannerService, canonicalize_scanner_cv, scanner_versions_for_extraction
+from app.scanner.service import (
+    PDF_RENDERER_VERSION,
+    ScannerService,
+    canonicalize_scanner_cv,
+    scanner_versions_for_extraction,
+)
 from app.services.cv import CVService, coerce_customizations
 from app.services.pdf import PDFService, pdf_page_count
 from app.services.profile import ProfileService
@@ -172,8 +179,10 @@ def build_tailoring_prompt(
         "Use the Aergia full-history tailoring skill for this session:\n\n"
         f"{session_url}\n\n"
         f"One-time session code: {code}\n\n"
-        "The session provides the job and notes, one complete readable dossier from the profile and "
-        "every Library entry, and the available templates and renderer constraints. Compose one complete "
+        "The session provides the job and notes, a frozen readable dossier from the profile and every "
+        "Library entry, and a clearly labeled readable source CV when one exists. Source-CV-only facts "
+        "supplement Library history; fixed identity and contact details remain profile-owned. The "
+        "session also provides frozen templates and renderer constraints. Compose one complete "
         "truthful CV from that material. Preview candidates through Aergia, use the canonical candidate "
         "returned by the selected preview exactly as returned, and submit it with that preview's context "
         "and candidate hashes. The context is frozen; if Aergia reports it is stale, start a new session. "
@@ -368,20 +377,81 @@ def _append_dossier_value(lines: list[str], label: str, value: Any, indent: int 
     _append_dossier_text(lines, label, fallback, indent)
 
 
-def _build_dossier(profile: Mapping[str, Any], entries: Sequence[LibraryEntry]) -> str:
-    """Render all profile and Library facts without exposing renderer JSON."""
+def _object_value(value: object, key: str, default: Any = None) -> Any:
+    if isinstance(value, Mapping):
+        return value.get(key, default)
+    return getattr(value, key, default)
+
+
+def _source_cv_dossier(lines: list[str], source_cv: Mapping[str, Any]) -> None:
+    """Append readable source-CV facts without conflating them with Library rows."""
+
+    lines.extend(
+        (
+            "",
+            "## Readable source CV",
+            "Facts below come from the linked source document and supplement Library history. "
+            "The saved profile remains authoritative for current identity and contact details. "
+            "Profile headline and document title are separate from historical employment titles.",
+        )
+    )
+    if source_cv.get("title"):
+        _append_dossier_value(lines, "Source CV document title", source_cv["title"], indent=1)
+    if source_cv.get("description"):
+        _append_dossier_value(lines, "Source CV description", source_cv["description"], indent=1)
+    for section in source_cv.get("sections") or []:
+        if not isinstance(section, Mapping):
+            continue
+        section_type = str(section.get("type") or "section")
+        data = section.get("data")
+        section_title = section.get("title") or section_type.replace("_", " ").title()
+        lines.extend(("", f"### Source CV — {section_title}"))
+        if isinstance(data, Mapping):
+            for key, value in data.items():
+                if key in {"id", "style"}:
+                    continue
+                if section_type == "profile" and key == "title":
+                    label = "Professional headline"
+                else:
+                    label = _dossier_label(key)
+                _append_dossier_value(lines, label, value, indent=1)
+        elif isinstance(data, list):
+            for index, row in enumerate(data, start=1):
+                if not isinstance(row, Mapping):
+                    _append_dossier_value(lines, f"Entry {index}", row, indent=1)
+                    continue
+                heading = f"Entry {index}"
+                if row.get("id") is not None:
+                    heading += f" (ID: {row['id']})"
+                lines.append(f"  {heading}:")
+                for key, value in row.items():
+                    if key in {"id", "style"}:
+                        continue
+                    label = "Historical official title" if section_type == "experience" and key == "position" else _dossier_label(key)
+                    _append_dossier_value(lines, label, value, indent=2)
+
+
+def _build_dossier(
+    profile: Mapping[str, Any],
+    entries: Sequence[object],
+    source_cv: Mapping[str, Any] | None = None,
+) -> str:
+    """Render the frozen profile, Library, and optional source CV as readable facts."""
 
     parts = ["# Candidate dossier", "", "## Profile"]
     for key, value in profile.items():
-        _append_dossier_value(parts, _dossier_label(key), value, indent=1)
+        label = "Professional headline" if key == "title" else _dossier_label(key)
+        _append_dossier_value(parts, label, value, indent=1)
     if not profile:
         parts.append("  No profile fields are available.")
     parts.extend(("", "## Library history"))
     if not entries:
         parts.append("No Library entries are available.")
     for entry in entries:
-        parts.extend(("", f"### {entry.kind.title()} — Library entry ID: {entry.id}"))
-        payload = entry.payload or []
+        kind = str(_object_value(entry, "kind", "entry"))
+        entry_id = _object_value(entry, "id", "unknown")
+        parts.extend(("", f"### {kind.title()} — Library entry ID: {entry_id}"))
+        payload = _object_value(entry, "payload", None) or []
         if not payload:
             parts.append("  No saved rows.")
         for index, row in enumerate(payload, start=1):
@@ -394,9 +464,12 @@ def _build_dossier(profile: Mapping[str, Any], entries: Sequence[LibraryEntry]) 
                 for key, value in row.items():
                     if key in {"id", "style"}:
                         continue
-                    _append_dossier_value(parts, _dossier_label(key), value, indent=2)
+                    label = "Historical official title" if kind == "experience" and key == "position" else _dossier_label(key)
+                    _append_dossier_value(parts, label, value, indent=2)
             else:
                 _append_dossier_value(parts, f"Row {index}", row, indent=1)
+    if source_cv is not None:
+        _source_cv_dossier(parts, source_cv)
     return "\n".join(parts)
 
 
@@ -421,6 +494,20 @@ def _template_manifest(template: Template) -> dict[str, Any] | None:
         return None
 
 
+def _source_cv_snapshot(source_cv: CV | Mapping[str, Any] | SimpleNamespace | None) -> dict[str, Any] | None:
+    if source_cv is None:
+        return None
+    return {
+        "id": _object_value(source_cv, "id"),
+        "revision": _object_value(source_cv, "revision") or 1,
+        "title": _object_value(source_cv, "title"),
+        "description": _object_value(source_cv, "description"),
+        "template_id": _object_value(source_cv, "template_id"),
+        "customizations": copy.deepcopy(_object_value(source_cv, "customizations", None) or {}),
+        "sections": copy.deepcopy(_object_value(source_cv, "sections", None) or []),
+    }
+
+
 class TailoringService:
     """Own context exchange, complete-candidate persistence, and review."""
 
@@ -430,7 +517,9 @@ class TailoringService:
 
     async def _owned_application(self, application_id: str, user_id: str) -> Application | None:
         result = await self.db.execute(
-            select(Application).where(Application.id == application_id, Application.user_id == user_id)
+            select(Application)
+            .where(Application.id == application_id, Application.user_id == user_id)
+            .execution_options(populate_existing=True)
         )
         return result.scalar_one_or_none()
 
@@ -438,7 +527,9 @@ class TailoringService:
         if not cv_id:
             return None
         result = await self.db.execute(
-            select(CV).where(CV.id == cv_id, CV.user_id == user_id, CV.is_active)
+            select(CV)
+            .where(CV.id == cv_id, CV.user_id == user_id, CV.is_active)
+            .execution_options(populate_existing=True)
         )
         return result.scalar_one_or_none()
 
@@ -448,11 +539,16 @@ class TailoringService:
             .join(Library, LibraryEntry.library_id == Library.id)
             .where(Library.user_id == user_id)
             .order_by(LibraryEntry.created_at.asc(), LibraryEntry.id.asc())
+            .execution_options(populate_existing=True)
         )
         return list(result.scalars().all())
 
     async def _templates(self) -> list[Template]:
-        result = await self.db.execute(select(Template).order_by(Template.created_at.asc(), Template.id.asc()))
+        result = await self.db.execute(
+            select(Template)
+            .order_by(Template.created_at.asc(), Template.id.asc())
+            .execution_options(populate_existing=True)
+        )
         return list(result.scalars().all())
 
     async def _context_resources(self, session: TailoringSession) -> dict[str, Any]:
@@ -462,7 +558,10 @@ class TailoringService:
         source_cv = await self._owned_cv(session.cv_id, session.user_id)
         if session.cv_id and source_cv is None:
             raise TailoringConflictError("The source CV is no longer available")
-        user = await self.db.get(User, session.user_id)
+        user_result = await self.db.execute(
+            select(User).where(User.id == session.user_id).execution_options(populate_existing=True)
+        )
+        user = user_result.scalar_one_or_none()
         if user is None:
             raise TailoringUnauthorizedError("Invalid tailoring session owner")
         profile = await ProfileService(self.db).get_profile(user)
@@ -492,10 +591,17 @@ class TailoringService:
             "capabilities": capabilities,
         }
 
-    async def _render_cv_pdf(self, cv: CV) -> bytes | None:
+    async def _render_cv_pdf(
+        self,
+        cv: CV,
+        manifest: Mapping[str, Any] | None = None,
+    ) -> bytes | None:
         try:
-            return await PDFService(self.db).render_payload(
-                cv.template_id,
+            if manifest is None:
+                return None
+            service = PDFService(self.db)
+            return await service.render_manifest_payload(
+                dict(manifest),
                 cv.sections or [],
                 cv.customizations or {},
             )
@@ -518,12 +624,14 @@ class TailoringService:
 
         source_scan: ScanResult | None = None
         existing = application.scanner_result
-        if existing is not None:
+        source_manifest = resources["manifest_by_id"].get(source_cv.template_id)
+        if existing is not None and source_manifest is not None:
             freshness = scanner_result_freshness(
                 existing,
                 application.job_description,
                 source_cv,
                 extractor_version=configured_extractor_version(),
+                render_manifest=source_manifest,
             )
             if freshness["current"]:
                 try:
@@ -532,17 +640,14 @@ class TailoringService:
                     source_scan = None
 
         if source_scan is None:
-            pdf_bytes = await self._render_cv_pdf(source_cv)
+            pdf_bytes = await self._render_cv_pdf(source_cv, source_manifest)
             source_scan = await asyncio.to_thread(
                 self.scanner_service.scan,
                 application.job_description,
                 source_cv,
                 pdf_bytes=pdf_bytes,
+                render_manifest=source_manifest,
             )
-            application.scanner_result = source_scan.model_dump(mode="json")
-            application.scanner_rescan_required = False
-            application.updated_at = _utcnow()
-            await self.db.flush()
 
         return TailoringScannerContext(
             versions=source_scan.versions,
@@ -560,14 +665,16 @@ class TailoringService:
         return {
             "application": _application_context_snapshot(application),
             "profile": resources["profile"].model_dump(mode="json", exclude_none=True),
-            "source_cv": cv_snapshot_hash(source_cv),
-            "library": {
-                entry.id: {
-                    "content_hash": library_entry_content_hash(entry),
-                    "updated_at": entry.updated_at.isoformat() if entry.updated_at else None,
+            "source_cv": _source_cv_snapshot(source_cv),
+            "source_cv_revision": source_cv.revision or 1 if source_cv is not None else None,
+            "libraries": [
+                {
+                    "id": entry.id,
+                    "kind": entry.kind,
+                    "payload": copy.deepcopy(entry.payload or []),
                 }
                 for entry in libraries
-            },
+            ],
             "scanner": scanner_context.model_dump(mode="json"),
             "templates": [
                 {
@@ -575,16 +682,130 @@ class TailoringService:
                     "name": template.name,
                     "description": template.description,
                     "preview_image_url": template.preview_image_url,
-                    "manifest": template.manifest,
+                    "manifest": resources["manifest_by_id"][template.id],
                     "assets": template.assets,
                     "created_at": template.created_at.isoformat() if template.created_at else None,
                 }
                 for template in templates
+                if template.id in resources["manifest_by_id"]
             ],
             "selected_template_id": resources["selected_template_id"],
-            "capabilities": capabilities_hash(capabilities),
+            "capabilities": copy.deepcopy(capabilities),
             "evaluation_version": TAILORING_EVALUATION_VERSION,
         }
+
+    @staticmethod
+    def _target_guard_basis(
+        application: Application,
+        source_cv: CV | None,
+        capabilities: Mapping[str, Any],
+        scanner_context: TailoringScannerContext,
+    ) -> dict[str, Any]:
+        return {
+            "application_owner_id": application.user_id,
+            "application": _application_context_snapshot(application),
+            "source_cv_id": source_cv.id if source_cv is not None else None,
+            "source_cv_revision": source_cv.revision or 1 if source_cv is not None else None,
+            # The revision is the public meaningful-change token. The
+            # content digest also protects sessions created before CV writes
+            # consistently advance that token.
+            "source_cv_content_hash": cv_snapshot_hash(source_cv),
+            "renderer_capabilities_hash": capabilities_hash(capabilities),
+            "pdf_renderer_version": PDF_RENDERER_VERSION,
+            "scanner_versions": scanner_context.versions.model_dump(mode="json"),
+        }
+
+    async def _current_target_guard(
+        self,
+        session: TailoringSession,
+        scanner_context: TailoringScannerContext,
+    ) -> dict[str, Any]:
+        """Refresh and validate the live job/source/renderer guard for P05/P07."""
+
+        app_result = await self.db.execute(
+            select(Application)
+            .where(
+                Application.id == session.application_id,
+                Application.user_id == session.user_id,
+            )
+            .execution_options(populate_existing=True)
+        )
+        application = app_result.scalar_one_or_none()
+        if application is None:
+            raise TailoringConflictError("Tailoring application is no longer available")
+        if application.cv_id != session.cv_id:
+            raise TailoringStaleError("The application or source CV changed; start a new session")
+
+        source_cv: CV | None = None
+        if session.cv_id is not None:
+            source_result = await self.db.execute(
+                select(CV)
+                .where(CV.id == session.cv_id, CV.user_id == session.user_id)
+                .execution_options(populate_existing=True)
+            )
+            source_cv = source_result.scalar_one_or_none()
+            if source_cv is None or not source_cv.is_active:
+                raise TailoringStaleError("The source CV changed or is no longer available; start a new session")
+            if (source_cv.revision or 1) != session.source_cv_revision:
+                raise TailoringStaleError("The source CV changed; start a new session")
+        elif session.source_cv_revision is not None:
+            raise TailoringStaleError("The source CV changed; start a new session")
+
+        current_capabilities = renderer_capabilities(HTMLDocumentRenderer.support)
+        current_versions = scanner_versions_for_extraction(scanner_context.requirement_extraction)
+        configured_version = configured_extractor_version()
+        if (
+            current_versions != scanner_context.versions
+            or (configured_version and configured_version != scanner_context.versions.extractor_version)
+        ):
+            raise TailoringStaleError("The scanner contract changed; start a new tailoring session")
+
+        guard = self._target_guard_basis(application, source_cv, current_capabilities, scanner_context)
+        current_hash = _content_hash(guard)
+        if not session.target_guard_hash or current_hash != session.target_guard_hash:
+            raise TailoringStaleError("The application or source CV changed; start a new session")
+        return {
+            "application": application,
+            "source_cv": source_cv,
+            "target_guard_hash": current_hash,
+        }
+
+    async def _context_matches(
+        self,
+        session: TailoringSession,
+        expected_context_hash: str | None = None,
+    ) -> bool:
+        """Return whether a stored v10 context and its live target are current."""
+
+        snapshot = session.context_snapshot
+        if not isinstance(snapshot, Mapping):
+            return False
+        try:
+            if (
+                session.protocol_version != PROTOCOL_VERSION
+                or snapshot.get("protocol_version") != session.protocol_version
+                or snapshot.get("evaluation_version") != TAILORING_EVALUATION_VERSION
+            ):
+                return False
+            basis = snapshot["basis"]
+            if not isinstance(basis, Mapping):
+                return False
+            frozen_hash = _content_hash(basis)
+            if snapshot.get("context_hash") != frozen_hash:
+                return False
+            if session.context_hash and session.context_hash != frozen_hash:
+                return False
+            if expected_context_hash is not None and expected_context_hash != frozen_hash:
+                return False
+            if snapshot.get("scanner") != basis.get("scanner"):
+                return False
+            scanner_context = TailoringScannerContext.model_validate(snapshot["scanner"])
+            if session.source_cv_revision != basis.get("source_cv_revision"):
+                return False
+            await self._current_target_guard(session, scanner_context)
+        except (KeyError, TypeError, ValidationError, TailoringConflictError, TailoringStaleError):
+            return False
+        return True
 
     async def _context_parts(
         self,
@@ -594,20 +815,35 @@ class TailoringService:
     ) -> dict[str, Any]:
         if session.protocol_version != PROTOCOL_VERSION:
             raise TailoringStaleError("This tailoring session uses an older protocol; start a new session")
-        resources = await self._context_resources(session)
         if not session.context_snapshot:
             if not initialize:
-                raise TailoringStaleError("This tailoring session predates protocol v9; start a new session")
+                raise TailoringStaleError("This tailoring session has no frozen authoring context; start a new session")
+            resources = await self._context_resources(session)
             scanner_context = await self._freeze_scanner_context(resources)
             basis = self._context_basis(resources, scanner_context)
+            target_guard = self._target_guard_basis(
+                resources["application"],
+                resources["source_cv"],
+                resources["capabilities"],
+                scanner_context,
+            )
+            session.source_cv_revision = basis["source_cv_revision"]
+            session.target_guard_hash = _content_hash(target_guard)
+            frozen_context_hash = _content_hash(basis)
             session.context_snapshot = {
                 "schema_version": f"tailoring-v{session.protocol_version}",
                 "protocol_version": session.protocol_version,
                 "evaluation_version": TAILORING_EVALUATION_VERSION,
                 "scanner": scanner_context.model_dump(mode="json"),
                 "basis": basis,
+                # Evaluation records share the storage column but never
+                # participate in this immutable authoring-context digest.
+                "context_hash": frozen_context_hash,
             }
+            session.context_hash = frozen_context_hash
         else:
+            if not isinstance(session.context_snapshot, Mapping):
+                raise TailoringStaleError("The frozen tailoring context is invalid; start a new session")
             try:
                 snapshot = session.context_snapshot
                 if snapshot.get("protocol_version") != session.protocol_version:
@@ -616,23 +852,61 @@ class TailoringService:
                     raise TailoringStaleError("The tailoring evaluation contract changed; start a new session")
                 scanner_context = TailoringScannerContext.model_validate(snapshot["scanner"])
                 frozen_basis = snapshot["basis"]
+                if not isinstance(frozen_basis, Mapping):
+                    raise TypeError("frozen context must be a mapping")
+                required_fields = {
+                    "application",
+                    "profile",
+                    "source_cv",
+                    "source_cv_revision",
+                    "libraries",
+                    "scanner",
+                    "templates",
+                    "selected_template_id",
+                    "capabilities",
+                    "evaluation_version",
+                }
+                if not required_fields.issubset(frozen_basis):
+                    raise TypeError("frozen context is incomplete")
+                if not isinstance(frozen_basis["libraries"], list) or not isinstance(frozen_basis["templates"], list):
+                    raise TypeError("frozen evidence collections are invalid")
+                if snapshot["scanner"] != frozen_basis["scanner"]:
+                    raise TypeError("frozen scanner snapshots disagree")
+                if _content_hash(frozen_basis) != snapshot.get("context_hash"):
+                    raise TailoringStaleError("The frozen tailoring context is invalid; start a new session")
+                if session.source_cv_revision != frozen_basis.get("source_cv_revision"):
+                    raise TailoringStaleError("The frozen source CV revision is invalid; start a new session")
             except (KeyError, TypeError, ValidationError) as exc:
-                raise TailoringStaleError("The tailoring scanner context is invalid; start a new session") from exc
-            current_versions = scanner_versions_for_extraction(scanner_context.requirement_extraction)
-            configured_version = configured_extractor_version()
-            if configured_version and configured_version != scanner_context.versions.extractor_version:
-                raise TailoringStaleError("The scanner contract changed; start a new tailoring session")
-            if current_versions != scanner_context.versions:
-                raise TailoringStaleError("The scanner contract changed; start a new tailoring session")
-            current_basis = self._context_basis(resources, scanner_context)
-            if _content_hash(current_basis) != _content_hash(frozen_basis):
-                raise TailoringStaleError("The tailoring context changed; start a new session")
+                raise TailoringStaleError("The frozen tailoring context is invalid; start a new session") from exc
 
         context_snapshot = session.context_snapshot
-        scanner_context = TailoringScannerContext.model_validate(context_snapshot["scanner"])
-        basis = self._context_basis(resources, scanner_context)
+        basis = context_snapshot["basis"]
+        live_target = await self._current_target_guard(session, scanner_context)
+        source_cv_snapshot = basis.get("source_cv")
+        source_cv = SimpleNamespace(**copy.deepcopy(source_cv_snapshot)) if source_cv_snapshot is not None else None
+        profile_data = copy.deepcopy(basis["profile"])
+        profile = UserProfile.model_validate(profile_data)
+        library_entries = [SimpleNamespace(**copy.deepcopy(item)) for item in basis["libraries"]]
+        templates = [SimpleNamespace(**copy.deepcopy(item)) for item in basis["templates"]]
+        manifest_by_id = {
+            item.id: copy.deepcopy(item.manifest)
+            for item in templates
+        }
+        capabilities = copy.deepcopy(basis["capabilities"])
+        context_hash = _content_hash(basis)
+        if session.context_hash and session.context_hash != context_hash:
+            raise TailoringStaleError("The frozen tailoring context is invalid; start a new session")
         return {
-            **resources,
+            "application": live_target["application"],
+            "source_cv": source_cv,
+            "source_cv_revision": basis.get("source_cv_revision"),
+            "profile": profile,
+            "profile_data": {key: value for key, value in profile_data.items() if key != "photo_url"},
+            "libraries": library_entries,
+            "templates": templates,
+            "manifest_by_id": manifest_by_id,
+            "selected_template_id": basis["selected_template_id"],
+            "capabilities": capabilities,
             # Pass a serialized copy to the pure evaluation service rather
             # than exposing database/ORM access to it.
             "authoritative_library": [
@@ -641,10 +915,11 @@ class TailoringService:
                     "kind": entry.kind,
                     "payload": copy.deepcopy(entry.payload or []),
                 }
-                for entry in resources["libraries"]
+                for entry in library_entries
             ],
             "scanner_context": scanner_context,
-            "context_hash": _content_hash(basis),
+            "context_hash": context_hash,
+            "target_guard_hash": live_target["target_guard_hash"],
         }
 
     async def create_session(
@@ -669,7 +944,6 @@ class TailoringService:
             )
         )
         now = _utcnow()
-        expired_sessions: list[TailoringSession] = []
         for existing in existing_result.scalars().all():
             if (
                 existing.status in {TAILORING_SESSION_CREATED, TAILORING_SESSION_EXCHANGED}
@@ -678,7 +952,6 @@ class TailoringService:
                 existing.status = TAILORING_SESSION_STALE
                 existing.capability_hash = None
                 existing.updated_at = now
-                expired_sessions.append(existing)
                 continue
             if (
                 existing.status in {TAILORING_SESSION_CREATED, TAILORING_SESSION_EXCHANGED}
@@ -687,16 +960,16 @@ class TailoringService:
                 existing.status = TAILORING_SESSION_EXPIRED
                 existing.capability_hash = None
                 existing.updated_at = now
-                expired_sessions.append(existing)
                 continue
             raise TailoringConflictError(
                 "Finish or cancel the existing tailoring session before starting another"
             )
-        if expired_sessions:
-            await self.db.flush()
         # Validate the owner, profile, and template availability before
         # issuing a capability. A source CV is intentionally optional.
-        user = await self.db.get(User, user_id)
+        user_result = await self.db.execute(
+            select(User).where(User.id == user_id).execution_options(populate_existing=True)
+        )
+        user = user_result.scalar_one_or_none()
         if user is None:
             raise TailoringNotFoundError("User not found")
         code = secrets.token_urlsafe(32)
@@ -709,11 +982,11 @@ class TailoringService:
             status=TAILORING_SESSION_CREATED,
             expires_at=now + TAILORING_SESSION_TTL,
         )
-        self.db.add(session)
-        await self.db.flush()
-        # Context construction also checks for a renderable template.
+        # Freeze evidence and complete any source rendering/scanning before
+        # the session insert obtains a database write lock.
         parts = await self._context_parts(session, initialize=True)
         session.context_hash = parts["context_hash"]
+        self.db.add(session)
         await self.db.flush()
         public_origin = session_url_base.rstrip("/") if session_url_base else ""
         session_url = f"{public_origin}/agent/tailor/{session.id}"
@@ -1001,7 +1274,7 @@ class TailoringService:
             raise TailoringConflictError("This tailoring session uses an unsupported protocol")
         parts = await self._current_context(session)
         application: Application = parts["application"]
-        source_cv: CV | None = parts["source_cv"]
+        source_cv: SimpleNamespace | None = parts["source_cv"]
         templates = [
             TailoringTemplate(
                 id=template.id,
@@ -1017,6 +1290,7 @@ class TailoringService:
             session_id=session.id,
             application_id=application.id,
             source_cv_id=source_cv.id if source_cv else None,
+            source_cv_revision=parts["source_cv_revision"],
             expires_at=session.expires_at,
             context_hash=parts["context_hash"],
             job=TailoringJob(
@@ -1026,7 +1300,11 @@ class TailoringService:
                 description=application.job_description,
                 user_instructions=application.notes,
             ),
-            dossier=_build_dossier(parts["profile_data"], parts["libraries"]),
+            dossier=_build_dossier(
+                parts["profile_data"],
+                parts["libraries"],
+                _source_cv_snapshot(source_cv),
+            ),
             templates=templates,
             selected_template_id=parts["selected_template_id"],
             selected_template_manifest=copy.deepcopy(
@@ -1034,6 +1312,7 @@ class TailoringService:
             ),
             capabilities=parts["capabilities"],
             capabilities_hash=capabilities_hash(parts["capabilities"]),
+            scanner_context=parts["scanner_context"],
             evaluation_version=TAILORING_EVALUATION_VERSION,
         )
 
@@ -1052,12 +1331,10 @@ class TailoringService:
         data = profile_section.get("data")
         if not isinstance(data, dict):
             raise TailoringCandidateError("The profile section must contain object data")
-        # Identity and direct contact fields are server-owned. Location is
-        # intentionally candidate-editable so the agent can tailor its
-        # disclosure without changing the saved user profile.
+        # Fixed identity and direct contact fields are server-owned. The
+        # profile title is the candidate-authored professional headline.
         for key in (
             "name",
-            "title",
             "email",
             "phone",
             "site_text",
@@ -1168,8 +1445,8 @@ class TailoringService:
         if len(self._evaluation_history(session)) >= 5:
             raise TailoringConflictError("The five-candidate-preview resource limit has been reached")
         candidate, sections = self._normalize_candidate(request.candidate, parts)
-        pdf = await PDFService(self.db).render_payload(
-            candidate["template_id"],
+        pdf = await PDFService(self.db).render_manifest_payload(
+            parts["manifest_by_id"][candidate["template_id"]],
             sections,
             candidate["customizations"],
         )
@@ -1260,7 +1537,7 @@ class TailoringService:
         if reviewed_evaluation.candidate_hash != candidate_hash:
             raise TailoringStaleError("The selected evaluation is bound to a different candidate")
         application: Application = parts["application"]
-        source_cv: CV | None = parts["source_cv"]
+        source_cv: SimpleNamespace | None = parts["source_cv"]
         # Quota reservation starts a SQLite write transaction by rolling back
         # the read transaction used to build the context. Capture scalar IDs
         # before that rollback expires the loaded ORM objects.
@@ -1268,8 +1545,8 @@ class TailoringService:
         # Render before persistence: the saved document and the preview use
         # exactly the same pipeline and malformed templates cannot become
         # drafts.
-        pdf = await PDFService(self.db).render_payload(
-            candidate["template_id"],
+        pdf = await PDFService(self.db).render_manifest_payload(
+            parts["manifest_by_id"][candidate["template_id"]],
             sections,
             candidate["customizations"],
         )
