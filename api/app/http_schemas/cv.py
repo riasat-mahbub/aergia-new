@@ -54,6 +54,7 @@ class CVResponse(BaseModel):
     customizations: dict
     sections: list | dict
     extra_metadata: dict
+    revision: int = Field(default=1, ge=1)
     created_at: datetime
     updated_at: datetime
 
