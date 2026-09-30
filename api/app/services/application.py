@@ -7,12 +7,17 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.application import Application, ApplicationStatusHistory
 from app.models.cv import CV
+from app.models.tailoring_replacement_reservation import (
+    TAILORING_REPLACEMENT_PENDING,
+    TailoringReplacementReservation,
+)
+from app.models.tailoring_session import TailoringSession
 from app.scanner.service import ScannerService
 from app.http_schemas.application import (
     ApplicationCreate,
@@ -58,6 +63,7 @@ class ApplicationService:
             select(Application)
             .options(selectinload(Application.status_history), selectinload(Application.cv))
             .where(Application.id == application_id, Application.user_id == user_id)
+            .execution_options(populate_existing=True)
         )
         application = result.scalar_one_or_none()
         if application is not None and application.applied_at is not None and application.applied_at.tzinfo is None:
@@ -122,6 +128,17 @@ class ApplicationService:
                 next_cv = await self.cv_service.get_cv(new_cv_id, user_id)
                 if next_cv is None:
                     raise ApplicationCVLinkError("CV not found")
+                pending_session = await self.db.scalar(
+                    select(TailoringSession.id).where(
+                        TailoringSession.user_id == user_id,
+                        TailoringSession.draft_cv_id == new_cv_id,
+                        TailoringSession.status.in_(("draft_ready", "stale", "expired")),
+                    ).limit(1)
+                )
+                if not next_cv.quota_counted or pending_session is not None:
+                    raise ApplicationCVLinkError(
+                        "Pending tailoring drafts can only be linked through their review flow."
+                    )
                 if next_cv.application_id not in {None, application.id}:
                     raise ApplicationCVLinkError("CV is already associated with another application")
                 linked_elsewhere = await self.db.execute(
@@ -133,13 +150,63 @@ class ApplicationService:
                 if linked_elsewhere.scalar_one_or_none() is not None:
                     raise ApplicationCVLinkError("CV is already linked to another application")
 
-            previous_cv = await self.cv_service.get_cv(application.cv_id, user_id) if application.cv_id else None
+            old_cv_id = application.cv_id
+            expected_cv = Application.cv_id.is_(None) if old_cv_id is None else Application.cv_id == old_cv_id
+            application_link_result = await self.db.execute(
+                update(Application)
+                .where(
+                    Application.id == application.id,
+                    Application.user_id == user_id,
+                    expected_cv,
+                )
+                .values(cv_id=new_cv_id)
+            )
+            if application_link_result.rowcount != 1:
+                raise ApplicationCVLinkError("Application CV changed; refresh and try again")
+
+            if next_cv is not None:
+                cv_link_result = await self.db.execute(
+                    update(CV)
+                    .where(
+                        CV.id == new_cv_id,
+                        CV.user_id == user_id,
+                        CV.is_active.is_(True),
+                        CV.quota_counted.is_(True),
+                        ~select(TailoringSession.id)
+                        .where(
+                            TailoringSession.user_id == user_id,
+                            TailoringSession.draft_cv_id == new_cv_id,
+                            TailoringSession.status.in_(("draft_ready", "stale", "expired")),
+                        )
+                        .exists(),
+                        or_(
+                            CV.application_id.is_(None),
+                            CV.application_id == application.id,
+                        ),
+                        ~select(Application.id)
+                        .where(Application.cv_id == new_cv_id, Application.id != application.id)
+                        .exists(),
+                    )
+                    .values(application_id=application.id)
+                )
+                if cv_link_result.rowcount != 1:
+                    raise ApplicationCVLinkError(
+                        "CV is no longer available to link; refresh and choose another CV"
+                    )
+
+            previous_cv = await self.cv_service.get_cv(old_cv_id, user_id) if old_cv_id else None
             if previous_cv is not None and previous_cv.application_id == application.id:
-                previous_cv.application_id = None
+                await self.db.execute(
+                    update(CV)
+                    .where(
+                        CV.id == old_cv_id,
+                        CV.user_id == user_id,
+                        CV.application_id == application.id,
+                    )
+                    .values(application_id=None)
+                )
             application.cv_id = new_cv_id
             application.cv = next_cv
-            if next_cv is not None:
-                next_cv.application_id = application.id
             application.scanner_rescan_required = (
                 application.scanner_result is not None or application.scanner_rescan_required
             )
@@ -182,9 +249,62 @@ class ApplicationService:
         return application
 
     async def delete_application(self, application_id: str, user_id: str) -> bool:
+        quota = QuotaService(self.db)
+        # Lock the short application lifecycle window before reading pending
+        # reservations or session drafts. Replacement creation and normal
+        # draft creation both fence themselves on this application row.
+        await quota.ensure_write_transaction()
         application = await self.get_application(application_id, user_id)
         if application is None:
             return False
+        app_lock = await self.db.execute(
+            update(Application)
+            .where(Application.id == application.id, Application.user_id == user_id)
+            .values(updated_at=Application.updated_at)
+        )
+        if app_lock.rowcount != 1:
+            return False
+        application = await self.get_application(application_id, user_id)
+        if application is None:
+            return False
+
+        pending_reservations = await self.db.execute(
+            select(TailoringReplacementReservation.source_cv_id, TailoringReplacementReservation.draft_cv_id)
+            .where(
+                TailoringReplacementReservation.application_id == application.id,
+                TailoringReplacementReservation.state == TAILORING_REPLACEMENT_PENDING,
+            )
+        )
+        for source_cv_id, draft_cv_id in pending_reservations.all():
+            await quota.release_replacement(
+                user_id,
+                application.id,
+                source_cv_id=source_cv_id,
+                draft_cv_id=draft_cv_id,
+                retire_draft=True,
+            )
+        # A no-source tailoring run consumes a normal CV slot and has no
+        # replacement reservation row. Retire every pending/recoverable
+        # session draft through the regular CV deletion path so counted
+        # drafts decrement once while allowance drafts remain count-neutral.
+        pending_session_drafts = await self.db.execute(
+            select(TailoringSession.draft_cv_id)
+            .where(
+                TailoringSession.application_id == application.id,
+                TailoringSession.user_id == user_id,
+                TailoringSession.draft_cv_id.is_not(None),
+                TailoringSession.status.in_(("draft_ready", "stale", "expired")),
+            )
+        )
+        for draft_cv_id in pending_session_drafts.scalars().all():
+            await self.cv_service.delete_cv(draft_cv_id, user_id)
+        # SQLite connections do not enable FK cascades. Remove all terminal
+        # records too so no reservation row points at a deleted application.
+        await self.db.execute(
+            delete(TailoringReplacementReservation).where(
+                TailoringReplacementReservation.application_id == application.id
+            )
+        )
         # SQLite foreign-key enforcement is disabled on the app's connections;
         # explicitly detach owned CVs so deletion cannot leave dangling links.
         await self.db.execute(
@@ -194,7 +314,7 @@ class ApplicationService:
         )
         await self.db.delete(application)
         await self.db.flush()
-        await QuotaService(self.db).release(user_id, QuotaResource.APPLICATION)
+        await quota.release(user_id, QuotaResource.APPLICATION)
         return True
 
     async def recompute_relevance(self, application_id: str, user_id: str) -> Application | None:
