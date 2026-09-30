@@ -16,6 +16,7 @@ from app.http_schemas.tailoring import (
     TailoringContextResponse,
     TailoringDraftContextResponse,
     TailoringDraftReview,
+    TailoringErrorResponse,
     TailoringPreviewRequest,
     TailoringPreviewReservationReleaseResponse,
     TailoringPreviewReservationRequest,
@@ -43,6 +44,14 @@ _CONTEXT_HASH = "b" * 64
 _PDF_HASH = "c" * 64
 _RENDER_HASH = "d" * 64
 _EVALUATION_ID = "evaluation_0123456789abcdef"
+
+
+def test_active_session_conflict_has_a_distinct_bounded_code():
+    error = TailoringErrorResponse(
+        code="session_in_progress",
+        detail="Finish or discard the existing tailoring session before starting another.",
+    )
+    assert error.code == "session_in_progress"
 
 
 def _candidate() -> TailoringCandidateCV:

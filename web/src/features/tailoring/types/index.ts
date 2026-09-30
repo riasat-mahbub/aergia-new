@@ -32,6 +32,7 @@ export type TailoringFitReview =
     };
 
 export type TailoringErrorCode =
+  | "session_in_progress"
   | "stale_target"
   | "edited_draft"
   | "preview_in_progress"

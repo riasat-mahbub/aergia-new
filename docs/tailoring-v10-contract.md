@@ -181,8 +181,6 @@ request. A recorded fit review remains bound to its original agent preview:
 describe the current PDF; `not_run` means no report was recorded. For
 `unavailable`, all review fields are null/empty and applicability is
 `not_run`.
-For `unavailable`, all review fields are null/empty and applicability is
-`not_run`.
 
 `POST /tailoring/sessions/{session_id}/reevaluate` accepts
 `{"expected_cv_revision": integer}`. It evaluates the persisted draft and
@@ -213,7 +211,7 @@ Tailoring conflicts return the established HTTP status meaning plus the
 bounded top-level JSON shape `{"code": "...", "detail": "..."}`. The
 human-readable `detail` is not a client control signal. Codes are:
 
-`stale_target`, `edited_draft`, `preview_in_progress`, `preview_limit`,
+`session_in_progress`, `stale_target`, `edited_draft`, `preview_in_progress`, `preview_limit`,
 `quota`, `inactive_capability`, `invalid_session`, `context_mismatch`,
 `reservation_expired`, `reservation_conflict`, `request_id_reused`,
 `candidate_invalid`, `evaluation_mismatch`, `draft_unavailable`,

@@ -321,6 +321,7 @@ class TailoringReviewResponse(_StrictModel):
 
 
 TailoringErrorCode = Literal[
+    "session_in_progress",
     "stale_target",
     "edited_draft",
     "preview_in_progress",
