@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String
+from sqlalchemy import CheckConstraint, JSON, DateTime, ForeignKey, Index, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -45,12 +45,21 @@ class TailoringSession(Base):
     context_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # New sessions freeze the wire contract and scanner interpretation. Older
     # rows retain their historical protocol number and result payload.
-    protocol_version: Mapped[int] = mapped_column(Integer, nullable=False, default=9, server_default="9")
+    protocol_version: Mapped[int] = mapped_column(Integer, nullable=False, default=10, server_default="10")
     context_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     # A sanitized copy of the successful submission result for the browser's
     # status poll. It never contains the exchange code or capability.
     result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    source_cv_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    target_guard_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    submission_result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    owner_review_state: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    owner_cv_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    owner_candidate_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    owner_render_basis_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    owner_evaluation_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    owner_pdf_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
@@ -65,10 +74,33 @@ class TailoringSession(Base):
     application = relationship("Application", back_populates="tailoring_sessions")
     cv = relationship("CV", foreign_keys=[cv_id], back_populates="tailoring_sessions")
     draft_cv = relationship("CV", foreign_keys=[draft_cv_id])
+    evaluations = relationship(
+        "TailoringEvaluationRecord",
+        back_populates="session",
+        cascade="all, delete-orphan",
+        order_by="TailoringEvaluationRecord.created_at.asc()",
+    )
+    preview_reservations = relationship(
+        "TailoringPreviewReservation",
+        back_populates="session",
+        cascade="all, delete-orphan",
+    )
 
     __table_args__ = (
+        CheckConstraint(
+            "owner_review_state IS NULL OR owner_review_state IN "
+            "('current', 'needs_reevaluation', 'unavailable')",
+            name="ck_tailoring_sessions_owner_review_state",
+        ),
         Index("ix_tailoring_sessions_user_status", "user_id", "status"),
         Index("ix_tailoring_sessions_expires_at", "expires_at"),
+        Index(
+            "uq_tailoring_sessions_one_blocking_per_application",
+            "application_id",
+            unique=True,
+            sqlite_where=text("status IN ('created', 'exchanged', 'draft_ready')"),
+            postgresql_where=text("status IN ('created', 'exchanged', 'draft_ready')"),
+        ),
     )
 
 
