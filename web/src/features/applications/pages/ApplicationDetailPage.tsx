@@ -58,7 +58,7 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
     cancelTailoring,
     acceptDraft,
     rejectDraft,
-  } = useTailoringSession({ applicationId: application?.id ?? id, fetchApplication: fetch, addToast });
+  } = useTailoringSession({ applicationId: id, fetchApplication: fetch, addToast });
 
   useEffect(() => {
     if (id) {
