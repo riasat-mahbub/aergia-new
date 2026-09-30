@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-import { createInterface } from "node:readline/promises";
-import { access, chmod, lstat, mkdir, open, readdir, readFile, rm, unlink, writeFile } from "node:fs/promises";
+import { access, chmod, lstat, mkdir, open, readdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
+import { StringDecoder } from "node:string_decoder";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -32,7 +32,7 @@ function parseArgs(argv) {
   return args;
 }
 
-export function serverOriginFromSessionUrl(value) {
+function sessionLinkFromUrl(value) {
   let session;
   try {
     session = new URL(value);
@@ -42,48 +42,158 @@ export function serverOriginFromSessionUrl(value) {
   if (!["http:", "https:"].includes(session.protocol) || !session.hostname || session.username || session.password) {
     throw new Error("The tailoring session must use a safe HTTP(S) URL");
   }
-  if (!/^\/agent\/tailor\/[^/]+\/?$/.test(session.pathname)) {
+  const match = /^\/agent\/tailor\/([^/]+)\/?$/.exec(session.pathname);
+  if (!match) {
     throw new Error("The URL is not an Aergia tailoring session link");
   }
-  return session.origin;
+  let sessionId;
+  try {
+    sessionId = decodeURIComponent(match[1]);
+  } catch {
+    throw new Error("The URL is not an Aergia tailoring session link");
+  }
+  if (!sessionId.trim() || sessionId.includes("/") || sessionId === "." || sessionId === "..") {
+    throw new Error("The URL is not an Aergia tailoring session link");
+  }
+  return { origin: session.origin, sessionId };
+}
+
+export function serverOriginFromSessionUrl(value) {
+  return sessionLinkFromUrl(value).origin;
 }
 
 async function requestJson(url, options = {}) {
-  const response = await fetch(url, {
-    redirect: "error",
-    signal: AbortSignal.timeout(30_000),
-    ...options,
-  });
+  let response;
+  try {
+    response = await fetch(url, {
+      redirect: "error",
+      signal: AbortSignal.timeout(30_000),
+      ...options,
+    });
+  } catch {
+    const error = new Error("The server could not be reached");
+    error.failureKind = "transport";
+    throw error;
+  }
   if (!response.ok) {
-    let detail = `HTTP ${response.status}`;
+    let remoteDetail = "";
     try {
       const body = await response.json();
-      if (typeof body?.detail === "string") detail = body.detail.replace(/\s+/g, " ").slice(0, 500);
-      else if (Array.isArray(body?.detail)) {
-        const summaries = body.detail.slice(0, 8).map((item) => {
-          const location = Array.isArray(item?.loc)
-            ? item.loc.filter((part) => part !== "body").map((part) => String(part).slice(0, 80)).join(".")
-            : "request";
-          const message = typeof item?.msg === "string" ? item.msg.replace(/\s+/g, " ").slice(0, 160) : "invalid request";
-          return `${location || "request"}: ${message}`;
-        });
-        if (summaries.length) detail = summaries.join("; ").slice(0, 500);
-      }
+      if (typeof body?.detail === "string") remoteDetail = body.detail;
+      else if (Array.isArray(body?.detail)) remoteDetail = body.detail.map((item) => String(item?.type ?? "")).join(" ");
     } catch {
       // Do not echo arbitrary remote response bodies.
     }
-    const error = new Error(detail);
+    const failureKind = classifyHttpFailure(response.status, remoteDetail);
+    const error = new Error(safeHttpErrorMessage(response.status, failureKind));
     error.status = response.status;
+    error.failureKind = failureKind;
     throw error;
   }
   return response.json();
 }
 
-async function readCode() {
-  const terminal = createInterface({ input: process.stdin, output: process.stderr });
-  const code = (await terminal.question("One-time session code: ")).trim();
-  terminal.close();
-  return validateCode(code);
+function classifyHttpFailure(status, remoteDetail) {
+  const detail = remoteDetail.replace(/\s+/g, " ").slice(0, 2_000);
+  if ([401, 403, 410].includes(status) || /expired|revoked|capability is no longer active/i.test(detail)) return "access";
+  if (status === 409 && /context changed|contract changed|start a new (?:tailoring )?session|session protocol is no longer supported|predates protocol|older protocol/i.test(detail)) return "stale";
+  if (status === 409 && /candidate-preview resource limit has been reached/i.test(detail)) return "preview_limit";
+  if (status === 429 || status >= 500) return "transient";
+  return "candidate";
+}
+
+function safeHttpErrorMessage(status, failureKind) {
+  if (failureKind === "access") return "Tailoring access expired or was revoked";
+  if (failureKind === "stale") return "The tailoring context changed; start a new session";
+  if (failureKind === "preview_limit") return "The candidate-preview resource limit has been reached";
+  if (failureKind === "transient") return `The server returned HTTP ${status}`;
+  return `The server rejected the request with HTTP ${status}`;
+}
+
+function readCode() {
+  const input = process.stdin;
+  const interactive = Boolean(input.isTTY && typeof input.setRawMode === "function");
+  const originalRawMode = Boolean(input.isRaw);
+  const decoder = new StringDecoder("utf8");
+
+  return new Promise((resolveCode, rejectCode) => {
+    let value = "";
+    let settled = false;
+
+    const cleanup = () => {
+      input.off("data", onData);
+      input.off("end", onEnd);
+      input.off("error", onError);
+      process.off("SIGINT", onInterrupt);
+      input.pause();
+      if (interactive && Boolean(input.isRaw) !== originalRawMode) input.setRawMode(originalRawMode);
+    };
+
+    const finish = (error, code) => {
+      if (settled) return;
+      settled = true;
+      let cleanupError;
+      try {
+        cleanup();
+      } catch {
+        cleanupError = new Error("The terminal input mode could not be restored");
+      }
+      process.stderr.write("\n");
+      if (error || cleanupError) {
+        rejectCode(error ?? cleanupError);
+        return;
+      }
+      try {
+        resolveCode(validateCode(code));
+      } catch (validationError) {
+        rejectCode(validationError);
+      }
+    };
+
+    const finishCurrentValue = () => finish(null, value);
+    const onData = (chunk) => {
+      const text = decoder.write(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
+      for (const character of text) {
+        if (character === "\u0003") {
+          finish(new Error("Reading the one-time code was interrupted"));
+          return;
+        }
+        if (character === "\u0004") {
+          finishCurrentValue();
+          return;
+        }
+        if (character === "\n" || character === "\r") {
+          finishCurrentValue();
+          return;
+        }
+        if (character === "\b" || character === "\u007f") {
+          value = Array.from(value).slice(0, -1).join("");
+          continue;
+        }
+        value += character;
+      }
+    };
+    const onEnd = () => finishCurrentValue();
+    const onError = () => finish(new Error("The one-time code could not be read from stdin"));
+    const onInterrupt = () => finish(new Error("Reading the one-time code was interrupted"));
+
+    try {
+      if (interactive && !originalRawMode) input.setRawMode(true);
+      input.on("data", onData);
+      input.once("end", onEnd);
+      input.once("error", onError);
+      process.once("SIGINT", onInterrupt);
+      process.stderr.write("One-time session code: ");
+      input.resume();
+    } catch {
+      try {
+        cleanup();
+      } catch {
+        // The original setup error is safer and more useful than terminal details.
+      }
+      rejectCode(new Error("The one-time code could not be read from stdin"));
+    }
+  });
 }
 
 function validateCode(value) {
@@ -333,17 +443,26 @@ function statusForHttpError(error) {
 }
 
 function isAccessFailure(error) {
-  return [401, 403, 410].includes(error?.status)
+  return error?.failureKind === "access"
+    || [401, 403, 410].includes(error?.status)
     || /expired|revoked|capability is no longer active/i.test(error?.message ?? "");
 }
 
 function isStaleSessionFailure(error) {
-  return error?.status === 409
-    && /context changed|contract changed|start a new (?:tailoring )?session|session protocol is no longer supported|predates protocol|older protocol/i.test(error?.message ?? "");
+  return error?.failureKind === "stale"
+    || (error?.status === 409
+      && /context changed|contract changed|start a new (?:tailoring )?session|session protocol is no longer supported|predates protocol|older protocol/i.test(error?.message ?? ""));
 }
 
 function isPreviewLimitFailure(error) {
-  return error?.status === 409 && /candidate-preview resource limit has been reached/i.test(error?.message ?? "");
+  return error?.failureKind === "preview_limit"
+    || (error?.status === 409 && /candidate-preview resource limit has been reached/i.test(error?.message ?? ""));
+}
+
+function isTransientFailure(error) {
+  return ["transient", "transport"].includes(error?.failureKind)
+    || error?.status === 429
+    || error?.status >= 500;
 }
 
 async function submitWithBackoff(url, options, expiresAt) {
@@ -384,6 +503,10 @@ async function waitForCandidate(paths, context, origin, capability) {
         process.stderr.write(`Preview ready. Review candidate-preview.pdf and candidate-preview.json, then edit candidate.json and create RENDER for another preview, or select a preview for submission. Current evaluation_id: ${attempt.evaluationId}; candidate_hash: ${attempt.candidateHash}.\n`);
       } catch (error) {
         const message = error instanceof Error ? error.message : "preview failed";
+        if (isAccessFailure(error)) {
+          await writeSessionStatus(paths, { state: "access_expired_or_revoked", error: message });
+          throw new Error(message);
+        }
         if (isStaleSessionFailure(error)) {
           await writeSessionStatus(paths, { state: "context_stale", error: message });
           process.stderr.write(`This tailoring session is stale: ${message}. Start a new tailoring session.\n`);
@@ -399,6 +522,11 @@ async function waitForCandidate(paths, context, origin, capability) {
             available_previews: availablePreviews,
           });
           process.stderr.write(`The server declined another preview. Select one of the ${availablePreviews.length} saved previews in output/attempts and create SUBMIT.\n`);
+          continue;
+        }
+        if (isTransientFailure(error)) {
+          await writeSessionStatus(paths, { state: "preview_recoverable_error", error: `${statusForHttpError(error)}: ${message}` });
+          process.stderr.write(`Preview ${statusForHttpError(error)}: ${message}. Keep candidate.json as-is and create RENDER to retry.\n`);
           continue;
         }
         await writeSessionStatus(paths, { state: "candidate_or_preview_error", error: message });
@@ -495,7 +623,7 @@ async function waitForCandidate(paths, context, origin, capability) {
 }
 
 export async function runSession(sessionUrl, workspace, options = {}) {
-  const origin = serverOriginFromSessionUrl(sessionUrl);
+  const { origin, sessionId } = sessionLinkFromUrl(sessionUrl);
   const paths = await prepareWorkspace(workspace);
   const code = options.code === undefined ? await readCode() : validateCode(options.code);
   const exchange = await requestJson(`${origin}/api/v1/tailoring/exchange`, {
@@ -503,12 +631,14 @@ export async function runSession(sessionUrl, workspace, options = {}) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ protocol_version: PROTOCOL_VERSION, code }),
   });
+  if (exchange.session_id !== sessionId) throw new Error("The one-time code does not belong to the session in this link");
   if (exchange.protocol_version !== PROTOCOL_VERSION || typeof exchange.capability !== "string" || !exchange.capability) {
     throw new Error("The server returned an incompatible tailoring protocol");
   }
   const capability = exchange.capability;
   const headers = { "X-Aergia-Tailoring-Capability": capability };
   const context = await requestJson(`${origin}/api/v1/tailoring/context`, { headers });
+  if (context.session_id !== sessionId) throw new Error("The returned context does not belong to the session in this link");
   if (context.protocol_version !== PROTOCOL_VERSION || context.evaluation_version !== "tailoring-evaluation-v2"
     || typeof context.context_hash !== "string" || !/^[0-9a-f]{64}$/.test(context.context_hash)
     || typeof context.expires_at !== "string" || !Number.isFinite(Date.parse(context.expires_at))

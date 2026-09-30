@@ -133,7 +133,7 @@ async function runComposerSession({
     const path = new URL(String(url)).pathname;
     calls.push({ path, options });
     if (path.endsWith("/exchange")) {
-      return Response.json({ protocol_version: PROTOCOL_VERSION, capability });
+      return Response.json({ protocol_version: PROTOCOL_VERSION, session_id: "session-1", capability });
     }
     if (path.endsWith("/context")) return Response.json(context);
     if (path.endsWith("/preview")) {
@@ -269,8 +269,10 @@ async function runComposerSession({
 test("session helper accepts only scoped Aergia session links", () => {
   assert.equal(PROTOCOL_VERSION, 9);
   assert.equal(serverOriginFromSessionUrl("https://aergia.example/agent/tailor/session-1"), "https://aergia.example");
+  assert.equal(serverOriginFromSessionUrl("https://aergia.example/agent/tailor/session%2Done"), "https://aergia.example");
   assert.throws(() => serverOriginFromSessionUrl("https://aergia.example/applications"), /not an Aergia tailoring session/);
   assert.throws(() => serverOriginFromSessionUrl("javascript:alert(1)"), /safe HTTP\(S\)/);
+  assert.throws(() => serverOriginFromSessionUrl("https://aergia.example/agent/tailor/session%2Fother"), /not an Aergia tailoring session/);
 });
 
 test("v9 withholds the dossier until an ideal target is complete, then freezes and explicitly submits a canonical preview", { concurrency: false }, async () => {
@@ -296,6 +298,44 @@ test("v9 withholds the dossier until an ideal target is complete, then freezes a
   assert.doesNotMatch(workspaceText, /EDITORIAL_REVIEW|editorial-review|candidate-propositions|index-refresh/);
 });
 
+test("rejects exchange or context identities that do not match the supplied session link before writing evidence", { concurrency: false }, async () => {
+  for (const mismatchAt of ["exchange", "context"]) {
+    const workspace = await mkdtemp(join(tmpdir(), `aergia-tailor-wrong-${mismatchAt}-`));
+    const evidence = join(workspace, "evidence");
+    const context = makeContext();
+    const calls = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (url) => {
+      const path = new URL(String(url)).pathname;
+      calls.push(path);
+      if (path.endsWith("/exchange")) {
+        return Response.json({
+          protocol_version: PROTOCOL_VERSION,
+          session_id: mismatchAt === "exchange" ? "session-2" : "session-1",
+          capability,
+        });
+      }
+      if (path.endsWith("/context")) {
+        return Response.json({ ...context, session_id: mismatchAt === "context" ? "session-2" : "session-1" });
+      }
+      throw new Error(`Unexpected request ${path}`);
+    };
+    try {
+      const expectedError = mismatchAt === "exchange"
+        ? /one-time code does not belong to the session in this link/
+        : /returned context does not belong to the session in this link/;
+      await assert.rejects(runSession("https://aergia.example/agent/tailor/session-1", workspace, { code: "code-1234567890123456" }), expectedError);
+      assert.deepEqual(calls, mismatchAt === "exchange"
+        ? ["/api/v1/tailoring/exchange"]
+        : ["/api/v1/tailoring/exchange", "/api/v1/tailoring/context"]);
+      assert.deepEqual(await readdir(evidence), []);
+    } finally {
+      globalThis.fetch = originalFetch;
+      await rm(workspace, { recursive: true, force: true });
+    }
+  }
+});
+
 test("stage zero accepts only a bounded, nonblank regular ideal target", { concurrency: false }, async () => {
   const workspace = await mkdtemp(join(tmpdir(), "aergia-tailor-ideal-gate-"));
   const output = join(workspace, "output");
@@ -304,7 +344,7 @@ test("stage zero accepts only a bounded, nonblank regular ideal target", { concu
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {
     const path = new URL(String(url)).pathname;
-    if (path.endsWith("/exchange")) return Response.json({ protocol_version: PROTOCOL_VERSION, capability });
+    if (path.endsWith("/exchange")) return Response.json({ protocol_version: PROTOCOL_VERSION, session_id: "session-1", capability });
     if (path.endsWith("/context")) return Response.json(context);
     if (path.endsWith("/preview")) return Response.json({ detail: "The tailoring context changed; start a new session" }, { status: 409 });
     throw new Error(`Unexpected request ${path}`);
@@ -353,7 +393,7 @@ test("expires while waiting for the ideal target without revealing the dossier",
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {
     const path = new URL(String(url)).pathname;
-    if (path.endsWith("/exchange")) return Response.json({ protocol_version: PROTOCOL_VERSION, capability });
+    if (path.endsWith("/exchange")) return Response.json({ protocol_version: PROTOCOL_VERSION, session_id: "session-1", capability });
     if (path.endsWith("/context")) return Response.json(context);
     throw new Error(`Unexpected request ${path}`);
   };
@@ -441,7 +481,7 @@ test("stops when the server says the tailoring context is stale", { concurrency:
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {
     const path = new URL(String(url)).pathname;
-    if (path.endsWith("/exchange")) return Response.json({ protocol_version: PROTOCOL_VERSION, capability });
+    if (path.endsWith("/exchange")) return Response.json({ protocol_version: PROTOCOL_VERSION, session_id: "session-1", capability });
     if (path.endsWith("/context")) return Response.json(context);
     if (path.endsWith("/preview")) {
       return Response.json({ detail: "The tailoring context changed; start a new session" }, { status: 409 });
@@ -464,6 +504,122 @@ test("stops when the server says the tailoring context is stale", { concurrency:
   }
 });
 
+test("preview access failures terminate without another preview or submit and without exposing the remote body", { concurrency: false }, async () => {
+  for (const statusCode of [401, 403, 410]) {
+    const workspace = await mkdtemp(join(tmpdir(), `aergia-tailor-preview-access-${statusCode}-`));
+    const output = join(workspace, "output");
+    const evidence = join(workspace, "evidence");
+    const context = makeContext();
+    const calls = [];
+    const remoteSecret = `remote-secret-${statusCode}-must-not-appear`;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (url) => {
+      const path = new URL(String(url)).pathname;
+      calls.push(path);
+      if (path.endsWith("/exchange")) return Response.json({ protocol_version: PROTOCOL_VERSION, session_id: "session-1", capability });
+      if (path.endsWith("/context")) return Response.json(context);
+      if (path.endsWith("/preview")) return Response.json({ detail: `Access revoked: ${remoteSecret}` }, { status: statusCode });
+      if (path.endsWith("/submit")) throw new Error("Submit must not run after preview access is revoked");
+      throw new Error(`Unexpected request ${path}`);
+    };
+    try {
+      const resultPromise = runSession("https://aergia.example/agent/tailor/session-1", workspace, { code: "code-1234567890123456" });
+      void resultPromise.catch(() => undefined);
+      await releaseIdealTarget(evidence, output);
+      await writeFile(join(output, "candidate.json"), JSON.stringify({ title: "Candidate" }));
+      await writeFile(join(output, "RENDER"), "");
+      await assert.rejects(resultPromise, /Tailoring access expired or was revoked/);
+      const status = JSON.parse(await readFile(join(output, "tailoring-status.json"), "utf8"));
+      assert.equal(status.state, "access_expired_or_revoked");
+      await writeFile(join(output, "RENDER"), "");
+      await writeFile(join(output, "SUBMIT"), "");
+      await sleep(50);
+      assert.deepEqual(calls, [
+        "/api/v1/tailoring/exchange",
+        "/api/v1/tailoring/context",
+        "/api/v1/tailoring/preview",
+      ]);
+      assert.doesNotMatch(await allWorkspaceText(workspace), new RegExp(remoteSecret));
+    } finally {
+      globalThis.fetch = originalFetch;
+      await rm(workspace, { recursive: true, force: true });
+    }
+  }
+});
+
+test("keeps a transient preview transport failure separate and retries the same candidate", { concurrency: false }, async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "aergia-tailor-preview-transient-"));
+  const output = join(workspace, "output");
+  const evidence = join(workspace, "evidence");
+  const context = makeContext();
+  const previewBodies = [];
+  const submitBodies = [];
+  let previewCount = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options = {}) => {
+    const path = new URL(String(url)).pathname;
+    if (path.endsWith("/exchange")) return Response.json({ protocol_version: PROTOCOL_VERSION, session_id: "session-1", capability });
+    if (path.endsWith("/context")) return Response.json(context);
+    if (path.endsWith("/preview")) {
+      previewCount += 1;
+      previewBodies.push(JSON.parse(options.body));
+      if (previewCount === 1) throw new Error("transient transport details must stay private");
+      const candidate = canonicalCandidate(previewBodies[1].candidate);
+      const hash = sha(candidate);
+      return Response.json({
+        protocol_version: PROTOCOL_VERSION,
+        candidate,
+        format: "pdf",
+        pdf_base64: Buffer.from("pdf").toString("base64"),
+        page_count: 1,
+        evaluation_id: "evaluation_0123456789abcdef",
+        candidate_hash: hash,
+        scanner_result: {},
+        evaluation: { version: "tailoring-evaluation-v2", candidate_hash: hash },
+        render_warnings: [],
+      });
+    }
+    if (path.endsWith("/submit")) {
+      const body = JSON.parse(options.body);
+      submitBodies.push(body);
+      return Response.json({
+        protocol_version: PROTOCOL_VERSION,
+        status: "draft_ready",
+        draft_cv_id: "draft-1",
+        evaluation_id: body.evaluation_id,
+        candidate_hash: body.candidate_hash,
+        candidate: body.candidate,
+        evaluation: { version: "tailoring-evaluation-v2", candidate_hash: body.candidate_hash },
+      });
+    }
+    throw new Error(`Unexpected request ${path}`);
+  };
+  try {
+    const resultPromise = runSession("https://aergia.example/agent/tailor/session-1", workspace, { code: "code-1234567890123456" });
+    void resultPromise.catch(() => undefined);
+    await releaseIdealTarget(evidence, output);
+    const candidate = { title: "Candidate after transport failure", raw_content: "Unchanged candidate" };
+    await writeFile(join(output, "candidate.json"), JSON.stringify(candidate));
+    await writeFile(join(output, "RENDER"), "");
+    const recoverable = await waitForJson(join(output, "tailoring-status.json"), (value) => value.state === "preview_recoverable_error");
+    assert.doesNotMatch(recoverable.error, /transient transport details must stay private/);
+    assert.doesNotMatch(await readFile(join(output, "candidate.json"), "utf8"), /Repair/);
+    await writeFile(join(output, "RENDER"), "");
+    const preview = await waitForJson(join(output, "candidate-preview.json"), (value) => value.evaluation_id === "evaluation_0123456789abcdef");
+    await waitForJson(join(output, "tailoring-status.json"), (value) => value.state === "awaiting_revision_or_selection");
+    await writeFile(join(output, "selection.json"), JSON.stringify({ evaluation_id: preview.evaluation_id, candidate_hash: preview.candidate_hash }));
+    await writeFile(join(output, "SUBMIT"), "");
+    const result = await resultPromise;
+    assert.equal(result.status, "draft_ready");
+    assert.equal(previewCount, 2);
+    assert.deepEqual(previewBodies[0], previewBodies[1]);
+    assert.equal(submitBodies.length, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
 test("lets the agent submit a saved preview after the server declines another one", { concurrency: false }, async () => {
   const workspace = await mkdtemp(join(tmpdir(), "aergia-tailor-preview-limit-"));
   const output = join(workspace, "output");
@@ -474,7 +630,7 @@ test("lets the agent submit a saved preview after the server declines another on
   let submissionBody;
   globalThis.fetch = async (url, options = {}) => {
     const path = new URL(String(url)).pathname;
-    if (path.endsWith("/exchange")) return Response.json({ protocol_version: PROTOCOL_VERSION, capability });
+    if (path.endsWith("/exchange")) return Response.json({ protocol_version: PROTOCOL_VERSION, session_id: "session-1", capability });
     if (path.endsWith("/context")) return Response.json(context);
     if (path.endsWith("/preview")) {
       previewCount += 1;
@@ -549,7 +705,7 @@ test("shows safe server validation locations and messages so a candidate can be 
   let previewCount = 0;
   globalThis.fetch = async (url, options = {}) => {
     const path = new URL(String(url)).pathname;
-    if (path.endsWith("/exchange")) return Response.json({ protocol_version: PROTOCOL_VERSION, capability });
+    if (path.endsWith("/exchange")) return Response.json({ protocol_version: PROTOCOL_VERSION, session_id: "session-1", capability });
     if (path.endsWith("/context")) return Response.json(context);
     if (path.endsWith("/preview")) {
       previewCount += 1;
@@ -598,8 +754,8 @@ test("shows safe server validation locations and messages so a candidate can be 
     await writeFile(join(output, "candidate.json"), JSON.stringify({ title: "Invalid first attempt" }));
     await writeFile(join(output, "RENDER"), "");
     const validationStatus = await waitForJson(join(output, "tailoring-status.json"), (value) => value.state === "candidate_or_preview_error");
-    assert.match(validationStatus.error, /candidate\.sections: Field required/);
-    assert.doesNotMatch(validationStatus.error, /must-not-be-echoed/);
+    assert.match(validationStatus.error, /HTTP 422/);
+    assert.doesNotMatch(validationStatus.error, /must-not-be-echoed|Field required/);
     await writeFile(join(output, "candidate.json"), JSON.stringify({ title: "Repaired candidate", raw_content: "Complete and valid" }));
     await writeFile(join(output, "RENDER"), "");
     const preview = await waitForJson(join(output, "candidate-preview.json"), (value) => value.evaluation_id === "evaluation_0123456789abcdef");
