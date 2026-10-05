@@ -1,6 +1,7 @@
 """Browser and scoped-capability routes for local-agent tailoring."""
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -14,6 +15,9 @@ from app.http_schemas.tailoring import (
     TailoringContextResponse,
     TailoringExchangeResponse,
     TailoringPreviewRequest,
+    TailoringPreviewReservationRequest,
+    TailoringPreviewReservationResponse,
+    TailoringPreviewReservationReleaseResponse,
     TailoringPreviewResponse,
     TailoringReviewResponse,
     TailoringSessionCreateResponse,
@@ -31,6 +35,7 @@ from app.services.tailoring import (
     TailoringService,
     TailoringUnauthorizedError,
     TailoringUnavailableError,
+    TailoringPreviewUnavailableError,
 )
 from app.services.tailoring_skill import build_tailoring_skill_bundle
 from app.services.quotas import QuotaExceededError, QuotaResource
@@ -62,32 +67,48 @@ async def download_tailoring_skill(request: Request):
     )
 
 
-def _raise_service_error(exc: Exception) -> None:
+async def _raise_service_error(exc: Exception, db: AsyncSession) -> JSONResponse:
+    """Return the frozen top-level conflict envelope with route-owned tx control."""
+
+    headers = None
     if isinstance(exc, TailoringSessionNotFoundError):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tailoring session not found") from exc
-    if isinstance(exc, TailoringNotFoundError):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found") from exc
-    if isinstance(exc, TailoringUnavailableError):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    if isinstance(exc, QuotaExceededError):
+        code, http_status, detail = "invalid_session", status.HTTP_404_NOT_FOUND, "Tailoring session not found"
+    elif isinstance(exc, TailoringNotFoundError):
+        code, http_status, detail = "application_unavailable", status.HTTP_404_NOT_FOUND, "Application not found"
+    elif isinstance(exc, TailoringUnavailableError):
+        code, http_status, detail = exc.code, exc.status_code, str(exc)
+    elif isinstance(exc, QuotaExceededError):
         if exc.resource is QuotaResource.CV:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="CV limit reached") from exc
-        raise
-    if isinstance(exc, TailoringExpiredError):
-        raise HTTPException(status_code=status.HTTP_410_GONE, detail="Tailoring session expired") from exc
-    if isinstance(exc, TailoringConflictError):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    if isinstance(exc, TailoringStaleError):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    if isinstance(exc, TailoringCandidateError):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
-    if isinstance(exc, TailoringUnauthorizedError):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid tailoring capability",
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from exc
-    raise exc
+            code, http_status, detail = "quota", status.HTTP_409_CONFLICT, "CV limit reached"
+        else:
+            raise exc
+    elif isinstance(exc, TailoringExpiredError):
+        code, http_status, detail = exc.code, exc.status_code, str(exc)
+    elif isinstance(exc, TailoringConflictError):
+        code, http_status, detail = exc.code, exc.status_code, str(exc)
+    elif isinstance(exc, TailoringStaleError):
+        code, http_status, detail = exc.code, exc.status_code, str(exc)
+    elif isinstance(exc, TailoringCandidateError):
+        code, http_status, detail = exc.code, exc.status_code, str(exc)
+    elif isinstance(exc, TailoringUnauthorizedError):
+        code, http_status, detail = exc.code, exc.status_code, "Invalid tailoring capability"
+        headers = {"WWW-Authenticate": "Bearer"}
+    elif isinstance(exc, TailoringPreviewUnavailableError):
+        code, http_status, detail = exc.code, exc.status_code, str(exc)
+    else:
+        raise exc
+
+    detail = str(detail)[:1000]
+    if not getattr(exc, "commit_outcome", False):
+        # A JSONResponse is a normal dependency return, so explicitly roll
+        # back any incomplete write set before returning a conflict. Expiry,
+        # lease cleanup, and render-release outcomes opt in to committing.
+        await db.rollback()
+    return JSONResponse(
+        status_code=http_status,
+        content={"code": code, "detail": detail},
+        headers=headers,
+    )
 
 
 @router.post(
@@ -116,7 +137,7 @@ async def create_tailoring_session(
         )
         return result
     except Exception as exc:  # noqa: BLE001
-        _raise_service_error(exc)
+        return await _raise_service_error(exc, db)
 
 
 @router.get(
@@ -134,7 +155,7 @@ async def get_latest_tailoring_session(
     try:
         return await TailoringService(db).latest_session_status(application_id, current_user.id)
     except Exception as exc:  # noqa: BLE001
-        _raise_service_error(exc)
+        return await _raise_service_error(exc, db)
 
 
 @router.get(
@@ -152,7 +173,7 @@ async def get_tailoring_session_status(
     try:
         return await TailoringService(db).session_status(session_id, current_user.id)
     except Exception as exc:  # noqa: BLE001
-        _raise_service_error(exc)
+        return await _raise_service_error(exc, db)
 
 
 @router.post(
@@ -170,7 +191,7 @@ async def cancel_tailoring_session(
     try:
         return await TailoringService(db).cancel_session(session_id, current_user.id)
     except Exception as exc:  # noqa: BLE001
-        _raise_service_error(exc)
+        return await _raise_service_error(exc, db)
 
 
 @router.post(
@@ -187,7 +208,7 @@ async def exchange_tailoring_code(
     try:
         return await TailoringService(db).exchange_code(data)
     except Exception as exc:  # noqa: BLE001
-        _raise_service_error(exc)
+        return await _raise_service_error(exc, db)
 
 
 @router.get("/tailoring/context", response_model=TailoringContextResponse)
@@ -201,7 +222,47 @@ async def get_tailoring_context(
     try:
         return await TailoringService(db).context(capability)
     except Exception as exc:  # noqa: BLE001
-        _raise_service_error(exc)
+        return await _raise_service_error(exc, db)
+
+
+@router.post(
+    "/tailoring/preview-reservations",
+    response_model=TailoringPreviewReservationResponse,
+)
+@limiter.limit("30/minute")
+async def reserve_tailoring_preview(
+    request: Request,
+    response: Response,
+    payload: TailoringPreviewReservationRequest,
+    capability: str | None = Header(default=None, alias="X-Aergia-Tailoring-Capability"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Acquire a short retry-stable lease before expensive PDF work."""
+
+    try:
+        return await TailoringService(db).reserve_preview(capability, payload)
+    except Exception as exc:  # noqa: BLE001
+        return await _raise_service_error(exc, db)
+
+
+@router.post(
+    "/tailoring/preview-reservations/{reservation_id}/release",
+    response_model=TailoringPreviewReservationReleaseResponse,
+)
+@limiter.limit("30/minute")
+async def release_tailoring_preview_reservation(
+    request: Request,
+    response: Response,
+    reservation_id: str,
+    capability: str | None = Header(default=None, alias="X-Aergia-Tailoring-Capability"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Release an uncompleted preview lease without spending a preview slot."""
+
+    try:
+        return await TailoringService(db).release_preview_reservation(capability, reservation_id)
+    except Exception as exc:  # noqa: BLE001
+        return await _raise_service_error(exc, db)
 
 
 @router.post(
@@ -221,7 +282,7 @@ async def preview_tailoring_candidate(
     try:
         return await TailoringService(db).candidate_preview(capability, payload)
     except Exception as exc:  # noqa: BLE001
-        _raise_service_error(exc)
+        return await _raise_service_error(exc, db)
 
 
 @router.post(
@@ -239,7 +300,7 @@ async def submit_tailoring_candidate(
     try:
         return await TailoringService(db).submit(capability, payload)
     except Exception as exc:  # noqa: BLE001
-        _raise_service_error(exc)
+        return await _raise_service_error(exc, db)
 
 
 @router.post(
@@ -257,7 +318,7 @@ async def accept_tailoring_draft(
     try:
         return await TailoringService(db).accept_draft(session_id, current_user.id)
     except Exception as exc:  # noqa: BLE001
-        _raise_service_error(exc)
+        return await _raise_service_error(exc, db)
 
 
 @router.post(
@@ -275,7 +336,7 @@ async def reject_tailoring_draft(
     try:
         return await TailoringService(db).reject_draft(session_id, current_user.id)
     except Exception as exc:  # noqa: BLE001
-        _raise_service_error(exc)
+        return await _raise_service_error(exc, db)
 
 
 __all__ = ["router"]

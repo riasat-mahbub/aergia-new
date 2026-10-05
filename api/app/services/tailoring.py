@@ -14,13 +14,15 @@ import hashlib
 import json
 import secrets
 import asyncio
+import uuid
 from collections.abc import Mapping, Sequence
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any
 
 from pydantic import ValidationError
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import hash_token
@@ -34,6 +36,9 @@ from app.http_schemas.tailoring import (
     TailoringExchangeResponse,
     TailoringJob,
     TailoringPreviewRequest,
+    TailoringPreviewReservationRequest,
+    TailoringPreviewReservationResponse,
+    TailoringPreviewReservationReleaseResponse,
     TailoringPreviewResponse,
     TailoringReviewResponse,
     TailoringSection,
@@ -54,6 +59,17 @@ from app.models.application import Application
 from app.models.cv import CV
 from app.models.library import Library, LibraryEntry
 from app.models.tailoring_session import TailoringSession
+from app.models.tailoring_evaluation import (
+    TAILORING_EVALUATION_AGENT_PREVIEW,
+    TailoringEvaluationRecord,
+)
+from app.models.tailoring_preview_reservation import (
+    TAILORING_PREVIEW_RESERVATION_ACTIVE,
+    TAILORING_PREVIEW_RESERVATION_COMPLETED,
+    TAILORING_PREVIEW_RESERVATION_EXPIRED,
+    TAILORING_PREVIEW_RESERVATION_RELEASED,
+    TailoringPreviewReservation,
+)
 from app.models.template import Template
 from app.models.user import User
 from app.scanner.freshness import configured_extractor_version, scanner_result_freshness
@@ -67,8 +83,9 @@ from app.scanner.service import (
 from app.services.cv import CVService, coerce_customizations
 from app.services.pdf import PDFService, pdf_page_count
 from app.services.profile import ProfileService
+from app.services.quotas import QuotaService
 from app.services.renderer.html import HTMLDocumentRenderer
-from app.services.rich_text import normalize_rich_text_ids
+from app.services.rich_text import normalize_rich_text_ids, rich_text_fields_for_section
 from app.services.tailoring_validation import CandidateValidationError, validate_section_payload
 from app.services.tailoring_evaluation import evaluate_tailoring
 
@@ -83,6 +100,9 @@ TAILORING_SESSION_FAILED = "failed"
 TAILORING_SESSION_CANCELLED = "cancelled"
 TAILORING_SESSION_STALE = "stale"
 TAILORING_SESSION_EXPIRED = "expired"
+TAILORING_PREVIEW_LEASE_TTL = timedelta(seconds=120)
+TAILORING_PREVIEW_TIMEOUT_SECONDS = 90
+TAILORING_AGENT_PREVIEW_LIMIT = 5
 
 _FRESH_SECTION_ORDER: tuple[tuple[str, str], ...] = (
     ("profile", "Profile"),
@@ -110,6 +130,13 @@ def _db_utcnow() -> datetime:
 
 def _as_utc(value: datetime) -> datetime:
     return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+
+
+def _next_lease_fence(value: datetime, now: datetime) -> datetime:
+    """Return a lease update timestamp that always advances its fence."""
+
+    current = _as_utc(value)
+    return now if now > current else current + timedelta(microseconds=1)
 
 
 def _content_hash(value: Any) -> str:
@@ -204,25 +231,84 @@ class TailoringSessionNotFoundError(LookupError):
 class TailoringUnauthorizedError(PermissionError):
     """A code or scoped capability is invalid."""
 
+    code = "inactive_capability"
+    status_code = 401
+
 
 class TailoringExpiredError(PermissionError):
     """A tailoring session has passed its expiry time."""
+
+    code = "inactive_capability"
+    status_code = 410
+    commit_outcome = True
 
 
 class TailoringStaleError(RuntimeError):
     """The exchanged context is no longer the current context."""
 
+    code = "stale_target"
+    status_code = 409
+
+    def __init__(self, message: str, *, code: str | None = None, commit_outcome: bool = False):
+        super().__init__(message)
+        if code is not None:
+            self.code = code
+        self.commit_outcome = commit_outcome
+
 
 class TailoringConflictError(RuntimeError):
     """The session cannot perform the requested one-time action."""
+
+    code = "reservation_conflict"
+    status_code = 409
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str | None = None,
+        status_code: int | None = None,
+        commit_outcome: bool = False,
+    ):
+        super().__init__(message)
+        if code is not None:
+            self.code = code
+        if status_code is not None:
+            self.status_code = status_code
+        self.commit_outcome = commit_outcome
 
 
 class TailoringUnavailableError(ValueError):
     """The application is not ready for tailoring."""
 
+    code = "application_unavailable"
+    status_code = 409
+
 
 class TailoringCandidateError(ValueError):
     """A complete candidate is structurally or mechanically invalid."""
+
+    code = "candidate_invalid"
+    status_code = 422
+
+
+class _FencedPreviewCompletion(Exception):
+    """Internal savepoint signal: the lease changed before ledger insertion."""
+
+
+class _PreviewLimitReached(Exception):
+    """Internal savepoint signal used to preserve the active-reservation index."""
+
+
+class TailoringPreviewUnavailableError(RuntimeError):
+    """Rendering or scanning failed after a reservation was acquired."""
+
+    code = "reservation_conflict"
+    status_code = 503
+    commit_outcome = True
+
+    def __init__(self, message: str):
+        super().__init__(message)
 
 
 def fresh_tailoring_sections(session_id: str, profile: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -770,6 +856,24 @@ class TailoringService:
             "target_guard_hash": current_hash,
         }
 
+    async def _lock_preview_target_rows(self, session: TailoringSession) -> None:
+        """Prevent live application/source edits during the final preview CAS."""
+
+        await self.db.execute(
+            select(Application.id)
+            .where(
+                Application.id == session.application_id,
+                Application.user_id == session.user_id,
+            )
+            .with_for_update()
+        )
+        if session.cv_id is not None:
+            await self.db.execute(
+                select(CV.id)
+                .where(CV.id == session.cv_id, CV.user_id == session.user_id)
+                .with_for_update()
+            )
+
     async def _context_matches(
         self,
         session: TailoringSession,
@@ -944,25 +1048,29 @@ class TailoringService:
             )
         )
         now = _utcnow()
+        reconcile_stale: list[tuple[str, str, str]] = []
         for existing in existing_result.scalars().all():
             if (
                 existing.status in {TAILORING_SESSION_CREATED, TAILORING_SESSION_EXCHANGED}
                 and existing.protocol_version != PROTOCOL_VERSION
             ):
-                existing.status = TAILORING_SESSION_STALE
-                existing.capability_hash = None
-                existing.updated_at = now
+                reconcile_stale.append((existing.id, TAILORING_SESSION_STALE, "protocol_mismatch"))
                 continue
             if (
                 existing.status in {TAILORING_SESSION_CREATED, TAILORING_SESSION_EXCHANGED}
                 and _as_utc(existing.expires_at) <= now
             ):
-                existing.status = TAILORING_SESSION_EXPIRED
-                existing.capability_hash = None
-                existing.updated_at = now
+                reconcile_stale.append((existing.id, TAILORING_SESSION_EXPIRED, "expired"))
+                continue
+            if (
+                existing.status in {TAILORING_SESSION_CREATED, TAILORING_SESSION_EXCHANGED}
+                and not await self._context_matches(existing)
+            ):
+                reconcile_stale.append((existing.id, TAILORING_SESSION_STALE, "target_mismatch"))
                 continue
             raise TailoringConflictError(
-                "Finish or cancel the existing tailoring session before starting another"
+                "Finish or discard the existing tailoring session before starting another",
+                code="session_in_progress",
             )
         # Validate the owner, profile, and template availability before
         # issuing a capability. A source CV is intentionally optional.
@@ -986,23 +1094,83 @@ class TailoringService:
         # the session insert obtains a database write lock.
         parts = await self._context_parts(session, initialize=True)
         session.context_hash = parts["context_hash"]
-        self.db.add(session)
-        await self.db.flush()
+        # Context construction can render and scan the linked source CV. The
+        # quota helper starts SQLite's short write transaction only now, after
+        # that expensive work, while retaining caller-owned transaction work.
+        response_application_id = application.id
+        response_source_cv_id = application.cv_id
+        response_expires_at = session.expires_at
+        await QuotaService(self.db).ensure_write_transaction()
+        try:
+            async with self.db.begin_nested():
+                for stale_id, stale_status, stale_reason in reconcile_stale:
+                    stale_query = update(TailoringSession).where(
+                        TailoringSession.id == stale_id,
+                        TailoringSession.status.in_((TAILORING_SESSION_CREATED, TAILORING_SESSION_EXCHANGED)),
+                    )
+                    if stale_reason == "expired":
+                        stale_query = stale_query.where(TailoringSession.expires_at <= _db_utcnow())
+                    elif stale_reason == "protocol_mismatch":
+                        stale_query = stale_query.where(TailoringSession.protocol_version != PROTOCOL_VERSION)
+                    else:
+                        # A frozen v10 session can be stale because its live
+                        # target changed. Keep that reconciliation distinct
+                        # from protocol cutover so it releases the blocking
+                        # session index too.
+                        stale_query = stale_query.where(TailoringSession.protocol_version == PROTOCOL_VERSION)
+                    await self.db.execute(
+                        stale_query.values(
+                            status=stale_status,
+                            capability_hash=None,
+                            updated_at=now,
+                        )
+                    )
+                    await self.db.execute(
+                        update(TailoringPreviewReservation)
+                        .where(
+                            TailoringPreviewReservation.session_id == stale_id,
+                            TailoringPreviewReservation.state == TAILORING_PREVIEW_RESERVATION_ACTIVE,
+                        )
+                        .values(state=TAILORING_PREVIEW_RESERVATION_EXPIRED, updated_at=now)
+                    )
+                    await self.db.execute(
+                        update(TailoringEvaluationRecord)
+                        .where(TailoringEvaluationRecord.session_id == stale_id)
+                        .values(pdf_bytes=None)
+                    )
+                self.db.add(session)
+                await self.db.flush()
+        except IntegrityError as exc:
+            active_id = await self.db.scalar(
+                select(TailoringSession.id)
+                .where(
+                    TailoringSession.application_id == application_id,
+                    TailoringSession.status.in_(
+                        (TAILORING_SESSION_CREATED, TAILORING_SESSION_EXCHANGED, TAILORING_SESSION_DRAFT_READY)
+                    ),
+                )
+                .limit(1)
+            )
+            if active_id is not None:
+                raise TailoringConflictError(
+                    "Finish or discard the existing tailoring session before starting another",
+                    code="session_in_progress",
+                ) from exc
+            raise
         public_origin = session_url_base.rstrip("/") if session_url_base else ""
         session_url = f"{public_origin}/agent/tailor/{session.id}"
         skill_url = f"{public_origin}/api/v1/tailoring/skill.zip"
-        source_cv_id = application.cv_id
         response = TailoringSessionCreateResponse(
             protocol_version=protocol_version,
             session_id=session.id,
-            application_id=application.id,
-            source_cv_id=source_cv_id,
-            cv_id=source_cv_id,
+            application_id=response_application_id,
+            source_cv_id=response_source_cv_id,
+            cv_id=response_source_cv_id,
             code=code,
             session_url=session_url,
             skill_url=skill_url,
             prompt=build_tailoring_prompt(session_url, code, skill_url, protocol_version),
-            expires_at=session.expires_at,
+            expires_at=response_expires_at,
         )
         return response, session
 
@@ -1040,27 +1208,45 @@ class TailoringService:
             result=copy.deepcopy(session.result),
         )
 
+    async def _prune_terminal_preview_data(self, session_id: str, now: datetime) -> None:
+        """Expire held leases and lazily drop private PDFs after termination."""
+
+        await self.db.execute(
+            update(TailoringPreviewReservation)
+            .where(
+                TailoringPreviewReservation.session_id == session_id,
+                TailoringPreviewReservation.state == TAILORING_PREVIEW_RESERVATION_ACTIVE,
+            )
+            .values(state=TAILORING_PREVIEW_RESERVATION_EXPIRED, updated_at=now)
+        )
+        await self.db.execute(
+            update(TailoringEvaluationRecord)
+            .where(TailoringEvaluationRecord.session_id == session_id)
+            .values(pdf_bytes=None)
+        )
+
     async def session_status(self, session_id: str, user_id: str) -> TailoringSessionStatusResponse:
         session = await self._owned_session(session_id, user_id)
         now = _utcnow()
+        terminal_status: str | None = None
         if (
             session.status in {TAILORING_SESSION_CREATED, TAILORING_SESSION_EXCHANGED}
             and _as_utc(session.expires_at) <= now
         ):
-            session.status = TAILORING_SESSION_EXPIRED
-            session.updated_at = now
-            await self.db.flush()
+            terminal_status = TAILORING_SESSION_EXPIRED
         elif session.status in {TAILORING_SESSION_CREATED, TAILORING_SESSION_EXCHANGED}:
             try:
                 parts = await self._context_parts(session)
                 if session.context_hash and parts["context_hash"] != session.context_hash:
-                    session.status = TAILORING_SESSION_STALE
-                    session.updated_at = now
-                    await self.db.flush()
+                    terminal_status = TAILORING_SESSION_STALE
             except (TailoringConflictError, TailoringUnavailableError, TailoringStaleError):
-                session.status = TAILORING_SESSION_STALE
-                session.updated_at = now
-                await self.db.flush()
+                terminal_status = TAILORING_SESSION_STALE
+        if terminal_status is not None:
+            await QuotaService(self.db).ensure_write_transaction()
+            session.status = terminal_status
+            session.updated_at = now
+            await self.db.flush()
+            await self._prune_terminal_preview_data(session.id, now)
         return self._status_response(session)
 
     async def latest_session_status(
@@ -1092,6 +1278,7 @@ class TailoringService:
         if session.status not in {TAILORING_SESSION_CREATED, TAILORING_SESSION_EXCHANGED}:
             raise TailoringConflictError("Tailoring session cannot be cancelled")
         now = _utcnow()
+        await QuotaService(self.db).ensure_write_transaction()
         result = await self.db.execute(
             update(TailoringSession)
             .where(
@@ -1104,6 +1291,8 @@ class TailoringService:
         )
         if result.rowcount != 1:
             raise TailoringConflictError("Tailoring session cannot be cancelled")
+        now = _utcnow()
+        await self._prune_terminal_preview_data(session.id, now)
         await self.db.refresh(session)
         return self._status_response(session)
 
@@ -1112,21 +1301,35 @@ class TailoringService:
         session = result.scalar_one_or_none()
         if session is None:
             raise TailoringUnauthorizedError("Invalid tailoring code")
+        # The URL is part of the authorization resource identity. Validate it
+        # before any status transition can consume this one-time code.
+        if session.id != data.session_id:
+            raise TailoringConflictError("The supplied link does not match this one-time code", code="invalid_session")
         if session.protocol_version != PROTOCOL_VERSION:
             raise TailoringConflictError("This tailoring session uses an unsupported protocol; start a new session")
         if session.status != TAILORING_SESSION_CREATED:
             raise TailoringConflictError("Tailoring code has already been exchanged")
         if _as_utc(session.expires_at) <= _utcnow():
+            await QuotaService(self.db).ensure_write_transaction()
             session.status = TAILORING_SESSION_EXPIRED
             session.updated_at = _utcnow()
             await self.db.flush()
+            await self._prune_terminal_preview_data(session.id, session.updated_at)
             raise TailoringExpiredError("Tailoring session expired")
         capability = secrets.token_urlsafe(32)
         now = _utcnow()
+        session_id = session.id
+        protocol_version = session.protocol_version
+        expires_at = session.expires_at
+        code_hash = session.code_hash
+        # Serialize the short compare-and-swap on SQLite while preserving any
+        # work already staged by the route's caller.
+        await QuotaService(self.db).ensure_write_transaction()
         result = await self.db.execute(
             update(TailoringSession)
             .where(
-                TailoringSession.id == session.id,
+                TailoringSession.id == session_id,
+                TailoringSession.code_hash == code_hash,
                 TailoringSession.status == TAILORING_SESSION_CREATED,
                 TailoringSession.expires_at > _db_utcnow(),
             )
@@ -1138,11 +1341,11 @@ class TailoringService:
             )
         )
         if result.rowcount != 1:
-            raise TailoringConflictError("Tailoring code has already been exchanged")
+            raise TailoringConflictError("Tailoring code has already been exchanged", code="invalid_session")
         return TailoringExchangeResponse(
-            protocol_version=session.protocol_version,
-            session_id=session.id,
-            expires_at=session.expires_at,
+            protocol_version=protocol_version,
+            session_id=session_id,
+            expires_at=expires_at,
             capability=capability,
         )
 
@@ -1161,9 +1364,13 @@ class TailoringService:
         if session is None:
             raise TailoringUnauthorizedError("Invalid tailoring capability")
         if _as_utc(session.expires_at) <= _utcnow():
-            session.status = TAILORING_SESSION_EXPIRED
-            session.updated_at = _utcnow()
-            await self.db.flush()
+            if session.status != TAILORING_SESSION_DRAFT_READY:
+                now = _utcnow()
+                await QuotaService(self.db).ensure_write_transaction()
+                session.status = TAILORING_SESSION_EXPIRED
+                session.updated_at = now
+                await self.db.flush()
+                await self._prune_terminal_preview_data(session.id, now)
             raise TailoringExpiredError("Tailoring session expired")
         if session.status != TAILORING_SESSION_EXCHANGED and not (
             allow_draft_ready and session.status == TAILORING_SESSION_DRAFT_READY
@@ -1171,33 +1378,59 @@ class TailoringService:
             raise TailoringConflictError("Tailoring capability is no longer active")
         return session
 
+    async def _mark_session_stale(self, session: TailoringSession) -> None:
+        if session.status != TAILORING_SESSION_EXCHANGED:
+            return
+        now = _utcnow()
+        await QuotaService(self.db).ensure_write_transaction()
+        result = await self.db.execute(
+            update(TailoringSession)
+            .where(
+                TailoringSession.id == session.id,
+                TailoringSession.status == TAILORING_SESSION_EXCHANGED,
+            )
+            .values(status=TAILORING_SESSION_STALE, updated_at=now)
+        )
+        if result.rowcount == 1:
+            session.status = TAILORING_SESSION_STALE
+            session.updated_at = now
+            await self._prune_terminal_preview_data(session.id, now)
+
     async def _current_context(self, session: TailoringSession) -> dict[str, Any]:
-        parts = await self._context_parts(session)
+        try:
+            parts = await self._context_parts(session)
+        except TailoringStaleError as exc:
+            await self._mark_session_stale(session)
+            raise TailoringStaleError(str(exc), code=exc.code, commit_outcome=True) from exc
         if not session.context_hash:
             session.context_hash = parts["context_hash"]
         if parts["context_hash"] != session.context_hash:
-            raise TailoringStaleError("The tailoring context changed; start a new session")
+            await self._mark_session_stale(session)
+            raise TailoringStaleError(
+                "The tailoring context changed; start a new session",
+                commit_outcome=True,
+            )
         return parts
 
-    @classmethod
-    def _evaluation_history(cls, session: TailoringSession) -> list[dict[str, Any]]:
-        snapshot = session.context_snapshot
-        if not isinstance(snapshot, dict):
-            return []
-        history = snapshot.get("evaluation_history")
-        if not isinstance(history, list):
-            return []
-        return [item for item in history if isinstance(item, dict)]
+    async def _agent_evaluations(self, session_id: str) -> list[TailoringEvaluationRecord]:
+        result = await self.db.execute(
+            select(TailoringEvaluationRecord)
+            .where(
+                TailoringEvaluationRecord.session_id == session_id,
+                TailoringEvaluationRecord.kind == TAILORING_EVALUATION_AGENT_PREVIEW,
+            )
+            .order_by(TailoringEvaluationRecord.created_at.asc(), TailoringEvaluationRecord.id.asc())
+        )
+        return list(result.scalars().all())
 
-    @classmethod
-    def _parsed_previous_evaluation(
-        cls,
-        session: TailoringSession,
-    ) -> tuple[ScanResult, TailoringEvaluation, str] | None:
-        history = cls._evaluation_history(session)
-        if not history:
-            return None
-        return cls._parse_evaluation_record(history[-1])
+    @staticmethod
+    def _evaluation_record_state(record: TailoringEvaluationRecord) -> dict[str, Any]:
+        return {
+            "evaluation_id": record.id,
+            "candidate_hash": record.candidate_hash,
+            "scanner_result": record.scanner_result,
+            "evaluation": record.evaluation,
+        }
 
     @staticmethod
     def _parse_evaluation_record(
@@ -1213,45 +1446,32 @@ class TailoringService:
             return None
         return scanner, evaluation, candidate_hash
 
-    @classmethod
-    def _record_evaluation(
-        cls,
-        session: TailoringSession,
-        evaluation_id: str,
-        context_hash: str,
-        scanner_result: ScanResult,
-        evaluation: TailoringEvaluation,
-    ) -> None:
-        snapshot = copy.deepcopy(session.context_snapshot or {})
-        record = {
-            "evaluation_id": evaluation_id,
-            "context_hash": context_hash,
-            "candidate_hash": evaluation.candidate_hash,
-            "scanner_result": scanner_result.model_dump(mode="json"),
-            "evaluation": evaluation.model_dump(mode="json"),
-        }
-        history = snapshot.get("evaluation_history")
-        prior_history = history if isinstance(history, list) else []
-        snapshot["evaluation_history"] = [*prior_history, record]
-        snapshot["evaluation_state"] = record
-        session.context_snapshot = snapshot
+    @staticmethod
+    def _record_evaluation_payload(record: TailoringEvaluationRecord) -> tuple[ScanResult, TailoringEvaluation, str] | None:
+        try:
+            scanner = ScanResult.model_validate(record.scanner_result)
+            evaluation = TailoringEvaluation.model_validate(record.evaluation)
+        except (TypeError, ValueError, ValidationError):
+            return None
+        if evaluation.candidate_hash != record.candidate_hash or scanner.schema_version != "scanner-v1":
+            return None
+        return scanner, evaluation, record.candidate_hash
 
     async def _evaluate_candidate(
         self,
-        session: TailoringSession,
+        session_id: str,
         parts: Mapping[str, Any],
         candidate: Mapping[str, Any],
         pdf: bytes | None,
         *,
         render_warnings: Sequence[str] = (),
-        reviewed_record: tuple[int, tuple[ScanResult, TailoringEvaluation, str] | None] | None = None,
+        previous_record: Mapping[str, Any] | None = None,
     ) -> tuple[ScanResult, TailoringEvaluation]:
         scanner_result = await self._scan_candidate(parts, candidate, pdf)
-        history = self._evaluation_history(session)
-        previous = self._parsed_previous_evaluation(session)
-        if reviewed_record is not None:
-            reviewed_index, _reviewed_value = reviewed_record
-            previous = self._parse_evaluation_record(history[reviewed_index - 1]) if reviewed_index > 0 else None
+        if previous_record is None:
+            prior_records = await self._agent_evaluations(session_id)
+            previous_record = self._evaluation_record_state(prior_records[-1]) if prior_records else None
+        previous = self._parse_evaluation_record(previous_record) if previous_record is not None else None
         evaluation = evaluate_tailoring(
             parts["scanner_context"].requirement_extraction,
             scanner_result,
@@ -1349,6 +1569,73 @@ class TailoringService:
                 data.pop(key, None)
         return sections
 
+    @staticmethod
+    def _normalize_tailoring_rich_text_ids(raw_sections: Any) -> Any:
+        """Fill missing/duplicate rich-text IDs deterministically for retries.
+
+        Ordinary CV writes retain their random-ID behavior. A tailoring
+        reservation hashes the normalized complete candidate before preview,
+        so the same raw request must normalize identically at reservation,
+        render, and retry boundaries. Existing unique IDs remain untouched.
+        """
+
+        normalized = copy.deepcopy(raw_sections)
+        if not isinstance(normalized, list):
+            return normalized
+
+        def stable_id(prefix: str, path: tuple[int | str, ...], value: Mapping[str, Any]) -> str:
+            identity = {
+                "path": path,
+                "value": {key: child for key, child in value.items() if key != "id"},
+            }
+            seed = json.dumps(identity, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
+            return f"{prefix}_{uuid.uuid5(uuid.NAMESPACE_URL, 'aergia-tailoring-v10:' + seed).hex}"
+
+        for section_index, section in enumerate(normalized):
+            if not isinstance(section, dict):
+                continue
+            fields = rich_text_fields_for_section(str(section.get("type", "")))
+            data = section.get("data")
+            rows = [data] if isinstance(data, dict) else data if isinstance(data, list) else []
+            for row_index, row in enumerate(rows):
+                if not isinstance(row, dict):
+                    continue
+                for field_name in sorted(fields):
+                    blocks = row.get(field_name)
+                    if not isinstance(blocks, list):
+                        continue
+                    block_ids: set[str] = set()
+                    for block_index, block in enumerate(blocks):
+                        if not isinstance(block, dict):
+                            continue
+                        block_id = block.get("id")
+                        if not isinstance(block_id, str) or not block_id.strip() or len(block_id) > 128 or block_id in block_ids:
+                            block["id"] = stable_id(
+                                "rtb",
+                                (section_index, section.get("type", ""), row_index, field_name, block_index),
+                                block,
+                            )
+                            block_id = block["id"]
+                        block_ids.add(block_id)
+
+                        items = block.get("items")
+                        if not isinstance(items, list):
+                            continue
+                        item_ids: set[str] = set()
+                        for item_index, item in enumerate(items):
+                            if not isinstance(item, dict):
+                                continue
+                            item_id = item.get("id")
+                            if not isinstance(item_id, str) or not item_id.strip() or len(item_id) > 128 or item_id in item_ids:
+                                item["id"] = stable_id(
+                                    "rti",
+                                    (section_index, section.get("type", ""), row_index, field_name, block_index, item_index),
+                                    item,
+                                )
+                                item_id = item["id"]
+                            item_ids.add(item_id)
+        return normalized
+
     @classmethod
     def _normalize_candidate(
         cls,
@@ -1359,7 +1646,9 @@ class TailoringService:
         template_id = candidate_data.get("template_id")
         if template_id not in parts["manifest_by_id"]:
             raise TailoringCandidateError("Candidate template is not available")
-        raw_sections, _ = normalize_rich_text_ids(candidate_data.get("sections", []))
+        raw_sections, _ = normalize_rich_text_ids(
+            cls._normalize_tailoring_rich_text_ids(candidate_data.get("sections", []))
+        )
         if not isinstance(raw_sections, list) or len(raw_sections) > LIMITS["max_sections"]:
             raise TailoringCandidateError("Candidate contains too many sections")
         sections = _sections_as_dicts(raw_sections)
@@ -1429,6 +1718,345 @@ class TailoringService:
             canonicalize_scanner_cv(candidate),
             parts["scanner_context"].requirement_extraction,
             pdf_bytes=pdf,
+            render_manifest=parts["manifest_by_id"][candidate["template_id"]],
+        )
+
+    async def _successful_preview_count(self, session_id: str) -> int:
+        count = await self.db.scalar(
+            select(func.count(TailoringEvaluationRecord.id)).where(
+                TailoringEvaluationRecord.session_id == session_id,
+                TailoringEvaluationRecord.kind == TAILORING_EVALUATION_AGENT_PREVIEW,
+            )
+        )
+        return int(count or 0)
+
+    @staticmethod
+    def _reservation_response(reservation: TailoringPreviewReservation) -> TailoringPreviewReservationResponse:
+        return TailoringPreviewReservationResponse(
+            reservation_id=reservation.id,
+            candidate_hash=reservation.candidate_hash,
+            expires_at=_as_utc(reservation.expires_at),
+        )
+
+    async def reserve_preview(
+        self,
+        capability: str | None,
+        request: TailoringPreviewReservationRequest,
+    ) -> TailoringPreviewReservationResponse:
+        session = await self._session_for_capability(capability)
+        if session.protocol_version != PROTOCOL_VERSION:
+            raise TailoringConflictError("This tailoring session uses an unsupported protocol")
+        parts = await self._current_context(session)
+        if request.context_hash != parts["context_hash"]:
+            raise TailoringStaleError("The tailoring context changed; start a new session", code="context_mismatch")
+        candidate, _sections = self._normalize_candidate(request.candidate, parts)
+        candidate_hash = self._candidate_hash(candidate)
+        session_id = session.id
+        context_hash = parts["context_hash"]
+        session_expiry = _as_utc(session.expires_at)
+        request_id = str(request.request_id)
+        now = _utcnow()
+        lease_expiry = min(now + TAILORING_PREVIEW_LEASE_TTL, session_expiry)
+        if lease_expiry <= now:
+            raise TailoringExpiredError("Tailoring session expired")
+
+        # Start a short SQLite write transaction if this route has not already
+        # staged caller-owned work; never roll back the route's transaction.
+        await QuotaService(self.db).ensure_write_transaction()
+        reservation = TailoringPreviewReservation(
+            session_id=session_id,
+            request_id=request_id,
+            context_hash=context_hash,
+            candidate_hash=candidate_hash,
+            expires_at=lease_expiry,
+            state=TAILORING_PREVIEW_RESERVATION_ACTIVE,
+        )
+        try:
+            async with self.db.begin_nested():
+                self.db.add(reservation)
+                await self.db.flush()
+                if await self._successful_preview_count(session_id) >= TAILORING_AGENT_PREVIEW_LIMIT:
+                    raise _PreviewLimitReached
+            return self._reservation_response(reservation)
+        except _PreviewLimitReached as exc:
+            raise TailoringConflictError(
+                "The five-successful-preview limit has been reached",
+                code="preview_limit",
+            ) from exc
+        except IntegrityError as exc:
+            existing_result = await self.db.execute(
+                select(TailoringPreviewReservation).where(
+                    TailoringPreviewReservation.session_id == session_id,
+                    TailoringPreviewReservation.request_id == request_id,
+                )
+            )
+            existing = existing_result.scalar_one_or_none()
+            if existing is not None:
+                if existing.candidate_hash != candidate_hash or existing.context_hash != context_hash:
+                    raise TailoringConflictError(
+                        "This request ID was already used for a different candidate or context",
+                        code="request_id_reused",
+                    ) from exc
+                if existing.state == TAILORING_PREVIEW_RESERVATION_COMPLETED:
+                    return self._reservation_response(existing)
+                if (
+                    existing.state == TAILORING_PREVIEW_RESERVATION_ACTIVE
+                    and _as_utc(existing.expires_at) > now
+                ):
+                    return self._reservation_response(existing)
+
+                reclaimable = existing.state in {
+                    TAILORING_PREVIEW_RESERVATION_RELEASED,
+                    TAILORING_PREVIEW_RESERVATION_EXPIRED,
+                } or (
+                    existing.state == TAILORING_PREVIEW_RESERVATION_ACTIVE
+                    and _as_utc(existing.expires_at) <= now
+                )
+                if reclaimable:
+                    old_state = existing.state
+                    old_expiry = existing.expires_at
+                    old_updated_at = existing.updated_at
+                    lease_fence = _next_lease_fence(_as_utc(old_updated_at), now)
+                    try:
+                        await QuotaService(self.db).ensure_write_transaction()
+                        async with self.db.begin_nested():
+                            reclaimed = await self.db.execute(
+                                update(TailoringPreviewReservation)
+                                .where(
+                                    TailoringPreviewReservation.id == existing.id,
+                                    TailoringPreviewReservation.state == old_state,
+                                    TailoringPreviewReservation.expires_at == old_expiry,
+                                    TailoringPreviewReservation.updated_at == old_updated_at,
+                                )
+                                .values(
+                                    state=TAILORING_PREVIEW_RESERVATION_ACTIVE,
+                                    expires_at=lease_expiry,
+                                    updated_at=lease_fence,
+                                )
+                            )
+                            if reclaimed.rowcount != 1:
+                                raise _FencedPreviewCompletion
+                            if await self._successful_preview_count(session_id) >= TAILORING_AGENT_PREVIEW_LIMIT:
+                                raise _PreviewLimitReached
+                    except _PreviewLimitReached as limit_exc:
+                        raise TailoringConflictError(
+                            "The five-successful-preview limit has been reached",
+                            code="preview_limit",
+                        ) from limit_exc
+                    except _FencedPreviewCompletion:
+                        pass
+                    else:
+                        await self.db.refresh(existing)
+                        return self._reservation_response(existing)
+
+                    refreshed = await self.db.get(TailoringPreviewReservation, existing.id)
+                    if refreshed is not None:
+                        if refreshed.state == TAILORING_PREVIEW_RESERVATION_COMPLETED:
+                            return self._reservation_response(refreshed)
+                        if (
+                            refreshed.state == TAILORING_PREVIEW_RESERVATION_ACTIVE
+                            and _as_utc(refreshed.expires_at) > _utcnow()
+                        ):
+                            return self._reservation_response(refreshed)
+
+            active_result = await self.db.execute(
+                select(TailoringPreviewReservation).where(
+                    TailoringPreviewReservation.session_id == session_id,
+                    TailoringPreviewReservation.state == TAILORING_PREVIEW_RESERVATION_ACTIVE,
+                    TailoringPreviewReservation.expires_at > _db_utcnow(),
+                )
+            )
+            if active_result.scalar_one_or_none() is not None:
+                raise TailoringConflictError(
+                    "Another preview is in progress; retry this request with the same request ID",
+                    code="preview_in_progress",
+                ) from exc
+
+            # A different request can take over an expired active lease. The
+            # state transition and new reservation share one short savepoint,
+            # so at most one contender can replace the expired holder.
+            expired_result = await self.db.execute(
+                select(TailoringPreviewReservation).where(
+                    TailoringPreviewReservation.session_id == session_id,
+                    TailoringPreviewReservation.state == TAILORING_PREVIEW_RESERVATION_ACTIVE,
+                )
+            )
+            expired = expired_result.scalar_one_or_none()
+            if expired is not None and _as_utc(expired.expires_at) <= now:
+                old_expiry = expired.expires_at
+                old_updated_at = expired.updated_at
+                try:
+                    await QuotaService(self.db).ensure_write_transaction()
+                    async with self.db.begin_nested():
+                        reclaimed = await self.db.execute(
+                            update(TailoringPreviewReservation)
+                            .where(
+                                TailoringPreviewReservation.id == expired.id,
+                                TailoringPreviewReservation.session_id == session_id,
+                                TailoringPreviewReservation.state == TAILORING_PREVIEW_RESERVATION_ACTIVE,
+                                TailoringPreviewReservation.expires_at == old_expiry,
+                                TailoringPreviewReservation.updated_at == old_updated_at,
+                                TailoringPreviewReservation.expires_at <= _db_utcnow(),
+                            )
+                            .values(
+                                state=TAILORING_PREVIEW_RESERVATION_EXPIRED,
+                                updated_at=_next_lease_fence(_as_utc(old_updated_at), now),
+                            )
+                        )
+                        if reclaimed.rowcount != 1:
+                            raise _FencedPreviewCompletion
+                        replacement = TailoringPreviewReservation(
+                            session_id=session_id,
+                            request_id=request_id,
+                            context_hash=context_hash,
+                            candidate_hash=candidate_hash,
+                            expires_at=lease_expiry,
+                            state=TAILORING_PREVIEW_RESERVATION_ACTIVE,
+                        )
+                        self.db.add(replacement)
+                        await self.db.flush()
+                        if await self._successful_preview_count(session_id) >= TAILORING_AGENT_PREVIEW_LIMIT:
+                            raise _PreviewLimitReached
+                    return self._reservation_response(replacement)
+                except _PreviewLimitReached as limit_exc:
+                    raise TailoringConflictError(
+                        "The five-successful-preview limit has been reached",
+                        code="preview_limit",
+                    ) from limit_exc
+                except _FencedPreviewCompletion:
+                    active_result = await self.db.execute(
+                        select(TailoringPreviewReservation).where(
+                            TailoringPreviewReservation.session_id == session_id,
+                            TailoringPreviewReservation.state == TAILORING_PREVIEW_RESERVATION_ACTIVE,
+                            TailoringPreviewReservation.expires_at > _db_utcnow(),
+                        )
+                    )
+                    if active_result.scalar_one_or_none() is not None:
+                        raise TailoringConflictError(
+                            "Another preview is in progress; retry this request with the same request ID",
+                            code="preview_in_progress",
+                        ) from exc
+            raise
+
+    async def release_preview_reservation(
+        self,
+        capability: str | None,
+        reservation_id: str,
+    ) -> TailoringPreviewReservationReleaseResponse:
+        session = await self._session_for_capability(capability)
+        result = await self.db.execute(
+            select(TailoringPreviewReservation).where(TailoringPreviewReservation.id == reservation_id)
+        )
+        reservation = result.scalar_one_or_none()
+        if reservation is None or reservation.session_id != session.id:
+            raise TailoringConflictError("Preview reservation is not available to this session")
+        if reservation.state == TAILORING_PREVIEW_RESERVATION_COMPLETED:
+            return TailoringPreviewReservationReleaseResponse(reservation_id=reservation.id, state="completed")
+        now = _utcnow()
+        session_id = session.id
+        prior_state = reservation.state
+        prior_expiry = reservation.expires_at
+        prior_updated_at = reservation.updated_at
+        already_released = prior_state in {
+            TAILORING_PREVIEW_RESERVATION_RELEASED,
+            TAILORING_PREVIEW_RESERVATION_EXPIRED,
+        }
+        if not already_released:
+            await QuotaService(self.db).ensure_write_transaction()
+            final_state = (
+                TAILORING_PREVIEW_RESERVATION_RELEASED
+                if _as_utc(prior_expiry) > now
+                else TAILORING_PREVIEW_RESERVATION_EXPIRED
+            )
+            released = await self.db.execute(
+                update(TailoringPreviewReservation)
+                .where(
+                    TailoringPreviewReservation.id == reservation_id,
+                    TailoringPreviewReservation.session_id == session_id,
+                    TailoringPreviewReservation.state == TAILORING_PREVIEW_RESERVATION_ACTIVE,
+                    TailoringPreviewReservation.expires_at == prior_expiry,
+                    TailoringPreviewReservation.updated_at == prior_updated_at,
+                )
+                .values(state=final_state, updated_at=now)
+            )
+            if released.rowcount == 1:
+                return TailoringPreviewReservationReleaseResponse(
+                    reservation_id=reservation_id,
+                    state="released" if final_state == TAILORING_PREVIEW_RESERVATION_RELEASED else "already_released",
+                )
+        latest = await self.db.get(TailoringPreviewReservation, reservation_id)
+        if latest is not None and latest.state == TAILORING_PREVIEW_RESERVATION_COMPLETED:
+            state = "completed"
+        else:
+            state = "already_released"
+        return TailoringPreviewReservationReleaseResponse(reservation_id=reservation_id, state=state)
+
+    @staticmethod
+    def _frozen_candidate_parts(session: TailoringSession) -> dict[str, Any]:
+        snapshot = session.context_snapshot
+        if not isinstance(snapshot, Mapping) or not isinstance(snapshot.get("basis"), Mapping):
+            raise TailoringStaleError("The frozen tailoring context is invalid; start a new session")
+        basis = snapshot["basis"]
+        manifests = {
+            item["id"]: copy.deepcopy(item["manifest"])
+            for item in basis.get("templates", [])
+            if isinstance(item, Mapping) and isinstance(item.get("id"), str) and isinstance(item.get("manifest"), Mapping)
+        }
+        try:
+            profile = UserProfile.model_validate(basis["profile"])
+        except (KeyError, TypeError, ValidationError) as exc:
+            raise TailoringStaleError("The frozen tailoring context is invalid; start a new session") from exc
+        return {"manifest_by_id": manifests, "profile": profile}
+
+    @staticmethod
+    def _preview_response(record: TailoringEvaluationRecord) -> TailoringPreviewResponse:
+        if record.pdf_bytes is None or hashlib.sha256(record.pdf_bytes).hexdigest() != record.pdf_sha256:
+            raise TailoringConflictError(
+                "The saved preview PDF is no longer available for replay",
+                code="reservation_conflict",
+            )
+        try:
+            scanner_result = ScanResult.model_validate(record.scanner_result)
+            evaluation = TailoringEvaluation.model_validate(record.evaluation)
+            candidate = TailoringCandidateCV.model_validate(record.candidate)
+        except (TypeError, ValueError, ValidationError) as exc:
+            raise TailoringConflictError("The saved preview record is invalid", code="reservation_conflict") from exc
+        return TailoringPreviewResponse(
+            pdf_base64=base64.b64encode(record.pdf_bytes).decode("ascii"),
+            page_count=record.page_count,
+            evaluation_id=record.id,
+            candidate_hash=record.candidate_hash,
+            pdf_sha256=record.pdf_sha256,
+            candidate=candidate,
+            scanner_result=scanner_result,
+            evaluation=evaluation,
+            render_warnings=record.render_warnings,
+        )
+
+    async def _release_preview_lease(
+        self,
+        reservation_id: str,
+        session_id: str,
+        lease_expiry: datetime,
+        lease_fence: datetime,
+    ) -> None:
+        now = _utcnow()
+        await QuotaService(self.db).ensure_write_transaction()
+        final_state = (
+            TAILORING_PREVIEW_RESERVATION_RELEASED
+            if _as_utc(lease_expiry) > now
+            else TAILORING_PREVIEW_RESERVATION_EXPIRED
+        )
+        await self.db.execute(
+            update(TailoringPreviewReservation)
+            .where(
+                TailoringPreviewReservation.id == reservation_id,
+                TailoringPreviewReservation.session_id == session_id,
+                TailoringPreviewReservation.state == TAILORING_PREVIEW_RESERVATION_ACTIVE,
+                TailoringPreviewReservation.expires_at == lease_expiry,
+                TailoringPreviewReservation.updated_at == lease_fence,
+            )
+            .values(state=final_state, updated_at=now)
         )
 
     async def candidate_preview(
@@ -1439,43 +2067,210 @@ class TailoringService:
         session = await self._session_for_capability(capability)
         if session.protocol_version != PROTOCOL_VERSION:
             raise TailoringConflictError("This tailoring session uses an unsupported protocol")
+        reservation_result = await self.db.execute(
+            select(TailoringPreviewReservation).where(
+                TailoringPreviewReservation.id == request.reservation_id,
+                TailoringPreviewReservation.session_id == session.id,
+            )
+        )
+        reservation = reservation_result.scalar_one_or_none()
+        if reservation is None:
+            raise TailoringConflictError("Preview reservation is not available to this session")
+        if request.context_hash != reservation.context_hash:
+            raise TailoringConflictError("This reservation belongs to a different context", code="request_id_reused")
+
+        if reservation.state == TAILORING_PREVIEW_RESERVATION_COMPLETED:
+            frozen_parts = self._frozen_candidate_parts(session)
+            candidate, _sections = self._normalize_candidate(request.candidate, frozen_parts)
+            if self._candidate_hash(candidate) != reservation.candidate_hash:
+                raise TailoringConflictError("This reservation belongs to a different candidate", code="request_id_reused")
+            record = await self.db.scalar(
+                select(TailoringEvaluationRecord).where(
+                    TailoringEvaluationRecord.reservation_id == reservation.id,
+                    TailoringEvaluationRecord.session_id == session.id,
+                )
+            )
+            if record is None:
+                raise TailoringConflictError("The completed preview record is unavailable")
+            return self._preview_response(record)
+
+        now = _utcnow()
+        if reservation.state != TAILORING_PREVIEW_RESERVATION_ACTIVE:
+            raise TailoringConflictError(
+                "The preview reservation is no longer active; retry the same request ID to reacquire it",
+                code="reservation_expired",
+            )
+        if _as_utc(reservation.expires_at) <= now:
+            reservation_id = reservation.id
+            session_id = session.id
+            lease_expiry = reservation.expires_at
+            lease_fence = reservation.updated_at
+            await QuotaService(self.db).ensure_write_transaction()
+            await self.db.execute(
+                update(TailoringPreviewReservation)
+                .where(
+                    TailoringPreviewReservation.id == reservation_id,
+                    TailoringPreviewReservation.session_id == session_id,
+                    TailoringPreviewReservation.state == TAILORING_PREVIEW_RESERVATION_ACTIVE,
+                    TailoringPreviewReservation.expires_at == lease_expiry,
+                    TailoringPreviewReservation.updated_at == lease_fence,
+                    TailoringPreviewReservation.expires_at <= _db_utcnow(),
+                )
+                .values(state=TAILORING_PREVIEW_RESERVATION_EXPIRED, updated_at=now)
+            )
+            raise TailoringConflictError(
+                "The preview reservation expired; retry the same request ID to reacquire it",
+                code="reservation_expired",
+                commit_outcome=True,
+            )
+
         parts = await self._current_context(session)
         if request.context_hash != parts["context_hash"]:
-            raise TailoringStaleError("The tailoring context changed; start a new session")
-        if len(self._evaluation_history(session)) >= 5:
-            raise TailoringConflictError("The five-candidate-preview resource limit has been reached")
+            raise TailoringStaleError("The tailoring context changed; start a new session", code="context_mismatch")
         candidate, sections = self._normalize_candidate(request.candidate, parts)
-        pdf = await PDFService(self.db).render_manifest_payload(
-            parts["manifest_by_id"][candidate["template_id"]],
-            sections,
-            candidate["customizations"],
+        candidate_hash = self._candidate_hash(candidate)
+        if candidate_hash != reservation.candidate_hash:
+            raise TailoringConflictError("This reservation belongs to a different candidate", code="request_id_reused")
+
+        session_id = session.id
+        reservation_id = reservation.id
+        lease_expiry = reservation.expires_at
+        lease_fence = reservation.updated_at
+        context_hash = parts["context_hash"]
+        prior_evaluations = await self._agent_evaluations(session_id)
+        previous_record = self._evaluation_record_state(prior_evaluations[-1]) if prior_evaluations else None
+        # All values used while rendering are copied from the frozen context.
+        # No database writes happen during scanner/Chromium work, so keep the
+        # route-owned transaction intact and write the ledger only afterward.
+        preview_parts = dict(parts)
+        preview_parts["application"] = SimpleNamespace(
+            job_description=parts["application"].job_description,
+            notes=parts["application"].notes,
         )
-        page_count = pdf_page_count(pdf)
-        scanner_result, evaluation = await self._evaluate_candidate(
-            session,
-            parts,
-            candidate,
-            pdf,
-        )
+        try:
+            async with asyncio.timeout(TAILORING_PREVIEW_TIMEOUT_SECONDS):
+                pdf = await PDFService(self.db).render_manifest_payload(
+                    preview_parts["manifest_by_id"][candidate["template_id"]],
+                    sections,
+                    candidate["customizations"],
+                )
+                page_count = pdf_page_count(pdf)
+                scanner_result, evaluation = await self._evaluate_candidate(
+                    session_id,
+                    preview_parts,
+                    candidate,
+                    pdf,
+                    previous_record=previous_record,
+                )
+        except asyncio.CancelledError:
+            try:
+                await asyncio.shield(
+                    self._release_preview_lease(reservation_id, session_id, lease_expiry, lease_fence)
+                )
+            finally:
+                raise
+        except TimeoutError as exc:
+            await self._release_preview_lease(reservation_id, session_id, lease_expiry, lease_fence)
+            raise TailoringPreviewUnavailableError(
+                "Preview timed out; retry with the same request ID and candidate"
+            ) from exc
+        except Exception as exc:  # noqa: BLE001 - release the failed lease without spending a slot
+            await self._release_preview_lease(reservation_id, session_id, lease_expiry, lease_fence)
+            if isinstance(exc, TailoringCandidateError):
+                exc.commit_outcome = True
+                raise
+            raise TailoringPreviewUnavailableError(
+                "The candidate could not be rendered and scanned; retry with the same request ID"
+            ) from exc
+
         evaluation_id = secrets.token_urlsafe(24)
-        self._record_evaluation(
-            session,
-            evaluation_id,
-            parts["context_hash"],
-            scanner_result,
-            evaluation,
-        )
-        await self.db.flush()
-        return TailoringPreviewResponse(
-            pdf_base64=base64.b64encode(pdf).decode("ascii"),
-            page_count=page_count,
-            evaluation_id=evaluation_id,
-            candidate_hash=self._candidate_hash(candidate),
-            candidate=TailoringCandidateCV.model_validate(candidate),
-            scanner_result=scanner_result,
-            evaluation=evaluation,
+        pdf_sha256 = hashlib.sha256(pdf).hexdigest()
+        record = TailoringEvaluationRecord(
+            id=evaluation_id,
+            session_id=session_id,
+            kind=TAILORING_EVALUATION_AGENT_PREVIEW,
+            reservation_id=reservation_id,
+            candidate_hash=candidate_hash,
+            candidate=candidate,
+            scanner_result=scanner_result.model_dump(mode="json"),
+            evaluation=evaluation.model_dump(mode="json"),
             render_warnings=evaluation.render_warnings,
+            page_count=page_count,
+            pdf_sha256=pdf_sha256,
+            pdf_bytes=pdf,
         )
+        try:
+            await QuotaService(self.db).ensure_write_transaction()
+            # The live target can change while Chromium or scanning is
+            # running. Start the short completion transaction, lock the
+            # guarded rows on databases that support it, then revalidate so a
+            # superseded target cannot consume a successful-preview slot.
+            await self._lock_preview_target_rows(session)
+            await self._current_context(session)
+            async with self.db.begin_nested():
+                self.db.add(record)
+                await self.db.flush()
+                completed = await self.db.execute(
+                    update(TailoringPreviewReservation)
+                    .where(
+                        TailoringPreviewReservation.id == reservation_id,
+                        TailoringPreviewReservation.session_id == session_id,
+                        TailoringPreviewReservation.state == TAILORING_PREVIEW_RESERVATION_ACTIVE,
+                        TailoringPreviewReservation.context_hash == context_hash,
+                        TailoringPreviewReservation.candidate_hash == candidate_hash,
+                        TailoringPreviewReservation.expires_at == lease_expiry,
+                        TailoringPreviewReservation.updated_at == lease_fence,
+                        TailoringPreviewReservation.expires_at > _db_utcnow(),
+                    )
+                    .values(
+                        state=TAILORING_PREVIEW_RESERVATION_COMPLETED,
+                        evaluation_id=evaluation_id,
+                        updated_at=_utcnow(),
+                    )
+                )
+                if completed.rowcount != 1:
+                    raise _FencedPreviewCompletion
+                counted_attempt = await self.db.execute(
+                    update(TailoringSession)
+                    .where(
+                        TailoringSession.id == session_id,
+                        TailoringSession.status == TAILORING_SESSION_EXCHANGED,
+                        TailoringSession.expires_at > _db_utcnow(),
+                    )
+                    .values(
+                        attempts=TailoringSession.attempts + 1,
+                        updated_at=_utcnow(),
+                    )
+                )
+                if counted_attempt.rowcount != 1:
+                    raise _FencedPreviewCompletion
+        except (_FencedPreviewCompletion, IntegrityError) as exc:
+            saved = await self.db.scalar(
+                select(TailoringEvaluationRecord).where(
+                    TailoringEvaluationRecord.reservation_id == reservation_id,
+                    TailoringEvaluationRecord.session_id == session_id,
+                )
+            )
+            if saved is not None:
+                return self._preview_response(saved)
+            await self.db.execute(
+                update(TailoringPreviewReservation)
+                .where(
+                    TailoringPreviewReservation.id == reservation_id,
+                    TailoringPreviewReservation.session_id == session_id,
+                    TailoringPreviewReservation.state == TAILORING_PREVIEW_RESERVATION_ACTIVE,
+                    TailoringPreviewReservation.expires_at == lease_expiry,
+                    TailoringPreviewReservation.updated_at == lease_fence,
+                    TailoringPreviewReservation.expires_at <= _db_utcnow(),
+                )
+                .values(state=TAILORING_PREVIEW_RESERVATION_EXPIRED, updated_at=_utcnow())
+            )
+            raise TailoringConflictError(
+                "The preview lease expired or was reclaimed before completion; retry the same request ID",
+                code="reservation_expired",
+                commit_outcome=True,
+            ) from exc
+        return self._preview_response(record)
 
     async def submit(
         self,
@@ -1514,26 +2309,37 @@ class TailoringService:
         candidate_hash = self._candidate_hash(candidate)
         if request.candidate_hash != candidate_hash:
             raise TailoringStaleError("The candidate changed after preview; render the current candidate before submitting")
-        history = self._evaluation_history(session)
-        reviewed_record = next(
-            (
-                (index, self._parse_evaluation_record(record))
-                for index, record in enumerate(history)
-                if record.get("evaluation_id") == request.evaluation_id
-            ),
+        history = await self._agent_evaluations(session.id)
+        reviewed_index = next(
+            (index for index, record in enumerate(history) if record.id == request.evaluation_id),
             None,
         )
-        if reviewed_record is None or reviewed_record[1] is None:
-            raise TailoringStaleError("The selected evaluation is unavailable in this session; preview the candidate again")
-        reviewed_state = history[reviewed_record[0]]
-        if reviewed_state.get("context_hash") != request.context_hash:
-            raise TailoringStaleError("The selected evaluation belongs to a different tailoring context")
-        if reviewed_state.get("candidate_hash") != candidate_hash:
-            raise TailoringStaleError("The selected evaluation belongs to a different candidate")
-        try:
-            reviewed_evaluation = TailoringEvaluation.model_validate(reviewed_state.get("evaluation"))
-        except (ValidationError, TypeError) as exc:
-            raise TailoringStaleError("The preview evaluation is invalid; render the candidate again") from exc
+        if reviewed_index is None:
+            raise TailoringStaleError(
+                "The selected evaluation is unavailable in this session; preview the candidate again",
+                code="evaluation_mismatch",
+            )
+        selected_record = history[reviewed_index]
+        reservation = await self.db.get(TailoringPreviewReservation, selected_record.reservation_id)
+        if reservation is None or reservation.context_hash != request.context_hash:
+            raise TailoringStaleError(
+                "The selected evaluation belongs to a different tailoring context",
+                code="evaluation_mismatch",
+            )
+        if selected_record.candidate_hash != candidate_hash:
+            raise TailoringStaleError(
+                "The selected evaluation belongs to a different candidate",
+                code="evaluation_mismatch",
+            )
+        reviewed_value = self._record_evaluation_payload(selected_record)
+        if reviewed_value is None:
+            raise TailoringStaleError("The preview evaluation is invalid; render the candidate again")
+        previous_record = (
+            self._evaluation_record_state(history[reviewed_index - 1])
+            if reviewed_index > 0
+            else None
+        )
+        reviewed_evaluation = reviewed_value[1]
         if reviewed_evaluation.candidate_hash != candidate_hash:
             raise TailoringStaleError("The selected evaluation is bound to a different candidate")
         application: Application = parts["application"]
@@ -1551,11 +2357,11 @@ class TailoringService:
             candidate["customizations"],
         )
         scanner_result, evaluation = await self._evaluate_candidate(
-            session,
+            session.id,
             parts,
             candidate,
             pdf,
-            reviewed_record=reviewed_record,
+            previous_record=previous_record,
         )
         source_cv_id = source_cv.id if source_cv else None
         # The service reserves a quota slot and creates an application-owned
