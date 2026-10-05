@@ -69,7 +69,7 @@ New helper sessions use protocol v10. The browser URL remains
 session link and one-time code. The helper keeps the scoped capability in
 memory and does not use a normal Aergia access token.
 
-1. The helper freezes the job, user instructions, profile, Library history,
+1. The server freezes the job, user instructions, profile, Library history,
    source CV when available, templates, document capabilities, and scanner
    context for the session. Before the blind stage is complete, the agent can
    read only `evidence/job.json` with `company`, `role`, `job_url`,

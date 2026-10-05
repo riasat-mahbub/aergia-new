@@ -223,9 +223,12 @@ strings, each no longer than 1,000 characters. Use it only for material
 choices or trade-offs. A successful submission creates an unlinked draft.
 The user reviews, edits, accepts, or rejects it in Aergia.
 
-If previewing fails, repair `candidate.json` and create `RENDER` again. If
-review or submission reports an error, follow the helper's recovery message;
-only reuse a report when its bindings still match `selection.json`. The
-helper retries transient requests with the frozen payload and holds the
-capability in process memory. Stop if it reports that access expired or was
-revoked.
+For invalid candidate input, repair `candidate.json` and create `RENDER`
+again. For a preview in progress, an expired lease, or a transient rendering
+or transport failure, follow the helper's retry message with the same frozen
+candidate and request identity. These errors do not call for a prose change.
+A changed target requires a new session; the preview limit requires selecting
+a saved attempt. For review or submission errors, follow the helper's recovery
+message and reuse a report only when its bindings still match `selection.json`.
+The helper holds the capability in process memory. Stop if access expired or
+was revoked.
