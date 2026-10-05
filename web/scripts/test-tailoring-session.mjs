@@ -34,6 +34,7 @@ const entry = `
       prompt: tailoring.tailoringSession?.prompt ?? null,
       status: tailoring.tailoringStatus?.status ?? null,
       starting: tailoring.tailoringStarting,
+      error: tailoring.tailoringActionError,
     });
     window.tailoringHarness = {
       changeApplication: setApplicationId,
@@ -90,6 +91,7 @@ await build({
           export const createTailoringSession = (id) => window.__tailoringMock.call("create", id);
           export const getLatestTailoringSession = (id) => window.__tailoringMock.call("latest", id);
           export const getTailoringSessionStatus = (id) => window.__tailoringMock.call("status", id);
+          export const reevaluateTailoringDraft = (id, request) => window.__tailoringMock.call("reevaluate", id, request);
           export const rejectTailoringDraft = (id) => window.__tailoringMock.call("reject", id);
         `,
       }));
@@ -166,7 +168,19 @@ MOCK_BOOTSTRAP = r"""
       updated_at: "2029-01-01T00:00:00Z",
       attempts: 0,
       result: null,
-      draft_review: null,
+      draft_review: statusName === "draft_ready" ? {
+        state: "current",
+        cv_revision: 1,
+        candidate_hash: "a".repeat(64),
+        render_basis_hash: "b".repeat(64),
+        evaluation_id: "owner-evaluation",
+        evaluation: null,
+        scanner_result: null,
+        warnings: [],
+        pdf_sha256: "c".repeat(64),
+        fit_review: null,
+        fit_review_applicability: "not_run",
+      } : null,
     };
   }
   window.testTailoringStatus = status;
@@ -269,7 +283,19 @@ def status(application_id, session_id, status_name):
         "updated_at": "2029-01-01T00:00:00Z",
         "attempts": 0,
         "result": None,
-        "draft_review": None,
+        "draft_review": {
+            "state": "current",
+            "cv_revision": 1,
+            "candidate_hash": "a" * 64,
+            "render_basis_hash": "b" * 64,
+            "evaluation_id": "owner-evaluation",
+            "evaluation": None,
+            "scanner_result": None,
+            "warnings": [],
+            "pdf_sha256": "c" * 64,
+            "fit_review": None,
+            "fit_review_applicability": "not_run",
+        } if status_name == "draft_ready" else None,
     }
 
 async def main():
@@ -303,6 +329,7 @@ async def main():
 
             second_a_request = await page.evaluate("window.__tailoringMock.defer('latest', 'application-A')")
             create_a_request = await page.evaluate("window.__tailoringMock.defer('create', 'application-A')")
+            fresh_a_status_request = await page.evaluate("window.__tailoringMock.defer('status', 'session-fresh-A')")
             await page.evaluate("window.tailoringHarness.changeApplication('application-A')")
             await page.wait_for_function("window.__tailoringMock.calls.latest.filter((id) => id === 'application-A').length === 2")
             await page.evaluate("window.tailoringHarness.start(); window.tailoringHarness.start()")
@@ -311,6 +338,12 @@ async def main():
             assert await page.evaluate("window.__tailoringMock.calls.create.length") == 1, "duplicate start must share one create request"
             fresh_a = session("application-A", "session-fresh-A", "one-time-code-A", "Fresh one-time prompt A")
             await page.evaluate("([token, value]) => window.__tailoringMock.resolve(token, value)", [create_a_request, fresh_a])
+            await page.wait_for_function("window.__tailoringMock.calls.status.includes('session-fresh-A')")
+            await page.evaluate("([token, value]) => window.__tailoringMock.resolve(token, value)", [
+                fresh_a_status_request,
+                status("application-A", "session-fresh-A", "draft_ready"),
+            ])
+            await page.wait_for_function("window.tailoringHarness.snapshot().status === 'draft_ready'")
             await page.wait_for_function("window.tailoringHarness.snapshot().sessionId === 'session-fresh-A'")
             await page.evaluate("([token, value]) => window.__tailoringMock.resolve(token, value)", [
                 second_a_request,
@@ -413,6 +446,65 @@ async def main():
             assert await page.evaluate("window.__tailoringMock.fetchApplicationCalls") == [], "unmounted accept must not refresh application state"
             assert await page.evaluate("window.__tailoringMock.toasts") == [], "unmounted accept must not toast"
             print("PASS action cleanup: pending accept has no side effects after unmount", flush=True)
+
+            await page.evaluate("window.mountTailoringHarness()")
+            await page.wait_for_function("window.__tailoringMock.calls.latest.filter((id) => id === 'application-A').length === 5")
+            await page.evaluate("window.tailoringHarness.changeApplication('application-recovery')")
+            await page.wait_for_function("window.__tailoringMock.calls.latest.includes('application-recovery')")
+            await flush_browser(page)
+            create_conflict = await page.evaluate("window.__tailoringMock.defer('create', 'application-recovery')")
+            recovery_request = await page.evaluate("window.__tailoringMock.defer('latest', 'application-recovery')")
+            await page.evaluate("() => { void window.tailoringHarness.start(); }")
+            await page.wait_for_function("window.__tailoringMock.calls.create.includes('application-recovery')")
+            await page.evaluate("([token, error]) => window.__tailoringMock.reject(token, error)", [
+                create_conflict,
+                {"response": {"status": 409, "data": {"code": "session_in_progress", "detail": "A tailoring session is already active for this application."}}},
+            ])
+            await page.wait_for_function("window.__tailoringMock.calls.latest.filter((id) => id === 'application-recovery').length === 2")
+            await page.evaluate("([token, value]) => window.__tailoringMock.resolve(token, value)", [
+                recovery_request,
+                status("application-recovery", "session-existing-recovery", "draft_ready"),
+            ])
+            await page.wait_for_function("window.tailoringHarness.snapshot().sessionId === 'session-existing-recovery'")
+            recovered = await page.evaluate("window.tailoringHarness.snapshot()")
+            assert recovered["status"] == "draft_ready" and recovered["code"] == "", recovered
+            assert recovered["error"] == "A tailoring session is already active for this application.", recovered
+            await page.evaluate("window.tailoringHarness.copyPrompt()")
+            assert await page.evaluate("window.clipboardWrites") == ["Fresh one-time prompt A"], "recovered sessions must not expose a reusable code prompt"
+            print("PASS session_in_progress recovery: deferred 409 hydrates the existing review without restoring a one-time code and preserves API detail", flush=True)
+
+            create_late_conflict = await page.evaluate("window.__tailoringMock.defer('create', 'application-late-recovery')")
+            await page.evaluate("window.tailoringHarness.changeApplication('application-late-recovery')")
+            await page.wait_for_function("window.__tailoringMock.calls.latest.includes('application-late-recovery')")
+            await flush_browser(page)
+            late_recovery = await page.evaluate("window.__tailoringMock.defer('latest', 'application-late-recovery')")
+            await page.evaluate("() => { void window.tailoringHarness.start(); }")
+            await page.wait_for_function("window.__tailoringMock.calls.create.includes('application-late-recovery')")
+            await page.evaluate("([token, error]) => window.__tailoringMock.reject(token, error)", [
+                create_late_conflict,
+                {"response": {"status": 409, "data": {"code": "session_in_progress", "detail": "Another tailoring session is active."}}},
+            ])
+            await page.wait_for_function("window.__tailoringMock.calls.latest.filter((id) => id === 'application-late-recovery').length === 2")
+            await page.evaluate("window.tailoringHarness.changeApplication('application-after-recovery')")
+            await page.wait_for_function("window.__tailoringMock.calls.latest.includes('application-after-recovery')")
+            fresh_after_recovery = await page.evaluate("window.__tailoringMock.defer('create', 'application-after-recovery')")
+            await page.evaluate("() => { void window.tailoringHarness.start(); }")
+            await page.wait_for_function("window.__tailoringMock.calls.create.includes('application-after-recovery')")
+            await page.evaluate("([token, value]) => window.__tailoringMock.resolve(token, value)", [
+                fresh_after_recovery,
+                session("application-after-recovery", "session-fresh-after-recovery", "fresh-code-after-recovery", "Fresh prompt after recovery"),
+            ])
+            await page.wait_for_function("window.tailoringHarness.snapshot().sessionId === 'session-fresh-after-recovery'")
+            await page.evaluate("([token, value]) => window.__tailoringMock.resolve(token, value)", [
+                late_recovery,
+                status("application-late-recovery", "session-too-late", "draft_ready"),
+            ])
+            await flush_browser(page)
+            after_late_recovery = await page.evaluate("window.tailoringHarness.snapshot()")
+            assert after_late_recovery["applicationId"] == "application-after-recovery", after_late_recovery
+            assert after_late_recovery["sessionId"] == "session-fresh-after-recovery", after_late_recovery
+            assert after_late_recovery["code"] == "fresh-code-after-recovery" and after_late_recovery["prompt"] == "Fresh prompt after recovery", after_late_recovery
+            print("PASS late recovery fencing: a delayed hydration after navigation cannot replace a fresh session code", flush=True)
 
             final_store_id = await page.evaluate("window.runStoreFetchRace()")
             assert final_store_id == "application-B", f"late A store fetch replaced B: {final_store_id}"
