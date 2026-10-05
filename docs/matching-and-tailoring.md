@@ -148,5 +148,22 @@ the current draft revision, canonical candidate hash, current evaluation and
 PDF digest when available, and the fit review's applicability to that draft.
 If the owner edits the CV, the prior evaluation may need reevaluation and a
 previous fit review can describe an earlier version. Acceptance checks the
-current CV revision and candidate hash; the advisory fit-review verdict does
-not affect that check. Historical protocol 4–9 owner review remains readable.
+current CV revision, candidate hash, target job and linked source, and actual
+contact/template render basis; the advisory fit-review verdict does not
+affect that check. The owner can save and reevaluate the pending draft without
+using the agent's five-preview budget. Reevaluation renders before a short
+conditional write, so a concurrent edit cannot be overwritten by its result.
+
+The builder resolves the pending draft's actual application and displays that
+draft's scanner findings. Ordinary linked CVs retain the application scanner
+path. Unsaved edits, a pending or failed save, and a changed render basis do
+not count as a current draft review. Save completion precedes reevaluation.
+
+Capability expiry ends agent access while a submitted draft stays reviewable
+by its owner. Missing drafts reconcile on deletion or owner status; stale
+targets remain inspectable and discardable before restarting. Discard releases
+the pending replacement allowance. When the linked source is eligible, one
+replacement allowance lets the owner tailor at the normal CV limit; acceptance
+atomically retires the source and makes the replacement counted. Drafts without
+an eligible source use a normal CV slot. Historical protocol 4–9 owner review
+remains readable and keeps its historical acceptance contract.

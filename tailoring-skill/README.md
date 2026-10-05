@@ -19,12 +19,15 @@ successful previews are available; submission explicitly selects one by
 evaluation ID and candidate hash. The user's page and content preferences
 guide the final choice.
 
-For an optional advisory fit review, the helper exports the selected PDF,
+For the advisory fit review, the helper exports the selected PDF,
 `job.json` with only the company, role, and description, and a binding
 manifest. A fresh host-delegated reviewer inspects that package using
 `skills/aergia-tailor/references/independent-review.md`. The report is bound
 to the selected PDF and does not gate submission. When delegation or PDF
-inspection is unavailable, the agent records that limitation honestly.
+inspection is unavailable, the agent records that limitation honestly. The
+author requests one initial review and may request one follow-up after a
+consequential revision. An explicit user instruction can skip the review; a
+missing report remains visibly “Not run.”
 
 The server owns validation, candidate normalization, rendering, scanner
 findings, and submission binding. A successful submission creates an
