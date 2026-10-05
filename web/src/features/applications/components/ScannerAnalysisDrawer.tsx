@@ -13,7 +13,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import type { Application, ScannerEvidenceStatus } from "../types";
+import type { ScannerAnalysisContext, ScannerEvidenceStatus } from "../types";
 import {
   buildScannerReportViewModel,
   componentStatusIcon,
@@ -31,12 +31,13 @@ import {
 
 export interface ScannerAnalysisDrawerProps {
   open: boolean;
-  application: Application;
+  application: ScannerAnalysisContext;
   onClose: () => void;
   onScan: () => Promise<unknown>;
   onTailor?: () => void;
   scanning?: boolean;
   scanError?: string | null;
+  scanActionLabel?: string;
   initialTab?: ScannerReportTab;
 }
 
@@ -440,7 +441,7 @@ function PdfCompatibility({ report }: { report: ScannerReportViewModel }) {
   );
 }
 
-function EmptyAnalysis({ application, onScan, scanning, scanError }: { application: Application; onScan: () => Promise<unknown>; scanning?: boolean; scanError?: string | null }) {
+function EmptyAnalysis({ application, onScan, scanning, scanError, scanActionLabel }: { application: ScannerAnalysisContext; onScan: () => Promise<unknown>; scanning?: boolean; scanError?: string | null; scanActionLabel?: string }) {
   const [localError, setLocalError] = useState<string | null>(null);
   const runScan = async () => {
     setLocalError(null);
@@ -456,7 +457,7 @@ function EmptyAnalysis({ application, onScan, scanning, scanError }: { applicati
       <h3 className="mt-4 text-lg font-semibold text-app-ink">{application.cv_id ? "Analyze this CV" : "Link a CV to analyze this application"}</h3>
       <p className="mt-2 max-w-sm text-sm leading-6 text-app-ink-2">{application.cv_id ? "Run the scanner to compare this CV with the job description." : "Link or create a CV from the application page before running the scanner."}</p>
       {(scanError || localError) && <p className="mt-4 text-sm text-app-danger" role="alert">{scanError ?? localError}</p>}
-      <button type="button" onClick={runScan} disabled={!application.cv_id || scanning} className="mt-5 inline-flex items-center gap-2 rounded-md bg-app-primary px-4 py-2 text-sm font-medium text-white hover:bg-app-primary-hover disabled:cursor-not-allowed disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${scanning ? "animate-spin" : ""}`} aria-hidden="true" />{scanning ? "Analyzing…" : "Analyze CV"}</button>
+      <button type="button" onClick={runScan} disabled={!application.cv_id || scanning} className="mt-5 inline-flex items-center gap-2 rounded-md bg-app-primary px-4 py-2 text-sm font-medium text-white hover:bg-app-primary-hover disabled:cursor-not-allowed disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${scanning ? "animate-spin" : ""}`} aria-hidden="true" />{scanning ? "Analyzing…" : scanActionLabel ?? "Analyze CV"}</button>
     </div>
   );
 }
@@ -470,7 +471,7 @@ function Diagnostics({ report }: { report: ScannerReportViewModel }) {
   );
 }
 
-export default function ScannerAnalysisDrawer({ open, application, onClose, onScan, onTailor, scanning = false, scanError = null, initialTab = "overview" }: ScannerAnalysisDrawerProps) {
+export default function ScannerAnalysisDrawer({ open, application, onClose, onScan, onTailor, scanning = false, scanError = null, scanActionLabel, initialTab = "overview" }: ScannerAnalysisDrawerProps) {
   const [tab, setTab] = useState<ScannerReportTab>(initialTab);
   const [localScanError, setLocalScanError] = useState<string | null>(null);
   const panelRef = useRef<HTMLElement>(null);
@@ -551,9 +552,9 @@ export default function ScannerAnalysisDrawer({ open, application, onClose, onSc
           </div>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
-          {((application.scanner_status === "stale" || application.scanner_status === "needs_rescan") && report) && <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-app-warning/30 bg-app-warning-soft px-3 py-3 text-sm text-app-warning" role="alert"><span className="flex items-start gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /> This analysis is out of date because the CV or job changed.</span><button type="button" onClick={handleScan} disabled={scanning} className="inline-flex items-center gap-1 rounded-md border border-app-warning/40 px-2.5 py-1.5 text-xs font-semibold hover:bg-app-warning/20 disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${scanning ? "animate-spin" : ""}`} aria-hidden="true" />{scanning ? "Analyzing…" : "Analyze again"}</button></div>}
+          {((application.scanner_status === "stale" || application.scanner_status === "needs_rescan") && report) && <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-app-warning/30 bg-app-warning-soft px-3 py-3 text-sm text-app-warning" role="alert"><span className="flex items-start gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /> This analysis is out of date because the CV or job changed.</span><button type="button" onClick={handleScan} disabled={scanning} className="inline-flex items-center gap-1 rounded-md border border-app-warning/40 px-2.5 py-1.5 text-xs font-semibold hover:bg-app-warning/20 disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${scanning ? "animate-spin" : ""}`} aria-hidden="true" />{scanning ? "Analyzing…" : scanActionLabel ?? "Analyze again"}</button></div>}
           {(scanError || localScanError) && report && <p className="mb-4 rounded-lg border border-app-danger/30 bg-app-danger-soft px-3 py-3 text-sm text-app-danger" role="alert">{scanError ?? localScanError}</p>}
-          {!report ? <EmptyAnalysis application={application} onScan={handleScan} scanning={scanning} scanError={scanError ?? localScanError} /> : <>
+          {!report ? <EmptyAnalysis application={application} onScan={handleScan} scanning={scanning} scanError={scanError ?? localScanError} scanActionLabel={scanActionLabel} /> : <>
             {tab === "overview" && <div id="scanner-panel-overview" role="tabpanel" aria-labelledby="scanner-tab-overview"><Overview report={report} onTab={setTab} /></div>}
             {tab === "job-fit" && <div id="scanner-panel-job-fit" role="tabpanel" aria-labelledby="scanner-tab-job-fit"><JobFit report={report} /></div>}
             {tab === "keywords" && <div id="scanner-panel-keywords" role="tabpanel" aria-labelledby="scanner-tab-keywords"><Keywords report={report} /></div>}

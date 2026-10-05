@@ -1,5 +1,5 @@
 import type {
-  Application,
+  ScannerAnalysisContext,
   ScanResult,
   ScannerCVLocation,
   ScannerEvidenceStatus,
@@ -699,7 +699,7 @@ function atsStatus(result: ScanResult): ScannerReportViewModel["ats"]["status"] 
   return "looks_good";
 }
 
-function statusForBadge(application: Application): ScannerBadgeViewModel {
+function statusForBadge(application: ScannerAnalysisContext): ScannerBadgeViewModel {
   const result = application.scanner_result ?? null;
   const state = (application.scanner_status ?? (result ? "current" : "not_scanned")) as ScannerBadgeState;
   const score = result?.semantic.summary?.job_fit ?? null;
@@ -710,7 +710,7 @@ function statusForBadge(application: Application): ScannerBadgeViewModel {
   return { state: "current", label: score === null ? "Job Fit —" : `Job Fit ${percentage(score)}`, score, stale: false, disabled: false };
 }
 
-export function scannerBadgeState(application: Application): ScannerBadgeViewModel {
+export function scannerBadgeState(application: ScannerAnalysisContext): ScannerBadgeViewModel {
   return statusForBadge(application);
 }
 
@@ -728,7 +728,7 @@ export function formatScannerPercent(value: number | null | undefined): string {
   return percentage(value);
 }
 
-export function buildScannerReportViewModel(result: ScanResult, application: Application): ScannerReportViewModel {
+export function buildScannerReportViewModel(result: ScanResult, application: ScannerAnalysisContext): ScannerReportViewModel {
   const summary = result.semantic.summary;
   const evidenceById = new Map(result.semantic.evidence.map((item) => [item.id, item]));
   const evaluationById = new Map(result.semantic.requirements.map((item) => [item.requirement_id, item]));

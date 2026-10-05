@@ -38,15 +38,17 @@ export function useBuilderDocumentLoader({ id, loadCV }: UseBuilderDocumentLoade
     (async () => {
       await loadCV(id);
       if (cancelled) return;
-      setShowLoading(false);
-
       const currentCV = useBuilderDocumentStore.getState().currentCV;
-      if (!currentCV?.sections) return;
+      if (currentCV?.id !== id || !currentCV.sections) {
+        setShowLoading(false);
+        return;
+      }
 
       const nextInstances = currentCV.sections;
       setInstances(nextInstances);
       setCustomizations(currentCV.customizations || {});
       setIsLoaded(true);
+      setShowLoading(false);
     })();
 
     return () => {

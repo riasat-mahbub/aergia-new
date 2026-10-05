@@ -15,23 +15,34 @@ export interface BuilderDocumentState {
 }
 
 /** Builder-only document and persistence status. It is never shared with dashboard list views. */
-export const useBuilderDocumentStore = create<BuilderDocumentState>((set) => ({
-  currentCV: null,
-  isLoading: false,
-  isSaving: false,
-  lastSaved: null,
-  error: null,
+export const useBuilderDocumentStore = create<BuilderDocumentState>((set) => {
+  let loadGeneration = 0;
 
-  loadCV: async (id) => {
-    set({ isLoading: true, currentCV: null, isSaving: false, lastSaved: null, error: null });
-    try {
-      const currentCV = await cvsApi.fetchCV(id);
-      set({ currentCV, isLoading: false, error: null });
-    } catch {
-      set({ isLoading: false, error: "Unable to load this CV. Please try again." });
-    }
-  },
+  return {
+    currentCV: null,
+    isLoading: false,
+    isSaving: false,
+    lastSaved: null,
+    error: null,
 
-  setIsSaving: (saving) => set({ isSaving: saving }),
-  setLastSaved: (date) => set({ lastSaved: date }),
-}));
+    loadCV: async (id) => {
+      const generation = ++loadGeneration;
+      set({ isLoading: true, currentCV: null, isSaving: false, lastSaved: null, error: null });
+      try {
+        const currentCV = await cvsApi.fetchCV(id);
+        if (generation !== loadGeneration) return;
+        if (currentCV.id !== id) {
+          set({ isLoading: false, error: "Unable to load this CV. Please try again." });
+          return;
+        }
+        set({ currentCV, isLoading: false, error: null });
+      } catch {
+        if (generation !== loadGeneration) return;
+        set({ isLoading: false, error: "Unable to load this CV. Please try again." });
+      }
+    },
+
+    setIsSaving: (saving) => set({ isSaving: saving }),
+    setLastSaved: (date) => set({ lastSaved: date }),
+  };
+});
