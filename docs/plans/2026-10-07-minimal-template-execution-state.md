@@ -12,12 +12,22 @@ Active tracker head: `FEAT-01M4BY57VCRVC5QQ8HY66JC33T`.
   Focused pytest: 107 passed; assigned-file Ruff and diff whitespace passed.
   Handoff: `/tmp/minimal-p01-handoff.md`.
 - Codegen: generated schema refreshed; `npm run codegen:check` passed.
-- P02: implementation running after reviewed contract/codegen.
+- P02: complete and reviewed. Inherited size/line height/gap hints added without
+  storing defaults. Browser fixture covers open/edit/clear/reset/template switch
+  and document-spacing precedence. Desktop/mobile captures inspected; detector,
+  lint, typecheck, architecture checks passed. Existing RichTextToolbar lint
+  warning remains. Handoff: `/tmp/minimal-p02-handoff.md`.
 - P03: implementation running; original PDF measurements saved in
   `docs/fixtures/minimal-readability/baseline.json`. Update old v3 test assertion
   in owned scanner-backfill tests and verify final PDF/freshness behavior.
-- P04: pending integration; read-only Luna review.
-- Release checks: pending implementation.
+- P04: read-only Luna review running; final PDF evidence pending P03.
+- Release checks: `./dev.sh --smoke` passed. Full backend pytest running;
+  full backend Ruff and tailoring-skill Node tests passed (3 tests).
+
+## Saved checkpoints
+
+- `30667aa`: initial audit, plan, tracker, and execution-state checkpoint.
+- `fb12368`: reviewed P01 renderer/schema/defaults plus generated web schema.
 
 ## Resume instructions
 

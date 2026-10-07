@@ -12,11 +12,15 @@
  */
 
 import type {
+  Customizations,
   LayoutHints,
   SectionInstanceStyle,
   SectionTypography,
   SubsectionStyle,
+  TemplateManifest,
 } from "@/shared/cv/schema";
+import { SECTION_SPACING_PX } from "@/styles/tokens";
+import type { SectionSpacingToken } from "@/styles/tokens";
 import {
   defaultLayoutFor,
   defaultPolicyFor,
@@ -67,6 +71,43 @@ export function effectiveStyle(
  * value. Used by the override pill and revert affordance. */
 export function isOverridden<T>(effective: T, inherited: T): boolean {
   return JSON.stringify(effective) !== JSON.stringify(inherited);
+}
+
+export interface InheritedGapHint {
+  source: "Template default" | "Document spacing" | "Default";
+  pixels: number;
+}
+
+/** Resolve the inherited entry or field gap shown by the inspector. This
+ * mirrors the render resolver's precedence without writing values to a
+ * section instance: document spacing owns the gap when selected, otherwise
+ * the manifest's dedicated token wins over its legacy layout preset. */
+export function inheritedGapHint(
+  manifest: TemplateManifest | null | undefined,
+  customizations: Customizations,
+  axis: "entry_gap" | "field_gap",
+): InheritedGapHint {
+  const documentSpacing = customizations.spacing;
+  const layoutDefaults = manifest?.layout_defaults;
+  const preset = documentSpacing ?? layoutDefaults?.spacing ?? "none";
+  const token = documentSpacing == null ? layoutDefaults?.[axis] : null;
+  const presetGapPixels: Record<NonNullable<NonNullable<TemplateManifest["layout_defaults"]>["spacing"]>, number> = {
+    none: 0,
+    compact: 0,
+    comfortable: 16,
+    minimal: 0,
+  };
+
+  return {
+    source: documentSpacing != null
+      ? "Document spacing"
+      : manifest
+        ? "Template default"
+        : "Default",
+    pixels: token != null
+      ? SECTION_SPACING_PX[token as SectionSpacingToken]
+      : presetGapPixels[preset],
+  };
 }
 
 /** Strip a section-instance override back to "inherit from document".

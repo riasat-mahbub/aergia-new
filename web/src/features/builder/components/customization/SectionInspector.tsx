@@ -9,6 +9,7 @@
 
 import { useMemo } from "react";
 import type {
+  GlobalStyles,
   LayoutHints,
   SectionInstance,
   SectionInstanceStyle,
@@ -20,6 +21,7 @@ import type {
 import { ink, ruleDefault } from "@/styles/tokens";
 import { fieldsForInstance } from "../../domain/customization/fieldsForInstance";
 import { effectiveStyle } from "../../domain/customization/cascade";
+import type { InheritedGapHint } from "../../domain/customization/cascade";
 import AppearanceGroup from "./groups/AppearanceGroup";
 import BodyTextGroup from "./groups/BodyTextGroup";
 import { AlignmentGroup, DatesGroup, PageBreakGroup } from "./groups/LayoutGroups";
@@ -31,16 +33,24 @@ import { updateAxis, updateTextStyle, updateTypographyAxis } from "./groups/styl
 interface Props {
   instance: SectionInstance;
   inheritedBodyFont: string | null;
+  inheritedBodySize: GlobalStyles["body_font_size"] | null;
+  inheritedBodyLineHeight: GlobalStyles["body_line_height"] | null;
   inheritedHeadingFont: string | null;
   inheritedAccent: string | null;
+  inheritedEntryGap: InheritedGapHint;
+  inheritedFieldGap: InheritedGapHint;
   onChange: (next: SectionInstanceStyle) => void;
 }
 
 export default function SectionInspector({
   instance,
   inheritedBodyFont,
+  inheritedBodySize,
+  inheritedBodyLineHeight,
   inheritedHeadingFont,
   inheritedAccent,
+  inheritedEntryGap,
+  inheritedFieldGap,
   onChange,
 }: Props) {
   const style = useMemo(() => effectiveStyle(instance.type, instance.style), [instance.type, instance.style]);
@@ -72,8 +82,12 @@ export default function SectionInspector({
     style,
     rawStyle,
     inheritedBodyFont,
+    inheritedBodySize,
+    inheritedBodyLineHeight,
     inheritedHeadingFont,
     inheritedAccent,
+    inheritedEntryGap,
+    inheritedFieldGap,
     onChange,
     updateSubsection,
     updateLayout,

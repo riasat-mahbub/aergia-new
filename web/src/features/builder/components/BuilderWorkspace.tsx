@@ -77,9 +77,7 @@ export default function BuilderWorkspace({
             <Inspector
               templateId={cv.template_id}
               templateName={templateManifest?.name ?? ""}
-              templateBodyFont={templateManifest?.manifest?.global_styles?.body_font ?? null}
-              templateHeadingFont={templateManifest?.manifest?.global_styles?.heading_font ?? null}
-              templateAccent={templateManifest?.manifest?.global_styles?.accent_color ?? null}
+              templateManifest={templateManifest?.manifest ?? null}
               instances={instances}
               onUpdateStyle={onUpdateStyle}
               onTemplateChange={onTemplateChange}
