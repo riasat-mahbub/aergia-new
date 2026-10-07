@@ -7,10 +7,15 @@ Active tracker head: `FEAT-01M4BY57VCRVC5QQ8HY66JC33T`.
 
 ## Current state
 
-- P01: running, GPT-6 Luna / max. Owns schema, seed, pure resolver, HTML defaults,
-  renderer version, and focused existing backend tests listed in the plan.
-- P02: read-only preparation running; edits await reviewed P01/codegen.
-- P03: baseline/fixture preparation running; tests await reviewed P01.
+- P01: complete and reviewed. Optional schema, Minimal defaults, safe CSS vars,
+  independent gaps, renderer version v4, compatibility/override tests implemented.
+  Focused pytest: 107 passed; assigned-file Ruff and diff whitespace passed.
+  Handoff: `/tmp/minimal-p01-handoff.md`.
+- Codegen: generated schema refreshed; `npm run codegen:check` passed.
+- P02: implementation running after reviewed contract/codegen.
+- P03: implementation running; original PDF measurements saved in
+  `docs/fixtures/minimal-readability/baseline.json`. Update old v3 test assertion
+  in owned scanner-backfill tests and verify final PDF/freshness behavior.
 - P04: pending integration; read-only Luna review.
 - Release checks: pending implementation.
 

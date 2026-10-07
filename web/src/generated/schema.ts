@@ -1,5 +1,5 @@
 // This file is generated. Do not edit by hand.
-// Source: api/app/document_schema/models.py (sha256:540460854e1f0542)
+// Source: api/app/document_schema/models.py (sha256:070265e4d0f16a5a)
 
 export interface CVLayout {
   "placement"?: Record<string, string>;
@@ -47,10 +47,14 @@ export interface FieldBlock {
 export interface GlobalStyles {
   "accent_color"?: (string) | null;
   "body_font"?: (("sans-serif" | "serif" | "mono" | "display")) | null;
+  "body_font_size"?: (("xs" | "small" | "normal" | "large" | "xl")) | null;
+  "body_line_height"?: (("tight" | "normal" | "relaxed")) | null;
   "heading_font"?: (("sans-serif" | "serif" | "mono" | "display")) | null;
 }
 
 export interface LayoutDefaults {
+  "entry_gap"?: (("none" | "tight" | "snug" | "balanced" | "roomy" | "comfortable" | "loose" | "spacious")) | null;
+  "field_gap"?: (("none" | "tight" | "snug" | "balanced" | "roomy" | "comfortable" | "loose" | "spacious")) | null;
   "spacing"?: ("none" | "compact" | "comfortable" | "minimal");
 }
 

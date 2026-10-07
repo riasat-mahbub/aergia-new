@@ -192,7 +192,7 @@ def _render_entry(
     gap = (
         _safe_spacing(
             (section_subsection.field_gap if section_subsection and section_subsection.field_gap else None)
-            or "var(--spacing-subsection, 0px)"
+            or "var(--spacing-field, var(--spacing-subsection, 0px))"
         )
         or "0px"
     )
@@ -247,7 +247,7 @@ def _render_entry_two_column(
     gap = (
         _safe_spacing(
             (section_subsection.field_gap if section_subsection and section_subsection.field_gap else None)
-            or "var(--spacing-subsection, 0px)"
+            or "var(--spacing-field, var(--spacing-subsection, 0px))"
         )
         or "0px"
     )
