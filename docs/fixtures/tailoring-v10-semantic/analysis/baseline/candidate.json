@@ -1,0 +1,119 @@
+{
+  "id": null,
+  "title": "Junior Data Analyst",
+  "description": null,
+  "template_id": "generic-minimal",
+  "sections": [
+    {
+      "id": "profile",
+      "type": "profile",
+      "title": "Profile",
+      "enabled": true,
+      "data": {
+        "title": "Junior Data Analyst",
+        "location": "Halifax, Canada",
+        "summary": "Junior Data Analyst with hands-on pandas experience cleaning museum attendance CSVs and preparing monthly charts, plus university coursework in SQL joins and aggregation. Ready to apply that foundation to validating tabular data, investigating inconsistent records, and explaining findings and limitations to research partners; ready to learn Tableau or Power BI for reporting.",
+        "name": "Avery Chen",
+        "email": "avery.chen@example.test",
+        "email_link": true,
+        "social_links": []
+      },
+      "style": null
+    },
+    {
+      "id": "experience",
+      "type": "experience",
+      "title": "Work Experience",
+      "enabled": true,
+      "data": [
+        {
+          "id": "seaside-museum-volunteer-data-assistant",
+          "position": "Volunteer Data Assistant",
+          "company": "Seaside Museum",
+          "start_date": "2024-01",
+          "end_date": "2024-06",
+          "current": false,
+          "description": "Used pandas to clean CSV attendance records and prepared monthly charts with notes on excluded entries. Explained chart patterns and data exclusions to museum volunteer coordinators."
+        }
+      ],
+      "style": null
+    },
+    {
+      "id": "education",
+      "type": "education",
+      "title": "Education",
+      "enabled": true,
+      "data": [
+        {
+          "id": "north-coast-university-mathematics",
+          "degree": "Bachelor of Mathematics, completed 2023",
+          "institution": "North Coast University",
+          "end_date": "2023",
+          "current": false
+        }
+      ],
+      "style": null
+    },
+    {
+      "id": "skills",
+      "type": "skills",
+      "title": "Skills",
+      "enabled": true,
+      "data": [
+        {
+          "id": "python-data-preparation",
+          "category": "Python and data preparation",
+          "items": [
+            "Python (pandas)",
+            "CSV data cleaning",
+            "Notes on excluded entries"
+          ]
+        },
+        {
+          "id": "sql-coursework",
+          "category": "SQL coursework",
+          "items": [
+            "Joins",
+            "Aggregation"
+          ]
+        },
+        {
+          "id": "analysis-and-communication",
+          "category": "Analysis and communication",
+          "items": [
+            "Monthly charts",
+            "Explaining chart patterns and data exclusions"
+          ]
+        }
+      ],
+      "style": null
+    }
+  ],
+  "customizations": {
+    "accent_color": null,
+    "body_font": null,
+    "heading_font": null,
+    "default_text_align": null,
+    "spacing": null,
+    "flags": {},
+    "layout": {
+      "zones": [
+        {
+          "id": "main",
+          "label": null,
+          "styles": {
+            "width": "full",
+            "background": null,
+            "padding": "spacious"
+          }
+        }
+      ],
+      "placement": {
+        "profile": "main",
+        "experience": "main",
+        "education": "main",
+        "skills": "main"
+      }
+    }
+  }
+}

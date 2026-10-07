@@ -1,0 +1,73 @@
+{
+  "title": "Avery Chen | Project Support Assistant",
+  "template_id": "generic-minimal",
+  "sections": [
+    {
+      "id": "profile",
+      "type": "profile",
+      "title": "Profile",
+      "enabled": true,
+      "data": {
+        "title": "Project Support Assistant",
+        "location": "Halifax, Canada",
+        "summary": "Seeking a Project Support Assistant role, bringing student group project experience with task lists, dependency tracking, meeting notes, and follow-up on agreed actions. I kept participants informed about a room change and am ready to support project schedules, meeting coordination, and collaborative problem solving in a remote Canadian team."
+      }
+    },
+    {
+      "id": "projects",
+      "type": "projects",
+      "title": "Projects",
+      "enabled": true,
+      "data": [
+        {
+          "id": "campus-study-workshop",
+          "name": "Campus Study Workshop (2024)",
+          "end_date": "2024",
+          "description": "Kept task lists and tracked dependencies for a student group project. Recorded meeting notes, followed up with group members on agreed actions, and notified participants when the room changed."
+        }
+      ]
+    },
+    {
+      "id": "education",
+      "type": "education",
+      "title": "Education",
+      "enabled": true,
+      "data": [
+        {
+          "id": "bachelor-of-arts-north-coast-university",
+          "degree": "Bachelor of Arts",
+          "institution": "North Coast University",
+          "end_date": "2024",
+          "summary": "Completed in 2024."
+        }
+      ]
+    },
+    {
+      "id": "skills",
+      "type": "skills",
+      "title": "Skills",
+      "enabled": true,
+      "data": [
+        {
+          "id": "project-support-skills",
+          "category": "Project support",
+          "items": [
+            "Task tracking",
+            "Dependency tracking",
+            "Meeting notes",
+            "Action follow-up"
+          ]
+        },
+        {
+          "id": "communication-teamwork-skills",
+          "category": "Communication and teamwork",
+          "items": [
+            "Participant updates",
+            "Group collaboration"
+          ]
+        }
+      ]
+    }
+  ],
+  "customizations": {}
+}

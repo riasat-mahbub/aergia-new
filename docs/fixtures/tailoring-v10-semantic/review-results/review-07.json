@@ -1,0 +1,27 @@
+{
+  "version": "fit-review-v1",
+  "evaluation_id": "9a17c666-fa0d-4ca8-912b-b5e66ae0c582",
+  "candidate_hash": "11571d6f540a76f46227b363eead3cc33ad01e5846150f25c788791aabce19c8",
+  "pdf_sha256": "b6aa539bf5ca87f7ab031174e009d73487c4c7d3b191f05b1d32391719df79fe",
+  "status": "completed",
+  "mode": "fresh_agent",
+  "verdict": "partially_tailored",
+  "rationale": "The one-page CV is clearly aimed at the Junior Data Analyst role: its summary and skills foreground pandas CSV cleaning, charts with documented exclusions, SQL joins and aggregation, and its museum example shows explaining patterns and limitations to coordinators. Halifax, Canada also matches the remote-work location. Fit is partial because SQL appears only as coursework and the experience does not describe checks for inconsistent records or Tableau/Power BI exposure. The text is legible with clear section headings, though it occupies the top half of the page and leaves substantial unused space below.",
+  "strong_connections": [
+    "Hands-on Python/pandas CSV attendance-data cleaning and monthly chart preparation are explicit in the summary, experience, and skills.",
+    "Notes on excluded entries and explanations of chart patterns and limitations to museum coordinators align with transparent reporting for nontechnical partners.",
+    "SQL joins and aggregation coursework addresses the stated SQL requirement, though it is not shown as applied work.",
+    "Halifax, Canada is consistent with the job's remote work from Canada location."
+  ],
+  "weak_or_missing_connections": [
+    "SQL is presented as coursework; no applied query or project is shown.",
+    "The attendance-data example does not explain how inconsistent records were identified or validated.",
+    "Tableau or Power BI experience is not shown; the summary says the candidate is ready to learn either.",
+    "The readable one-page layout leaves roughly the lower half of the page unused."
+  ],
+  "recommended_changes": [
+    "If accurate, name the checks used to find and validate inconsistent attendance records, connecting the cleaning work to the job's validation duties.",
+    "If available, add a brief applied SQL example alongside the joins and aggregation coursework.",
+    "If there is hands-on Tableau or Power BI exposure, name it; otherwise keep the current readiness-to-learn wording."
+  ]
+}

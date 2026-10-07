@@ -1,0 +1,1 @@
+Selected `candidate-final.json` for rendering. The page is readable and fits on one page. I removed the redundant same-year project date ranges and named the missing-optional-field tests as an edge case, which makes the existing evidence clearer for the role. All claims remain grounded in the dossier; Docker, production deployment, and code review remain future-facing.

@@ -1,0 +1,26 @@
+{
+  "version": "fit-review-v1",
+  "evaluation_id": "699117f5-5fb4-4823-b0aa-10613d7c279a",
+  "candidate_hash": "7e229e29d5c0a2fe4ff0f96558f3b6ed253432c94ebc71b56a3d3dc038d04ad3",
+  "pdf_sha256": "f98497a15aa2c8f7a92185510ce68bf2e2ccbede50d6c8dc5540bba0c6cc7d3f",
+  "status": "completed",
+  "mode": "fresh_agent",
+  "verdict": "tailored",
+  "rationale": "The one-page CV directly connects a Python public API to CSV project to the role's integration work and shows a pytest case for a missing optional field, GitHub Actions on pushes, and README setup documentation. The page is readable. Concrete detail is concentrated in one project; code review and Docker or deployment appear as collaboration or learning claims rather than demonstrated work.",
+  "strong_connections": [
+    "Built a Python script that fetches data from a public API and writes CSV files.",
+    "Added pytest coverage for the missing optional field edge case.",
+    "Configured GitHub Actions to run tests on pushes and documented setup and assumptions in a README.",
+    "The CV lists Halifax, Canada, matching the job's Canadian remote location requirement."
+  ],
+  "weak_or_missing_connections": [
+    "The API project shows a concrete integration, but does not describe maintenance or its scope and outcome.",
+    "The course application entry says only that the candidate collaborated with three peers; it gives no code review or interface documentation example.",
+    "Docker and production deployment are described as learning areas, with no applied example shown."
+  ],
+  "recommended_changes": [
+    "Use some of the open page space to clarify the API project's scope, edge-case handling, and outcome, if accurate.",
+    "Make the course application contribution more concrete, including a code review example if one occurred.",
+    "If Docker or deployment was used in a project, name that example; otherwise keep the wording clearly framed as learning."
+  ]
+}

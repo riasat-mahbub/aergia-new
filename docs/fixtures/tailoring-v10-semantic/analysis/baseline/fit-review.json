@@ -1,0 +1,26 @@
+{
+  "version": "fit-review-v1",
+  "evaluation_id": "cd8d96a0-7135-4b7d-867a-ae148c15a895",
+  "candidate_hash": "356644552c725fc763f0ee2836bba16280a4dd465466f117d09fcf0d797772b2",
+  "pdf_sha256": "b9c796f359dd8531de693b2d34e0967bdd5ca14db1570f6e0616b2c66a1e9d97",
+  "status": "completed",
+  "mode": "fresh_agent",
+  "verdict": "partially_tailored",
+  "rationale": "The one-page CV uses the Junior Data Analyst title and shows direct overlap: pandas cleaning of museum attendance CSVs, monthly charts, notes on excluded entries, and explaining patterns and exclusions to volunteer coordinators. A mathematics degree and SQL joins/aggregation coursework add relevant foundation. It is partially tailored because record validation and inconsistent-record investigation are stated as future readiness, SQL is shown only as coursework, and no preferred BI tool is listed.",
+  "strong_connections": [
+    "The stated target title is Junior Data Analyst, and the candidate is based in Halifax, Canada, matching the role and location requirements.",
+    "Volunteer work describes using pandas to clean attendance CSVs and prepare monthly charts, matching data preparation and reporting needs.",
+    "The CV says charts included notes on excluded entries and that patterns and exclusions were explained to museum volunteer coordinators, connecting to communicating findings and limitations to nontechnical partners.",
+    "A Bachelor of Mathematics and SQL joins and aggregation coursework are relevant foundations for the analyst role."
+  ],
+  "weak_or_missing_connections": [
+    "The work entry does not show specific validation checks or an investigation of inconsistent records; those appear as intended future work in the summary.",
+    "SQL is listed as coursework in joins and aggregation, with no applied SQL example shown.",
+    "Tableau or Power BI, both named as preferred tools in the job, are not shown."
+  ],
+  "recommended_changes": [
+    "If supported by the work, add a concrete example of a validation check or inconsistent-record investigation, including what was found and how exclusions or corrections were handled.",
+    "Add a concise applied SQL example that demonstrates joins and aggregation, clearly identifying whether it came from coursework or a project.",
+    "If applicable, name a Tableau or Power BI report example; otherwise, expand the monthly-chart bullet with the report's purpose and how its limitations were communicated."
+  ]
+}

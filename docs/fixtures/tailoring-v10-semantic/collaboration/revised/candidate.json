@@ -1,0 +1,110 @@
+{
+  "id": null,
+  "title": "Project Support Assistant",
+  "description": null,
+  "template_id": "generic-minimal",
+  "sections": [
+    {
+      "id": "profile",
+      "type": "profile",
+      "title": "Profile",
+      "enabled": true,
+      "data": {
+        "title": "Project Support Assistant",
+        "location": "Halifax, Canada",
+        "summary": "Recent Bachelor of Arts graduate seeking a Project Support Assistant role, with student project experience tracking tasks and dependencies, recording meeting notes, following up on agreed actions, and updating participants when arrangements changed. Ready to apply collaborative problem solving and adaptable organization in remote project support across Canada.",
+        "name": "Avery Chen",
+        "email": "avery.chen@example.test",
+        "email_link": true,
+        "social_links": []
+      },
+      "style": null
+    },
+    {
+      "id": "projects",
+      "type": "projects",
+      "title": "Projects",
+      "enabled": true,
+      "data": [
+        {
+          "id": "campus-study-workshop-2024",
+          "name": "Campus Study Workshop",
+          "start_date": "2024",
+          "end_date": "2024",
+          "description": "Student group project. Kept task lists and dependencies visible, recorded meeting notes, and followed up with group members on agreed actions. When the workshop room changed, notified participants of the updated location so they could adjust their plans."
+        }
+      ],
+      "style": null
+    },
+    {
+      "id": "education",
+      "type": "education",
+      "title": "Education",
+      "enabled": true,
+      "data": [
+        {
+          "id": "bachelor-of-arts-north-coast-university-2024",
+          "degree": "Bachelor of Arts",
+          "institution": "North Coast University",
+          "end_date": "2024"
+        }
+      ],
+      "style": null
+    },
+    {
+      "id": "skills",
+      "type": "skills",
+      "title": "Skills",
+      "enabled": true,
+      "data": [
+        {
+          "id": "project-support-skills",
+          "category": "Project support",
+          "items": [
+            "Task tracking",
+            "Dependency tracking",
+            "Meeting notes",
+            "Action follow-up"
+          ]
+        },
+        {
+          "id": "communication-and-organization-skills",
+          "category": "Communication and organization",
+          "items": [
+            "Participant updates",
+            "Collaborative problem solving",
+            "Adaptable organization"
+          ]
+        }
+      ],
+      "style": null
+    }
+  ],
+  "customizations": {
+    "accent_color": null,
+    "body_font": null,
+    "heading_font": null,
+    "default_text_align": null,
+    "spacing": null,
+    "flags": {},
+    "layout": {
+      "zones": [
+        {
+          "id": "main",
+          "label": null,
+          "styles": {
+            "width": "full",
+            "background": null,
+            "padding": "spacious"
+          }
+        }
+      ],
+      "placement": {
+        "profile": "main",
+        "projects": "main",
+        "education": "main",
+        "skills": "main"
+      }
+    }
+  }
+}
