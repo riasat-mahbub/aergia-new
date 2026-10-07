@@ -674,6 +674,189 @@ async def test_actual_v9_row_keeps_bodyless_historical_acceptance(client):
     assert accepted.json()["protocol_version"] == 9
     assert accepted.json()["status"] == "accepted"
     assert accepted.json()["cv_id"] == draft_id
+    rejected_after_accept = await client.post(
+        f"/api/v1/tailoring/sessions/{session_id}/reject",
+        headers=headers,
+    )
+    assert rejected_after_accept.status_code == 409
+
+
+@pytest.mark.parametrize("legacy_status", ["stale", "expired"])
+@pytest.mark.asyncio
+async def test_historical_v9_submitted_draft_can_be_discarded_and_restarted(client, legacy_status):
+    headers, _email, _profile_data, application, _source_id = await _owner_and_application(client)
+    fixture = json.loads((Path(__file__).parent / "fixtures" / "tailoring-v9-submission.json").read_text())
+    candidate = fixture["candidate"]
+    candidate_hash = sha256(
+        json.dumps(candidate, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str).encode()
+    ).hexdigest()
+    assert candidate_hash == fixture["result"]["candidate_hash"]
+
+    async with async_session() as db:
+        owner = await db.scalar(select(User).where(User.id == application["user_id"]))
+        app = await db.get(Application, application["id"])
+        draft = await CVService(db).create_cv(
+            owner.id,
+            CVCreate.model_validate(
+                {
+                    "title": candidate["title"],
+                    "template_id": candidate["template_id"],
+                    "sections": candidate["sections"],
+                    "customizations": candidate["customizations"],
+                }
+            ),
+            application_id=app.id,
+        )
+        draft_id = draft.id
+        scanner_result = _FixtureScanner().scan(app.job_description, candidate).model_dump(mode="json")
+        session_id = str(uuid4())
+        legacy_result = deepcopy(fixture["result"])
+        legacy_result.update(
+            session_id=session_id,
+            application_id=app.id,
+            draft_cv_id=draft_id,
+            candidate=candidate,
+            scanner_result=scanner_result,
+        )
+        db.add(
+            TailoringSession(
+                id=session_id,
+                user_id=owner.id,
+                application_id=app.id,
+                cv_id=None,
+                draft_cv_id=draft_id,
+                code_hash=f"v9-discard-{uuid4().hex}",
+                status=legacy_status,
+                protocol_version=9,
+                expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+                submitted_at=datetime.now(timezone.utc),
+                result=legacy_result,
+            )
+        )
+        await db.flush()
+        count_before_discard = await db.scalar(select(User.cv_count).where(User.id == owner.id))
+        await db.commit()
+
+    blocked = await client.post(
+        f"/api/v1/applications/{application['id']}/tailoring-sessions",
+        headers=headers,
+    )
+    assert blocked.status_code == 409
+    assert blocked.json()["code"] == "session_in_progress"
+
+    discarded = await client.post(f"/api/v1/tailoring/sessions/{session_id}/reject", headers=headers)
+    assert discarded.status_code == 200, discarded.text
+    assert discarded.json()["protocol_version"] == 9
+    assert discarded.json()["status"] == "rejected"
+    repeated = await client.post(f"/api/v1/tailoring/sessions/{session_id}/reject", headers=headers)
+    assert repeated.status_code == 200
+    assert repeated.json()["status"] == "rejected"
+
+    async with async_session() as db:
+        owner_cv_count = await db.scalar(select(User.cv_count).where(User.id == application["user_id"]))
+        reservation_count = await db.scalar(
+            select(func.count(TailoringReplacementReservation.id)).where(
+                TailoringReplacementReservation.application_id == application["id"]
+            )
+        )
+        session = await db.get(TailoringSession, session_id)
+    assert session.status == "rejected"
+    assert session.draft_cv_id == draft_id
+    assert owner_cv_count == count_before_discard - 1
+    assert reservation_count == 0
+
+    restarted = await client.post(
+        f"/api/v1/applications/{application['id']}/tailoring-sessions",
+        headers=headers,
+    )
+    assert restarted.status_code == 201, restarted.text
+
+
+@pytest.mark.asyncio
+async def test_historical_v9_missing_draft_can_be_discarded_without_quota_allowance(client):
+    headers, _email, _profile_data, application, _source_id = await _owner_and_application(client)
+    fixture = json.loads((Path(__file__).parent / "fixtures" / "tailoring-v9-submission.json").read_text())
+    candidate = fixture["candidate"]
+    session_id = str(uuid4())
+    missing_draft_id = "deleted-historical-v9-draft"
+    async with async_session() as db:
+        owner = await db.scalar(select(User).where(User.id == application["user_id"]))
+        app = await db.get(Application, application["id"])
+        legacy_result = deepcopy(fixture["result"])
+        legacy_result.update(
+            session_id=session_id,
+            application_id=app.id,
+            draft_cv_id=missing_draft_id,
+            candidate=candidate,
+            scanner_result={"schema_version": "legacy-scanner-v0"},
+        )
+        db.add(
+            TailoringSession(
+                id=session_id,
+                user_id=owner.id,
+                application_id=app.id,
+                cv_id=None,
+                draft_cv_id=None,
+                code_hash=f"v9-missing-{uuid4().hex}",
+                status="stale",
+                protocol_version=9,
+                expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+                submitted_at=datetime.now(timezone.utc),
+                result=legacy_result,
+            )
+        )
+        await db.commit()
+
+    discarded = await client.post(f"/api/v1/tailoring/sessions/{session_id}/reject", headers=headers)
+    assert discarded.status_code == 200, discarded.text
+    assert discarded.json()["status"] == "rejected"
+    assert discarded.json()["draft_cv_id"] is None
+    assert discarded.json()["scanner_result"] is None
+    repeated = await client.post(f"/api/v1/tailoring/sessions/{session_id}/reject", headers=headers)
+    assert repeated.status_code == 200
+    assert repeated.json()["status"] == "rejected"
+
+    async with async_session() as db:
+        owner = await db.scalar(select(User).where(User.id == application["user_id"]))
+        reservation_count = await db.scalar(
+            select(func.count(TailoringReplacementReservation.id)).where(
+                TailoringReplacementReservation.application_id == application["id"]
+            )
+        )
+        session = await db.get(TailoringSession, session_id)
+    assert owner.cv_count == 0
+    assert reservation_count == 0
+    assert session.status == "rejected"
+    assert session.result["draft_cv_id"] == missing_draft_id
+
+    restarted = await client.post(
+        f"/api/v1/applications/{application['id']}/tailoring-sessions",
+        headers=headers,
+    )
+    assert restarted.status_code == 201, restarted.text
+
+
+@pytest.mark.asyncio
+async def test_expired_author_session_without_a_draft_can_be_restarted(client):
+    headers, _email, _profile_data, application, _source_id = await _owner_and_application(client)
+    created = await client.post(
+        f"/api/v1/applications/{application['id']}/tailoring-sessions",
+        headers=headers,
+    )
+    assert created.status_code == 201, created.text
+
+    async with async_session() as db:
+        session = await db.get(TailoringSession, created.json()["session_id"])
+        session.status = "expired"
+        session.capability_hash = None
+        await db.commit()
+
+    restarted = await client.post(
+        f"/api/v1/applications/{application['id']}/tailoring-sessions",
+        headers=headers,
+    )
+    assert restarted.status_code == 201, restarted.text
+    assert restarted.json()["session_id"] != created.json()["session_id"]
 
 
 @pytest.mark.asyncio

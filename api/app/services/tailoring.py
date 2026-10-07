@@ -1064,6 +1064,7 @@ class TailoringService:
                         TAILORING_SESSION_EXCHANGED,
                         TAILORING_SESSION_DRAFT_READY,
                         TAILORING_SESSION_STALE,
+                        TAILORING_SESSION_EXPIRED,
                     )
                 ),
             )
@@ -1072,6 +1073,16 @@ class TailoringService:
         reconcile_stale: list[tuple[TailoringSession, str, str]] = []
         stale_draft_requires_discard = False
         for existing in existing_result.scalars().all():
+            if existing.status == TAILORING_SESSION_EXPIRED:
+                if existing.draft_cv_id:
+                    expired_draft = await self._owned_cv(existing.draft_cv_id, user_id)
+                    if expired_draft is not None and expired_draft.application_id == application_id:
+                        raise TailoringConflictError(
+                            "Discard the expired tailoring draft before starting another session",
+                            code="session_in_progress",
+                        )
+                    reconcile_stale.append((existing, TAILORING_SESSION_STALE, "draft_missing"))
+                continue
             if existing.status == TAILORING_SESSION_STALE:
                 if existing.draft_cv_id:
                     stale_draft = await self._owned_cv(existing.draft_cv_id, user_id)
@@ -1190,7 +1201,13 @@ class TailoringService:
                     stale_query = update(TailoringSession).where(TailoringSession.id == existing.id)
                     if stale_reason in {"draft_missing", "draft_target_mismatch"}:
                         stale_query = stale_query.where(
-                            TailoringSession.status.in_((TAILORING_SESSION_DRAFT_READY, TAILORING_SESSION_STALE)),
+                            TailoringSession.status.in_(
+                                (
+                                    TAILORING_SESSION_DRAFT_READY,
+                                    TAILORING_SESSION_STALE,
+                                    TAILORING_SESSION_EXPIRED,
+                                )
+                            ),
                             TailoringSession.draft_cv_id == existing.draft_cv_id,
                         )
                     else:
@@ -1320,6 +1337,33 @@ class TailoringService:
         if isinstance(session.submission_result, dict):
             return session.submission_result
         return session.result if isinstance(session.result, dict) else None
+
+    @staticmethod
+    def _scanner_result_from_submission(payload: Mapping[str, Any] | None) -> ScanResult | None:
+        if not payload or not payload.get("scanner_result"):
+            return None
+        try:
+            return ScanResult.model_validate(payload["scanner_result"])
+        except (TypeError, ValidationError):
+            return None
+
+    @staticmethod
+    def _has_historical_submission(session: TailoringSession) -> bool:
+        if (
+            session.status == TAILORING_SESSION_DRAFT_READY
+            or session.submitted_at is not None
+            or session.draft_cv_id is not None
+        ):
+            return True
+        payload = TailoringService._submission_payload(session)
+        return bool(
+            payload
+            and (
+                payload.get("status") == TAILORING_SESSION_DRAFT_READY
+                or payload.get("draft_cv_id") is not None
+                or isinstance(payload.get("candidate"), Mapping)
+            )
+        )
 
     @staticmethod
     def _persisted_candidate(draft: CV) -> dict[str, Any]:
@@ -1531,7 +1575,9 @@ class TailoringService:
                 .where(
                     TailoringSession.id == session.id,
                     TailoringSession.user_id == session.user_id,
-                    TailoringSession.status.in_((TAILORING_SESSION_DRAFT_READY, TAILORING_SESSION_STALE)),
+                    TailoringSession.status.in_(
+                        (TAILORING_SESSION_DRAFT_READY, TAILORING_SESSION_STALE, TAILORING_SESSION_EXPIRED)
+                    ),
                 )
                 .values(**values)
             )
@@ -2835,7 +2881,13 @@ class TailoringService:
                             TailoringSession.application_id == application_id,
                             TailoringSession.user_id == session.user_id,
                             TailoringSession.id != session.id,
-                            TailoringSession.status.in_((TAILORING_SESSION_DRAFT_READY, TAILORING_SESSION_STALE)),
+                            TailoringSession.status.in_(
+                                (
+                                    TAILORING_SESSION_DRAFT_READY,
+                                    TAILORING_SESSION_STALE,
+                                    TAILORING_SESSION_EXPIRED,
+                                )
+                            ),
                         )
                     )
                     for other_session in other_result.scalars().all():
@@ -3657,34 +3709,6 @@ class TailoringService:
 
     async def reject_draft(self, session_id: str, user_id: str) -> TailoringReviewResponse:
         session = await self._owned_session(session_id, user_id)
-        if session.protocol_version != PROTOCOL_VERSION:
-            if session.status != TAILORING_SESSION_DRAFT_READY or not session.draft_cv_id:
-                raise TailoringConflictError("Tailoring draft is not ready for rejection")
-            application = await self._owned_application(session.application_id, user_id)
-            if application is None:
-                raise TailoringConflictError("Tailoring application is no longer available")
-            deleted = await CVService(self.db).delete_cv(session.draft_cv_id, user_id)
-            if not deleted:
-                raise TailoringConflictError("Tailoring draft is no longer available")
-            now = _utcnow()
-            session.status = TAILORING_SESSION_REJECTED
-            session.reviewed_at = now
-            session.updated_at = now
-            await self.db.flush()
-            result = self._submission_payload(session) or {}
-            return TailoringReviewResponse(
-                protocol_version=session.protocol_version,
-                session_id=session.id,
-                application_id=session.application_id,
-                status="rejected",
-                source_cv_id=session.cv_id,
-                draft_cv_id=session.draft_cv_id,
-                cv_id=None,
-                scanner_result=ScanResult.model_validate(result.get("scanner_result"))
-                if result.get("scanner_result")
-                else None,
-            )
-
         if session.status == TAILORING_SESSION_ACCEPTED:
             raise TailoringConflictError("An accepted tailoring draft cannot be discarded")
         if session.status == TAILORING_SESSION_REJECTED:
@@ -3697,12 +3721,18 @@ class TailoringService:
                 source_cv_id=session.cv_id,
                 draft_cv_id=session.draft_cv_id,
                 cv_id=None,
-                scanner_result=ScanResult.model_validate(result.get("scanner_result"))
-                if result.get("scanner_result")
-                else None,
+                scanner_result=self._scanner_result_from_submission(result),
             )
-        if session.status not in {TAILORING_SESSION_DRAFT_READY, TAILORING_SESSION_STALE}:
-            if not session.draft_cv_id and session.status in {TAILORING_SESSION_EXPIRED, TAILORING_SESSION_FAILED}:
+        historical = session.protocol_version != PROTOCOL_VERSION
+        allowed_statuses = {TAILORING_SESSION_DRAFT_READY, TAILORING_SESSION_STALE}
+        if historical:
+            allowed_statuses.add(TAILORING_SESSION_EXPIRED)
+        if session.status not in allowed_statuses:
+            if (
+                not historical
+                and not session.draft_cv_id
+                and session.status in {TAILORING_SESSION_EXPIRED, TAILORING_SESSION_FAILED}
+            ):
                 return TailoringReviewResponse(
                     protocol_version=session.protocol_version,
                     session_id=session.id,
@@ -3712,6 +3742,8 @@ class TailoringService:
                     draft_cv_id=None,
                     cv_id=None,
                 )
+            raise TailoringConflictError("Tailoring draft is not ready for rejection")
+        if historical and not self._has_historical_submission(session):
             raise TailoringConflictError("Tailoring draft is not ready for rejection")
 
         draft_id = session.draft_cv_id
@@ -3734,9 +3766,16 @@ class TailoringService:
                 raise TailoringConflictError("An accepted tailoring draft cannot be discarded")
             if current_session.status == TAILORING_SESSION_REJECTED:
                 pass
-            elif current_session.status not in {TAILORING_SESSION_DRAFT_READY, TAILORING_SESSION_STALE}:
-                raise TailoringConflictError("Tailoring draft is not ready for rejection")
             else:
+                current_historical = current_session.protocol_version != PROTOCOL_VERSION
+                current_allowed_statuses = {TAILORING_SESSION_DRAFT_READY, TAILORING_SESSION_STALE}
+                if current_historical:
+                    current_allowed_statuses.add(TAILORING_SESSION_EXPIRED)
+                    if not self._has_historical_submission(current_session):
+                        raise TailoringConflictError("Tailoring draft is not ready for rejection")
+                if current_session.status not in current_allowed_statuses:
+                    raise TailoringConflictError("Tailoring draft is not ready for rejection")
+                draft_id = current_session.draft_cv_id
                 current_draft = await self._owned_cv(current_session.draft_cv_id, user_id)
                 if current_draft is not None:
                     try:
@@ -3750,7 +3789,7 @@ class TailoringService:
                     update(TailoringSession)
                     .where(
                         TailoringSession.id == current_session.id,
-                        TailoringSession.status.in_((TAILORING_SESSION_DRAFT_READY, TAILORING_SESSION_STALE)),
+                        TailoringSession.status.in_(current_allowed_statuses),
                     )
                     .values(status=TAILORING_SESSION_REJECTED, reviewed_at=now, updated_at=now)
                 )
@@ -3759,7 +3798,8 @@ class TailoringService:
                 current_session.status = TAILORING_SESSION_REJECTED
                 current_session.reviewed_at = now
                 current_session.updated_at = now
-                await self._release_session_replacement(current_session)
+                if not current_historical:
+                    await self._release_session_replacement(current_session)
                 await self._prune_terminal_preview_data(current_session.id, now)
                 await self.db.flush()
                 session.status = TAILORING_SESSION_REJECTED
@@ -3775,9 +3815,7 @@ class TailoringService:
             source_cv_id=session.cv_id,
             draft_cv_id=draft_id,
             cv_id=None,
-            scanner_result=ScanResult.model_validate(result.get("scanner_result"))
-            if result.get("scanner_result")
-            else None,
+            scanner_result=self._scanner_result_from_submission(result),
         )
 
 

@@ -7,9 +7,25 @@ P07 lifecycle work was verified against the temporary database created by
 
 | Command | Result |
 | --- | --- |
-| `cd api && .venv/bin/pytest -q tests/test_tailoring_v10_lifecycle.py` | 12 passed in 14.95s |
+| `cd api && .venv/bin/pytest -q tests/test_tailoring_v10_lifecycle.py tests/test_tailoring_v10_migration.py` | 18 passed in 19.63s |
 | `cd api && .venv/bin/pytest -q tests/test_tailoring.py tests/test_cvs.py tests/test_tailoring_v10_quota.py tests/test_tailoring_v10_concurrency.py` | 45 passed in 19.81s |
+| `cd api && .venv/bin/pytest -q tests/test_tailoring_v10_lifecycle.py tests/test_tailoring_v10_concurrency.py tests/test_tailoring.py tests/test_tailoring_v10_quota.py` | 53 passed in 31.91s |
 | `cd api && .venv/bin/ruff check app/services/tailoring.py app/routes/tailoring.py app/routes/cvs.py tests/test_tailoring_v10_lifecycle.py` | Passed |
+
+Focused historical regressions also pass: `pytest -q tests/test_tailoring_v10_lifecycle.py -k 'historical_v9 or actual_v9'`
+reports 4 passed. It covers frozen-v9 bodyless acceptance, stale and expired submitted
+rows with a surviving counted CV, a stale submitted row whose CV pointer is
+missing, repeated discard, quota release without creating a replacement
+reservation, and successful restart. The missing-draft case uses an obsolete
+scanner result schema and verifies discard succeeds with `scanner_result: null`.
+Discard remains forbidden for accepted v9 sessions.
+
+Expired rows with a surviving submitted draft remain a pending owner task;
+both the session-creation and submit pending checks include that state. The
+lifecycle regression verifies a second session is blocked until discard. An
+ordinary expired author session with no draft can restart. Expired rows with a
+missing draft pointer are reconciled through the `draft_missing` compare-and-
+swap path, whose candidate selection and final state guard include `expired`.
 
 The lifecycle suite covers exact selected-PDF retention and submit replay,
 fit-review binding, advisory findings, initial owner-current seeding,
@@ -19,7 +35,10 @@ transaction deletion reconciliation, and replacement quota cleanup. Its
 independent-session barriers cover a CV edit during rendering, contact or
 template changes during rendering, and competing accept/reject/delete actions.
 The historical acceptance case loads a protocol-v9 result envelope and checks
-bodyless acceptance without applying v10 normalization.
+bodyless acceptance without applying v10 normalization. Historical discard
+reuses the locked current-state reject path, recognizes submitted v4–v9 rows
+that migration preserved as stale or expired, retires an active draft through
+normal CV quota accounting, and treats an absent draft as an idempotent cleanup.
 
 ## Frozen protocol-v9 candidate provenance
 
