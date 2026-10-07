@@ -7,10 +7,11 @@
  */
 
 import { useEffect, useState } from "react";
-import type { Customizations, SectionInstance, SectionInstanceStyle } from "@/shared/cv/schema";
+import type { Customizations, SectionInstance, SectionInstanceStyle, TemplateManifest } from "@/shared/cv/schema";
 import { SECTION_LABELS } from "@/shared/cv/sectionCatalog";
 import { ink, ruleDefault, accent } from "@/styles/tokens";
 import { sectionStyleHasValues } from "../../domain/sectionStyle";
+import { inheritedGapHint } from "../../domain/customization/cascade";
 import ResetFooter from "./controls/ResetFooter";
 import SectionInspector from "./SectionInspector";
 
@@ -18,9 +19,7 @@ interface Props {
   templateId: string;
   /** Display name for the template — comes from the manifest. */
   templateName: string;
-  templateBodyFont?: string | null;
-  templateHeadingFont?: string | null;
-  templateAccent?: string | null;
+  templateManifest: TemplateManifest | null;
   instances: SectionInstance[];
   onUpdateStyle: (id: string, style: SectionInstanceStyle) => void;
   onTemplateChange: () => void | Promise<void>;
@@ -32,9 +31,7 @@ interface Props {
 export default function Inspector({
   templateId,
   templateName,
-  templateBodyFont,
-  templateHeadingFont,
-  templateAccent,
+  templateManifest,
   instances,
   onUpdateStyle,
   onTemplateChange,
@@ -54,9 +51,9 @@ export default function Inspector({
     }
   }, [instances, openId]);
 
-  const inheritedBodyFont = stringValue(customizations.body_font) ?? templateBodyFont ?? null;
-  const inheritedHeadingFont = stringValue(customizations.heading_font) ?? templateHeadingFont ?? null;
-  const inheritedAccent = stringValue(customizations.accent_color) ?? templateAccent ?? null;
+  const inheritedBodyFont = stringValue(customizations.body_font) ?? templateManifest?.global_styles?.body_font ?? null;
+  const inheritedHeadingFont = stringValue(customizations.heading_font) ?? templateManifest?.global_styles?.heading_font ?? null;
+  const inheritedAccent = stringValue(customizations.accent_color) ?? templateManifest?.global_styles?.accent_color ?? null;
   const displayedTemplateName = templateName || templateIdShort(templateId);
   const hasDocumentStyleOverrides = [
     customizations.body_font,
@@ -73,7 +70,7 @@ export default function Inspector({
         Customize
       </h3>
       <p className="mb-4 text-xs" style={{ color: ink.ink3 }}>
-        Choose a section to edit. Empty values use the template defaults.
+        Choose a section to edit. Empty values inherit the current defaults.
       </p>
 
       <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: ink.ink3 }}>
@@ -126,8 +123,12 @@ export default function Inspector({
                   <SectionInspector
                     instance={inst}
                     inheritedBodyFont={inheritedBodyFont}
+                    inheritedBodySize={templateManifest?.global_styles?.body_font_size ?? null}
+                    inheritedBodyLineHeight={templateManifest?.global_styles?.body_line_height ?? null}
                     inheritedHeadingFont={inheritedHeadingFont}
                     inheritedAccent={inheritedAccent}
+                    inheritedEntryGap={inheritedGapHint(templateManifest, customizations, "entry_gap")}
+                    inheritedFieldGap={inheritedGapHint(templateManifest, customizations, "field_gap")}
                     onChange={(style) => onUpdateStyle(inst.id, style)}
                   />
                 </div>

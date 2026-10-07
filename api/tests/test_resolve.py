@@ -31,7 +31,14 @@ class FakeRenderer(DocumentRenderer):
         return f"<fake>{len(model.sections)}</fake>"
 
 
-def _manifest(spacing="comfortable"):
+def _manifest(
+    spacing="comfortable",
+    *,
+    entry_gap=None,
+    field_gap=None,
+    body_font_size=None,
+    body_line_height=None,
+):
     return TemplateManifest(
         name="M",
         zones=[Zone(id="main", styles={"width": "full", "padding": "comfortable"})],
@@ -40,8 +47,14 @@ def _manifest(spacing="comfortable"):
             "experience": "main",
             "skills": "main",
         },
-        layout_defaults={"spacing": spacing},
-        global_styles={"accent_color": "#aabbcc", "body_font": "sans-serif", "heading_font": "sans-serif"},
+        layout_defaults={"spacing": spacing, "entry_gap": entry_gap, "field_gap": field_gap},
+        global_styles={
+            "accent_color": "#aabbcc",
+            "body_font": "sans-serif",
+            "body_font_size": body_font_size,
+            "body_line_height": body_line_height,
+            "heading_font": "sans-serif",
+        },
     )
 
 
@@ -100,6 +113,31 @@ def test_minimal_spacing_maps_to_legacy_vars():
     assert model.css_vars["--spacing-subsection"] == "0px"
 
 
+def test_manifest_readability_tokens_resolve_to_native_values():
+    manifest = _manifest(
+        "minimal",
+        entry_gap="snug",
+        field_gap="tight",
+        body_font_size="small",
+        body_line_height="normal",
+    )
+    model = resolve(_document(), HTMLDocumentRenderer(), manifest, Customizations())
+    assert model.css_vars["--spacing-section"] == "16px"
+    assert model.css_vars["--spacing-entry"] == "8px"
+    assert model.css_vars["--spacing-field"] == "4px"
+    assert model.css_vars["--body-size"] == "0.875rem"
+    assert model.css_vars["--body-line-height"] == "1.4"
+
+
+def test_legacy_manifest_gap_defaults_inherit_subsection_spacing():
+    model = resolve(_document(), HTMLDocumentRenderer(), _manifest("comfortable"), Customizations())
+    assert model.css_vars["--spacing-subsection"] == "16px"
+    assert model.css_vars["--spacing-entry"] == "16px"
+    assert model.css_vars["--spacing-field"] == "16px"
+    assert "--body-size" not in model.css_vars
+    assert "--body-line-height" not in model.css_vars
+
+
 def test_none_spacing_maps_to_zero_vars():
     model = resolve(_document(), HTMLDocumentRenderer(), _manifest("none"), Customizations())
     assert model.css_vars["--spacing-section"] == "0px"
@@ -107,9 +145,17 @@ def test_none_spacing_maps_to_zero_vars():
 
 
 def test_user_customizations_spacing_overrides_manifest():
+    manifest = _manifest(
+        "minimal",
+        entry_gap="snug",
+        field_gap="tight",
+    )
     custom = Customizations(spacing="compact")
-    model = resolve(_document(), HTMLDocumentRenderer(), _manifest(), custom)
+    model = resolve(_document(), HTMLDocumentRenderer(), manifest, custom)
     assert model.css_vars["--spacing-section"] == "20px"
+    assert model.css_vars["--spacing-subsection"] == "0px"
+    assert model.css_vars["--spacing-entry"] == "0px"
+    assert model.css_vars["--spacing-field"] == "0px"
 
 
 def test_user_customizations_body_font_overrides_manifest_global_styles():

@@ -1,0 +1,819 @@
+{
+  "audited_revision": "b8e4016",
+  "date": "2026-10-07",
+  "synthetic_content_only": true,
+  "vendor_ats_tested": false,
+  "fixtures": [
+    {
+      "fixture": "generic-modern-short",
+      "bytes": 33753,
+      "pages": 1,
+      "font_sizes_pt": [
+        9.0,
+        9.96,
+        10.5,
+        12.0,
+        18.0
+      ],
+      "chars_outside_page": 0,
+      "checks": [
+        {
+          "code": "text_retention",
+          "status": "pass",
+          "expected_count": 184,
+          "recovered_count": 183,
+          "evidence": [
+            "99.5% of rendered words recovered"
+          ],
+          "missing_items": [],
+          "explanation": "Compares visible text intended by the renderer with text recovered by Aergia's PDF parser."
+        },
+        {
+          "code": "reading_order",
+          "status": "pass",
+          "expected_count": 7,
+          "recovered_count": 7,
+          "evidence": [
+            "7/7 matched anchors remain ordered"
+          ],
+          "missing_items": [
+            "Experience"
+          ],
+          "explanation": "Compares the relative order of rendered section and entry anchors; missing text is reported by text retention."
+        },
+        {
+          "code": "contact_recovery",
+          "status": "pass",
+          "expected_count": 2,
+          "recovered_count": 2,
+          "evidence": [
+            "email",
+            "phone"
+          ],
+          "missing_items": [],
+          "explanation": "Checks whether visible source contact fields are present in recovered PDF text."
+        },
+        {
+          "code": "section_heading_recovery",
+          "status": "warning",
+          "expected_count": 4,
+          "recovered_count": 3,
+          "evidence": [
+            "Education",
+            "Skills",
+            "Projects"
+          ],
+          "missing_items": [
+            "Experience"
+          ],
+          "explanation": "Checks effective visible section titles against extracted lines, with occurrence-aware matching."
+        },
+        {
+          "code": "entry_recovery",
+          "status": "pass",
+          "expected_count": 4,
+          "recovered_count": 4,
+          "evidence": [
+            "experience: Senior Software Engineer 0",
+            "experience: Senior Software Engineer 1",
+            "education: Bachelor of Science in Computer Science",
+            "projects: Application Workflow Dashboard"
+          ],
+          "missing_items": [],
+          "explanation": "Checks renderer-defined experience, project, research, education, and certification anchors."
+        },
+        {
+          "code": "entry_date_association",
+          "status": "pass",
+          "expected_count": 4,
+          "recovered_count": 4,
+          "evidence": [
+            "4/4 associated in pdfplumber; 4/4 in PDFium"
+          ],
+          "missing_items": [],
+          "explanation": "Checks whether each rendered entry date stays near its own title and before the entry body. Repeated labels and dates are matched as separate occurrences; this is a local extraction check."
+        },
+        {
+          "code": "link_recovery",
+          "status": "pass",
+          "expected_count": 3,
+          "recovered_count": 3,
+          "evidence": [
+            "Senior Software Engineer",
+            "Senior Software Engineer (2)",
+            "Application Workflow Dashboard"
+          ],
+          "missing_items": [],
+          "explanation": "Checks clickable links emitted by the renderer using canonical href values; visible URL text is checked separately."
+        },
+        {
+          "code": "visible_url_recovery",
+          "status": "warning",
+          "expected_count": 3,
+          "recovered_count": 2,
+          "evidence": [],
+          "missing_items": [
+            "Senior Software Engineer (2)"
+          ],
+          "explanation": "Checks whether URL-shaped visible link text, including compact addresses without a scheme, survives PDF text extraction independently of its clickable annotation."
+        },
+        {
+          "code": "link_label_visibility",
+          "status": "pass",
+          "expected_count": 3,
+          "recovered_count": 3,
+          "evidence": [],
+          "missing_items": [],
+          "explanation": "Advises when a web link is displayed as a generic label such as GitHub instead of its address. This is a readability advisory, not a claim about any particular ATS."
+        },
+        {
+          "code": "parser_agreement",
+          "status": "warning",
+          "expected_count": 15,
+          "recovered_count": 6,
+          "evidence": [
+            "pdfplumber: 7 anchors, 2/3 visible URLs; PDFium: 8 anchors, 3/3 visible URLs"
+          ],
+          "missing_items": [],
+          "explanation": "Compares renderer-anchor order and visible URL recovery between Aergia's pdfplumber and PDFium extractors. Disagreement is advisory and does not predict third-party ATS behavior."
+        }
+      ]
+    },
+    {
+      "fixture": "generic-modern-long",
+      "bytes": 43060,
+      "pages": 3,
+      "font_sizes_pt": [
+        9.0,
+        9.96,
+        10.5,
+        12.0,
+        18.0
+      ],
+      "chars_outside_page": 0,
+      "checks": [
+        {
+          "code": "text_retention",
+          "status": "pass",
+          "expected_count": 562,
+          "recovered_count": 561,
+          "evidence": [
+            "99.8% of rendered words recovered"
+          ],
+          "missing_items": [],
+          "explanation": "Compares visible text intended by the renderer with text recovered by Aergia's PDF parser."
+        },
+        {
+          "code": "reading_order",
+          "status": "pass",
+          "expected_count": 14,
+          "recovered_count": 14,
+          "evidence": [
+            "14/14 matched anchors remain ordered"
+          ],
+          "missing_items": [
+            "Experience"
+          ],
+          "explanation": "Compares the relative order of rendered section and entry anchors; missing text is reported by text retention."
+        },
+        {
+          "code": "contact_recovery",
+          "status": "pass",
+          "expected_count": 2,
+          "recovered_count": 2,
+          "evidence": [
+            "email",
+            "phone"
+          ],
+          "missing_items": [],
+          "explanation": "Checks whether visible source contact fields are present in recovered PDF text."
+        },
+        {
+          "code": "section_heading_recovery",
+          "status": "warning",
+          "expected_count": 4,
+          "recovered_count": 3,
+          "evidence": [
+            "Education",
+            "Skills",
+            "Projects"
+          ],
+          "missing_items": [
+            "Experience"
+          ],
+          "explanation": "Checks effective visible section titles against extracted lines, with occurrence-aware matching."
+        },
+        {
+          "code": "entry_recovery",
+          "status": "pass",
+          "expected_count": 11,
+          "recovered_count": 11,
+          "evidence": [
+            "experience: Senior Software Engineer 0",
+            "experience: Senior Software Engineer 1",
+            "experience: Senior Software Engineer 2",
+            "experience: Senior Software Engineer 3",
+            "experience: Senior Software Engineer 4",
+            "experience: Senior Software Engineer 5",
+            "experience: Senior Software Engineer 6",
+            "experience: Senior Software Engineer 7",
+            "experience: Senior Software Engineer 8",
+            "education: Bachelor of Science in Computer Science",
+            "projects: Application Workflow Dashboard"
+          ],
+          "missing_items": [],
+          "explanation": "Checks renderer-defined experience, project, research, education, and certification anchors."
+        },
+        {
+          "code": "entry_date_association",
+          "status": "pass",
+          "expected_count": 11,
+          "recovered_count": 11,
+          "evidence": [
+            "11/11 associated in pdfplumber; 11/11 in PDFium"
+          ],
+          "missing_items": [],
+          "explanation": "Checks whether each rendered entry date stays near its own title and before the entry body. Repeated labels and dates are matched as separate occurrences; this is a local extraction check."
+        },
+        {
+          "code": "link_recovery",
+          "status": "pass",
+          "expected_count": 3,
+          "recovered_count": 3,
+          "evidence": [
+            "Senior Software Engineer",
+            "Senior Software Engineer (2)",
+            "Application Workflow Dashboard"
+          ],
+          "missing_items": [],
+          "explanation": "Checks clickable links emitted by the renderer using canonical href values; visible URL text is checked separately."
+        },
+        {
+          "code": "visible_url_recovery",
+          "status": "warning",
+          "expected_count": 3,
+          "recovered_count": 2,
+          "evidence": [],
+          "missing_items": [
+            "Senior Software Engineer (2)"
+          ],
+          "explanation": "Checks whether URL-shaped visible link text, including compact addresses without a scheme, survives PDF text extraction independently of its clickable annotation."
+        },
+        {
+          "code": "link_label_visibility",
+          "status": "pass",
+          "expected_count": 3,
+          "recovered_count": 3,
+          "evidence": [],
+          "missing_items": [],
+          "explanation": "Advises when a web link is displayed as a generic label such as GitHub instead of its address. This is a readability advisory, not a claim about any particular ATS."
+        },
+        {
+          "code": "parser_agreement",
+          "status": "warning",
+          "expected_count": 29,
+          "recovered_count": 13,
+          "evidence": [
+            "pdfplumber: 14 anchors, 2/3 visible URLs; PDFium: 15 anchors, 3/3 visible URLs"
+          ],
+          "missing_items": [],
+          "explanation": "Compares renderer-anchor order and visible URL recovery between Aergia's pdfplumber and PDFium extractors. Disagreement is advisory and does not predict third-party ATS behavior."
+        }
+      ]
+    },
+    {
+      "fixture": "generic-classic-short",
+      "bytes": 39775,
+      "pages": 1,
+      "font_sizes_pt": [
+        9.0,
+        9.96,
+        10.5,
+        12.0,
+        18.0
+      ],
+      "chars_outside_page": 0,
+      "checks": [
+        {
+          "code": "text_retention",
+          "status": "pass",
+          "expected_count": 184,
+          "recovered_count": 184,
+          "evidence": [
+            "100.0% of rendered words recovered"
+          ],
+          "missing_items": [],
+          "explanation": "Compares visible text intended by the renderer with text recovered by Aergia's PDF parser."
+        },
+        {
+          "code": "reading_order",
+          "status": "pass",
+          "expected_count": 8,
+          "recovered_count": 8,
+          "evidence": [
+            "8/8 matched anchors remain ordered"
+          ],
+          "missing_items": [],
+          "explanation": "Compares the relative order of rendered section and entry anchors; missing text is reported by text retention."
+        },
+        {
+          "code": "contact_recovery",
+          "status": "pass",
+          "expected_count": 2,
+          "recovered_count": 2,
+          "evidence": [
+            "email",
+            "phone"
+          ],
+          "missing_items": [],
+          "explanation": "Checks whether visible source contact fields are present in recovered PDF text."
+        },
+        {
+          "code": "section_heading_recovery",
+          "status": "pass",
+          "expected_count": 4,
+          "recovered_count": 4,
+          "evidence": [
+            "Experience",
+            "Education",
+            "Skills",
+            "Projects"
+          ],
+          "missing_items": [],
+          "explanation": "Checks effective visible section titles against extracted lines, with occurrence-aware matching."
+        },
+        {
+          "code": "entry_recovery",
+          "status": "pass",
+          "expected_count": 4,
+          "recovered_count": 4,
+          "evidence": [
+            "experience: Senior Software Engineer 0",
+            "experience: Senior Software Engineer 1",
+            "education: Bachelor of Science in Computer Science",
+            "projects: Application Workflow Dashboard"
+          ],
+          "missing_items": [],
+          "explanation": "Checks renderer-defined experience, project, research, education, and certification anchors."
+        },
+        {
+          "code": "entry_date_association",
+          "status": "pass",
+          "expected_count": 4,
+          "recovered_count": 4,
+          "evidence": [
+            "4/4 associated in pdfplumber; 4/4 in PDFium"
+          ],
+          "missing_items": [],
+          "explanation": "Checks whether each rendered entry date stays near its own title and before the entry body. Repeated labels and dates are matched as separate occurrences; this is a local extraction check."
+        },
+        {
+          "code": "link_recovery",
+          "status": "pass",
+          "expected_count": 3,
+          "recovered_count": 3,
+          "evidence": [
+            "Senior Software Engineer",
+            "Senior Software Engineer (2)",
+            "Application Workflow Dashboard"
+          ],
+          "missing_items": [],
+          "explanation": "Checks clickable links emitted by the renderer using canonical href values; visible URL text is checked separately."
+        },
+        {
+          "code": "visible_url_recovery",
+          "status": "pass",
+          "expected_count": 3,
+          "recovered_count": 3,
+          "evidence": [],
+          "missing_items": [],
+          "explanation": "Checks whether URL-shaped visible link text, including compact addresses without a scheme, survives PDF text extraction independently of its clickable annotation."
+        },
+        {
+          "code": "link_label_visibility",
+          "status": "pass",
+          "expected_count": 3,
+          "recovered_count": 3,
+          "evidence": [],
+          "missing_items": [],
+          "explanation": "Advises when a web link is displayed as a generic label such as GitHub instead of its address. This is a readability advisory, not a claim about any particular ATS."
+        },
+        {
+          "code": "parser_agreement",
+          "status": "pass",
+          "expected_count": 15,
+          "recovered_count": 15,
+          "evidence": [
+            "pdfplumber: 8 anchors, 3/3 visible URLs; PDFium: 8 anchors, 3/3 visible URLs"
+          ],
+          "missing_items": [],
+          "explanation": "Compares renderer-anchor order and visible URL recovery between Aergia's pdfplumber and PDFium extractors. Disagreement is advisory and does not predict third-party ATS behavior."
+        }
+      ]
+    },
+    {
+      "fixture": "generic-classic-long",
+      "bytes": 46018,
+      "pages": 2,
+      "font_sizes_pt": [
+        9.0,
+        9.96,
+        10.5,
+        12.0,
+        18.0
+      ],
+      "chars_outside_page": 0,
+      "checks": [
+        {
+          "code": "text_retention",
+          "status": "pass",
+          "expected_count": 562,
+          "recovered_count": 562,
+          "evidence": [
+            "100.0% of rendered words recovered"
+          ],
+          "missing_items": [],
+          "explanation": "Compares visible text intended by the renderer with text recovered by Aergia's PDF parser."
+        },
+        {
+          "code": "reading_order",
+          "status": "pass",
+          "expected_count": 15,
+          "recovered_count": 15,
+          "evidence": [
+            "15/15 matched anchors remain ordered"
+          ],
+          "missing_items": [],
+          "explanation": "Compares the relative order of rendered section and entry anchors; missing text is reported by text retention."
+        },
+        {
+          "code": "contact_recovery",
+          "status": "pass",
+          "expected_count": 2,
+          "recovered_count": 2,
+          "evidence": [
+            "email",
+            "phone"
+          ],
+          "missing_items": [],
+          "explanation": "Checks whether visible source contact fields are present in recovered PDF text."
+        },
+        {
+          "code": "section_heading_recovery",
+          "status": "pass",
+          "expected_count": 4,
+          "recovered_count": 4,
+          "evidence": [
+            "Experience",
+            "Education",
+            "Skills",
+            "Projects"
+          ],
+          "missing_items": [],
+          "explanation": "Checks effective visible section titles against extracted lines, with occurrence-aware matching."
+        },
+        {
+          "code": "entry_recovery",
+          "status": "pass",
+          "expected_count": 11,
+          "recovered_count": 11,
+          "evidence": [
+            "experience: Senior Software Engineer 0",
+            "experience: Senior Software Engineer 1",
+            "experience: Senior Software Engineer 2",
+            "experience: Senior Software Engineer 3",
+            "experience: Senior Software Engineer 4",
+            "experience: Senior Software Engineer 5",
+            "experience: Senior Software Engineer 6",
+            "experience: Senior Software Engineer 7",
+            "experience: Senior Software Engineer 8",
+            "education: Bachelor of Science in Computer Science",
+            "projects: Application Workflow Dashboard"
+          ],
+          "missing_items": [],
+          "explanation": "Checks renderer-defined experience, project, research, education, and certification anchors."
+        },
+        {
+          "code": "entry_date_association",
+          "status": "pass",
+          "expected_count": 11,
+          "recovered_count": 11,
+          "evidence": [
+            "11/11 associated in pdfplumber; 11/11 in PDFium"
+          ],
+          "missing_items": [],
+          "explanation": "Checks whether each rendered entry date stays near its own title and before the entry body. Repeated labels and dates are matched as separate occurrences; this is a local extraction check."
+        },
+        {
+          "code": "link_recovery",
+          "status": "pass",
+          "expected_count": 3,
+          "recovered_count": 3,
+          "evidence": [
+            "Senior Software Engineer",
+            "Senior Software Engineer (2)",
+            "Application Workflow Dashboard"
+          ],
+          "missing_items": [],
+          "explanation": "Checks clickable links emitted by the renderer using canonical href values; visible URL text is checked separately."
+        },
+        {
+          "code": "visible_url_recovery",
+          "status": "pass",
+          "expected_count": 3,
+          "recovered_count": 3,
+          "evidence": [],
+          "missing_items": [],
+          "explanation": "Checks whether URL-shaped visible link text, including compact addresses without a scheme, survives PDF text extraction independently of its clickable annotation."
+        },
+        {
+          "code": "link_label_visibility",
+          "status": "pass",
+          "expected_count": 3,
+          "recovered_count": 3,
+          "evidence": [],
+          "missing_items": [],
+          "explanation": "Advises when a web link is displayed as a generic label such as GitHub instead of its address. This is a readability advisory, not a claim about any particular ATS."
+        },
+        {
+          "code": "parser_agreement",
+          "status": "pass",
+          "expected_count": 29,
+          "recovered_count": 29,
+          "evidence": [
+            "pdfplumber: 15 anchors, 3/3 visible URLs; PDFium: 15 anchors, 3/3 visible URLs"
+          ],
+          "missing_items": [],
+          "explanation": "Compares renderer-anchor order and visible URL recovery between Aergia's pdfplumber and PDFium extractors. Disagreement is advisory and does not predict third-party ATS behavior."
+        }
+      ]
+    },
+    {
+      "fixture": "generic-minimal-short",
+      "bytes": 33919,
+      "pages": 1,
+      "font_sizes_pt": [
+        9.0,
+        9.96,
+        10.5,
+        12.0,
+        18.0
+      ],
+      "chars_outside_page": 0,
+      "checks": [
+        {
+          "code": "text_retention",
+          "status": "pass",
+          "expected_count": 184,
+          "recovered_count": 183,
+          "evidence": [
+            "99.5% of rendered words recovered"
+          ],
+          "missing_items": [],
+          "explanation": "Compares visible text intended by the renderer with text recovered by Aergia's PDF parser."
+        },
+        {
+          "code": "reading_order",
+          "status": "pass",
+          "expected_count": 8,
+          "recovered_count": 8,
+          "evidence": [
+            "8/8 matched anchors remain ordered"
+          ],
+          "missing_items": [],
+          "explanation": "Compares the relative order of rendered section and entry anchors; missing text is reported by text retention."
+        },
+        {
+          "code": "contact_recovery",
+          "status": "pass",
+          "expected_count": 2,
+          "recovered_count": 2,
+          "evidence": [
+            "email",
+            "phone"
+          ],
+          "missing_items": [],
+          "explanation": "Checks whether visible source contact fields are present in recovered PDF text."
+        },
+        {
+          "code": "section_heading_recovery",
+          "status": "pass",
+          "expected_count": 4,
+          "recovered_count": 4,
+          "evidence": [
+            "Experience",
+            "Education",
+            "Skills",
+            "Projects"
+          ],
+          "missing_items": [],
+          "explanation": "Checks effective visible section titles against extracted lines, with occurrence-aware matching."
+        },
+        {
+          "code": "entry_recovery",
+          "status": "pass",
+          "expected_count": 4,
+          "recovered_count": 4,
+          "evidence": [
+            "experience: Senior Software Engineer 0",
+            "experience: Senior Software Engineer 1",
+            "education: Bachelor of Science in Computer Science",
+            "projects: Application Workflow Dashboard"
+          ],
+          "missing_items": [],
+          "explanation": "Checks renderer-defined experience, project, research, education, and certification anchors."
+        },
+        {
+          "code": "entry_date_association",
+          "status": "pass",
+          "expected_count": 4,
+          "recovered_count": 4,
+          "evidence": [
+            "4/4 associated in pdfplumber; 4/4 in PDFium"
+          ],
+          "missing_items": [],
+          "explanation": "Checks whether each rendered entry date stays near its own title and before the entry body. Repeated labels and dates are matched as separate occurrences; this is a local extraction check."
+        },
+        {
+          "code": "link_recovery",
+          "status": "pass",
+          "expected_count": 3,
+          "recovered_count": 3,
+          "evidence": [
+            "Senior Software Engineer",
+            "Senior Software Engineer (2)",
+            "Application Workflow Dashboard"
+          ],
+          "missing_items": [],
+          "explanation": "Checks clickable links emitted by the renderer using canonical href values; visible URL text is checked separately."
+        },
+        {
+          "code": "visible_url_recovery",
+          "status": "pass",
+          "expected_count": 3,
+          "recovered_count": 3,
+          "evidence": [],
+          "missing_items": [],
+          "explanation": "Checks whether URL-shaped visible link text, including compact addresses without a scheme, survives PDF text extraction independently of its clickable annotation."
+        },
+        {
+          "code": "link_label_visibility",
+          "status": "pass",
+          "expected_count": 3,
+          "recovered_count": 3,
+          "evidence": [],
+          "missing_items": [],
+          "explanation": "Advises when a web link is displayed as a generic label such as GitHub instead of its address. This is a readability advisory, not a claim about any particular ATS."
+        },
+        {
+          "code": "parser_agreement",
+          "status": "pass",
+          "expected_count": 15,
+          "recovered_count": 15,
+          "evidence": [
+            "pdfplumber: 8 anchors, 3/3 visible URLs; PDFium: 8 anchors, 3/3 visible URLs"
+          ],
+          "missing_items": [],
+          "explanation": "Compares renderer-anchor order and visible URL recovery between Aergia's pdfplumber and PDFium extractors. Disagreement is advisory and does not predict third-party ATS behavior."
+        }
+      ]
+    },
+    {
+      "fixture": "generic-minimal-long",
+      "bytes": 42131,
+      "pages": 2,
+      "font_sizes_pt": [
+        9.0,
+        9.96,
+        10.5,
+        12.0,
+        18.0
+      ],
+      "chars_outside_page": 0,
+      "checks": [
+        {
+          "code": "text_retention",
+          "status": "pass",
+          "expected_count": 562,
+          "recovered_count": 561,
+          "evidence": [
+            "99.8% of rendered words recovered"
+          ],
+          "missing_items": [],
+          "explanation": "Compares visible text intended by the renderer with text recovered by Aergia's PDF parser."
+        },
+        {
+          "code": "reading_order",
+          "status": "pass",
+          "expected_count": 15,
+          "recovered_count": 15,
+          "evidence": [
+            "15/15 matched anchors remain ordered"
+          ],
+          "missing_items": [],
+          "explanation": "Compares the relative order of rendered section and entry anchors; missing text is reported by text retention."
+        },
+        {
+          "code": "contact_recovery",
+          "status": "pass",
+          "expected_count": 2,
+          "recovered_count": 2,
+          "evidence": [
+            "email",
+            "phone"
+          ],
+          "missing_items": [],
+          "explanation": "Checks whether visible source contact fields are present in recovered PDF text."
+        },
+        {
+          "code": "section_heading_recovery",
+          "status": "pass",
+          "expected_count": 4,
+          "recovered_count": 4,
+          "evidence": [
+            "Experience",
+            "Education",
+            "Skills",
+            "Projects"
+          ],
+          "missing_items": [],
+          "explanation": "Checks effective visible section titles against extracted lines, with occurrence-aware matching."
+        },
+        {
+          "code": "entry_recovery",
+          "status": "pass",
+          "expected_count": 11,
+          "recovered_count": 11,
+          "evidence": [
+            "experience: Senior Software Engineer 0",
+            "experience: Senior Software Engineer 1",
+            "experience: Senior Software Engineer 2",
+            "experience: Senior Software Engineer 3",
+            "experience: Senior Software Engineer 4",
+            "experience: Senior Software Engineer 5",
+            "experience: Senior Software Engineer 6",
+            "experience: Senior Software Engineer 7",
+            "experience: Senior Software Engineer 8",
+            "education: Bachelor of Science in Computer Science",
+            "projects: Application Workflow Dashboard"
+          ],
+          "missing_items": [],
+          "explanation": "Checks renderer-defined experience, project, research, education, and certification anchors."
+        },
+        {
+          "code": "entry_date_association",
+          "status": "pass",
+          "expected_count": 11,
+          "recovered_count": 11,
+          "evidence": [
+            "11/11 associated in pdfplumber; 11/11 in PDFium"
+          ],
+          "missing_items": [],
+          "explanation": "Checks whether each rendered entry date stays near its own title and before the entry body. Repeated labels and dates are matched as separate occurrences; this is a local extraction check."
+        },
+        {
+          "code": "link_recovery",
+          "status": "pass",
+          "expected_count": 3,
+          "recovered_count": 3,
+          "evidence": [
+            "Senior Software Engineer",
+            "Senior Software Engineer (2)",
+            "Application Workflow Dashboard"
+          ],
+          "missing_items": [],
+          "explanation": "Checks clickable links emitted by the renderer using canonical href values; visible URL text is checked separately."
+        },
+        {
+          "code": "visible_url_recovery",
+          "status": "pass",
+          "expected_count": 3,
+          "recovered_count": 3,
+          "evidence": [],
+          "missing_items": [],
+          "explanation": "Checks whether URL-shaped visible link text, including compact addresses without a scheme, survives PDF text extraction independently of its clickable annotation."
+        },
+        {
+          "code": "link_label_visibility",
+          "status": "pass",
+          "expected_count": 3,
+          "recovered_count": 3,
+          "evidence": [],
+          "missing_items": [],
+          "explanation": "Advises when a web link is displayed as a generic label such as GitHub instead of its address. This is a readability advisory, not a claim about any particular ATS."
+        },
+        {
+          "code": "parser_agreement",
+          "status": "pass",
+          "expected_count": 29,
+          "recovered_count": 29,
+          "evidence": [
+            "pdfplumber: 15 anchors, 3/3 visible URLs; PDFium: 15 anchors, 3/3 visible URLs"
+          ],
+          "missing_items": [],
+          "explanation": "Compares renderer-anchor order and visible URL recovery between Aergia's pdfplumber and PDFium extractors. Disagreement is advisory and does not predict third-party ATS behavior."
+        }
+      ]
+    }
+  ]
+}

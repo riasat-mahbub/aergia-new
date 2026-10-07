@@ -1,0 +1,204 @@
+{
+  "purpose": "Post-change production HTML/PDF and local recovery evidence for P03.",
+  "renderer_version": "aergia-pdf-render-v4",
+  "synthetic_content_only": true,
+  "render_path": "The HTML and PDF for each fixture came from the same prepared source through render_source_html and render_source_pdf; the PDF path uses the production Playwright singleton.",
+  "artifact_directory": "/tmp/minimal-current-audit",
+  "baseline_artifact_directory": "/tmp/aergia-ats-audit",
+  "fixtures": {
+    "generic-modern-short": {
+      "pages": 1,
+      "font_sizes_pt": [
+        9.0,
+        9.96,
+        10.5,
+        12.0,
+        18.0
+      ],
+      "characters_outside_page": 0,
+      "local_recovery_checks": {
+        "text_retention": "pass",
+        "reading_order": "pass",
+        "contact_recovery": "pass",
+        "section_heading_recovery": "warning",
+        "entry_recovery": "pass",
+        "entry_date_association": "pass",
+        "link_recovery": "pass",
+        "visible_url_recovery": "warning",
+        "link_label_visibility": "pass",
+        "parser_agreement": "warning"
+      },
+      "artifacts": {
+        "html": "/tmp/minimal-current-audit/generic-modern-short.html",
+        "pdf": "/tmp/minimal-current-audit/generic-modern-short.pdf",
+        "png_first_page": "/tmp/minimal-current-audit/generic-modern-short.png",
+        "pdfplumber_text": "/tmp/minimal-current-audit/generic-modern-short.pdfplumber.txt",
+        "pdfium_text": "/tmp/minimal-current-audit/generic-modern-short.pdfium.txt"
+      },
+      "png_sha256": "c7f3261e29447cb66f4c066c4fedb74ea1e81f38f9b1643f8d3c3b878521c38d",
+      "baseline_png_sha256": "c7f3261e29447cb66f4c066c4fedb74ea1e81f38f9b1643f8d3c3b878521c38d",
+      "png_matches_prechange_baseline": true
+    },
+    "generic-modern-long": {
+      "pages": 3,
+      "font_sizes_pt": [
+        9.0,
+        9.96,
+        10.5,
+        12.0,
+        18.0
+      ],
+      "characters_outside_page": 0,
+      "local_recovery_checks": {
+        "text_retention": "pass",
+        "reading_order": "pass",
+        "contact_recovery": "pass",
+        "section_heading_recovery": "warning",
+        "entry_recovery": "pass",
+        "entry_date_association": "pass",
+        "link_recovery": "pass",
+        "visible_url_recovery": "warning",
+        "link_label_visibility": "pass",
+        "parser_agreement": "warning"
+      },
+      "artifacts": {
+        "html": "/tmp/minimal-current-audit/generic-modern-long.html",
+        "pdf": "/tmp/minimal-current-audit/generic-modern-long.pdf",
+        "png_first_page": "/tmp/minimal-current-audit/generic-modern-long.png",
+        "pdfplumber_text": "/tmp/minimal-current-audit/generic-modern-long.pdfplumber.txt",
+        "pdfium_text": "/tmp/minimal-current-audit/generic-modern-long.pdfium.txt"
+      },
+      "png_sha256": "6d2f7a8f7805d0ad30ec78b4fd72379cb363a0909579067dc6c3beb52ee6cc9a",
+      "baseline_png_sha256": "6d2f7a8f7805d0ad30ec78b4fd72379cb363a0909579067dc6c3beb52ee6cc9a",
+      "png_matches_prechange_baseline": true
+    },
+    "generic-classic-short": {
+      "pages": 1,
+      "font_sizes_pt": [
+        9.0,
+        9.96,
+        10.5,
+        12.0,
+        18.0
+      ],
+      "characters_outside_page": 0,
+      "local_recovery_checks": {
+        "text_retention": "pass",
+        "reading_order": "pass",
+        "contact_recovery": "pass",
+        "section_heading_recovery": "pass",
+        "entry_recovery": "pass",
+        "entry_date_association": "pass",
+        "link_recovery": "pass",
+        "visible_url_recovery": "pass",
+        "link_label_visibility": "pass",
+        "parser_agreement": "pass"
+      },
+      "artifacts": {
+        "html": "/tmp/minimal-current-audit/generic-classic-short.html",
+        "pdf": "/tmp/minimal-current-audit/generic-classic-short.pdf",
+        "png_first_page": "/tmp/minimal-current-audit/generic-classic-short.png",
+        "pdfplumber_text": "/tmp/minimal-current-audit/generic-classic-short.pdfplumber.txt",
+        "pdfium_text": "/tmp/minimal-current-audit/generic-classic-short.pdfium.txt"
+      },
+      "png_sha256": "b55a6beaaccea5c90fd3c00a34145eed27c2368bc58e19358ee4af2bde25baa9",
+      "baseline_png_sha256": "b55a6beaaccea5c90fd3c00a34145eed27c2368bc58e19358ee4af2bde25baa9",
+      "png_matches_prechange_baseline": true
+    },
+    "generic-classic-long": {
+      "pages": 2,
+      "font_sizes_pt": [
+        9.0,
+        9.96,
+        10.5,
+        12.0,
+        18.0
+      ],
+      "characters_outside_page": 0,
+      "local_recovery_checks": {
+        "text_retention": "pass",
+        "reading_order": "pass",
+        "contact_recovery": "pass",
+        "section_heading_recovery": "pass",
+        "entry_recovery": "pass",
+        "entry_date_association": "pass",
+        "link_recovery": "pass",
+        "visible_url_recovery": "pass",
+        "link_label_visibility": "pass",
+        "parser_agreement": "pass"
+      },
+      "artifacts": {
+        "html": "/tmp/minimal-current-audit/generic-classic-long.html",
+        "pdf": "/tmp/minimal-current-audit/generic-classic-long.pdf",
+        "png_first_page": "/tmp/minimal-current-audit/generic-classic-long.png",
+        "pdfplumber_text": "/tmp/minimal-current-audit/generic-classic-long.pdfplumber.txt",
+        "pdfium_text": "/tmp/minimal-current-audit/generic-classic-long.pdfium.txt"
+      },
+      "png_sha256": "9d2a1e65df34c43ecfeb07b254b2e2b3c34896c74cfa106af7f974db45032e5c",
+      "baseline_png_sha256": "9d2a1e65df34c43ecfeb07b254b2e2b3c34896c74cfa106af7f974db45032e5c",
+      "png_matches_prechange_baseline": true
+    },
+    "generic-minimal-short": {
+      "pages": 1,
+      "font_sizes_pt": [
+        10.5,
+        12.0,
+        18.0
+      ],
+      "characters_outside_page": 0,
+      "local_recovery_checks": {
+        "text_retention": "pass",
+        "reading_order": "pass",
+        "contact_recovery": "pass",
+        "section_heading_recovery": "pass",
+        "entry_recovery": "pass",
+        "entry_date_association": "pass",
+        "link_recovery": "pass",
+        "visible_url_recovery": "pass",
+        "link_label_visibility": "pass",
+        "parser_agreement": "pass"
+      },
+      "artifacts": {
+        "html": "/tmp/minimal-current-audit/generic-minimal-short.html",
+        "pdf": "/tmp/minimal-current-audit/generic-minimal-short.pdf",
+        "png_first_page": "/tmp/minimal-current-audit/generic-minimal-short.png",
+        "pdfplumber_text": "/tmp/minimal-current-audit/generic-minimal-short.pdfplumber.txt",
+        "pdfium_text": "/tmp/minimal-current-audit/generic-minimal-short.pdfium.txt"
+      },
+      "png_sha256": "1ee3e382d277f80d58452b155720c593c74ef3bb10b1e7d971dfdcc51d1a512d",
+      "baseline_png_sha256": "6b9a5f108c1377f5085f4d215e61b7360a7af035e3bf46710b8da154bb59ddad",
+      "png_matches_prechange_baseline": false
+    },
+    "generic-minimal-long": {
+      "pages": 2,
+      "font_sizes_pt": [
+        10.5,
+        12.0,
+        18.0
+      ],
+      "characters_outside_page": 0,
+      "local_recovery_checks": {
+        "text_retention": "pass",
+        "reading_order": "pass",
+        "contact_recovery": "pass",
+        "section_heading_recovery": "pass",
+        "entry_recovery": "pass",
+        "entry_date_association": "pass",
+        "link_recovery": "pass",
+        "visible_url_recovery": "pass",
+        "link_label_visibility": "pass",
+        "parser_agreement": "pass"
+      },
+      "artifacts": {
+        "html": "/tmp/minimal-current-audit/generic-minimal-long.html",
+        "pdf": "/tmp/minimal-current-audit/generic-minimal-long.pdf",
+        "png_first_page": "/tmp/minimal-current-audit/generic-minimal-long.png",
+        "pdfplumber_text": "/tmp/minimal-current-audit/generic-minimal-long.pdfplumber.txt",
+        "pdfium_text": "/tmp/minimal-current-audit/generic-minimal-long.pdfium.txt"
+      },
+      "png_sha256": "715441669ad80d0fd42f393cd02bc549ba9131c75b01115c4a02f3de90cf841f",
+      "baseline_png_sha256": "61a7e09283ecbfd6f4ebf1563baa347435a866fb158a7c9f2e701f54794af20f",
+      "png_matches_prechange_baseline": false
+    }
+  }
+}

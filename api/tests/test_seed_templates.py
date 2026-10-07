@@ -2,6 +2,7 @@
 correct spacing presets and empty policy overrides."""
 
 import pytest
+from pydantic import ValidationError
 
 from app.db.seed import SEED_TEMPLATES
 from app.document_schema.models import TemplateManifest
@@ -25,8 +26,47 @@ def test_classic_template_spacing_is_compact():
     assert _manifest(CLASSIC_ID).layout_defaults.spacing == "compact"
 
 
-def test_minimal_template_spacing_is_none():
-    assert _manifest(MINIMAL_ID).layout_defaults.spacing == "none"
+def test_minimal_template_readability_defaults():
+    manifest = _manifest(MINIMAL_ID)
+    assert manifest.layout_defaults.spacing == "minimal"
+    assert manifest.layout_defaults.entry_gap == "snug"
+    assert manifest.layout_defaults.field_gap == "tight"
+    assert manifest.global_styles.body_font_size == "small"
+    assert manifest.global_styles.body_line_height == "normal"
+
+
+def test_only_minimal_seed_populates_readability_defaults():
+    for template_id in (MODERN_ID, CLASSIC_ID):
+        manifest = _manifest(template_id)
+        assert manifest.layout_defaults.entry_gap is None
+        assert manifest.layout_defaults.field_gap is None
+        assert manifest.global_styles.body_font_size is None
+        assert manifest.global_styles.body_line_height is None
+
+
+def test_legacy_v2_manifest_can_omit_optional_readability_fields():
+    manifest = TemplateManifest.model_validate({
+        "manifest_version": 2,
+        "name": "Legacy",
+        "layout_defaults": {"spacing": "comfortable"},
+        "global_styles": {"body_font": "sans-serif"},
+    })
+    assert manifest.layout_defaults.entry_gap is None
+    assert manifest.layout_defaults.field_gap is None
+    assert manifest.global_styles.body_font_size is None
+    assert manifest.global_styles.body_line_height is None
+
+
+@pytest.mark.parametrize("manifest_data", [
+    {"global_styles": {"body_font_size": "10.5pt"}},
+    {"global_styles": {"body_line_height": "1.4"}},
+    {"layout_defaults": {"entry_gap": "10px"}},
+    {"layout_defaults": {"field_gap": "zero"}},
+    {"global_styles": {"raw_css": "font-size: 10.5pt"}},
+])
+def test_readability_manifest_fields_reject_raw_or_unknown_values(manifest_data):
+    with pytest.raises(ValidationError):
+        TemplateManifest.model_validate({"manifest_version": 2, "name": "Invalid", **manifest_data})
 
 
 def test_minimal_seed_overrides_skills_to_inline():

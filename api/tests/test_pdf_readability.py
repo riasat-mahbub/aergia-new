@@ -21,6 +21,36 @@ PROJECT_URL = (
 PROFILE_URL = "https://www.linkedin.com/in/sample"
 
 
+def _pdf_font_sizes(page, text: str) -> set[float]:
+    """Return the actual PDF sizes painted for one visible text sample."""
+    hits = page.search(text)
+    if hits:
+        sizes = {
+            round(char["size"], 2)
+            for hit in hits
+            for char in page.chars
+            if char["x0"] >= hit["x0"] - 0.5
+            and char["x1"] <= hit["x1"] + 0.5
+            and char["top"] >= hit["top"] - 0.5
+            and char["bottom"] <= hit["bottom"] + 0.5
+        }
+        if len(sizes) <= 1:
+            return sizes
+    if " " in text:
+        # Sidebar names can wrap onto separate PDF text lines even when the
+        # text is visually one phrase. Measure each word independently.
+        hits = [hit for word in text.split() for hit in page.search(word)]
+    return {
+        round(char["size"], 2)
+        for hit in hits
+        for char in page.chars
+        if char["x0"] >= hit["x0"] - 0.5
+        and char["x1"] <= hit["x1"] + 0.5
+        and char["top"] >= hit["top"] - 0.5
+        and char["bottom"] <= hit["bottom"] + 0.5
+    }
+
+
 def readability_sections(layout: str = "two-column", page_break: bool = False) -> list[dict]:
     """Synthetic content preserves the reported structure without personal data."""
     return [
@@ -46,6 +76,10 @@ def readability_sections(layout: str = "two-column", page_break: bool = False) -
                     (2, "Research Assistant", "Example University"),
                 ]
             ],
+        },
+        {
+            "id": "skills", "type": "skills", "title": "Skills",
+            "data": [{"id": "skills-dev", "category": "Development", "items": ["Python", "C++", "C#", ".NET", "CI/CD"]}],
         },
         {
             "id": "projects", "type": "projects", "title": "Personal Projects",
@@ -92,11 +126,25 @@ async def test_template_pdf_keeps_project_metadata_before_body(seed, layout, pag
         }
         links = {link["uri"] for page in document.pages for link in page.hyperlinks if link.get("uri")}
         assert {PROJECT_URL, PROFILE_URL, "https://example.com/tracker"} <= links
+        expected_body_size = 10.5 if seed["id"] == "generic-minimal" else 9.0
         if page_break:
             assert len(document.pages) >= 2
         for page in document.pages:
-            # Long links must stay inside the physical page, including the sidebar.
-            assert all(-1 <= char["x0"] <= char["x1"] <= page.width + 1 for char in page.chars)
+            # Text and links must stay inside the physical page, including the sidebar.
+            assert all(
+                -1 <= char["x0"] <= char["x1"] <= page.width + 1
+                and -1 <= char["top"] <= char["bottom"] <= page.height + 1
+                for char in page.chars
+            )
+
+        first_page = document.pages[0]
+        # Modern's word "Candidate" also occurs in its email address, so its
+        # measured set can contain contact text as well as the name glyphs.
+        assert 18.0 in _pdf_font_sizes(first_page, "Example Candidate")
+        assert _pdf_font_sizes(first_page, "Work Experience") == {12.0}
+        assert _pdf_font_sizes(first_page, "Delivered tested applications") == {expected_body_size}
+        assert _pdf_font_sizes(first_page, "candidate@example.com") == {expected_body_size}
+        assert _pdf_font_sizes(first_page, "January 2022") == {expected_body_size}
 
     for parser, text in texts.items():
         assert text is not None, parser
@@ -104,6 +152,7 @@ async def test_template_pdf_keeps_project_metadata_before_body(seed, layout, pag
         compact = re.sub(r"\s+", "", text)
         assert "linkedin.com/in/sample" in compact, parser
         assert PROJECT_URL.removeprefix("https://") in compact, parser
+        assert all(skill in compact for skill in ("C++", "C#", ".NET", "CI/CD")), parser
         # PDF engines can introduce a line break inside an otherwise intact
         # title, especially after a page break with serif fonts.
         text = " ".join(text.split())

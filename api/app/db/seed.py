@@ -142,11 +142,17 @@ SEED_TEMPLATES = [
                 "certifications": "main",
                 "research": "main",
             },
-            "layout_defaults": {"spacing": "none"},
+            "layout_defaults": {
+                "spacing": "minimal",
+                "entry_gap": "snug",
+                "field_gap": "tight",
+            },
             "policy_overrides": {"by_type": {"skills": {"skill_variant": "inline"}}},
             "global_styles": {
                 "accent_color": "#111827",
                 "body_font": "sans-serif",
+                "body_font_size": "small",
+                "body_line_height": "normal",
                 "heading_font": "sans-serif",
             },
         },

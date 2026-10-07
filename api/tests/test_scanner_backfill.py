@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from uuid import uuid4
 
 import pytest
@@ -7,6 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.db.session import async_session
+from app.db.seed import SEED_TEMPLATES
+from app.scanner.ats_guidance import ATS_GUIDANCE_VERSION
 from app.scanner.extraction import extract_requirements_from_entities
 from app.scanner.freshness import scanner_result_freshness
 from app.scanner.service import ScannerService
@@ -217,7 +220,7 @@ def test_render_fingerprint_includes_renderer_behavior_version(monkeypatch):
         render_manifest={"manifest_version": 2},
     ).render_input_sha256
 
-    monkeypatch.setattr("app.scanner.service.PDF_RENDERER_VERSION", "aergia-pdf-render-v4")
+    monkeypatch.setattr("app.scanner.service.PDF_RENDERER_VERSION", "aergia-pdf-render-v5")
 
     changed = fingerprint_scan_inputs(
         "Python developer",
@@ -226,7 +229,87 @@ def test_render_fingerprint_includes_renderer_behavior_version(monkeypatch):
     ).render_input_sha256
 
     assert base != changed
-    assert PDF_RENDERER_VERSION == "aergia-pdf-render-v3"
+    assert PDF_RENDERER_VERSION == "aergia-pdf-render-v4"
+
+
+def test_minimal_manifest_and_renderer_updates_stale_stored_scan_results(monkeypatch):
+    job_description = "Python developer"
+    cv = {"sections": [{"type": "experience", "description": "Built APIs."}]}
+    current_manifest = next(seed["manifest"] for seed in SEED_TEMPLATES if seed["id"] == "generic-minimal")
+    legacy_manifest = copy.deepcopy(current_manifest)
+    legacy_manifest["global_styles"].pop("body_font_size")
+    legacy_manifest["global_styles"].pop("body_line_height")
+    legacy_manifest["layout_defaults"].pop("entry_gap")
+    legacy_manifest["layout_defaults"].pop("field_gap")
+
+    versions = {
+        "extractor_version": "model@revision",
+        "matcher_version": MATCHER_VERSION,
+        "lexical_version": LEXICAL_VERSION,
+        "quality_version": QUALITY_VERSION,
+        "pdf_analysis_version": PDF_ANALYSIS_VERSION,
+        "semantic_score_version": SEMANTIC_SCORE_VERSION,
+        "lexical_score_version": LEXICAL_SCORE_VERSION,
+        "pdf_score_version": PDF_SCORE_VERSION,
+        "classification_warning_version": CLASSIFICATION_WARNING_VERSION,
+        "ats_guidance_version": ATS_GUIDANCE_VERSION,
+    }
+
+    def stored_result(manifest):
+        fingerprints = fingerprint_scan_inputs(
+            job_description,
+            cv,
+            render_manifest=manifest,
+        ).model_dump(mode="json")
+        return {"schema_version": "scanner-v1", "input_fingerprints": fingerprints, "versions": versions}
+
+    monkeypatch.setattr("app.scanner.service.PDF_RENDERER_VERSION", "aergia-pdf-render-v3")
+    previous_scan = stored_result(legacy_manifest)
+    previous_freshness = scanner_result_freshness(
+        previous_scan,
+        job_description,
+        cv,
+        extractor_version="model@revision",
+        render_manifest=legacy_manifest,
+    )
+    assert previous_freshness == {"current": True, "reasons": []}
+
+    # Updating only the system manifest or only renderer semantics must make
+    # the old stored result stale. The immutable result itself is untouched.
+    changed_manifest = scanner_result_freshness(
+        previous_scan,
+        job_description,
+        cv,
+        extractor_version="model@revision",
+        render_manifest=current_manifest,
+    )
+    assert changed_manifest == {"current": False, "reasons": ["render_input_changed"]}
+
+    monkeypatch.setattr("app.scanner.service.PDF_RENDERER_VERSION", "aergia-pdf-render-v4")
+    changed_renderer = scanner_result_freshness(
+        previous_scan,
+        job_description,
+        cv,
+        extractor_version="model@revision",
+        render_manifest=legacy_manifest,
+    )
+    assert changed_renderer == {"current": False, "reasons": ["render_input_changed"]}
+    assert not scanner_backfill.scanner_result_is_current(
+        previous_scan,
+        job_description,
+        cv,
+        extractor_version="model@revision",
+        render_manifest=current_manifest,
+    )
+
+    refreshed_scan = stored_result(current_manifest)
+    assert scanner_result_freshness(
+        refreshed_scan,
+        job_description,
+        cv,
+        extractor_version="model@revision",
+        render_manifest=current_manifest,
+    ) == {"current": True, "reasons": []}
 
 
 class _FixtureExtractor:

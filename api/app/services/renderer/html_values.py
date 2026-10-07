@@ -58,6 +58,12 @@ FONT_SIZE_VALUES: dict[str, str] = {
     "xl": "1.25rem",
 }
 
+LINE_HEIGHT_TOKEN_VALUES: dict[str, str] = {
+    "tight": "1.2",
+    "normal": "1.4",
+    "relaxed": "1.7",
+}
+
 SPACING_VALUES: dict[str, str] = {
     "none": "0",
     "tight": "4px",
@@ -75,7 +81,12 @@ SAFE_SPACING_VALUES = frozenset({
     "0", "0px", "4px", "8px", "12px", "16px", "20px", "24px", "32px", "40px",
     "var(--spacing-section, 16px)", "var(--spacing-section, 24px)",
     "var(--spacing-subsection, 0px)", "var(--spacing-subsection, 16px)",
+    "var(--spacing-entry, var(--spacing-subsection, 0px))",
+    "var(--spacing-field, var(--spacing-subsection, 0px))",
 })
+
+SAFE_FONT_SIZE_VALUES = frozenset(FONT_SIZE_VALUES.values())
+SAFE_LINE_HEIGHT_VALUES = frozenset(LINE_HEIGHT_TOKEN_VALUES.values())
 
 SAFE_FONT_FAMILY_VALUES = frozenset({
     "Inter", "Georgia", "Crimson", "system-ui", "sans-serif", "serif",
@@ -128,6 +139,18 @@ def safe_spacing(value: object) -> str:
     return ""
 
 
+def safe_font_size(value: object) -> str:
+    """Return a resolved font size from the closed HTML token profile."""
+
+    return value if isinstance(value, str) and value in SAFE_FONT_SIZE_VALUES else ""
+
+
+def safe_line_height(value: object) -> str:
+    """Return a resolved line height from the closed HTML token profile."""
+
+    return value if isinstance(value, str) and value in SAFE_LINE_HEIGHT_VALUES else ""
+
+
 def safe_font_family(value: object) -> str:
     """Return a known font stack suitable for an HTML style."""
 
@@ -143,11 +166,14 @@ def safe_font_family(value: object) -> str:
 __all__ = [
     "FONT_SIZE_VALUES",
     "FONT_TOKEN_VALUES",
+    "LINE_HEIGHT_TOKEN_VALUES",
     "LINK_STYLES",
     "PADDING_TOKEN_VALUES",
     "PLAIN_LINK_STYLES",
     "PRINT_STYLES",
     "SAFE_FONT_FAMILY_VALUES",
+    "SAFE_FONT_SIZE_VALUES",
+    "SAFE_LINE_HEIGHT_VALUES",
     "SAFE_SPACING_VALUES",
     "SPACING_TOKEN_VALUES",
     "SPACING_VALUES",
@@ -155,5 +181,7 @@ __all__ = [
     "resolve_color_ref",
     "safe_color",
     "safe_font_family",
+    "safe_font_size",
+    "safe_line_height",
     "safe_spacing",
 ]

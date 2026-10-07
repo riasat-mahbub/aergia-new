@@ -15,6 +15,8 @@ from app.services.renderer.html_values import (
     PRINT_STYLES,
     safe_color as _safe_color,
     safe_font_family as _safe_font_family,
+    safe_font_size as _safe_font_size,
+    safe_line_height as _safe_line_height,
     safe_spacing as _safe_spacing,
 )
 from app.services.renderer.support import RendererSupport, SupportLevel
@@ -24,7 +26,11 @@ _CSS_VAR_NAMES = frozenset(
     {
         "--spacing-section",
         "--spacing-subsection",
+        "--spacing-entry",
+        "--spacing-field",
         "--body-font",
+        "--body-size",
+        "--body-line-height",
         "--heading-font",
         "--accent",
     }
@@ -53,6 +59,10 @@ def _render_css_vars(model: RenderModel) -> str:
             safe_value = _safe_color(value)
         elif key in {"--body-font", "--heading-font"}:
             safe_value = _safe_font_family(value)
+        elif key == "--body-size":
+            safe_value = _safe_font_size(value)
+        elif key == "--body-line-height":
+            safe_value = _safe_line_height(value)
         else:
             safe_value = _safe_spacing(value)
         if safe_value:
@@ -104,6 +114,7 @@ def _render_document(model: RenderModel, support: RendererSupport) -> str:
       margin: 0;
       padding: 0;
       font-family: {body_font};
+      line-height: var(--body-line-height, normal);
       color: var(--text, #374151);
       background: var(--bg, #ffffff);
     }}
@@ -111,12 +122,12 @@ def _render_document(model: RenderModel, support: RendererSupport) -> str:
       font-family: {heading_font};
     }}
     .f-name {{ font-size: 1.5rem; font-weight: 700; }}
-    .f-title, .f-company, .f-institution, .f-category, .f-venue, .f-issuer {{ font-size: 0.875rem; }}
-    .f-summary, .f-description {{ font-size: 0.75rem; }}
-    .f-contact, .f-contact-sep, .f-email, .f-phone, .f-location, .f-site, .f-date, .f-gpa, .f-link, .f-tech, .f-tag, .f-proficiency, .f-meta {{ font-size: 0.75rem; }}
+    .f-title, .f-company, .f-institution, .f-category, .f-venue, .f-issuer {{ font-size: var(--body-size, 0.875rem); }}
+    .f-summary, .f-description {{ font-size: var(--body-size, 0.75rem); }}
+    .f-contact, .f-contact-sep, .f-email, .f-phone, .f-location, .f-site, .f-date, .f-gpa, .f-link, .f-tech, .f-tag, .f-proficiency, .f-meta {{ font-size: var(--body-size, 0.75rem); }}
     /* Social row: smaller than the other contact fields so the icon+label
        pairs read as fine metadata next to the email/phone row. */
-    .f-social {{ display:inline-block; font-size: 0.83rem; }}
+    .f-social {{ display:inline-block; font-size: var(--body-size, 0.83rem); }}
     .f-social:last-child {{ margin-right: 0; }}
     .f-social-link {{ margin-right: 1.5rem; }}
     .f-social-link:last-child {{ margin-right: 0; }}
@@ -150,7 +161,7 @@ def _render_document(model: RenderModel, support: RendererSupport) -> str:
     .field-row {{ display:flex; flex-wrap:wrap; align-items:baseline; column-gap:0; row-gap:0; }}
     .f-chip-group {{ display:flex; flex-wrap:wrap; align-items:center; gap:0.25rem; width:100%; min-width:0; max-width:100%; }}
     .f-chip-link {{ display:inline-flex; text-decoration:none; color:inherit; max-width:100%; min-width:0; }}
-    .f-chip {{ display:inline-flex; align-items:center; box-sizing:border-box; max-width:100%; min-width:0; background:#eff6ff; padding:2px 8px; border-radius:9999px; color:var(--section-body-color,#1d4ed8); font-size:0.75rem; line-height:1.2; overflow-wrap:anywhere; }}
+    .f-chip {{ display:inline-flex; align-items:center; box-sizing:border-box; max-width:100%; min-width:0; background:#eff6ff; padding:2px 8px; border-radius:9999px; color:var(--section-body-color,#1d4ed8); font-size:var(--body-size,0.75rem); line-height:1.2; overflow-wrap:anywhere; }}
     /* A section body size is opt-in. Keep the field grammar above unchanged
        for untouched sections, then let the section-local control replace
        every field default when it is set. */

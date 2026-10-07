@@ -17,6 +17,7 @@ from .html_markup import (
 )
 from app.services.renderer.html_values import (
     FONT_SIZE_VALUES as _FONT_SIZE_TO_CSS,
+    LINE_HEIGHT_TOKEN_VALUES as _LINE_HEIGHT_TO_CSS,
     safe_color as _safe_color,
     safe_font_family as _safe_font_family,
     safe_spacing as _safe_spacing,
@@ -87,7 +88,6 @@ def _subsection_style_decl(section: Section) -> str:
 
 def _typography_role_decls(role: TypographyRole) -> list[str]:
     decls: list[str] = []
-    line_heights = {"tight": "1.2", "normal": "1.4", "relaxed": "1.7"}
     if role.font_family:
         family = _safe_font_family(role.font_family)
         if family:
@@ -95,7 +95,7 @@ def _typography_role_decls(role: TypographyRole) -> list[str]:
     if role.font_size and role.font_size in _FONT_SIZE_TO_CSS:
         decls.append(f"font-size:{_FONT_SIZE_TO_CSS[role.font_size]}")
     if role.line_height:
-        decls.append(f"line-height:{line_heights[role.line_height]}")
+        decls.append(f"line-height:{_LINE_HEIGHT_TO_CSS[role.line_height]}")
     if role.color:
         color = _safe_color(role.color)
         if color:
@@ -223,7 +223,7 @@ def _render_section(section: Section) -> str:
     entry_gap = (
         _safe_spacing(
             (section.subsection.entry_gap if section.subsection and section.subsection.entry_gap else None)
-            or "var(--spacing-subsection, 0px)"
+            or "var(--spacing-entry, var(--spacing-subsection, 0px))"
         )
         or "0px"
     )

@@ -390,6 +390,8 @@ class LayoutDefaults(BaseModel):
     """Layout-wide defaults. Spacing maps to design tokens."""
 
     spacing: Literal["none", "compact", "comfortable", "minimal"] = "none"
+    entry_gap: SpacingToken | None = None
+    field_gap: SpacingToken | None = None
 
     model_config = {"extra": "forbid"}
 
@@ -415,6 +417,8 @@ class GlobalStyles(BaseModel):
 
     accent_color: str | None = None
     body_font: FontToken | None = None
+    body_font_size: FontSizeToken | None = None
+    body_line_height: Literal["tight", "normal", "relaxed"] | None = None
     heading_font: FontToken | None = None
 
     @model_validator(mode="after")
