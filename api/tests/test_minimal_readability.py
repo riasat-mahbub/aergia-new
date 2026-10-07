@@ -166,14 +166,15 @@ async def test_minimal_long_pdf_keeps_boundary_entry_and_complex_text():
     with pdfplumber.open(BytesIO(pdf_bytes)) as document:
         assert len(document.pages) >= 2
         _assert_page_bounds(document)
-        edge_hit = next(
+        boundary_hit = next(
             (page_number, hit)
             for page_number, page in enumerate(document.pages)
             for hit in page.search("Boundary Systems Engineer")
         )
-        page_number, hit = edge_hit
-        edge_distance = min(hit["top"], document.pages[page_number].height - hit["bottom"])
-        assert edge_distance <= 200, (page_number, hit, edge_distance)
+        page_number, hit = boundary_hit
+        page = document.pages[page_number]
+        assert hit["top"] >= 36 - 0.6, (page_number, hit)
+        assert hit["bottom"] <= page.height - 36 + 0.6, (page_number, hit)
         title_hit = _find_hit(document, "Boundary Systems Engineer")
         date_hit = _find_hit(document, "January 2019")
         company_hit = _find_hit(document, "München Übersee-Forschungsgesellschaft")

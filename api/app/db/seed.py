@@ -7,15 +7,17 @@ closed design vocabulary:
 - ``zones[].styles.background`` is a color ref (hex literal or palette name).
 - ``zones[].styles.padding`` is a :data:`SpacingToken`.
 - ``global_styles.accent_color`` is a color ref; ``body_font`` and
-  ``heading_font`` are :data:`FontToken` enums.
+  ``heading_font`` are :data:`FontToken` enums; body size and line height use
+  the renderer's constrained tokens.
 - ``layout_defaults.spacing`` is the v2 enum
-  (``none | compact | comfortable | minimal``).
+  (``none | compact | comfortable | minimal``); entry and field gaps can use
+  independent spacing tokens.
 
 The manifest never carries raw CSS strings; the resolver maps each token
 to the renderer's native value. The three seeds ship the token values
 that match the design intent (modern = two-column with a narrow sidebar,
-classic = single column with compact spacing, minimal = single column
-with minimal spacing).
+classic = readable serif body text with compact section spacing, minimal =
+single column with minimal spacing).
 
 The seed writes ``manifest`` only; the editor reads the manifest directly.
 """
@@ -80,11 +82,11 @@ SEED_TEMPLATES = [
     {
         "id": "generic-classic",
         "name": "Classic",
-        "description": "Single-column layout with serif fonts and compact spacing.",
+        "description": "Single-column layout with serif fonts and compact section spacing.",
         "manifest": {
             "manifest_version": 2,
             "name": "Classic",
-            "description": "Single-column layout with serif fonts and compact spacing.",
+            "description": "Single-column layout with serif fonts and compact section spacing.",
             "zones": [
                 {
                     "id": "main",
@@ -105,11 +107,17 @@ SEED_TEMPLATES = [
                 "certifications": "main",
                 "research": "main",
             },
-            "layout_defaults": {"spacing": "compact"},
+            "layout_defaults": {
+                "spacing": "compact",
+                "entry_gap": "snug",
+                "field_gap": "tight",
+            },
             "policy_overrides": {"by_type": {}},
             "global_styles": {
                 "accent_color": "#000000",
                 "body_font": "serif",
+                "body_font_size": "small",
+                "body_line_height": "normal",
                 "heading_font": "serif",
             },
         },

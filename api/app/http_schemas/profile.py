@@ -36,6 +36,7 @@ class UserProfile(BaseModel):
     location: str | None = Field(default=None, max_length=255)
     site_text: str | None = Field(default=None, max_length=255)
     site_url: str | None = Field(default=None, max_length=2048)
+    show_urls: bool = False
     summary: (
         Annotated[str, Field(max_length=20_000)]
         | Annotated[list[RichTextBlock], Field(max_length=100)]

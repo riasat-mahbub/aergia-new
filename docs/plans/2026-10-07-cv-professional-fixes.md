@@ -27,8 +27,10 @@ PDF output) are outside this patch.
 
 Use physical A4 margins of 48 CSS px top/bottom and 16 CSS px left/right.
 The standard 32 px zone inset makes the default horizontal text inset 48 px
-(36 pt / half an inch). Zone widths use border-box sizing within the printable
-area. Retain saved zone padding, including additional first/last-page vertical
+(36 pt / half an inch). Single-zone widths use border-box sizing within the
+printable area. Modern retains its existing multi-zone content-box flex sizing:
+applying border-box there narrowed its sidebar enough to break URL recovery.
+Retain saved zone padding, including additional first/last-page vertical
 space and explicitly tighter custom horizontal padding. Preview uses the same
 printable width and top/bottom content boundaries.
 
@@ -43,5 +45,32 @@ printable width and top/bottom content boundaries.
 
 ## Current state
 
-P01/P02/P03 in progress. No release claim until the integration gate passes.
+- P01 complete: 161 focused API checks pass; date unit tests and typecheck
+  pass. Classic default and authored-override regressions are included.
+- P02 complete: short/long/saved-custom preview counts and page-two starts
+  agree with export; bottom-margin boundary checks pass. The ResizeObserver
+  registers once and settles after one callback per fixture. Mobile preview
+  has no horizontal overflow. Oversized entries receive a named advisory;
+  their line-level pagination remains approximate (stress fixture: preview
+  five pages, PDF six), so the notice does not promise exact page count.
+- P03 complete: five API/PDF checks plus desktop/mobile keyboard and
+  save/remount checks pass. Both local parsers recover opt-in destinations;
+  full clickable URIs remain intact. New helper text uses `app-ink-2` to meet
+  contrast on the existing canvas and muted surfaces.
+- Integration: first smoke gate passed. The first full backend run found four
+  Modern URL recovery regressions and an obsolete stress-fixture edge-position
+  assertion. Narrowing border-box to single zones restored recovery; updating
+  the edge assertion retains physical margins and role/date/body attachment.
+  All 69 affected checks pass; the new normal long fixture also verifies every
+  role/company/first-and-last-bullet group stays together across reflow.
+  The URL preference is included in both owner-contact normalization and
+  render-basis freshness; focused precedence/freshness regressions pass.
+  Final backend/smoke gates are running against the corrected frozen source.
+  Full frontend lint and
+  typecheck, architecture fixtures/check, codegen check, and three tailoring
+  tests pass. Existing RichTextToolbar dependency warning remains.
+- Independent read-only integration review assigned to the P01 agent.
 
+No release claim until the integration gate passes. Temporary packet handoffs:
+`/tmp/cv-defaults-dates-handoff.md`, `/tmp/cv-links-prompts-handoff.md`, and
+`/tmp/cv-margins-preview-handoff.md`.

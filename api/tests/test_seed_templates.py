@@ -22,8 +22,13 @@ def test_modern_template_spacing_is_comfortable():
     assert _manifest(MODERN_ID).layout_defaults.spacing == "comfortable"
 
 
-def test_classic_template_spacing_is_compact():
-    assert _manifest(CLASSIC_ID).layout_defaults.spacing == "compact"
+def test_classic_template_uses_readable_body_type_and_compact_section_spacing():
+    manifest = _manifest(CLASSIC_ID)
+    assert manifest.layout_defaults.spacing == "compact"
+    assert manifest.layout_defaults.entry_gap == "snug"
+    assert manifest.layout_defaults.field_gap == "tight"
+    assert manifest.global_styles.body_font_size == "small"
+    assert manifest.global_styles.body_line_height == "normal"
 
 
 def test_minimal_template_readability_defaults():
@@ -35,13 +40,12 @@ def test_minimal_template_readability_defaults():
     assert manifest.global_styles.body_line_height == "normal"
 
 
-def test_only_minimal_seed_populates_readability_defaults():
-    for template_id in (MODERN_ID, CLASSIC_ID):
-        manifest = _manifest(template_id)
-        assert manifest.layout_defaults.entry_gap is None
-        assert manifest.layout_defaults.field_gap is None
-        assert manifest.global_styles.body_font_size is None
-        assert manifest.global_styles.body_line_height is None
+def test_modern_seed_keeps_legacy_readability_defaults():
+    manifest = _manifest(MODERN_ID)
+    assert manifest.layout_defaults.entry_gap is None
+    assert manifest.layout_defaults.field_gap is None
+    assert manifest.global_styles.body_font_size is None
+    assert manifest.global_styles.body_line_height is None
 
 
 def test_legacy_v2_manifest_can_omit_optional_readability_fields():

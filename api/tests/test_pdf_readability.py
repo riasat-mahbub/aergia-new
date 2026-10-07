@@ -126,7 +126,7 @@ async def test_template_pdf_keeps_project_metadata_before_body(seed, layout, pag
         }
         links = {link["uri"] for page in document.pages for link in page.hyperlinks if link.get("uri")}
         assert {PROJECT_URL, PROFILE_URL, "https://example.com/tracker"} <= links
-        expected_body_size = 10.5 if seed["id"] == "generic-minimal" else 9.0
+        expected_body_size = 10.5 if seed["id"] in {"generic-minimal", "generic-classic"} else 9.0
         if page_break:
             assert len(document.pages) >= 2
         for page in document.pages:

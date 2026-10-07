@@ -220,7 +220,7 @@ def test_render_fingerprint_includes_renderer_behavior_version(monkeypatch):
         render_manifest={"manifest_version": 2},
     ).render_input_sha256
 
-    monkeypatch.setattr("app.scanner.service.PDF_RENDERER_VERSION", "aergia-pdf-render-v5")
+    monkeypatch.setattr("app.scanner.service.PDF_RENDERER_VERSION", "aergia-pdf-render-v6")
 
     changed = fingerprint_scan_inputs(
         "Python developer",
@@ -229,7 +229,7 @@ def test_render_fingerprint_includes_renderer_behavior_version(monkeypatch):
     ).render_input_sha256
 
     assert base != changed
-    assert PDF_RENDERER_VERSION == "aergia-pdf-render-v4"
+    assert PDF_RENDERER_VERSION == "aergia-pdf-render-v5"
 
 
 def test_minimal_manifest_and_renderer_updates_stale_stored_scan_results(monkeypatch):

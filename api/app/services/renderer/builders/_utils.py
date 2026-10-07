@@ -62,19 +62,39 @@ MONTH_NAMES = [
 
 
 # Canonical list of date-format presets. Mirrors the dropdown in
-# ``web/src/shared/cv/date.ts``.
+# ``web/src/shared/cv/date.ts``. Internal punctuation stays in each endpoint;
+# ranges between endpoints consistently use a spaced en dash.
 DATE_STYLE_OPTIONS: list[tuple[str, str, str]] = [
     ("YYYY-MM", "YYYY-MM", " \u2013 "),
-    ("YYYY/MM", "YYYY/MM", "/"),
-    ("MM/YYYY", "MM/YYYY", "/"),
-    ("MM-YYYY", "MM-YYYY", "-"),
-    ("MM.YYYY", "MM.YYYY", "."),
-    ("YYYY.MM", "YYYY.MM", "."),
+    ("YYYY/MM", "YYYY/MM", " \u2013 "),
+    ("MM/YYYY", "MM/YYYY", " \u2013 "),
+    ("MM-YYYY", "MM-YYYY", " \u2013 "),
+    ("MM.YYYY", "MM.YYYY", " \u2013 "),
+    ("YYYY.MM", "YYYY.MM", " \u2013 "),
     ("Mon YYYY", "Mon YYYY (e.g. Mar 2021)", " \u2013 "),
     ("Month YYYY", "Month YYYY (default; e.g. March 2021)", " \u2013 "),
     ("YYYY", "YYYY", " \u2013 "),
-    ("Mon-YYYY", "Mon-YYYY (e.g. Mar-2021)", "-"),
+    ("Mon-YYYY", "Mon-YYYY (e.g. Mar-2021)", " \u2013 "),
 ]
+
+# Older dropdown versions stored a preset's internal punctuation as its
+# range separator. Normalize those generated values while retaining a
+# deliberately distinct, printable separator from an authored document.
+_DATE_PUNCTUATION = frozenset({"/", "-", "."})
+
+
+def _date_range_separator(style_dict: dict | None) -> str:
+    if not style_dict:
+        return " \u2013 "
+
+    separator = style_dict.get("range_sep")
+    if not isinstance(separator, str) or not separator.strip() or not separator.isprintable():
+        return " \u2013 "
+
+    key = style_dict.get("key")
+    if isinstance(key, str) and separator in _DATE_PUNCTUATION and separator in key:
+        return " \u2013 "
+    return separator
 
 
 def _style_dict(style: DateStyle | dict | None) -> dict | None:
@@ -147,13 +167,13 @@ def format_date_range(
     if not start:
         return ""
     if current:
-        return f"{format_single_date(start, style)} – Present"
+        return f"{format_single_date(start, style)}{_date_range_separator(_style_dict(style))}Present"
     if not end:
         return format_single_date(start, style)
     a = format_single_date(start, style)
     b = format_single_date(end, style)
     style_dict = _style_dict(style)
-    sep = style_dict["range_sep"] if style_dict and style_dict.get("range_sep") else " – "
+    sep = _date_range_separator(style_dict)
     return f"{a}{sep}{b}"
 
 

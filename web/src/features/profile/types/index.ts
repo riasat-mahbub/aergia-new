@@ -14,6 +14,7 @@ export interface UserProfile {
   location?: string | null;
   site_text?: string | null;
   site_url?: string | null;
+  show_urls?: boolean;
   summary?: string | RichTextBlock[] | null;
   photo_url?: string | null;
   email_link: boolean;

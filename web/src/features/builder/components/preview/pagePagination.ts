@@ -8,6 +8,7 @@ export interface MeasuredEntry {
   top: number;
   height: number;
   keepTogether: boolean;
+  label?: string;
 }
 
 export interface MeasuredSection {
@@ -16,6 +17,7 @@ export interface MeasuredSection {
   height: number;
   breakBefore: boolean;
   headingKeepsWithFirst: boolean;
+  label?: string;
   entries: MeasuredEntry[];
 }
 
@@ -36,10 +38,19 @@ export interface PaginationResult {
   pageCount: number;
   height: number;
   spacers: PreviewSpacer[];
+  oversizedEntries: OversizedEntry[];
+}
+
+export interface OversizedEntry {
+  id: string;
+  sectionLabel: string;
+  entryLabel: string;
+  heightPx: number;
 }
 
 function pageBottom(top: number, geometry: PageGeometry): number {
-  return (Math.floor(Math.max(0, top) / geometry.pageHeightPx) + 1) * geometry.pageHeightPx;
+  const pageTop = Math.floor(Math.max(0, top) / geometry.pageHeightPx) * geometry.pageHeightPx;
+  return pageTop + geometry.pageHeightPx - geometry.bottomMarginPx;
 }
 
 function nextPageContentTop(top: number, geometry: PageGeometry): number {
@@ -69,6 +80,7 @@ export function calculatePagination(
   geometry: PageGeometry = A4_PAGE_GEOMETRY,
 ): PaginationResult {
   const spacers: PreviewSpacer[] = [];
+  const oversizedEntries: OversizedEntry[] = [];
   let maxBottom = geometry.pageHeightPx;
 
   for (const zone of zones) {
@@ -87,14 +99,23 @@ export function calculatePagination(
       }
 
       const firstEntry = section.entries[0];
-      if (
-        firstEntry
-        && section.headingKeepsWithFirst
-        && firstEntry.height <= geometry.printableHeightPx + EPSILON
-      ) {
+      for (const entry of section.entries) {
+        if (entry.height > geometry.printableHeightPx + EPSILON) {
+          oversizedEntries.push({
+            id: entry.id,
+            sectionLabel: section.label || section.id,
+            entryLabel: entry.label || entry.id,
+            heightPx: entry.height,
+          });
+        }
+      }
+      if (firstEntry && section.headingKeepsWithFirst) {
         const firstTop = firstEntry.top + shift;
         const sectionEnd = pageBottom(sectionTop, geometry);
-        if (sectionTop < sectionEnd - EPSILON && firstTop + firstEntry.height > sectionEnd + EPSILON) {
+        const headingInBottomMargin = sectionTop >= sectionEnd - EPSILON;
+        const ordinaryEntryWouldCross = firstEntry.height <= geometry.printableHeightPx + EPSILON
+          && firstTop + firstEntry.height > sectionEnd + EPSILON;
+        if (headingInBottomMargin || ordinaryEntryWouldCross) {
           const target = nextPageContentTop(sectionTop, geometry);
           const spacerHeight = Math.max(0, target - sectionTop);
           addSpacer(spacers, section.id, spacerHeight, pageForTop(target, geometry));
@@ -107,7 +128,7 @@ export function calculatePagination(
         const entryTop = entry.top + shift;
         if (entry.keepTogether && entry.height <= geometry.printableHeightPx + EPSILON) {
           const boundary = pageBottom(entryTop, geometry);
-          if (entryTop < boundary - EPSILON && entryTop + entry.height > boundary + EPSILON) {
+          if (entryTop >= boundary - EPSILON || entryTop + entry.height > boundary + EPSILON) {
             const target = nextPageContentTop(entryTop, geometry);
             const spacerHeight = Math.max(0, target - entryTop);
             addSpacer(spacers, entry.id, spacerHeight, pageForTop(target, geometry));
@@ -128,6 +149,7 @@ export function calculatePagination(
     pageCount,
     height: Math.max(geometry.pageHeightPx, pageCount * geometry.pageHeightPx, maxBottom),
     spacers,
+    oversizedEntries,
   };
 }
 
@@ -176,6 +198,7 @@ function measureDocument(document: Document): {
       const sectionRawId = sectionElement.dataset.previewSectionId || `section-${sections.length}`;
       const sectionId = `${zoneId}/section/${sectionRawId}`;
       targets.set(sectionId, sectionElement);
+      const sectionLabel = sectionElement.querySelector(":scope > h2")?.textContent?.trim().replace(/\s+/g, " ") || sectionRawId;
 
       const entries: MeasuredEntry[] = [];
       const entriesContainer = directChildrenMatching(sectionElement, ".section-entries")[0];
@@ -188,11 +211,15 @@ function measureDocument(document: Document): {
         const entryRawId = entryElement.dataset.previewEntryId || `entry-${index}`;
         const entryId = `${sectionId}/entry/${entryRawId}`;
         targets.set(entryId, entryElement);
+        const entryLabel = entryElement.querySelector(
+          ".f-position, .f-degree, .f-project, .f-name, .f-category, .f-certification, .f-paper, .f-title",
+        )?.textContent?.trim().replace(/\s+/g, " ") || entryRawId;
         entries.push({
           id: entryId,
           top: elementTop(entryElement, bodyTop),
           height: elementHeight(entryElement),
           keepTogether: asBoolean(entryElement.dataset.previewKeepTogether),
+          label: entryLabel,
         });
       }
 
@@ -202,6 +229,7 @@ function measureDocument(document: Document): {
         height: elementHeight(sectionElement),
         breakBefore: asBoolean(sectionElement.dataset.previewBreakBefore),
         headingKeepsWithFirst: asBoolean(sectionElement.dataset.previewHeadingKeepsWithFirst),
+        label: sectionLabel,
         entries,
       });
     }
@@ -247,11 +275,13 @@ export function applyPreviewPagination(
 ): PaginationResult {
   const body = document.body;
   if (!body) {
-    return { pageCount: 1, height: geometry.pageHeightPx, spacers: [] };
+    return { pageCount: 1, height: geometry.pageHeightPx, spacers: [], oversizedEntries: [] };
   }
 
   removeSpacers(document);
   body.style.paddingTop = `${geometry.topMarginPx}px`;
+  body.style.paddingRight = `${geometry.rightMarginPx}px`;
+  body.style.paddingLeft = `${geometry.leftMarginPx}px`;
 
   const measured = measureDocument(document);
   const result = calculatePagination(measured.zones, geometry);
@@ -271,5 +301,6 @@ export function applyPreviewPagination(
     pageCount,
     height: Math.max(result.height, measuredHeight, pageCount * geometry.pageHeightPx),
     spacers: result.spacers,
+    oversizedEntries: result.oversizedEntries,
   };
 }

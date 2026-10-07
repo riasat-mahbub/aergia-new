@@ -44,6 +44,7 @@ export function createDefaultSectionData(type: string): unknown {
         location: "",
         site_text: "",
         site_url: "",
+        show_urls: false,
         summary: [],
         photo_url: "",
         social_links: [],

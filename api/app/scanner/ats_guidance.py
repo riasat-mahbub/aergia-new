@@ -196,11 +196,19 @@ def _heading_findings(facts: _RenderedFacts) -> list[HeadingConventionFinding]:
     return findings
 
 
+_MONTH_NAME = (
+    r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|"
+    r"Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?|tember)?|"
+    r"Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)"
+)
+_MONTH_DATE = rf"{_MONTH_NAME}[- ]\d{{4}}"
+_NUMERIC_MONTH_YEAR = r"(?:0[1-9]|1[0-2])[./-]\d{4}"
+_NUMERIC_YEAR_MONTH = r"\d{4}[./-](?:0[1-9]|1[0-2])"
+_NUMERIC_YEAR = r"\d{4}"
+_DATE_ENDPOINT = rf"(?:{_MONTH_DATE}|{_NUMERIC_MONTH_YEAR}|{_NUMERIC_YEAR_MONTH}|{_NUMERIC_YEAR})"
+_DATE_RANGE_SEPARATOR = r"(?:\s*[–—-]\s*|\s+(?:to|through)\s+)"
 _CONVENTIONAL_DATE_RE = re.compile(
-    r"^(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*[- ]\d{4}|"
-    r"(?:\d{2}[./-]\d{4}|\d{4}(?:[./-]\d{2})?)\s*[–-]\s*(?:Present|\d{4})|"
-    r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\s+\d{4}\s*[–-]\s*(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\s+\d{4}|Present)|"
-    r"\d{2}[./-]\d{4}|\d{4}(?:[./-]\d{2})?)$",
+    rf"^(?:{_DATE_ENDPOINT}{_DATE_RANGE_SEPARATOR}(?:Present|{_DATE_ENDPOINT})|{_DATE_ENDPOINT})$",
     re.IGNORECASE,
 )
 

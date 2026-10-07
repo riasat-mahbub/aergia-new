@@ -1,3 +1,5 @@
+import pytest
+
 from app.scanner.extraction import extract_requirements_from_entities
 from app.scanner.service import ScannerService
 from app.scanner.ats_guidance import ATS_RULES, ATS_SOURCES, SUPPORTED_ATS_PLATFORMS
@@ -34,7 +36,7 @@ def test_every_scan_generates_all_supported_ats_platforms():
         "oracle_recruiting", "taleo", "ashby", "smartrecruiters", "bamboohr",
         "rippling", "workable", "jazzhr", "breezy",
     }
-    assert result.versions.ats_guidance_version == "ats-guidance-v2"
+    assert result.versions.ats_guidance_version == "ats-guidance-v3"
 
 
 def test_ats_registry_is_unique_and_source_references_resolve():
@@ -97,6 +99,75 @@ def test_rendered_date_compatibility_does_not_flag_safe_renderer_formats():
     assert dates[("w1", "January 2024 – Present")] == "conventional"
     assert dates[("w2", "July 2022 – August 2023")] == "conventional"
     assert dates[("r1", "Spring 2024")] == "potentially_ambiguous"
+
+
+@pytest.mark.parametrize(
+    "key,legacy_separator,start,end",
+    [
+        ("YYYY-MM", " – ", "2021-03", "2022-01"),
+        ("YYYY/MM", "/", "2021/03", "2022/01"),
+        ("MM/YYYY", "/", "03/2021", "01/2022"),
+        ("MM-YYYY", "-", "03-2021", "01-2022"),
+        ("MM.YYYY", ".", "03.2021", "01.2022"),
+        ("YYYY.MM", ".", "2021.03", "2022.01"),
+        ("Mon YYYY", " – ", "Mar 2021", "Jan 2022"),
+        ("Month YYYY", " – ", "March 2021", "January 2022"),
+        ("YYYY", " – ", "2021", "2022"),
+        ("Mon-YYYY", "-", "Mar-2021", "Jan-2022"),
+    ],
+)
+def test_scanner_recognizes_all_date_presets_for_single_completed_and_current_dates(
+    key, legacy_separator, start, end
+):
+    date_style = {"key": key, "rangeSep": legacy_separator}
+    experience = _section("work", "experience", "Experience", [
+        {"id": "completed", "position": "Engineer", "company": "Acme", "start_date": "2021-03", "end_date": "2022-01"},
+        {"id": "current", "position": "Developer", "company": "Beta", "start_date": "2021-03", "end_date": "2022-01", "current": True},
+    ])
+    research = _section("research", "research", "Research", [
+        {"id": "single", "title": "Report", "publication_date": "2021-03"},
+    ])
+    experience["style"] = {"layout": {"date_style": date_style}}
+    research["style"] = {"layout": {"date_style": date_style}}
+    result = _scan("Qualifications\nPython", _cv(experience, research))
+    dates = {item.entry_id: item for item in result.ats_guidance.date_compatibility}
+
+    assert dates["completed"].rendered_text == f"{start} – {end}"
+    assert dates["current"].rendered_text == f"{start} – Present"
+    assert dates["single"].rendered_text == start
+    assert {dates[entry_id].status for entry_id in ("completed", "current", "single")} == {"conventional"}
+
+
+def test_scanner_accepts_month_name_ranges_but_rejects_invalid_or_joined_numeric_dates():
+    result = _scan(
+        "Qualifications\nPython",
+        _cv(
+            _section("work", "experience", "Experience", [
+                {"id": "w1", "position": "Engineer", "company": "Acme", "start_date": "2021-03", "end_date": "2022-01"},
+                {"id": "w2", "position": "Developer", "company": "Beta", "start_date": "2021-13", "end_date": "2022-02"},
+            ]),
+            _section("bad-month", "research", "Research", [{"id": "r1", "title": "Report", "publication_date": "13/2021"}]),
+            _section("joined", "research", "Research", [{"id": "r2", "title": "Report", "publication_date": "03/2021/12/2021"}]),
+        ),
+    )
+    dates = {item.entry_id: item for item in result.ats_guidance.date_compatibility}
+
+    assert dates["w1"].status == "conventional"
+    assert dates["w2"].status == "nonstandard"
+    assert dates["r1"].status == "nonstandard"
+    assert dates["r2"].status == "nonstandard"
+
+
+def test_scanner_recognizes_a_distinct_authored_word_separator():
+    experience = _section("work", "experience", "Experience", [
+        {"id": "w1", "position": "Engineer", "company": "Acme", "start_date": "2021-03", "end_date": "2022-01"},
+    ])
+    experience["style"] = {"layout": {"date_style": {"key": "MM/YYYY", "rangeSep": " to "}}}
+    result = _scan("Qualifications\nPython", _cv(experience))
+
+    date = result.ats_guidance.date_compatibility[0]
+    assert date.rendered_text == "03/2021 to 01/2022"
+    assert date.status == "conventional"
 
 
 def test_acronym_coverage_requires_explicit_or_curated_pair():

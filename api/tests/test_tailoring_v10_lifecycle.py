@@ -492,6 +492,46 @@ async def test_contact_and_template_basis_and_cv_revision_gate_acceptance(client
 
 
 @pytest.mark.asyncio
+async def test_show_urls_setting_change_invalidates_owner_render_basis(client, offline_tailoring_and_pdf):
+    headers, email, profile, application, _source_id = await _owner_and_application(client)
+    created, capability, context = await _start_session(client, headers, application["id"])
+    preview = await _preview(client, capability, context, _candidate(email))
+    submitted, _payload = await _submit(client, capability, context, preview)
+    session_id = created["session_id"]
+    draft_id = submitted.json()["draft_cv_id"]
+
+    current = await client.get(f"/api/v1/tailoring/sessions/{session_id}", headers=headers)
+    first_review = current.json()["draft_review"]
+    assert first_review["state"] == "current"
+
+    changed_preference = await client.put(
+        "/api/v1/profile",
+        headers=headers,
+        json={**profile, "show_urls": True},
+    )
+    assert changed_preference.status_code == 200, changed_preference.text
+    assert changed_preference.json()["show_urls"] is True
+
+    stale_status = await client.get(f"/api/v1/tailoring/sessions/{session_id}", headers=headers)
+    stale_review = stale_status.json()["draft_review"]
+    assert stale_review["state"] == "needs_reevaluation"
+    assert stale_review["candidate_hash"] == first_review["candidate_hash"]
+    assert stale_review["render_basis_hash"] != first_review["render_basis_hash"]
+
+    reevaluated = await client.post(
+        f"/api/v1/tailoring/sessions/{session_id}/reevaluate",
+        headers=headers,
+        json={"expected_cv_revision": stale_review["cv_revision"]},
+    )
+    assert reevaluated.status_code == 200, reevaluated.text
+    assert reevaluated.json()["draft_review"]["state"] == "current"
+    async with async_session() as db:
+        draft = await db.get(CV, draft_id)
+        profile_section = next(section for section in draft.sections if section["type"] == "profile")
+        assert profile_section["data"]["show_urls"] is True
+
+
+@pytest.mark.asyncio
 async def test_changed_source_keeps_stale_draft_inspectable_until_discard(client, offline_tailoring_and_pdf):
     headers, email, _profile_data, application, source_id = await _owner_and_application(client, with_source=True)
     created, capability, context = await _start_session(client, headers, application["id"])

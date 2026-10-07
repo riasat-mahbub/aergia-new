@@ -10,16 +10,27 @@ export const DATE_STYLE_OPTIONS: ReadonlyArray<{
   rangeSep: string;
 }> = [
   { value: "YYYY-MM", label: "YYYY-MM", rangeSep: " – " },
-  { value: "YYYY/MM", label: "YYYY/MM", rangeSep: "/" },
-  { value: "MM/YYYY", label: "MM/YYYY", rangeSep: "/" },
-  { value: "MM-YYYY", label: "MM-YYYY", rangeSep: "-" },
-  { value: "MM.YYYY", label: "MM.YYYY", rangeSep: "." },
-  { value: "YYYY.MM", label: "YYYY.MM", rangeSep: "." },
+  { value: "YYYY/MM", label: "YYYY/MM", rangeSep: " – " },
+  { value: "MM/YYYY", label: "MM/YYYY", rangeSep: " – " },
+  { value: "MM-YYYY", label: "MM-YYYY", rangeSep: " – " },
+  { value: "MM.YYYY", label: "MM.YYYY", rangeSep: " – " },
+  { value: "YYYY.MM", label: "YYYY.MM", rangeSep: " – " },
   { value: "Mon YYYY", label: "Mon YYYY (e.g. Mar 2021)", rangeSep: " – " },
   { value: "Month YYYY", label: "Month YYYY (default; e.g. March 2021)", rangeSep: " – " },
   { value: "YYYY", label: "YYYY", rangeSep: " – " },
-  { value: "Mon-YYYY", label: "Mon-YYYY (e.g. Mar-2021)", rangeSep: "-" },
+  { value: "Mon-YYYY", label: "Mon-YYYY (e.g. Mar-2021)", rangeSep: " – " },
 ];
+
+function dateRangeSeparator(style?: DateStyle | null): string {
+  const separator = style?.rangeSep;
+  if (!separator?.trim() || /[\u0000-\u001f\u007f-\u009f]/.test(separator)) {
+    return " – ";
+  }
+  const key = style?.key;
+  return ["/", "-", "."].includes(separator) && key?.includes(separator)
+    ? " – "
+    : separator;
+}
 
 const SHORT_MONTH_NAMES = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -91,7 +102,7 @@ export function formatDateRange(
   style?: DateStyle | null,
 ): string {
   if (!start) return "";
-  if (current) return `${formatSingleDate(start, style)} – Present`;
+  if (current) return `${formatSingleDate(start, style)}${dateRangeSeparator(style)}Present`;
   if (!end) return formatSingleDate(start, style);
-  return `${formatSingleDate(start, style)}${style?.rangeSep ?? " – "}${formatSingleDate(end, style)}`;
+  return `${formatSingleDate(start, style)}${dateRangeSeparator(style)}${formatSingleDate(end, style)}`;
 }
