@@ -31,7 +31,30 @@ export function terminalTailoringToast(
     case "failed": return { message: "Tailoring failed. No CV changes were saved.", type: "error" };
     case "expired": return { message: "The tailoring session expired. Start a new session to try again.", type: "info" };
     case "cancelled": return { message: "Tailoring session cancelled.", type: "info" };
-    case "stale": return { message: "The application, profile, or Library changed during this session. Start a new session to load the current information.", type: "error" };
+    case "stale": return { message: "The application or source CV changed during this session. Discard the pending draft to restart with current information.", type: "error" };
     default: return null;
   }
+}
+
+export function tailoringErrorDetail(error: unknown, fallback: string): string {
+  if (typeof error === "object" && error !== null) {
+    const response = "response" in error ? error.response : undefined;
+    if (typeof response === "object" && response !== null && "data" in response) {
+      const data = response.data;
+      if (typeof data === "object" && data !== null && "detail" in data && typeof data.detail === "string") {
+        return data.detail;
+      }
+    }
+    if (error instanceof Error && error.message.trim()) return error.message;
+  }
+  return fallback;
+}
+
+export function tailoringErrorCode(error: unknown): string | null {
+  if (typeof error !== "object" || error === null || !("response" in error)) return null;
+  const response = error.response;
+  if (typeof response !== "object" || response === null || !("data" in response)) return null;
+  const data = response.data;
+  if (typeof data !== "object" || data === null || !("code" in data) || typeof data.code !== "string") return null;
+  return data.code;
 }

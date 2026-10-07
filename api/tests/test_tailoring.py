@@ -1,6 +1,7 @@
-"""Protocol-v9 tailoring integration and public-bundle checks."""
+"""Protocol-v10 tailoring integration and public-bundle checks."""
 
 from io import BytesIO
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 from zipfile import ZipFile
 
@@ -23,14 +24,47 @@ def test_tailoring_skill_bundle_contains_the_skill_references_and_helper():
         assert archive.namelist() == [
             "aergia-tailor/SKILL.md",
             "aergia-tailor/references/cv-guidelines.md",
+            "aergia-tailor/references/independent-review.md",
             "aergia-tailor/references/natural-writing.md",
+            "aergia-tailor/scripts/fit-review.mjs",
             "aergia-tailor/scripts/session.mjs",
         ]
-        assert PROTOCOL_VERSION == 9
-        assert 'protocol-version: "9"' in archive.read("aergia-tailor/SKILL.md").decode()
+        assert PROTOCOL_VERSION == 10
+        assert 'protocol-version: "10"' in archive.read("aergia-tailor/SKILL.md").decode()
         assert f"export const PROTOCOL_VERSION = {PROTOCOL_VERSION};" in archive.read(
             "aergia-tailor/scripts/session.mjs"
         ).decode()
+
+
+async def _preview(client, headers, context_hash, candidate):
+    reservation = await client.post(
+        "/api/v1/tailoring/preview-reservations",
+        headers=headers,
+        json={"context_hash": context_hash, "candidate": candidate, "request_id": str(uuid4())},
+    )
+    assert reservation.status_code == 200, reservation.text
+    return await client.post(
+        "/api/v1/tailoring/preview",
+        headers=headers,
+        json={"context_hash": context_hash, "candidate": candidate, "reservation_id": reservation.json()["reservation_id"]},
+    )
+
+
+@pytest.fixture(autouse=True)
+def offline_scanner(monkeypatch):
+    from app.services import application as application_service_module
+
+    class Extractor:
+        def extract(self, description):
+            return extract_requirements_from_entities(description, {"entities": {}})
+
+    class Scanner(ScannerService):
+        def __init__(self):
+            super().__init__(extractor=Extractor())
+
+    monkeypatch.setattr(application_service_module, "ScannerService", Scanner)
+    monkeypatch.setattr(tailoring_service_module, "ScannerService", Scanner)
+    monkeypatch.setattr(tailoring_service_module, "configured_extractor_version", lambda: "gliner2.5-structured-v11")
 
 
 @pytest.mark.asyncio
@@ -41,7 +75,7 @@ async def test_tailoring_skill_download_advertises_protocol_version(client):
 
 
 @pytest.mark.asyncio
-async def test_protocol_v9_exposes_every_library_entry_and_rejects_stale_dossier_context(client, monkeypatch):
+async def test_protocol_v10_exposes_every_library_entry_and_preserves_frozen_dossier(client, monkeypatch):
     from app.services import application as application_service_module
 
     class _FixtureExtractor:
@@ -160,7 +194,7 @@ async def test_protocol_v9_exposes_every_library_entry_and_rejects_stale_dossier
     assert created.status_code == 201, created.text
     exchanged = await client.post(
         "/api/v1/tailoring/exchange",
-        json={"protocol_version": PROTOCOL_VERSION, "code": created.json()["code"]},
+        json={"protocol_version": PROTOCOL_VERSION, "session_id": created.json()["session_id"], "code": created.json()["code"]},
     )
     assert exchanged.status_code == 200
     capability = {"X-Aergia-Tailoring-Capability": exchanged.json()["capability"]}
@@ -168,7 +202,7 @@ async def test_protocol_v9_exposes_every_library_entry_and_rejects_stale_dossier
     context = await client.get("/api/v1/tailoring/context", headers=capability)
     assert context.status_code == 200, context.text
     body = context.json()
-    assert body["protocol_version"] == 9
+    assert body["protocol_version"] == 10
     assert body["job"]["user_instructions"] == "Keep the draft focused on evidence from my history."
     dossier = body["dossier"]
     for profile_value in (
@@ -264,13 +298,9 @@ async def test_protocol_v9_exposes_every_library_entry_and_rejects_stale_dossier
     async def render_payload(self, template_id, sections, customizations):
         return b"pdf"
 
-    monkeypatch.setattr(pdf_service_module.PDFService, "render_payload", render_payload)
+    monkeypatch.setattr(pdf_service_module.PDFService, "render_manifest_payload", render_payload)
     monkeypatch.setattr(tailoring_service_module, "pdf_page_count", lambda _pdf: 1)
-    preview = await client.post(
-        "/api/v1/tailoring/preview",
-        headers=capability,
-        json={"context_hash": body["context_hash"], "candidate": candidate},
-    )
+    preview = await _preview(client, capability, body["context_hash"], candidate)
     assert preview.status_code == 200, preview.text
     changed = await client.patch(
         f"/api/v1/library/{library_entries['project']['id']}",
@@ -282,16 +312,14 @@ async def test_protocol_v9_exposes_every_library_entry_and_rejects_stale_dossier
         }]},
     )
     assert changed.status_code == 200, changed.text
-    stale_context = await client.get("/api/v1/tailoring/context", headers=capability)
-    assert stale_context.status_code == 409
-    stale_preview = await client.post(
-        "/api/v1/tailoring/preview",
-        headers=capability,
-        json={"context_hash": body["context_hash"], "candidate": candidate},
-    )
-    assert stale_preview.status_code == 409
-    assert "context changed" in stale_preview.json()["detail"]
-    stale_submit = await client.post(
+    frozen_context = await client.get("/api/v1/tailoring/context", headers=capability)
+    assert frozen_context.status_code == 200
+    assert frozen_context.json()["context_hash"] == body["context_hash"]
+    assert frozen_context.json()["dossier"] == dossier
+    assert "UPDATED-PROJECT-DOSSIER-SENTINEL" not in frozen_context.json()["dossier"]
+    frozen_preview = await _preview(client, capability, body["context_hash"], candidate)
+    assert frozen_preview.status_code == 200, frozen_preview.text
+    frozen_submit = await client.post(
         "/api/v1/tailoring/submit",
         headers=capability,
         json={
@@ -301,11 +329,42 @@ async def test_protocol_v9_exposes_every_library_entry_and_rejects_stale_dossier
             "candidate": preview.json()["candidate"],
         },
     )
-    assert stale_submit.status_code == 409
-    assert "context changed" in stale_submit.json()["detail"]
+    assert frozen_submit.status_code == 200, frozen_submit.text
     status = await client.get(f"/api/v1/tailoring/sessions/{created.json()['session_id']}", headers=headers)
     assert status.status_code == 200
-    assert status.json()["status"] == "stale"
+    assert status.json()["status"] == "draft_ready"
+    # Expiry ends author access, while a real persisted draft remains owned
+    # and reviewable. A pending owner draft must still block a second session.
+    async with async_session() as db:
+        session = await db.get(TailoringSession, created.json()["session_id"])
+        session.expires_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+        await db.commit()
+    expired_agent = await client.get("/api/v1/tailoring/context", headers=capability)
+    assert expired_agent.status_code == 410
+    owner_status = await client.get(f"/api/v1/tailoring/sessions/{created.json()['session_id']}", headers=headers)
+    assert owner_status.status_code == 200, owner_status.text
+    assert owner_status.json()["status"] == "draft_ready"
+    assert owner_status.json()["draft_cv_id"] == frozen_submit.json()["draft_cv_id"]
+    duplicate = await client.post(
+        f"/api/v1/applications/{application.json()['id']}/tailoring-sessions", headers=headers,
+    )
+    assert duplicate.status_code == 409
+    assert duplicate.json()["code"] == "session_in_progress"
+    reevaluated = await client.post(
+        f"/api/v1/tailoring/sessions/{created.json()['session_id']}/reevaluate",
+        headers=headers,
+        json={"expected_cv_revision": owner_status.json()["draft_review"]["cv_revision"]},
+    )
+    assert reevaluated.status_code == 200, reevaluated.text
+    assert reevaluated.json()["draft_review"]["state"] == "current"
+    discarded = await client.post(
+        f"/api/v1/tailoring/sessions/{created.json()['session_id']}/reject", headers=headers,
+    )
+    assert discarded.status_code == 200, discarded.text
+    restarted = await client.post(
+        f"/api/v1/applications/{application.json()['id']}/tailoring-sessions", headers=headers,
+    )
+    assert restarted.status_code == 201, restarted.text
 
 
 @pytest.mark.asyncio
@@ -383,7 +442,7 @@ async def test_tailoring_submit_creates_owned_review_draft_without_promoting_it(
     assert rejected_v7_exchange.status_code == 422
     exchanged = await client.post(
         "/api/v1/tailoring/exchange",
-        json={"protocol_version": PROTOCOL_VERSION, "code": created.json()["code"]},
+        json={"protocol_version": PROTOCOL_VERSION, "session_id": created.json()["session_id"], "code": created.json()["code"]},
     )
     assert exchanged.status_code == 200
     capability_headers = {"X-Aergia-Tailoring-Capability": exchanged.json()["capability"]}
@@ -398,7 +457,7 @@ async def test_tailoring_submit_creates_owned_review_draft_without_promoting_it(
     async def render_payload(self, template_id, sections, customizations):
         return b"pdf"
 
-    monkeypatch.setattr(pdf_service_module.PDFService, "render_payload", render_payload)
+    monkeypatch.setattr(pdf_service_module.PDFService, "render_manifest_payload", render_payload)
     monkeypatch.setattr(tailoring_service_module, "pdf_page_count", lambda _pdf: 1)
     candidate = {
         "title": "Example — Engineer",
@@ -429,11 +488,7 @@ async def test_tailoring_submit_creates_owned_review_draft_without_promoting_it(
         ],
         "customizations": {},
     }
-    preview = await client.post(
-        "/api/v1/tailoring/preview",
-        headers=capability_headers,
-        json={"context_hash": context_body["context_hash"], "candidate": candidate},
-    )
+    preview = await _preview(client, capability_headers, context_body["context_hash"], candidate)
     assert preview.status_code == 200
     assert preview.json()["scanner_result"]["schema_version"] == "scanner-v1"
     assert preview.json()["scanner_result"]["versions"]["semantic_score_version"] == "job-fit-v4"
@@ -447,11 +502,7 @@ async def test_tailoring_submit_creates_owned_review_draft_without_promoting_it(
     assert preview.json()["evaluation"]["risk_findings"] == []
 
     other_candidate = {**candidate, "title": "Different Candidate"}
-    other_preview = await client.post(
-        "/api/v1/tailoring/preview",
-        headers=capability_headers,
-        json={"context_hash": context_body["context_hash"], "candidate": other_candidate},
-    )
+    other_preview = await _preview(client, capability_headers, context_body["context_hash"], other_candidate)
     assert other_preview.status_code == 200
     mismatched_selection = await client.post(
         "/api/v1/tailoring/submit",
@@ -479,7 +530,7 @@ async def test_tailoring_submit_creates_owned_review_draft_without_promoting_it(
     assert other_created.status_code == 201
     other_exchanged = await client.post(
         "/api/v1/tailoring/exchange",
-        json={"protocol_version": PROTOCOL_VERSION, "code": other_created.json()["code"]},
+        json={"protocol_version": PROTOCOL_VERSION, "session_id": other_created.json()["session_id"], "code": other_created.json()["code"]},
     )
     assert other_exchanged.status_code == 200
     other_capability = {"X-Aergia-Tailoring-Capability": other_exchanged.json()["capability"]}
@@ -551,34 +602,26 @@ async def test_tailoring_submit_creates_owned_review_draft_without_promoting_it(
     draft_item = next(item for item in listed_cvs.json() if item["id"] == submitted.json()["draft_cv_id"])
     assert draft_item["application"]["id"] == application_id
 
-    # Model a historical protocol-v8 draft with an editorial result. Owner
-    # acceptance must keep using its frozen candidate and scanner binding.
-    async with async_session() as db:
-        stored_session = await db.get(TailoringSession, created.json()["session_id"])
-        stored_session.protocol_version = 8
-        stored_session.result = {
-            **stored_session.result,
-            "editorial_review": {
-                "review_version": "aergia-editorial-review-v2",
-                "evaluation_id": preview.json()["evaluation_id"],
-                "candidate_hash": preview.json()["candidate_hash"],
-                "findings": [],
-            },
-            "tailoring_evaluation": {
-                "version": "tailoring-evaluation-v1",
-                "pass_number": 1,
-                "blockers": [{"kind": "blocker", "message": "Historical concern"}],
-                "readiness": {"status": "blocked", "submission_allowed": False},
-            },
-        }
-        await db.commit()
-
+    owner_status = await client.get(
+        f"/api/v1/tailoring/sessions/{created.json()['session_id']}", headers=headers,
+    )
+    review = owner_status.json()["draft_review"]
+    if review["state"] == "needs_reevaluation":
+        reevaluated = await client.post(
+            f"/api/v1/tailoring/sessions/{created.json()['session_id']}/reevaluate",
+            headers=headers,
+            json={"expected_cv_revision": review["cv_revision"]},
+        )
+        assert reevaluated.status_code == 200, reevaluated.text
+        review = reevaluated.json()["draft_review"]
+    assert review["state"] == "current"
     accepted = await client.post(
         f"/api/v1/tailoring/sessions/{created.json()['session_id']}/accept",
         headers=headers,
+        json={"expected_cv_revision": review["cv_revision"], "candidate_hash": review["candidate_hash"]},
     )
     assert accepted.status_code == 200, accepted.text
-    assert accepted.json()["protocol_version"] == 8
+    assert accepted.json()["protocol_version"] == 10
     assert accepted.json()["cv_id"] == submitted.json()["draft_cv_id"]
     assert accepted.json()["scanner_result"]["schema_version"] == "scanner-v1"
     accepted_application = await client.get(f"/api/v1/applications/{application_id}", headers=headers)

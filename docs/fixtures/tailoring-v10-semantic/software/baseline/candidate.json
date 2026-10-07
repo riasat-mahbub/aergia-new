@@ -1,0 +1,136 @@
+{
+  "id": null,
+  "title": "Junior Software Developer",
+  "description": null,
+  "template_id": "generic-minimal",
+  "sections": [
+    {
+      "id": "profile",
+      "type": "profile",
+      "title": "Profile",
+      "enabled": true,
+      "data": {
+        "title": "Junior Software Developer",
+        "location": "Halifax, Canada",
+        "summary": "Junior software developer with project work across Python API integration, automated testing, CI, and setup documentation. Brings peer collaboration and a careful approach to missing optional fields, and is ready to contribute through code review while learning Docker and production deployment.",
+        "name": "Avery Chen",
+        "email": "avery.chen@example.test",
+        "email_link": true,
+        "social_links": []
+      },
+      "style": null
+    },
+    {
+      "id": "projects",
+      "type": "projects",
+      "title": "Projects",
+      "enabled": true,
+      "data": [
+        {
+          "id": "community-data-export",
+          "name": "Community Data Export",
+          "start_date": "2024",
+          "description": "Built a Python script that fetches data from a public API and writes CSV files. Added pytest tests exercising the missing optional field edge case, configured GitHub Actions to run tests on pushes, and documented setup and input assumptions in a README.",
+          "tech_stack": [
+            "Python",
+            "Public APIs",
+            "CSV",
+            "pytest",
+            "GitHub Actions"
+          ]
+        },
+        {
+          "id": "course-application",
+          "name": "Course Application",
+          "start_date": "2023",
+          "description": "Collaborated with three peers on a small course application."
+        }
+      ],
+      "style": null
+    },
+    {
+      "id": "education",
+      "type": "education",
+      "title": "Education",
+      "enabled": true,
+      "data": [
+        {
+          "id": "bachelor-of-computing",
+          "degree": "Bachelor of Computing",
+          "institution": "North Coast University",
+          "end_date": "2024"
+        }
+      ],
+      "style": null
+    },
+    {
+      "id": "skills",
+      "type": "skills",
+      "title": "Skills",
+      "enabled": true,
+      "data": [
+        {
+          "id": "programming-data",
+          "category": "Programming and data",
+          "items": [
+            "Python",
+            "CSV"
+          ]
+        },
+        {
+          "id": "api-integration",
+          "category": "APIs",
+          "items": [
+            "Public API integration"
+          ]
+        },
+        {
+          "id": "testing-ci",
+          "category": "Testing and CI",
+          "items": [
+            "pytest",
+            "GitHub Actions",
+            "Automated testing",
+            "Edge-case testing"
+          ]
+        },
+        {
+          "id": "documentation-collaboration",
+          "category": "Documentation and collaboration",
+          "items": [
+            "README documentation",
+            "Peer collaboration"
+          ]
+        }
+      ],
+      "style": null
+    }
+  ],
+  "customizations": {
+    "accent_color": null,
+    "body_font": null,
+    "heading_font": null,
+    "default_text_align": null,
+    "spacing": null,
+    "flags": {},
+    "layout": {
+      "zones": [
+        {
+          "id": "main",
+          "label": null,
+          "styles": {
+            "width": "full",
+            "background": null,
+            "padding": "spacious"
+          }
+        }
+      ],
+      "placement": {
+        "profile": "main",
+        "projects": "main",
+        "education": "main",
+        "skills": "main"
+      }
+    }
+  }
+}

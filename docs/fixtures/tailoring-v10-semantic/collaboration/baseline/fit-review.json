@@ -1,0 +1,25 @@
+{
+  "version": "fit-review-v1",
+  "evaluation_id": "f32dc37a-8c48-4499-8385-af4ff16b671c",
+  "candidate_hash": "02bbb6d3f2ca9e096f6bfcfc56ea457f1d865e45ae900a0f3a8313da3f7225de",
+  "pdf_sha256": "c6fa4549c9bd5ca28b9b0c0310831536708014d3a1b28c69da8a11f6e66f3416",
+  "status": "completed",
+  "mode": "fresh_agent",
+  "verdict": "partially_tailored",
+  "rationale": "The one-page CV names the Project Support Assistant role and directly connects its student workshop example to task and dependency tracking, meeting notes, action follow-up, and participant updates after a room change. The clean headings and readable text make those links easy to find. Evidence is limited to one brief project entry, and the document does not show schedule ownership, meeting logistics, budget tracking, or a project management certification.",
+  "strong_connections": [
+    "The Campus Study Workshop entry says tasks and dependencies were tracked for a student group project.",
+    "The same entry describes recording meeting notes and following up with group members on agreed actions.",
+    "It gives a concrete example of notifying participants when the room changed; the summary also highlights keeping participants informed.",
+    "The skills section names task tracking, dependency tracking, meeting notes, action follow-up, participant updates, and group collaboration."
+  ],
+  "weak_or_missing_connections": [
+    "Only one short project example is shown, with no scale, duration, or outcome to indicate the depth of project support.",
+    "Meeting coordination and schedule support are claimed in the summary, but the project entry does not show arranging meetings or maintaining a schedule.",
+    "The CV does not show budget tracking or a project management certification, both listed as preferred in the job description."
+  ],
+  "recommended_changes": [
+    "Expand the workshop example with specific scheduling or meeting coordination actions and their outcomes, if accurate.",
+    "Add budget tracking or a project management certification only if the candidate has relevant experience or holds one."
+  ]
+}

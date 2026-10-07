@@ -1,0 +1,138 @@
+{
+  "id": null,
+  "title": "Avery Chen | Junior Software Developer",
+  "description": null,
+  "template_id": "generic-minimal",
+  "sections": [
+    {
+      "id": "profile",
+      "type": "profile",
+      "title": "Profile",
+      "enabled": true,
+      "data": {
+        "title": "Junior Software Developer",
+        "location": "Halifax, Canada",
+        "summary": "Computing graduate with a 2024 Python project that fetches public API data, exports CSV files, and tests missing optional fields with pytest; GitHub Actions runs the tests on pushes. Seeking a Junior Software Developer role to build and maintain Python API integrations, contribute to CI and code review, and learn Docker and production deployment practices.",
+        "name": "Avery Chen",
+        "email": "avery.chen@example.test",
+        "email_link": true,
+        "social_links": []
+      },
+      "style": null
+    },
+    {
+      "id": "projects",
+      "type": "projects",
+      "title": "Projects",
+      "enabled": true,
+      "data": [
+        {
+          "id": "community-data-export",
+          "name": "Community Data Export",
+          "start_date": "2024",
+          "end_date": "2024",
+          "description": "Wrote a Python script to fetch data from a public API and export it to CSV. Added pytest checks for missing optional fields, configured GitHub Actions to run the automated tests on pushes, and documented setup and input assumptions in the README.",
+          "tech_stack": [
+            "Python",
+            "pytest",
+            "GitHub Actions",
+            "CSV"
+          ]
+        },
+        {
+          "id": "course-application",
+          "name": "Course Application \u2014 Class Project",
+          "start_date": "2023",
+          "end_date": "2023",
+          "description": "Collaborated with three peers on a small course application for a class project.",
+          "tech_stack": []
+        }
+      ],
+      "style": null
+    },
+    {
+      "id": "education",
+      "type": "education",
+      "title": "Education",
+      "enabled": true,
+      "data": [
+        {
+          "id": "north-coast-university-computing",
+          "degree": "Bachelor of Computing",
+          "institution": "North Coast University",
+          "end_date": "2024"
+        }
+      ],
+      "style": null
+    },
+    {
+      "id": "skills",
+      "type": "skills",
+      "title": "Skills",
+      "enabled": true,
+      "data": [
+        {
+          "id": "programming",
+          "category": "Programming",
+          "items": [
+            "Python"
+          ]
+        },
+        {
+          "id": "api-and-data",
+          "category": "APIs and data",
+          "items": [
+            "Public API integration",
+            "CSV export"
+          ]
+        },
+        {
+          "id": "testing-and-ci",
+          "category": "Testing and CI",
+          "items": [
+            "pytest",
+            "Automated tests",
+            "GitHub Actions",
+            "Missing-field edge cases"
+          ]
+        },
+        {
+          "id": "documentation-and-collaboration",
+          "category": "Documentation and collaboration",
+          "items": [
+            "README setup and input documentation",
+            "Team collaboration"
+          ]
+        }
+      ],
+      "style": null
+    }
+  ],
+  "customizations": {
+    "accent_color": null,
+    "body_font": null,
+    "heading_font": null,
+    "default_text_align": null,
+    "spacing": null,
+    "flags": {},
+    "layout": {
+      "zones": [
+        {
+          "id": "main",
+          "label": null,
+          "styles": {
+            "width": "full",
+            "background": null,
+            "padding": "spacious"
+          }
+        }
+      ],
+      "placement": {
+        "profile": "main",
+        "projects": "main",
+        "education": "main",
+        "skills": "main"
+      }
+    }
+  }
+}

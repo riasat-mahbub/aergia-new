@@ -7,6 +7,8 @@ from app.db.session import get_db
 from app.http_schemas.cv import CVApplicationSummary, CVCreate, CVUpdate, CVResponse, CVListItem
 from app.http_schemas.library import AddEntryToLibraryRequest, AddEntryToLibraryResponse, PromoteToLibraryResponse
 from app.services.cv import CVLinkedToApplicationError, CVService
+from app.http_schemas.tailoring import TailoringDraftContextResponse
+from app.services.tailoring import TailoringConflictError, TailoringSessionNotFoundError, TailoringService
 from app.services.pdf import PDFService
 from app.services.relevance import REQUIREMENT_EXTRACTION_ERROR, RequirementExtractionError
 from app.services.quotas import QuotaExceededError
@@ -81,6 +83,23 @@ async def get_cv(
     return CVResponse.model_validate(cv)
 
 
+@router.get("/{cv_id}/tailoring-context", response_model=TailoringDraftContextResponse)
+@limiter.limit("30/minute")
+async def get_cv_tailoring_context(
+    request: Request,
+    response: Response,
+    cv_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await TailoringService(db).draft_context(cv_id, current_user.id)
+    except TailoringSessionNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND) from exc
+    except TailoringConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
 @router.patch("/{cv_id}", response_model=CVResponse)
 async def update_cv(
     cv_id: str,
@@ -117,6 +136,7 @@ async def delete_cv(
         ) from exc
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND)
+    await TailoringService(db).reconcile_deleted_draft(cv_id, current_user.id)
     return None
 
 

@@ -1,4 +1,4 @@
-"""Typed contracts for server-owned tailoring evaluation (protocol v9)."""
+"""Typed contracts for the unchanged evaluation-v2 tailoring report."""
 
 from __future__ import annotations
 

@@ -36,8 +36,23 @@ class PDFService:
         if not manifest_dict:
             raise ValueError("Template has no manifest")
 
-        manifest = TemplateManifest.model_validate(manifest_dict)
-        source = prepare_render_source(sections, manifest, customizations)
+        return await self.render_manifest_payload(manifest_dict, sections, customizations)
+
+    async def render_manifest_payload(
+        self,
+        manifest: TemplateManifest | dict,
+        sections: list[dict],
+        customizations: dict,
+    ) -> bytes:
+        """Render a document against the supplied frozen template manifest.
+
+        Tailoring previews use the manifest saved with their authoring
+        context. This keeps a later template edit from changing the PDF for a
+        candidate that was authored against the earlier manifest.
+        """
+
+        validated_manifest = TemplateManifest.model_validate(manifest)
+        source = prepare_render_source(sections, validated_manifest, customizations)
         html = render_source_html(source)
         try:
             return await render_html_pdf(html)

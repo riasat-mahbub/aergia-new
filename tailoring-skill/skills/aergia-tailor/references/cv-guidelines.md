@@ -115,11 +115,16 @@ mandatory.
 Use the actual PDF and scanner findings to assess contact visibility, headings,
 date association, reading order, text size, clipping, and page breaks. Presence
 in candidate JSON alone does not prove visibility or successful PDF extraction.
-Distinguish observed problems from suggestions; a local scanner result does not
-certify compatibility with every ATS.
+A source-CV scan describes that source CV, while preview findings describe the
+current tailored candidate. An absent match is a visibility gap in the scanned
+document, not proof that the person lacks the ability. Distinguish observed
+problems from suggestions; scanner results do not certify compatibility with
+every ATS.
 
 When these recommendations are relevant, batch supported changes within the
-main skill's five-preview budget and keep its priority order: meaningful
-job-fit and keyword improvements, then ATS and one-page layout repairs. These
-guidelines add no separate score, checklist artifact, validator, or submission
-requirement. Report only checks actually performed.
+main skill's five-successful-preview budget and make another preview only
+when a meaningful improvement remains. Keep the main skill's priority order:
+job-fit and keyword improvements, then consequential ATS and layout repairs.
+Follow the user's page and content preferences. These guidelines add no
+separate score, checklist, validator, or submission requirement. Report only
+checks actually performed.

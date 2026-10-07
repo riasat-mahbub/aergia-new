@@ -64,9 +64,8 @@ _SAFE_KEYWORD_IMPROVEMENTS = frozenset(
 )
 _SAFE_KEYWORD_REGRESSIONS = frozenset(
     {
-        (LexicalVisibility.EXACT, LexicalVisibility.ABSENT),
-        (LexicalVisibility.NORMALIZED, LexicalVisibility.ABSENT),
-        (LexicalVisibility.VARIANT, LexicalVisibility.ABSENT),
+        (candidate, source)
+        for source, candidate in _SAFE_KEYWORD_IMPROVEMENTS
     }
 )
 
@@ -291,6 +290,27 @@ def _classify_keyword(source: LexicalVisibility, candidate: LexicalVisibility) -
     return "changed_needs_review"
 
 
+def _keyword_pass_change_classification(
+    classification: str,
+    candidate: LexicalVisibility,
+) -> str:
+    """Map an internal visibility transition to the stable pass-change enum.
+
+    The source comparison keeps ``changed_needs_review`` when either scan is
+    unverifiable.  The pass-change contract has no equivalent value, so this
+    records the newly required review as ``introduced`` and keeps that reason
+    in the message instead of implying a visibility improvement or regression.
+    """
+
+    if classification == "improved":
+        return "fixed" if candidate is LexicalVisibility.EXACT else "improved"
+    if classification == "regressed":
+        return "regressed"
+    if classification == "changed_needs_review":
+        return "introduced"
+    raise ValueError(f"unsupported keyword transition classification: {classification}")
+
+
 def _summary_score(scan: ScanResult | None, branch: str) -> float | None:
     if scan is None:
         return None
@@ -419,13 +439,14 @@ def _transition_changes(
         if classification == "unchanged":
             continue
         term = str(_value(current_lexical.get(term_id), "term") or _value(prior_lexical.get(term_id), "term") or term_id)
-        kind = "fixed" if classification == "improved" and after is LexicalVisibility.EXACT else classification
+        kind = _keyword_pass_change_classification(classification, after)
+        review_note = "; scanner visibility needs review" if classification == "changed_needs_review" else ""
         changes.append(
             TailoringPassChange(
                 id=f"pass-lexical-{term_id}",
                 area="lexical",
                 classification=kind,  # type: ignore[arg-type]
-                message=f"{term}: {_enum_value(before)} → {_enum_value(after)}",
+                message=f"{term}: {_enum_value(before)} → {_enum_value(after)}{review_note}",
                 term_id=term_id,
             )
         )
@@ -611,8 +632,8 @@ def evaluate_tailoring(
                         issue_id=f"semantic-gap-{requirement_id}",
                         kind="non_actionable_gap",
                         category="semantic",
-                        message=f"Genuine qualification gap: {_requirement_label(requirement)} has no supplied candidate evidence.",
-                        detail="Do not keep rewriting the CV to fill this gap unless additional accurate evidence becomes available.",
+                        message=f"Current CV visibility: {_requirement_label(requirement)} is not evidenced in the scanned CV.",
+                        detail="The scanner did not find supporting evidence in this CV; additional accurate evidence may change this assessment.",
                         priority="normal",
                         requirement_id=requirement_id,
                         importance=requirement.importance,
@@ -730,8 +751,8 @@ def evaluate_tailoring(
                         issue_id=f"keyword-gap-{term_id}",
                         kind="non_actionable_gap",
                         category="lexical",
-                        message=f"Genuine wording/qualification gap: {_value(candidate_term, 'term')}",
-                        detail="The scanner found no candidate evidence; do not add this term merely to raise visibility.",
+                        message=f"Current CV visibility: '{_value(candidate_term, 'term')}' is absent from the scanned CV.",
+                        detail="The scanner did not find this term or semantic support in this CV. Additional accurate evidence may change this assessment; do not add the term only to raise visibility.",
                         term_id=term_id,
                     ),
                 )

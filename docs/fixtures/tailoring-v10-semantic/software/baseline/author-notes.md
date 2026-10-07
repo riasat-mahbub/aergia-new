@@ -1,0 +1,3 @@
+- Kept the CV to a profile, project work, education, and compact skills section because no professional employment history was supplied.
+- Used year-only dates from the dossier and left unsupported tools and outcomes out. Docker and production deployment appear only as learning goals; code review is framed as future contribution.
+- Omitted identity and contact fields from the candidate payload because the supplied schema marks them server-owned; the canonical profile context supplies those values.

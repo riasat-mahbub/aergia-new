@@ -189,7 +189,68 @@ def _clean_scan(
     )
 
 
-def test_low_job_fit_and_term_visibility_describe_genuine_gaps_without_a_gate() -> None:
+def _expected_keyword_transition(before: LexicalVisibility, after: LexicalVisibility) -> str:
+    if before is after:
+        return "unchanged"
+    if LexicalVisibility.UNVERIFIABLE in {before, after}:
+        return "changed_needs_review"
+    visibility_strength = {
+        LexicalVisibility.ABSENT: 0,
+        LexicalVisibility.VARIANT: 1,
+        LexicalVisibility.NORMALIZED: 2,
+        LexicalVisibility.EXACT: 3,
+    }
+    return "improved" if visibility_strength[after] > visibility_strength[before] else "regressed"
+
+
+@pytest.mark.parametrize(
+    ("before", "after"),
+    [(before, after) for before in LexicalVisibility for after in LexicalVisibility],
+)
+def test_keyword_transition_matrix_keeps_source_meaning_and_valid_pass_changes(
+    before: LexicalVisibility,
+    after: LexicalVisibility,
+) -> None:
+    extraction = _extraction()
+    prior = _clean_scan(extraction, lexical_visibility=before)
+    current = _clean_scan(extraction, lexical_visibility=after)
+
+    evaluation = evaluate_tailoring(
+        extraction,
+        current,
+        "a" * 64,
+        source_scan=prior,
+        previous_candidate_scan=prior,
+        previous_candidate_hash="b" * 64,
+    )
+
+    transition = evaluation.source_comparison.keyword_transitions[0]
+    expected = _expected_keyword_transition(before, after)
+    assert transition.classification == expected
+
+    lexical_changes = [
+        item for item in evaluation.previous_evaluation_comparison.changes if item.area == "lexical"
+    ]
+    if expected == "unchanged":
+        assert lexical_changes == []
+        return
+
+    assert len(lexical_changes) == 1
+    change = lexical_changes[0]
+    expected_pass_change = {
+        "improved": "fixed" if after is LexicalVisibility.EXACT else "improved",
+        "regressed": "regressed",
+        # A scan becoming unverifiable has no defensible visibility direction;
+        # the pass summary reports that a review was introduced.
+        "changed_needs_review": "introduced",
+    }[expected]
+    assert change.classification == expected_pass_change
+    assert change.classification in {"fixed", "introduced", "improved", "regressed"}
+    if expected == "changed_needs_review":
+        assert "scanner visibility needs review" in change.message
+
+
+def test_low_job_fit_and_missing_visibility_use_current_cv_wording_without_a_gate() -> None:
     extraction = _extraction()
     scan = _clean_scan(extraction, job_fit=0.45, visibility_score=0.40)
 
@@ -199,6 +260,32 @@ def test_low_job_fit_and_term_visibility_describe_genuine_gaps_without_a_gate() 
     assert evaluation.dimensions.keywords.candidate == 0.40
     assert evaluation.risk_findings == []
     assert evaluation.non_actionable_gaps
+    assert any(
+        item.category == "semantic"
+        and item.message == "Current CV visibility: Python is not evidenced in the scanned CV."
+        and "additional accurate evidence may change this assessment" in (item.detail or "")
+        for item in evaluation.non_actionable_gaps
+    )
+    assert any(
+        item.category == "lexical"
+        and item.message == "Current CV visibility: 'Python' is absent from the scanned CV."
+        and "additional accurate evidence may change this assessment" in (item.detail or "").casefold()
+        for item in evaluation.non_actionable_gaps
+    )
+    assert not any("genuine" in item.message.casefold() for item in evaluation.non_actionable_gaps)
+
+
+def test_required_conflict_remains_a_high_priority_review_item() -> None:
+    extraction = _extraction()
+    scan = _clean_scan(extraction, semantic_status=EvidenceStatus.CONFLICTING)
+
+    evaluation = evaluate_tailoring(extraction, scan, "c" * 64)
+
+    assert any(
+        item.category == "semantic" and item.priority == "high"
+        for item in evaluation.review_items
+    )
+    assert not any(item.category == "semantic" for item in evaluation.non_actionable_gaps)
 
 
 def test_supported_semantics_with_absent_employer_wording_are_a_recommendation() -> None:

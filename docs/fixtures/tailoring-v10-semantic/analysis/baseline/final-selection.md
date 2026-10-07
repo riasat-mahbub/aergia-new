@@ -1,0 +1,1 @@
+Selected `candidate-final.json` after reviewing the one-page PDF. The canonical education data contained the supplied completion year, but it was absent from the rendered page; the degree text now shows “completed 2023.” The title, role dates, SQL coursework scope, and source-supported communication details remain unchanged. Scanner results were unavailable in this offline run.

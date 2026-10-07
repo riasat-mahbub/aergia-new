@@ -1,0 +1,24 @@
+{
+  "version": "fit-review-v1",
+  "evaluation_id": "dc15bf06-485f-4273-b40a-aff35826f11a",
+  "candidate_hash": "b21f414f2eb70939367af5968255b3d1fa909c507196e6a86cb67e6cdb06b627",
+  "pdf_sha256": "4ab6a7bf46efe85994b94c30a1b8f8f2d7854bca54f92d0371001ac7735b8b02",
+  "status": "completed",
+  "mode": "fresh_agent",
+  "verdict": "tailored",
+  "rationale": "The one-page CV directly addresses the Project Support Assistant role. Its summary and campus workshop example visibly cover task and dependency tracking, meeting notes, action follow-up, and participant updates after a change. The clean headings and readable type make this easy to scan, though the short content leaves most of the page unused. The visible evidence is limited to one student project, and preferred budget tracking and certification are not shown.",
+  "strong_connections": [
+    "The summary names the target role and connects student project work to task and dependency tracking, meeting notes, action follow-up, and updates when arrangements changed.",
+    "The Campus Study Workshop example describes keeping tasks and dependencies visible, recording notes, following up actions, and notifying participants after a room change.",
+    "The skills section reinforces project support, participant updates, collaborative problem solving, and adaptable organization, while the Halifax location aligns with the Canada-based requirement."
+  ],
+  "weak_or_missing_connections": [
+    "Only one short student project is shown, with no scale, schedule result, or outcome to demonstrate how the support worked in practice.",
+    "Meeting coordination and budget tracking are not evidenced; the preferred project management certification is not listed."
+  ],
+  "recommended_changes": [
+    "If accurate, add concrete scope or outcomes to the workshop example, such as the number of participants or how tasks and dates were kept on track.",
+    "Add another relevant coordination example if available, especially one showing meeting coordination or budget tracking; include certification only if held.",
+    "Use the substantial remaining page space for relevant detail while keeping the current clear section hierarchy."
+  ]
+}

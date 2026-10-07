@@ -1,0 +1,26 @@
+{
+  "version": "fit-review-v1",
+  "evaluation_id": "10fe0d00-ba18-464a-bbc8-38f75cdfc36c",
+  "candidate_hash": "e5bb82fd79674a4b026a28f16a09697bc263d1020569de93311e135dfefb4e63",
+  "pdf_sha256": "4e5c3ce8a47ec5309555dc5bfa4891ed4a999046306a66888edc1f74201d897b",
+  "status": "completed",
+  "mode": "fresh_agent",
+  "verdict": "tailored",
+  "rationale": "The one-page PDF is readable and focused. Its 2024 Python project fetching public API data and exporting CSV directly connects to API integration work; pytest checks for missing optional fields, GitHub Actions, and README documentation also map to testing, CI, edge cases, and interfaces. The summary names this target role, while supporting evidence is concentrated in one project and peer collaboration is described generally.",
+  "strong_connections": [
+    "The Community Data Export project uses Python to fetch public API data and export CSV, closely matching the role's API integration work.",
+    "The project tests missing optional fields with pytest and runs tests on pushes through GitHub Actions, connecting to edge cases, automated testing, and CI.",
+    "The README documents setup and input assumptions, connecting to interface and setup documentation.",
+    "The header places the candidate in Halifax, Canada, consistent with the remote Canada location."
+  ],
+  "weak_or_missing_connections": [
+    "The course project says three peers collaborated, but gives no visible example of code review or the candidate's contribution.",
+    "Docker and production deployment appear only as practices the candidate wants to learn; no hands-on example is shown.",
+    "The API work is represented by one small project, with no visible example of maintaining an integration or handling API failures beyond missing optional fields."
+  ],
+  "recommended_changes": [
+    "Add a concise, specific code-review example from the team project if available; the current collaboration line does not show review activity.",
+    "If there is hands-on experience, add a Docker or deployment example; the summary currently presents these as learning goals.",
+    "Add one concrete detail about the API integration's behavior or scope, such as how it handles failures or what data it processes, if supported by the project."
+  ]
+}

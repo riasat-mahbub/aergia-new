@@ -29,6 +29,8 @@ function replaceApplication(applications: Application[], updated: Application): 
     : [updated, ...applications];
 }
 
+let latestFetchGeneration = 0;
+
 export const useApplicationStore = create<ApplicationState>((set) => ({
   applications: [],
   currentApplication: null,
@@ -52,9 +54,11 @@ export const useApplicationStore = create<ApplicationState>((set) => ({
   },
 
   fetch: async (id) => {
+    const requestGeneration = ++latestFetchGeneration;
     set({ isLoading: true, error: null });
     try {
       const application = await applicationApi.getApplication(id);
+      if (requestGeneration !== latestFetchGeneration) return application;
       set((state) => ({
         currentApplication: application,
         applications: replaceApplication(state.applications, application),
@@ -64,6 +68,7 @@ export const useApplicationStore = create<ApplicationState>((set) => ({
       }));
       return application;
     } catch {
+      if (requestGeneration !== latestFetchGeneration) return null;
       set({
         currentApplication: null,
         isLoading: false,

@@ -1,11 +1,15 @@
 from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.models.application import Application
 from app.models.cv import CV
 from app.models.template import Template
+from app.models.tailoring_replacement_reservation import (
+    TAILORING_REPLACEMENT_PENDING,
+    TailoringReplacementReservation,
+)
 from app.document_schema.models import Customizations
 from app.http_schemas.cv import CVCreate, CVUpdate
 from app.services.relevance import (
@@ -13,8 +17,30 @@ from app.services.relevance import (
     evaluate_requirement_relevance,
     extract_requirements,
 )
-from app.services.quotas import QuotaResource, QuotaService
+from app.services.quotas import (
+    QuotaResource,
+    QuotaService,
+    ReplacementSourceNotEligibleError,
+)
 from app.services.rich_text import normalize_rich_text_ids
+
+
+def _without_none(value):
+    if isinstance(value, dict):
+        return {key: _without_none(child) for key, child in value.items() if child is not None}
+    if isinstance(value, list):
+        return [_without_none(child) for child in value]
+    return value
+
+
+def _canonical_update_value(key: str, value):
+    if key == "customizations":
+        return coerce_customizations(value).model_dump(exclude_none=True)
+    if key == "sections":
+        sections, _ = normalize_rich_text_ids(value)
+        return _without_none(sections)
+    return value
+
 
 def coerce_customizations(raw: dict | Customizations | None) -> Customizations:
     """Validate customizations at the service boundary.
@@ -68,7 +94,9 @@ class CVService:
 
     async def get_cv(self, cv_id: str, user_id: str) -> CV | None:
         result = await self.db.execute(
-            select(CV).where(CV.id == cv_id, CV.user_id == user_id, CV.is_active)
+            select(CV)
+            .where(CV.id == cv_id, CV.user_id == user_id, CV.is_active)
+            .execution_options(populate_existing=True)
         )
         return result.scalar_one_or_none()
 
@@ -86,6 +114,67 @@ class CVService:
         *,
         application_id: str | None = None,
     ) -> CV:
+        sections, customizations = await self._prepare_cv(data)
+
+        if application_id is not None:
+            await self._require_owned_application(application_id, user_id)
+
+        await QuotaService(self.db).reserve(user_id, QuotaResource.CV)
+        return await self._persist_cv(
+            user_id,
+            data,
+            sections=sections,
+            customizations=customizations,
+            application_id=application_id,
+            quota_counted=True,
+        )
+
+    async def create_replacement_draft(
+        self,
+        user_id: str,
+        data: CVCreate,
+        *,
+        application_id: str,
+        source_cv_id: str | None,
+    ) -> CV:
+        """Create an uncounted draft when the source qualifies for replacement.
+
+        A missing or ineligible source falls back to ordinary counted creation,
+        so a no-source session or an application with a free normal slot follows
+        the same quota rule as standalone CV creation. Existing pending
+        reservations remain conflicts and cannot consume a second slot.
+        """
+
+        if source_cv_id is None:
+            return await self.create_cv(user_id, data, application_id=application_id)
+
+        sections, customizations = await self._prepare_cv(data)
+        quota = QuotaService(self.db)
+        try:
+            # The CV and reservation form one savepoint unit. A failed flush
+            # cannot leave an allowance row without its draft.
+            await quota.ensure_write_transaction()
+            async with self.db.begin_nested():
+                reservation = await quota.reserve_replacement(
+                    user_id,
+                    application_id,
+                    source_cv_id,
+                )
+                cv = await self._persist_cv(
+                    user_id,
+                    data,
+                    sections=sections,
+                    customizations=customizations,
+                    application_id=application_id,
+                    quota_counted=False,
+                )
+                reservation.draft_cv_id = cv.id
+                await self.db.flush()
+            return cv
+        except ReplacementSourceNotEligibleError:
+            return await self.create_cv(user_id, data, application_id=application_id)
+
+    async def _prepare_cv(self, data: CVCreate) -> tuple[list, dict]:
         raw_sections = data.sections if isinstance(data.sections, list) else []
         sections = [
             s.model_dump(mode="json", exclude_none=True) if hasattr(s, "model_dump") else s
@@ -93,18 +182,6 @@ class CVService:
         ]
         sections, _ = normalize_rich_text_ids(sections)
         customizations = coerce_customizations(data.customizations).model_dump(exclude_none=True)
-
-        if application_id is not None:
-            owned_application = await self.db.execute(
-                select(Application.id).where(
-                    Application.id == application_id,
-                    Application.user_id == user_id,
-                )
-            )
-            if owned_application.scalar_one_or_none() is None:
-                raise LookupError("Application not found")
-
-        await QuotaService(self.db).reserve(user_id, QuotaResource.CV)
 
         # A new CV inherits the template's zone layout so the editor opens
         # with zones and every section is assignable. Template placement is
@@ -125,6 +202,30 @@ class CVService:
             if zones:
                 customizations["layout"] = {"zones": zones, "placement": placement}
 
+        return sections, customizations
+
+    async def _require_owned_application(self, application_id: str, user_id: str) -> None:
+        owned_application = await self.db.execute(
+            update(Application)
+            .where(
+                Application.id == application_id,
+                Application.user_id == user_id,
+            )
+            .values(updated_at=Application.updated_at)
+        )
+        if owned_application.rowcount != 1:
+            raise LookupError("Application not found")
+
+    async def _persist_cv(
+        self,
+        user_id: str,
+        data: CVCreate,
+        *,
+        sections: list,
+        customizations: dict,
+        application_id: str | None,
+        quota_counted: bool,
+    ) -> CV:
         cv = CV(
             user_id=user_id,
             application_id=application_id,
@@ -134,6 +235,7 @@ class CVService:
             sections=sections,
             customizations=customizations,
             extra_metadata=data.extra_metadata,
+            quota_counted=quota_counted,
         )
         self.db.add(cv)
         await self.db.flush()
@@ -159,12 +261,25 @@ class CVService:
             update_data["customizations"] = coerce_customizations(update_data["customizations"]).model_dump(
                 exclude_none=True,
             )
+        meaningful_fields = {"title", "description", "template_id", "customizations", "sections"}
+        scanner_fields = {"template_id", "customizations", "sections"}
+        changed_fields = set()
         for key, value in update_data.items():
-            setattr(cv, key, value)
-        cv.revision = (cv.revision or 1) + 1
-        cv.updated_at = datetime.now(timezone.utc)
+            current_value = getattr(cv, key)
+            if key in meaningful_fields:
+                unchanged = _canonical_update_value(key, current_value) == _canonical_update_value(key, value)
+            else:
+                unchanged = current_value == value
+            if not unchanged:
+                changed_fields.add(key)
+                setattr(cv, key, value)
+        if changed_fields & meaningful_fields:
+            cv.revision = (cv.revision or 1) + 1
+        if changed_fields:
+            cv.updated_at = datetime.now(timezone.utc)
         await self.db.flush()
-        await self._refresh_linked_application_relevance(cv)
+        if changed_fields & scanner_fields:
+            await self._refresh_linked_application_relevance(cv)
         return cv
 
     async def _refresh_linked_application_relevance(self, cv: CV) -> None:
@@ -189,21 +304,124 @@ class CVService:
             await self.db.flush()
 
     async def delete_cv(self, cv_id: str, user_id: str) -> bool:
-        cv = await self.get_cv(cv_id, user_id)
-        if not cv:
-            return False
-        linked = await self.db.execute(
-            select(Application.id)
-            .where(Application.user_id == user_id, Application.cv_id == cv_id)
-            .limit(1)
-        )
-        if linked.scalar_one_or_none() is not None:
-            raise CVLinkedToApplicationError("CV is linked to an application")
-        cv.is_active = False
-        cv.updated_at = datetime.now(timezone.utc)
-        await self.db.flush()
-        await QuotaService(self.db).release(user_id, QuotaResource.CV)
-        return True
+        quota = QuotaService(self.db)
+        # SQLite's legacy transaction mode does not protect the following
+        # reads until a write starts. Acquire the short write transaction
+        # before refreshing the CV and its app links so a concurrent manual
+        # link cannot slip between the conflict check and retirement.
+        await quota.ensure_write_transaction()
+        async with self.db.begin_nested():
+            cv = await self.db.scalar(
+                select(CV)
+                .where(CV.id == cv_id, CV.user_id == user_id)
+                .execution_options(populate_existing=True)
+            )
+            if cv is None or not cv.is_active:
+                return False
+
+            # Serialize with the normal link flow on the target CV row. The
+            # conditional final update below also repeats both the app-link
+            # exclusion and the observed application_id.
+            cv_lock = await self.db.execute(
+                update(CV)
+                .where(CV.id == cv_id, CV.user_id == user_id, CV.is_active.is_(True))
+                .values(updated_at=CV.updated_at)
+            )
+            if cv_lock.rowcount != 1:
+                return False
+            cv = await self.db.scalar(
+                select(CV)
+                .where(CV.id == cv_id, CV.user_id == user_id)
+                .execution_options(populate_existing=True)
+            )
+            if cv is None or not cv.is_active:
+                return False
+
+            linked = await self.db.scalar(
+                select(Application.id)
+                .where(Application.user_id == user_id, Application.cv_id == cv_id)
+                .limit(1)
+            )
+            if linked is not None:
+                raise CVLinkedToApplicationError("CV is linked to an application")
+
+            observed_application = (
+                CV.application_id.is_(None)
+                if cv.application_id is None
+                else CV.application_id == cv.application_id
+            )
+            result = await self.db.execute(
+                update(CV)
+                .where(
+                    CV.id == cv_id,
+                    CV.user_id == user_id,
+                    CV.is_active.is_(True),
+                    observed_application,
+                    ~select(Application.id)
+                    .where(Application.user_id == user_id, Application.cv_id == cv_id)
+                    .exists(),
+                )
+                .values(is_active=False, updated_at=datetime.now(timezone.utc))
+                .returning(CV.quota_counted)
+            )
+            quota_counted = result.scalar_one_or_none()
+            if quota_counted is None:
+                linked = await self.db.scalar(
+                    select(Application.id)
+                    .where(Application.user_id == user_id, Application.cv_id == cv_id)
+                    .limit(1)
+                )
+                if linked is not None:
+                    raise CVLinkedToApplicationError("CV is linked to an application")
+                return False
+
+            # Retire associated pending allowances only after the CV CAS has
+            # succeeded. If a concurrent link/delete wins, none of these
+            # reservation writes have happened and no allowance can be left
+            # partially released.
+            pending_draft_application = await self.db.scalar(
+                select(TailoringReplacementReservation.application_id)
+                .join(
+                    Application,
+                    Application.id == TailoringReplacementReservation.application_id,
+                )
+                .where(
+                    TailoringReplacementReservation.draft_cv_id == cv.id,
+                    TailoringReplacementReservation.state == TAILORING_REPLACEMENT_PENDING,
+                    Application.user_id == user_id,
+                )
+                .limit(1)
+            )
+            if pending_draft_application is not None:
+                await quota.release_replacement(
+                    user_id,
+                    pending_draft_application,
+                    draft_cv_id=cv.id,
+                    retire_draft=False,
+                )
+
+            pending_source_applications = await self.db.execute(
+                select(TailoringReplacementReservation.application_id)
+                .join(
+                    Application,
+                    Application.id == TailoringReplacementReservation.application_id,
+                )
+                .where(
+                    TailoringReplacementReservation.source_cv_id == cv.id,
+                    TailoringReplacementReservation.state == TAILORING_REPLACEMENT_PENDING,
+                    Application.user_id == user_id,
+                )
+            )
+            for application_id in pending_source_applications.scalars().all():
+                await quota.release_replacement(
+                    user_id,
+                    application_id,
+                    source_cv_id=cv.id,
+                    retire_draft=True,
+                )
+            if quota_counted:
+                await quota.release(user_id, QuotaResource.CV)
+            return True
 
     async def copy_cv(self, cv_id: str, user_id: str) -> CV | None:
         original = await self.get_cv(cv_id, user_id)

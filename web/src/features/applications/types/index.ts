@@ -451,6 +451,12 @@ export interface Application {
   updated_at: string;
 }
 
+/** The fields shared by linked applications and unlinked tailoring drafts when showing scanner results. */
+export type ScannerAnalysisContext = Pick<
+  Application,
+  "company" | "role" | "cv_id" | "scanner_result" | "scanner_status"
+>;
+
 export interface ApplicationCreateData {
   company: string;
   role: string;

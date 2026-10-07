@@ -28,6 +28,7 @@ export interface CVDetail {
   customizations: CVCustomizations;
   sections: CVSections;
   extra_metadata: Record<string, unknown>;
+  revision: number;
   created_at: string;
   updated_at: string;
 }

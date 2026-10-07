@@ -1,0 +1,4 @@
+# Local inspection images and helper packages; selected artifacts live in each arm.
+*.page-*.png
+*-review-package.json
+review-packages/

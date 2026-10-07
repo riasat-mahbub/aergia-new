@@ -41,6 +41,7 @@ export {
 } from "./types";
 export type {
   Application,
+  ScannerAnalysisContext,
   ApplicationCreateData,
   ApplicationStatus,
   ApplicationStatusHistory,

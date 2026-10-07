@@ -1,9 +1,9 @@
 import { RefreshCw } from "lucide-react";
-import type { Application } from "../types";
+import type { ScannerAnalysisContext } from "../types";
 import { scannerBadgeState } from "../domain/scannerReport";
 
 interface ScannerJobFitBadgeProps {
-  application: Application;
+  application: ScannerAnalysisContext;
   onClick: () => void;
   disabled?: boolean;
 }
@@ -32,4 +32,3 @@ export default function ScannerJobFitBadge({ application, onClick, disabled = fa
     </button>
   );
 }
-

@@ -53,12 +53,15 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
     tailoringStatus,
     tailoringResult,
     promptCopied,
+    tailoringAction,
+    tailoringActionError,
     startTailoring,
     copyPrompt,
     cancelTailoring,
+    reevaluateDraft,
     acceptDraft,
     rejectDraft,
-  } = useTailoringSession({ applicationId: application?.id ?? id, fetchApplication: fetch, addToast });
+  } = useTailoringSession({ applicationId: id, fetchApplication: fetch, addToast });
 
   useEffect(() => {
     if (id) {
@@ -183,12 +186,15 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
         tailoringStatus={tailoringStatus}
         tailoringResult={tailoringResult}
         promptCopied={promptCopied}
+        tailoringAction={tailoringAction}
+        tailoringActionError={tailoringActionError}
         onExport={handleExport}
         onStartTailoring={startTailoring}
         onCopyPrompt={copyPrompt}
         onCancelTailoring={cancelTailoring}
+        onReevaluateDraft={reevaluateDraft}
         onAcceptDraft={acceptDraft}
-        onRejectDraft={rejectDraft}
+        onDiscardDraft={rejectDraft}
       />
 
       <ApplicationStatusHistory application={application} />

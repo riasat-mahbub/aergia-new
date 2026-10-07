@@ -1,0 +1,1582 @@
+{
+  "templates": [
+    {
+      "id": "generic-minimal",
+      "name": "Minimal",
+      "description": "Single-column layout with minimal spacing and neutral palette.",
+      "manifest": {
+        "manifest_version": 2,
+        "name": "Minimal",
+        "description": "Single-column layout with minimal spacing and neutral palette.",
+        "zones": [
+          {
+            "id": "main",
+            "label": null,
+            "styles": {
+              "width": "full",
+              "padding": "spacious"
+            }
+          }
+        ],
+        "placement": {
+          "profile": "main",
+          "experience": "main",
+          "education": "main",
+          "skills": "main",
+          "projects": "main",
+          "languages": "main",
+          "certifications": "main",
+          "research": "main"
+        },
+        "layout_defaults": {
+          "spacing": "none"
+        },
+        "policy_overrides": {
+          "by_type": {
+            "skills": {
+              "skill_variant": "inline"
+            }
+          }
+        },
+        "global_styles": {
+          "accent_color": "#111827",
+          "body_font": "sans-serif",
+          "heading_font": "sans-serif"
+        }
+      }
+    }
+  ],
+  "selected_template_id": "generic-minimal",
+  "capabilities": {
+    "version": 2,
+    "renderer": {
+      "id": "html",
+      "features": {
+        "break_before": "FULL",
+        "keep_with_next": "BEST_EFFORT",
+        "keep_together": "BEST_EFFORT",
+        "heading_keeps_with_first": "BEST_EFFORT",
+        "keep_entry_together": "BEST_EFFORT",
+        "feature_skills_inline": "FULL",
+        "feature_section_underline": "FULL",
+        "feature_anchor_styling": "FULL"
+      }
+    },
+    "document": {
+      "section_types": {
+        "profile": {
+          "data_shape": "object",
+          "fields": {
+            "name": {
+              "type": "string",
+              "server_owned": true,
+              "editable": false
+            },
+            "title": {
+              "type": "string",
+              "server_owned": false,
+              "editable": true
+            },
+            "email": {
+              "type": "string",
+              "server_owned": true,
+              "editable": false
+            },
+            "email_link": {
+              "type": "boolean",
+              "server_owned": true,
+              "editable": false
+            },
+            "phone": {
+              "type": "string",
+              "server_owned": true,
+              "editable": false
+            },
+            "location": {
+              "type": "string",
+              "server_owned": false,
+              "editable": true
+            },
+            "site_text": {
+              "type": "string",
+              "server_owned": true,
+              "editable": false
+            },
+            "site_url": {
+              "type": "url",
+              "server_owned": true,
+              "editable": false
+            },
+            "summary": {
+              "type": "rich_text",
+              "server_owned": false,
+              "editable": true
+            },
+            "photo_url": {
+              "type": "url",
+              "server_owned": true,
+              "editable": false
+            },
+            "social_links": {
+              "type": "social_links",
+              "server_owned": true,
+              "editable": false
+            }
+          },
+          "max_entries": null,
+          "allowed_library_kinds": [],
+          "style_axes": [
+            "text",
+            "subsection",
+            "layout",
+            "typography",
+            "policy"
+          ]
+        },
+        "experience": {
+          "data_shape": "entries",
+          "fields": {
+            "id": {
+              "type": "id",
+              "server_owned": false,
+              "editable": true
+            },
+            "position": {
+              "type": "string",
+              "server_owned": false,
+              "editable": true
+            },
+            "company": {
+              "type": "string",
+              "server_owned": false,
+              "editable": true
+            },
+            "location": {
+              "type": "string",
+              "server_owned": false,
+              "editable": true
+            },
+            "start_date": {
+              "type": "date",
+              "server_owned": false,
+              "editable": true
+            },
+            "end_date": {
+              "type": "date",
+              "server_owned": false,
+              "editable": true
+            },
+            "current": {
+              "type": "boolean",
+              "server_owned": false,
+              "editable": true
+            },
+            "description": {
+              "type": "rich_text",
+              "server_owned": false,
+              "editable": true
+            }
+          },
+          "max_entries": 100,
+          "allowed_library_kinds": [
+            "experience"
+          ],
+          "style_axes": [
+            "text",
+            "subsection",
+            "layout",
+            "typography",
+            "policy"
+          ]
+        },
+        "education": {
+          "data_shape": "entries",
+          "fields": {
+            "id": {
+              "type": "id",
+              "server_owned": false,
+              "editable": true
+            },
+            "degree": {
+              "type": "string",
+              "server_owned": false,
+              "editable": true
+            },
+            "institution": {
+              "type": "string",
+              "server_owned": false,
+              "editable": true
+            },
+            "start_date": {
+              "type": "date",
+              "server_owned": false,
+              "editable": true
+            },
+            "end_date": {
+              "type": "date",
+              "server_owned": false,
+              "editable": true
+            },
+            "current": {
+              "type": "boolean",
+              "server_owned": false,
+              "editable": true
+            },
+            "gpa": {
+              "type": "string",
+              "server_owned": false,
+              "editable": true
+            },
+            "summary": {
+              "type": "rich_text",
+              "server_owned": false,
+              "editable": true
+            }
+          },
+          "max_entries": 100,
+          "allowed_library_kinds": [
+            "education"
+          ],
+          "style_axes": [
+            "text",
+            "subsection",
+            "layout",
+            "typography",
+            "policy"
+          ]
+        },
+        "skills": {
+          "data_shape": "entries",
+          "fields": {
+            "id": {
+              "type": "id",
+              "server_owned": false,
+              "editable": true
+            },
+            "category": {
+              "type": "string",
+              "server_owned": false,
+              "editable": true
+            },
+            "items": {
+              "type": "string[]",
+              "server_owned": false,
+              "editable": true
+            }
+          },
+          "max_entries": 100,
+          "allowed_library_kinds": [
+            "skill"
+          ],
+          "style_axes": [
+            "text",
+            "subsection",
+            "layout",
+            "typography",
+            "policy"
+          ]
+        },
+        "projects": {
+          "data_shape": "entries",
+          "fields": {
+            "id": {
+              "type": "id",
+              "server_owned": false,
+              "editable": true
+            },
+            "name": {
+              "type": "string",
+              "server_owned": false,
+              "editable": true
+            },
+            "url": {
+              "type": "url",
+              "server_owned": false,
+              "editable": true
+            },
+            "link_text": {
+              "type": "string",
+              "server_owned": false,
+              "editable": true
+            },
+            "start_date": {
+              "type": "date",
+              "server_owned": false,
+              "editable": true
+            },
+            "end_date": {
+              "type": "date",
+              "server_owned": false,
+              "editable": true
+            },
+            "description": {
+              "type": "rich_text",
+              "server_owned": false,
+              "editable": true
+            },
+            "tech_stack": {
+              "type": "string[]",
+              "server_owned": false,
+              "editable": true
+            }
+          },
+          "max_entries": 100,
+          "allowed_library_kinds": [
+            "project"
+          ],
+          "style_axes": [
+            "text",
+            "subsection",
+            "layout",
+            "typography",
+            "policy"
+          ]
+        },
+        "languages": {
+          "data_shape": "entries",
+          "fields": {
+            "id": {
+              "type": "id",
+              "server_owned": false,
+              "editable": true
+            },
+            "language": {
+              "type": "string",
+              "server_owned": false,
+              "editable": true
+            },
+            "proficiency": {
+              "type": "string",
+              "server_owned": false,
+              "editable": true
+            }
+          },
+          "max_entries": 100,
+          "allowed_library_kinds": [
+            "language"
+          ],
+          "style_axes": [
+            "text",
+            "subsection",
+            "layout",
+            "typography",
+            "policy"
+          ]
+        },
+        "certifications": {
+          "data_shape": "entries",
+          "fields": {
+            "id": {
+              "type": "id",
+              "server_owned": false,
+              "editable": true
+            },
+            "name": {
+              "type": "string",
+              "server_owned": false,
+              "editable": true
+            },
+            "date": {
+              "type": "date",
+              "server_owned": false,
+              "editable": true
+            },
+            "issuer": {
+              "type": "string",
+              "server_owned": false,
+              "editable": true
+            },
+            "credential_url": {
+              "type": "url",
+              "server_owned": false,
+              "editable": true
+            },
+            "link_text": {
+              "type": "string",
+              "server_owned": false,
+              "editable": true
+            },
+            "description": {
+              "type": "rich_text",
+              "server_owned": false,
+              "editable": true
+            }
+          },
+          "max_entries": 100,
+          "allowed_library_kinds": [
+            "certification"
+          ],
+          "style_axes": [
+            "text",
+            "subsection",
+            "layout",
+            "typography",
+            "policy"
+          ]
+        },
+        "research": {
+          "data_shape": "entries",
+          "fields": {
+            "id": {
+              "type": "id",
+              "server_owned": false,
+              "editable": true
+            },
+            "title": {
+              "type": "string",
+              "server_owned": false,
+              "editable": true
+            },
+            "publication_date": {
+              "type": "date",
+              "server_owned": false,
+              "editable": true
+            },
+            "publication_value": {
+              "type": "string",
+              "server_owned": false,
+              "editable": true
+            },
+            "paper_url": {
+              "type": "url",
+              "server_owned": false,
+              "editable": true
+            },
+            "paper_link_text": {
+              "type": "string",
+              "server_owned": false,
+              "editable": true
+            },
+            "description": {
+              "type": "rich_text",
+              "server_owned": false,
+              "editable": true
+            }
+          },
+          "max_entries": 100,
+          "allowed_library_kinds": [
+            "research"
+          ],
+          "style_axes": [
+            "text",
+            "subsection",
+            "layout",
+            "typography",
+            "policy"
+          ]
+        },
+        "extras": {
+          "data_shape": "entries",
+          "fields": {
+            "id": {
+              "type": "id",
+              "server_owned": false,
+              "editable": true
+            },
+            "title": {
+              "type": "string",
+              "server_owned": false,
+              "editable": true
+            },
+            "fields": {
+              "type": "label_value[]",
+              "server_owned": false,
+              "editable": true
+            }
+          },
+          "max_entries": 100,
+          "allowed_library_kinds": [],
+          "style_axes": [
+            "text",
+            "subsection",
+            "layout",
+            "typography",
+            "policy"
+          ]
+        }
+      },
+      "styles": {
+        "text": {
+          "fields": {
+            "bold": "boolean",
+            "italic": "boolean",
+            "underline": "boolean",
+            "strike": "boolean",
+            "color": "color_ref",
+            "link": "url",
+            "font_size": [
+              "xs",
+              "small",
+              "normal",
+              "large",
+              "xl"
+            ]
+          },
+          "max_fields": 100
+        },
+        "subsection": {
+          "fields": {
+            "text_align": [
+              "left",
+              "right",
+              "center",
+              "justify"
+            ],
+            "spacing_before": {
+              "type": "spacing_token",
+              "values": [
+                "none",
+                "tight",
+                "snug",
+                "balanced",
+                "roomy",
+                "comfortable",
+                "loose",
+                "spacious"
+              ]
+            },
+            "spacing_after": {
+              "type": "spacing_token",
+              "values": [
+                "none",
+                "tight",
+                "snug",
+                "balanced",
+                "roomy",
+                "comfortable",
+                "loose",
+                "spacious"
+              ]
+            },
+            "entry_gap": {
+              "type": "spacing_token",
+              "values": [
+                "none",
+                "tight",
+                "snug",
+                "balanced",
+                "roomy",
+                "comfortable",
+                "loose",
+                "spacious"
+              ]
+            },
+            "field_gap": {
+              "type": "spacing_token",
+              "values": [
+                "none",
+                "tight",
+                "snug",
+                "balanced",
+                "roomy",
+                "comfortable",
+                "loose",
+                "spacious"
+              ]
+            },
+            "background_color": "color_ref",
+            "section_color": "color_ref",
+            "accent_color": "color_ref"
+          }
+        },
+        "layout": {
+          "fields": {
+            "font_family": {
+              "tokens": [
+                "sans-serif",
+                "serif",
+                "mono",
+                "display"
+              ],
+              "safe_stacks": [
+                "sans-serif",
+                "serif",
+                "mono",
+                "display",
+                "Inter",
+                "Georgia",
+                "Crimson",
+                "system-ui",
+                "Inter, system-ui, sans-serif",
+                "Georgia, Crimson, serif",
+                "ui-monospace, SFMono-Regular, Menlo, monospace"
+              ]
+            },
+            "date_style": "date_style",
+            "break_before": "boolean",
+            "keep_together": "boolean",
+            "heading_keeps_with_first": "boolean",
+            "orphans": "integer",
+            "widows": "integer",
+            "chip_keys": "string[]"
+          },
+          "max_chip_keys": 32
+        },
+        "typography": {
+          "roles": [
+            "heading",
+            "body"
+          ],
+          "fields": {
+            "font_family": [
+              "sans-serif",
+              "serif",
+              "mono",
+              "display"
+            ],
+            "font_size": [
+              "xs",
+              "small",
+              "normal",
+              "large",
+              "xl"
+            ],
+            "line_height": [
+              "tight",
+              "normal",
+              "relaxed"
+            ],
+            "color": "color_ref",
+            "bold": "boolean"
+          }
+        },
+        "policy": {
+          "fields": {
+            "show_title": "boolean",
+            "heading_divider": "boolean",
+            "skill_variant": [
+              "block",
+              "inline"
+            ],
+            "entry_layout": [
+              "stack",
+              "two-column"
+            ]
+          }
+        },
+        "global": {
+          "fields": {
+            "accent_color": "color_ref",
+            "body_font": [
+              "sans-serif",
+              "serif",
+              "mono",
+              "display"
+            ],
+            "heading_font": [
+              "sans-serif",
+              "serif",
+              "mono",
+              "display"
+            ],
+            "default_text_align": [
+              "left",
+              "right",
+              "center",
+              "justify"
+            ],
+            "spacing": [
+              "none",
+              "compact",
+              "comfortable",
+              "minimal"
+            ],
+            "flags": "boolean_map",
+            "layout": "cv_layout"
+          }
+        }
+      },
+      "customizations": {
+        "$defs": {
+          "CVLayout": {
+            "additionalProperties": false,
+            "description": "Per-CV zone layout written by the editor's layout authoring.\n\nCarries the same shape as the manifest's zones/placement but is a per-CV\noverride: the resolver renders these zones when present, falling back to\nthe template manifest. ``placement`` is always keyed by section instance\nid. Template manifests retain their separate type-keyed placement map.",
+            "properties": {
+              "zones": {
+                "items": {
+                  "$ref": "#/$defs/Zone"
+                },
+                "maxItems": 8,
+                "title": "Zones",
+                "type": "array"
+              },
+              "placement": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "maxProperties": 64,
+                "title": "Placement",
+                "type": "object"
+              }
+            },
+            "title": "CVLayout",
+            "type": "object"
+          },
+          "Zone": {
+            "additionalProperties": false,
+            "description": "One zone in the template layout.",
+            "properties": {
+              "id": {
+                "maxLength": 64,
+                "title": "Id",
+                "type": "string"
+              },
+              "label": {
+                "anyOf": [
+                  {
+                    "maxLength": 255,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Label"
+              },
+              "styles": {
+                "$ref": "#/$defs/ZoneStyle"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "title": "Zone",
+            "type": "object"
+          },
+          "ZoneStyle": {
+            "additionalProperties": false,
+            "description": "Constrained style for a zone.\n\nThe manifest exposes a closed vocabulary: ``width`` is a\n:data:`WidthToken`, ``background`` is a color ref (a hex literal or\na palette reference), and ``padding`` is a :data:`PaddingToken`.\nThe manifest never carries raw CSS strings; the resolver maps each\ntoken to the renderer's native value.\n\nThe schema is closed (``extra=\"forbid\"``) so a manifest cannot smuggle\nin raw CSS like ``display: flex`` or ``position: absolute``. The\nrenderer's vocabulary is the only vocabulary.",
+            "properties": {
+              "width": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "narrow",
+                      "half",
+                      "full",
+                      "auto"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Width"
+              },
+              "background": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Background"
+              },
+              "padding": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "none",
+                      "tight",
+                      "comfortable",
+                      "loose",
+                      "spacious"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Padding"
+              }
+            },
+            "title": "ZoneStyle",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "description": "User-level overrides on the cascade (canonical v2 shape).\n\nDocument-wide appearance and layout values are written by the per-CV\ncustomization editor. Section-local style belongs only on\n``SectionInstance.style``. ``accent_color`` is a color ref (hex literal\nor palette reference). The model is closed.",
+        "properties": {
+          "accent_color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Accent Color"
+          },
+          "body_font": {
+            "anyOf": [
+              {
+                "enum": [
+                  "sans-serif",
+                  "serif",
+                  "mono",
+                  "display"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Body Font"
+          },
+          "heading_font": {
+            "anyOf": [
+              {
+                "enum": [
+                  "sans-serif",
+                  "serif",
+                  "mono",
+                  "display"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Heading Font"
+          },
+          "default_text_align": {
+            "anyOf": [
+              {
+                "enum": [
+                  "left",
+                  "right",
+                  "center",
+                  "justify"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Default Text Align"
+          },
+          "spacing": {
+            "anyOf": [
+              {
+                "enum": [
+                  "none",
+                  "compact",
+                  "comfortable",
+                  "minimal"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Spacing"
+          },
+          "flags": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "maxProperties": 32,
+            "title": "Flags",
+            "type": "object"
+          },
+          "layout": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CVLayout"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "title": "Customizations",
+        "type": "object"
+      },
+      "limits": {
+        "max_sections": 32,
+        "max_section_id_length": 128,
+        "max_section_type_length": 64,
+        "max_section_title_length": 255,
+        "max_section_entries": 100,
+        "max_field_text_length": 20000,
+        "max_rich_text_blocks": 100,
+        "max_rich_text_items": 100,
+        "max_section_style_fields": 100,
+        "max_chip_keys": 32,
+        "max_zones": 8,
+        "max_placement_entries": 64
+      },
+      "wire_schema": {
+        "$defs": {
+          "DateStyle": {
+            "additionalProperties": false,
+            "description": "Per-section date display format.\n\nMirrors the TypeScript ``DateStyle`` in ``web/src/generated/schema.ts``\nand the ``DATE_STYLE_OPTIONS`` presets in\n``app/services/renderer/builders/_utils.py``. The ``key`` selects the\nformat; ``range_sep`` is the separator between the start and end bound.",
+            "properties": {
+              "key": {
+                "default": "Month YYYY",
+                "maxLength": 32,
+                "title": "Key",
+                "type": "string"
+              },
+              "rangeSep": {
+                "default": " \u2013 ",
+                "maxLength": 16,
+                "title": "Rangesep",
+                "type": "string"
+              }
+            },
+            "title": "DateStyle",
+            "type": "object"
+          },
+          "LayoutHints": {
+            "additionalProperties": false,
+            "description": "Page flow and structural intent. The renderer emits these as CSS.\n\n``orphans``/``widows`` map to the CSS ``orphans``/``widows`` properties\non the section wrapper; Chromium honours them on ``@page`` flow but is\nbest-effort elsewhere. ``keep_together`` maps to ``break-inside: avoid``\napplied per entry (each ``<div class=\"entry\">`` is the unit that must\nnot split across pages), so an overflowing entry moves to the next\npage on its own instead of dragging the whole section with it. Entries\nlarger than a page split anyway \u2014 Chromium's ``break-inside: avoid``\nis best-effort.",
+            "properties": {
+              "font_family": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Font Family"
+              },
+              "date_style": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/DateStyle"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "break_before": {
+                "default": false,
+                "title": "Break Before",
+                "type": "boolean"
+              },
+              "keep_together": {
+                "default": true,
+                "title": "Keep Together",
+                "type": "boolean"
+              },
+              "heading_keeps_with_first": {
+                "default": true,
+                "title": "Heading Keeps With First",
+                "type": "boolean"
+              },
+              "orphans": {
+                "default": 2,
+                "title": "Orphans",
+                "type": "integer"
+              },
+              "widows": {
+                "default": 2,
+                "title": "Widows",
+                "type": "integer"
+              },
+              "chip_keys": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 32,
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Chip Keys"
+              }
+            },
+            "title": "LayoutHints",
+            "type": "object"
+          },
+          "SectionInstanceStyle": {
+            "additionalProperties": false,
+            "description": "Section-local style carried on a wire ``SectionInstance``.\n\nOnly the canonical style axes are accepted. Legacy rows must be converted\nbefore they are read by the app.",
+            "properties": {
+              "text": {
+                "additionalProperties": {
+                  "$ref": "#/$defs/TextStyle"
+                },
+                "maxProperties": 100,
+                "title": "Text",
+                "type": "object"
+              },
+              "subsection": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/SubsectionStyle"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "layout": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/LayoutHints"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "typography": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/SectionTypography"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "policy": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/SectionPolicy"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "title": "SectionInstanceStyle",
+            "type": "object"
+          },
+          "SectionPolicy": {
+            "additionalProperties": false,
+            "description": "Document semantics for a section. The renderer implements these\nwith HTML constructs; a future DOCX renderer would do the same with\nDOCX constructs. Policy stays semantic \u2014 renderers pick the markup.",
+            "properties": {
+              "show_title": {
+                "default": true,
+                "title": "Show Title",
+                "type": "boolean"
+              },
+              "heading_divider": {
+                "default": true,
+                "title": "Heading Divider",
+                "type": "boolean"
+              },
+              "skill_variant": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "block",
+                      "inline"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Skill Variant"
+              },
+              "entry_layout": {
+                "default": "stack",
+                "enum": [
+                  "stack",
+                  "two-column"
+                ],
+                "title": "Entry Layout",
+                "type": "string"
+              }
+            },
+            "title": "SectionPolicy",
+            "type": "object"
+          },
+          "SectionTypography": {
+            "additionalProperties": false,
+            "description": "Independent typography defaults owned by one section instance.",
+            "properties": {
+              "heading": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/TypographyRole"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "body": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/TypographyRole"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              }
+            },
+            "title": "SectionTypography",
+            "type": "object"
+          },
+          "SubsectionStyle": {
+            "additionalProperties": false,
+            "description": "Block-level appearance per section/entry.\n\n``section_color`` is the per-section accent color used by the heading and\nother wrappers.",
+            "properties": {
+              "text_align": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "left",
+                      "right",
+                      "center",
+                      "justify"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Text Align"
+              },
+              "spacing_before": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "none",
+                      "tight",
+                      "snug",
+                      "balanced",
+                      "roomy",
+                      "comfortable",
+                      "loose",
+                      "spacious"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Spacing Before"
+              },
+              "spacing_after": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "none",
+                      "tight",
+                      "snug",
+                      "balanced",
+                      "roomy",
+                      "comfortable",
+                      "loose",
+                      "spacious"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Spacing After"
+              },
+              "entry_gap": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "none",
+                      "tight",
+                      "snug",
+                      "balanced",
+                      "roomy",
+                      "comfortable",
+                      "loose",
+                      "spacious"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Entry Gap"
+              },
+              "field_gap": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "none",
+                      "tight",
+                      "snug",
+                      "balanced",
+                      "roomy",
+                      "comfortable",
+                      "loose",
+                      "spacious"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Field Gap"
+              },
+              "background_color": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Background Color"
+              },
+              "section_color": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Section Color"
+              },
+              "accent_color": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Accent Color"
+              }
+            },
+            "title": "SubsectionStyle",
+            "type": "object"
+          },
+          "TextStyle": {
+            "additionalProperties": false,
+            "description": "Inline per-field appearance. Applied to a single ``TextRun``.",
+            "properties": {
+              "bold": {
+                "default": false,
+                "title": "Bold",
+                "type": "boolean"
+              },
+              "italic": {
+                "default": false,
+                "title": "Italic",
+                "type": "boolean"
+              },
+              "underline": {
+                "default": false,
+                "title": "Underline",
+                "type": "boolean"
+              },
+              "strike": {
+                "default": false,
+                "title": "Strike",
+                "type": "boolean"
+              },
+              "color": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Color"
+              },
+              "link": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Link"
+              },
+              "font_size": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "xs",
+                      "small",
+                      "normal",
+                      "large",
+                      "xl"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Font Size"
+              }
+            },
+            "title": "TextStyle",
+            "type": "object"
+          },
+          "TypographyRole": {
+            "additionalProperties": false,
+            "description": "Section-local typography defaults for a heading or body text.",
+            "properties": {
+              "font_family": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "sans-serif",
+                      "serif",
+                      "mono",
+                      "display"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Font Family"
+              },
+              "font_size": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "xs",
+                      "small",
+                      "normal",
+                      "large",
+                      "xl"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Font Size"
+              },
+              "line_height": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "tight",
+                      "normal",
+                      "relaxed"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Line Height"
+              },
+              "color": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Color"
+              },
+              "bold": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Bold"
+              }
+            },
+            "title": "TypographyRole",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The wire representation of a section in a CV.\n\n``data`` is either a ``dict`` (for ``profile``) or a ``list[dict]`` (for\nthe entry-based sections). The builder dispatches by ``type`` and\nconstructs the AST accordingly.",
+        "properties": {
+          "id": {
+            "maxLength": 128,
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "maxLength": 64,
+            "title": "Type",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 255,
+            "title": "Title",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              }
+            ],
+            "maxLength": 100,
+            "title": "Data"
+          },
+          "style": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/SectionInstanceStyle"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "title"
+        ],
+        "title": "SectionInstance",
+        "type": "object"
+      }
+    },
+    "tailoring": {
+      "protocol_version": 2,
+      "mode": "complete_candidate",
+      "renderable_section_types": [
+        "certifications",
+        "education",
+        "experience",
+        "extras",
+        "languages",
+        "profile",
+        "projects",
+        "research",
+        "skills"
+      ],
+      "entry_section_types": [
+        "certifications",
+        "education",
+        "experience",
+        "extras",
+        "languages",
+        "projects",
+        "research",
+        "skills"
+      ],
+      "library_kind_to_section_type": {
+        "experience": "experience",
+        "education": "education",
+        "skill": "skills",
+        "project": "projects",
+        "language": "languages",
+        "certification": "certifications",
+        "research": "research"
+      },
+      "candidate_content": "editable_except_server_owned_profile_identity",
+      "operations": [
+        "generate_candidate"
+      ],
+      "server_owned_profile_fields": [
+        "email",
+        "email_link",
+        "name",
+        "phone",
+        "photo_url",
+        "site_text",
+        "site_url",
+        "social_links"
+      ],
+      "review": {
+        "agent_can": [
+          "read_context",
+          "preview_candidate",
+          "submit_candidate"
+        ],
+        "owner_only": [
+          "accept_draft",
+          "reject_draft"
+        ]
+      }
+    }
+  }
+}

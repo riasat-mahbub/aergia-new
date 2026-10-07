@@ -1,0 +1,27 @@
+{
+  "version": "fit-review-v1",
+  "evaluation_id": "a46dbd4b-9b00-43d8-bd1a-184b2a322d03",
+  "candidate_hash": "e61759d0515f82a319fc0c7a2cc104d00c37eb7c05f89a4f939b43accd955f10",
+  "pdf_sha256": "fdb6ef90a28340eaea50e19fda5a4059c735410fe9ccf23c31c520fd7cc8c596",
+  "status": "completed",
+  "mode": "fresh_agent",
+  "verdict": "partially_tailored",
+  "rationale": "The PDF makes a clear connection to the Junior Data Analyst role through pandas cleaning of attendance CSVs, monthly charts with exclusions documented, and explanations to volunteer coordinators. The page is legible with a clear heading and section hierarchy, though its content occupies only the upper portion, leaving substantial unused space. SQL is presented as coursework, and the PDF does not show validation checks, investigation of inconsistent records, or Tableau/Power BI use.",
+  "strong_connections": [
+    "The summary and Volunteer Data Assistant experience describe cleaning CSV attendance records with pandas, matching the job's data-cleaning work and Python requirement.",
+    "Monthly charts and notes on excluded entries show reporting that preserves context about the data.",
+    "The candidate says they explained chart patterns and data exclusions to museum volunteer coordinators, a visible example of communicating findings and limitations to project partners.",
+    "A Mathematics degree and SQL joins and aggregation coursework provide relevant analytical and SQL foundations."
+  ],
+  "weak_or_missing_connections": [
+    "SQL is listed as coursework only; no applied SQL task or project is described despite SQL being required.",
+    "The PDF says records were cleaned but gives no visible example of validation checks or investigating inconsistent records.",
+    "Tableau or Power BI use is not shown; the summary only says the candidate is building those skills.",
+    "The one-page layout is readable, but the content is concentrated near the top and leaves much of the page unused."
+  ],
+  "recommended_changes": [
+    "If accurate, specify a validation check or inconsistent attendance record investigated, including how it was resolved or documented.",
+    "If supported by experience, add a concrete SQL example using joins or aggregation; otherwise keep the coursework label explicit.",
+    "Use some of the available page space for one or two concise details about the chart audience, reporting cadence, or scope, if those details are known."
+  ]
+}
