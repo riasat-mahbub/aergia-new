@@ -6,8 +6,9 @@ Implementation follows the [approved plan](2026-09-30-tailoring-v10-implementati
 authors/reviewers used Luna 6 with max reasoning; the coordinator reviewed,
 integrated and verified their work in a shared checkout with file ownership.
 
-Baseline: `04df13e`. Current integrated implementation: `dda4cc7`.
-Final historical-discard follow-up and merge cutover are pending at this checkpoint.
+Baseline: `04df13e`. Final verified runtime implementation: `4836a40`.
+P00–P13 and all seven mapped audit bugs are complete in the tracker.
+Cutover uses a regular merge of `feature/tailoring-v10` into `master`.
 No deployment, production database migration or personal skill installation
 was performed. All test databases and candidate/job evidence are synthetic.
 
@@ -48,7 +49,7 @@ October 7 checks on the integrated implementation:
 | Gate | Actual result |
 | --- | --- |
 | `./dev.sh --smoke` | Passed: production build, Ruff, React hooks lint, isolated migration, live TanStack Start/FastAPI gateway, SSR/CSP/auth cookies |
-| `cd api && .venv/bin/pytest` | 917 passed, 1 skipped, 282 warnings, 95.13s; repeat pending the historical-discard correction |
+| `cd api && .venv/bin/pytest` | 921 passed, 1 skipped, 305 warnings, 100.66s, including the final historical-discard/expired-pending correction |
 | Web lint, typecheck | Passed; one existing `RichTextToolbar.tsx` hook warning |
 | Web architecture fixture suite and boundary check | Passed |
 | `npm run codegen:check` | Passed; no generated model edits were necessary |
@@ -58,7 +59,7 @@ October 7 checks on the integrated implementation:
 | Mounted browser builder harness | 11 groups passed: actual owner/scanner, save failure/recovery, exact normalized revision, navigation and late-save/load fences |
 | Skill metadata validator | Passed |
 | Bundle/Docker filesystem assertions | Passed in full suite: referenced assets resolve and extracted helper imports; actual Docker COPY layout emulated, no full container image build claimed |
-| Tracker rebuild/validate | 701 entries, 0 errors, 7 documented baseline fork warnings; final closure rebuild pending |
+| Tracker rebuild/validate | 712 entries, 0 errors, 7 documented baseline fork warnings after final closure |
 
 The smoke and full suite use fresh temporary databases, never `data/aergia.db`.
 The skipped test is the optional real model integration. Python deprecation and
@@ -86,7 +87,11 @@ and complete owner feedback were inspected together. No further polish loop ran.
 Focused lifecycle and actual baseline-normalized v9 fixture evidence is recorded
 in the [P07 report](2026-10-07-tailoring-p07-verification.md). The final audit found
 that migration-preserved historical stale drafts still needed a safe discard
-path; its focused follow-up is pending at this checkpoint.
+path. The follow-up now handles stale/expired/missing historical drafts atomically,
+tolerates obsolete scanner metadata during discard, preserves ordinary quota
+accounting and blocks another run while an expired live draft remains. An expired
+author session without a draft can restart. Its 53 focused regressions and the
+final full backend/smoke gates pass.
 
 ## Synthetic semantic comparison
 
@@ -138,7 +143,7 @@ also inspected all six chosen pages side by side.
   retains redundant same-year ranges. These formatting differences did not
   establish a tailoring failure and the renderer was not broadened for this check.
 
-Six initial comparisons and one consequential revised-analysis follow-up were
+Six initial PDF reviews and one consequential revised-analysis follow-up were
 completed. After the last restart, the analytical revised candidate was restored
 with the same canonical hash and rendered/reviewed again because its temporary
 PDF had disappeared. That repeated initial review is separate from the one
@@ -163,7 +168,7 @@ or tailoring capabilities in the fixtures/reports. Synthetic `example.test`
 contacts, UUID bindings and fictional ideal credentials are labeled as fixtures.
 Tests and services retain route-owned commit/rollback behavior.
 
-Merge cutover will use a regular merge commit into `master` after the final
-historical-discard gate and tracker closure. Deployment and production database
+The historical-discard gate and tracker closure are complete. Merge cutover
+uses a regular merge commit into `master`. Deployment and production database
 migration remain separate operations; the plan documents backup and compatible
 application/database restore requirements.
