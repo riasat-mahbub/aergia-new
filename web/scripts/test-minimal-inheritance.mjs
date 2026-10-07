@@ -28,6 +28,7 @@ const entry = `
   import React, { useState } from "react";
   import { createRoot } from "react-dom/client";
   import Inspector from ${JSON.stringify(join(webRoot, "src/features/builder/components/customization/Inspector.tsx"))};
+  import { updateInstanceStyle } from ${JSON.stringify(join(webRoot, "src/features/builder/domain/documentCommands.ts"))};
 
   const minimalManifest = {
     name: "Readable Minimal",
@@ -40,24 +41,29 @@ const entry = `
     layout_defaults: { spacing: "comfortable", entry_gap: "roomy", field_gap: "balanced" },
   };
 
-  function Harness() {
+  function Harness({ initialInstances }) {
     const [manifest, setManifest] = useState(minimalManifest);
     const [customizations, setCustomizations] = useState({});
-    const [instances, setInstances] = useState([
-      { id: "profile", title: "Morgan Lee", type: "profile", enabled: true, data: { name: "Morgan Lee" } },
-      { id: "experience", title: "Experience", type: "experience", enabled: true, data: [] },
-    ]);
+    const [instances, setInstances] = useState(initialInstances ?? [
+        { id: "profile", title: "Morgan Lee", type: "profile", enabled: true, data: { name: "Morgan Lee" } },
+        { id: "experience", title: "Experience", type: "experience", enabled: true, data: [] },
+      ]);
     const [writes, setWrites] = useState([]);
 
     window.inspectorHarness = {
       snapshot: () => JSON.parse(JSON.stringify({ instances, writes })),
+      persistAndReload: () => {
+        const serialized = JSON.stringify(instances);
+        window.remountInspectorHarness(serialized);
+        return serialized;
+      },
       setDocumentSpacing: (spacing) => setCustomizations((current) => ({ ...current, spacing })),
       changeTemplate: () => setManifest((current) => current === minimalManifest ? alternateManifest : minimalManifest),
     };
 
     function updateStyle(id, style) {
       setWrites((current) => [...current, { id, style }]);
-      setInstances((current) => current.map((instance) => instance.id === id ? { ...instance, style } : instance));
+      setInstances((current) => updateInstanceStyle(current, id, style));
     }
 
     return React.createElement(
@@ -76,7 +82,15 @@ const entry = `
     );
   }
 
-  createRoot(document.getElementById("root")).render(React.createElement(Harness));
+  let inspectorRoot;
+  window.remountInspectorHarness = (serialized) => {
+    inspectorRoot?.unmount();
+    inspectorRoot = createRoot(document.getElementById("root"));
+    inspectorRoot.render(React.createElement(Harness, {
+      initialInstances: serialized == null ? undefined : JSON.parse(serialized),
+    }));
+  };
+  window.remountInspectorHarness(null);
 `;
 
 await build({
@@ -152,6 +166,69 @@ async def run():
         reset = await page.evaluate("() => window.inspectorHarness.snapshot()")
         assert reset["instances"][1].get("style", {}) == {}, reset
         assert "Customized" not in await page.get_by_test_id("section-card-experience").inner_text()
+
+        await body_size.select_option("normal")
+        entries_picker = page.get_by_test_id("spacing-entries-experience")
+        await entries_picker.get_by_role("radio", name="None: 0px").click()
+        explicit_snapshot = await page.evaluate("() => window.inspectorHarness.snapshot()")
+        explicit_style = explicit_snapshot["instances"][1]["style"]
+        assert explicit_style["typography"]["body"]["font_size"] == "normal", explicit_style
+        assert explicit_style["subsection"]["entry_gap"] == "none", explicit_style
+        serialized_explicit = await page.evaluate("() => window.inspectorHarness.persistAndReload()")
+        persisted_explicit = json.loads(serialized_explicit)[1]["style"]
+        assert persisted_explicit == {
+            "typography": {"body": {"font_size": "normal"}},
+            "subsection": {"entry_gap": "none"},
+        }, persisted_explicit
+
+        await page.get_by_test_id("inspector").wait_for()
+        await page.get_by_test_id("section-card-experience").locator("button").first.click()
+        await page.get_by_role("button", name="Body text").click()
+        await page.get_by_role("button", name="Spacing").click()
+        body_size = page.locator('select[aria-label="Body size"]')
+        assert await body_size.input_value() == "normal"
+        entries_picker = page.get_by_test_id("spacing-entries-experience")
+        assert await entries_picker.get_by_role("radio", name="None: 0px").get_attribute("aria-checked") == "true"
+        assert await page.get_by_test_id("inherited-entry-gap-experience").count() == 0
+
+        await body_size.select_option("")
+        await entries_picker.get_by_role("radio", name="Default").click()
+        cleared_after_load = await page.evaluate("() => window.inspectorHarness.snapshot()")
+        assert cleared_after_load["instances"][1].get("style", {}) == {}, cleared_after_load
+        assert await page.get_by_test_id("inherited-entry-gap-experience").inner_text() == "Template default (8 px)"
+        assert await body_size.locator("option:checked").inner_text() == "Template default (10.5 pt)"
+        serialized_cleared = await page.evaluate("() => window.inspectorHarness.persistAndReload()")
+        cleared_instance = json.loads(serialized_cleared)[1]
+        assert "style" not in cleared_instance, cleared_instance
+
+        await page.get_by_test_id("inspector").wait_for()
+        await page.get_by_test_id("section-card-experience").locator("button").first.click()
+        await page.get_by_role("button", name="Body text").click()
+        await page.get_by_role("button", name="Spacing").click()
+        body_size = page.locator('select[aria-label="Body size"]')
+        assert await body_size.input_value() == ""
+        assert await body_size.locator("option:checked").inner_text() == "Template default (10.5 pt)"
+        assert await page.get_by_test_id("inherited-entry-gap-experience").inner_text() == "Template default (8 px)"
+
+        await body_size.select_option("large")
+        await page.get_by_test_id("spacing-entries-experience").get_by_role("radio", name="Snug: 8px").click()
+        await page.get_by_role("button", name="Reset this section").click()
+        reset_after_load = await page.evaluate("() => window.inspectorHarness.snapshot()")
+        assert "style" not in reset_after_load["instances"][1], reset_after_load
+        assert await body_size.locator("option:checked").inner_text() == "Template default (10.5 pt)"
+        assert await page.get_by_test_id("inherited-entry-gap-experience").inner_text() == "Template default (8 px)"
+        serialized_reset = await page.evaluate("() => window.inspectorHarness.persistAndReload()")
+        reset_instance = json.loads(serialized_reset)[1]
+        assert "style" not in reset_instance, reset_instance
+        assert "body_font_size" not in serialized_reset and "entry_gap" not in serialized_reset, serialized_reset
+
+        await page.get_by_test_id("inspector").wait_for()
+        await page.get_by_test_id("section-card-experience").locator("button").first.click()
+        await page.get_by_role("button", name="Body text").click()
+        await page.get_by_role("button", name="Spacing").click()
+        body_size = page.locator('select[aria-label="Body size"]')
+        assert await body_size.input_value() == ""
+        assert await page.get_by_test_id("inherited-entry-gap-experience").inner_text() == "Template default (8 px)"
 
         await page.evaluate("() => window.inspectorHarness.setDocumentSpacing('comfortable')")
         await page.get_by_test_id("inherited-entry-gap-experience").get_by_text("Document spacing (16 px)").wait_for()
