@@ -81,7 +81,7 @@ def test_reference_model_html_output_is_stable():
 
     html = HTMLDocumentRenderer().render(_model()).encode("utf-8")
     assert hashlib.sha256(html).hexdigest() == (
-        "b89f071bf6a6fd173d28c91d4eca21f5a07e690532756a14d3af660b4fcf6cba"
+        "da0676f1c2c366da80abd6cce7789f8f66dbd852c482de7c4f962467359818d5"
     )
 
 def test_renders_preview_page_flow_metadata_without_changing_document_structure():
@@ -134,6 +134,59 @@ def test_minimal_defaults_apply_to_body_fields_and_leave_name_hierarchy_intact()
     assert ".f-name { font-size: 1.5rem; font-weight: 700; }" in html
     assert 'font-size:1rem;font-weight:700' in html
     assert 'data-preview-body-size="true"' not in html
+
+
+def test_classic_defaults_improve_body_readability_and_keep_compact_sections():
+    manifest = _manifest("generic-classic")
+    doc = Document(sections=[
+        Section(id="p", type="profile", title="Profile", entries=[Entry(id="p1", fields=[
+            FieldBlock(key="name", runs=[TextRun(text="Ada Lovelace")]),
+            FieldBlock(key="email", runs=[TextRun(text="ada@example.test")]),
+            FieldBlock(key="summary", runs=[TextRun(text="Mathematician and writer.")]),
+        ])]),
+        Section(id="x", type="experience", title="Experience", entries=[Entry(id="x1", fields=[
+            FieldBlock(key="position", group="header", runs=[TextRun(text="Engineer")]),
+            FieldBlock(key="date", group="secondary", align="right", runs=[TextRun(text="2020 – 2026")]),
+            FieldBlock(key="description", group="body", runs=[TextRun(text="Built analytical engines.")]),
+        ])]),
+    ])
+    html = HTMLDocumentRenderer().render(resolve(doc, HTMLDocumentRenderer(), manifest, Customizations()))
+
+    assert "--body-size: 0.875rem;" in html
+    assert "--body-line-height: 1.4;" in html
+    assert "--spacing-section: 20px;" in html
+    assert "--spacing-subsection: 0px;" in html
+    assert "--spacing-entry: 8px;" in html
+    assert "--spacing-field: 4px;" in html
+    assert ".f-name { font-size: 1.5rem; font-weight: 700; }" in html
+    assert 'font-size:1rem;font-weight:700' in html
+
+
+def test_classic_authored_section_styles_and_compact_override_remain_effective():
+    manifest = _manifest("generic-classic")
+    doc = Document(sections=[Section(
+        id="x",
+        type="experience",
+        title="Experience",
+        typography=SectionTypography(body=TypographyRole(font_size="large", line_height="tight")),
+        subsection=SubsectionStyle(entry_gap="none", field_gap="roomy"),
+        entries=[Entry(id="e", fields=[
+            FieldBlock(key="position", group="header", runs=[TextRun(text="Engineer")]),
+            FieldBlock(key="company", group="secondary", runs=[TextRun(text="Acme")]),
+        ])],
+    )])
+    model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations(spacing="compact"))
+    html = HTMLDocumentRenderer().render(model)
+    entries_open = re.search(r'<div class="section-entries"[^>]*>', html)
+    entry_open = re.search(r'<div class="entry"[^>]*>', html)
+
+    assert model.css_vars["--spacing-section"] == "20px"
+    assert model.css_vars["--spacing-entry"] == "0px"
+    assert model.css_vars["--spacing-field"] == "0px"
+    assert "--section-body-size:1.125rem" in html
+    assert "line-height:1.2" in html
+    assert entries_open is not None and "gap:0" in entries_open.group(0)
+    assert entry_open is not None and "gap:16px" in entry_open.group(0)
 
 
 def test_explicit_profile_body_size_keeps_existing_name_override_behavior():

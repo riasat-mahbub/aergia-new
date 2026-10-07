@@ -143,6 +143,9 @@ def _render_document(model: RenderModel, support: RendererSupport) -> str:
 
     .f-icon {{ display:inline-flex; width:0.75em; height:0.75em; margin-right:0.25em; vertical-align:-0.1em; }}
     .f-icon svg {{ width:100%; height:100%; }}
+    /* A single zone can fill the printable width including its saved
+       padding. Keep multi-zone flex sizing intact for the Modern sidebar. */
+    .zone:only-child {{ box-sizing:border-box; }}
     /* Pipe separator between adjacent contact fields in the profile row
        (email | phone | location | site). Skipped on the first child so
        the row doesn't start with a dangling pipe. The profile builder

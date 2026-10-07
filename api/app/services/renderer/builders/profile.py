@@ -10,11 +10,43 @@ cascades three-axis style and the renderer emits HTML.
 """
 
 from __future__ import annotations
+
+from urllib.parse import urlsplit
+
 from app.document_schema.models import Entry, FieldBlock, LayoutHints, Section, SectionInstance, TextRun, TextStyle
 from ._utils import compact_url_label, normalize_url_scheme, rich_text_to_field_block
 
+
+def _address_identity(value: str) -> str:
+    """Normalize the visible part of an address for duplicate-label checks."""
+
+    normalized = normalize_url_scheme(value)
+    parsed = urlsplit(normalized)
+    host = parsed.netloc.lower()
+    if host.startswith("www."):
+        host = host[4:]
+    path = "" if parsed.path == "/" else parsed.path
+    query = f"?{parsed.query}" if parsed.query else ""
+    fragment = f"#{parsed.fragment}" if parsed.fragment else ""
+    return f"{host}{path}{query}{fragment}"
+
+
+def _visible_url_label(label: str, url: str, show_urls: bool) -> str:
+    """Append a compact address when requested and the label is not that address."""
+
+    if not show_urls:
+        return label
+    compact_url = compact_url_label(url)
+    if not compact_url:
+        return label
+    if label and _address_identity(label) == _address_identity(url):
+        return label
+    return f"{label} — {compact_url}" if label else compact_url
+
+
 def build_profile(instance: SectionInstance, resolved_layout: LayoutHints | None = None) -> Section:
     data = instance.data if isinstance(instance.data, dict) else {}
+    show_urls = data.get("show_urls") is True
 
     fields: list[FieldBlock] = []
     fields.append(FieldBlock(key="name", group="main", runs=[TextRun(text=str(data.get("name", "") or ""))]))
@@ -30,12 +62,13 @@ def build_profile(instance: SectionInstance, resolved_layout: LayoutHints | None
     site_url = normalize_url_scheme(data.get("site_url"))
     site_text = str(data.get("site_text") or "").strip()
     if site_url:
+        site_label = site_text or compact_url_label(site_url)
         fields.append(
             FieldBlock(
                 key="site",
                 group="contact",
                 runs=[TextRun(
-                    text=site_text or compact_url_label(site_url),
+                    text=_visible_url_label(site_label, site_url, show_urls),
                     style=TextStyle(link=site_url),
                 )],
             )
@@ -52,6 +85,7 @@ def build_profile(instance: SectionInstance, resolved_layout: LayoutHints | None
         if not url:
             continue
         label = str(link.get("label") or "").strip() or compact_url_label(url)
+        label = _visible_url_label(label, url, show_urls)
         icon = str(link.get("icon") or "") or None
         fields.append(
             FieldBlock(

@@ -99,7 +99,7 @@ LINK_STYLES = "  a { color: var(--accent, #2563eb); text-decoration: underline; 
 PLAIN_LINK_STYLES = "  a { color: inherit; text-decoration: none; }\n"
 
 PRINT_STYLES = """
-  @page { size: A4; margin: 24px 0 0 0; }
+  @page { size: A4; margin: 48px 16px; }
   @media print {
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }

@@ -62,8 +62,11 @@ export default function ExperienceEditor({ data = [], onChange, actions, mode = 
               <RichTextEditor
                 value={entry.description ?? []}
                 onChange={(blocks) => update(i, "description", blocks)}
-                placeholder="Add a concise summary or bullet highlights…"
+                placeholder="Start with what you did, then add scope and the result…"
               />
+              <p className="mt-1 text-xs text-app-ink-2">
+                A few concise bullets are often easier to scan. Include a result you can support, and use a metric only when you have evidence for it.
+              </p>
             </div>
           </div>
         )}

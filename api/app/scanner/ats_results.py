@@ -10,7 +10,7 @@ from pydantic import Field
 from app.scanner.requirements import ScannerModel
 
 
-ATS_GUIDANCE_VERSION = "ats-guidance-v2"
+ATS_GUIDANCE_VERSION = "ats-guidance-v3"
 
 HeadingConventionStatus = Literal["standard", "recognizable", "ambiguous", "nonstandard"]
 DateCompatibilityStatus = Literal["conventional", "potentially_ambiguous", "nonstandard"]

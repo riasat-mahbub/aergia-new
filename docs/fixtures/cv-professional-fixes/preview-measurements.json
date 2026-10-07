@@ -1,0 +1,154 @@
+[
+  {
+    "previewPageCount": 1,
+    "previewPageLabels": [],
+    "iframeHeightPx": 1122.52,
+    "documentScrollHeightPx": 982,
+    "bodySizePx": 14,
+    "nameSizePx": 24,
+    "headingSizePx": 16,
+    "bodyLineHeight": "22.4px",
+    "sectionGapPx": 16,
+    "entryGapPx": 8,
+    "fieldGapPx": 4,
+    "previewSpacerCount": 0,
+    "crossingEntries": [],
+    "secondPageFirstEntry": null,
+    "secondPageFirstEntryTopPx": null,
+    "oversizedEntryHeights": [],
+    "noticeText": "",
+    "marginArea": {
+      "leftPx": 16,
+      "rightPx": 16,
+      "topPx": 48,
+      "zonePadding": "32px",
+      "zoneBoxSizing": "border-box"
+    },
+    "firstHeadingTopPx": 246.359375,
+    "bodyResizeCallbacks": 1,
+    "fixture": "short",
+    "sourceHtml": "/tmp/aergia-preview-pagination-3macu5/fixtures/generic-minimal-short.html",
+    "exportPageCount": 1,
+    "exportPageTwoFirstLine": null,
+    "screenshot": "/tmp/minimal-preview-short.png"
+  },
+  {
+    "previewPageCount": 3,
+    "previewPageLabels": [
+      "Page 2 starts",
+      "Page 3 starts"
+    ],
+    "iframeHeightPx": 3367.56,
+    "documentScrollHeightPx": 2529,
+    "bodySizePx": 14,
+    "nameSizePx": 24,
+    "headingSizePx": 16,
+    "bodyLineHeight": "22.4px",
+    "sectionGapPx": 16,
+    "entryGapPx": 8,
+    "fieldGapPx": 4,
+    "previewSpacerCount": 2,
+    "crossingEntries": [],
+    "secondPageFirstEntry": "Senior Software Engineer 4",
+    "secondPageFirstEntryTopPx": 1170.515625,
+    "oversizedEntryHeights": [],
+    "noticeText": "",
+    "marginArea": {
+      "leftPx": 16,
+      "rightPx": 16,
+      "topPx": 48,
+      "zonePadding": "32px",
+      "zoneBoxSizing": "border-box"
+    },
+    "firstHeadingTopPx": 246.359375,
+    "bodyResizeCallbacks": 1,
+    "fixture": "long",
+    "sourceHtml": "/tmp/aergia-preview-pagination-3macu5/fixtures/generic-minimal-long.html",
+    "exportPageCount": 3,
+    "exportPageTwoFirstLine": "Senior Software Engineer 4 January 2021 \u2013 December 2021",
+    "screenshot": "/tmp/minimal-preview-long.png"
+  },
+  {
+    "previewPageCount": 5,
+    "previewPageLabels": [
+      "Page 2 starts",
+      "Page 3 starts",
+      "Page 4 starts",
+      "Page 5 starts"
+    ],
+    "iframeHeightPx": 5612.6,
+    "documentScrollHeightPx": 4863,
+    "bodySizePx": 14,
+    "nameSizePx": 24,
+    "headingSizePx": 16,
+    "bodyLineHeight": "22.4px",
+    "sectionGapPx": 16,
+    "entryGapPx": 8,
+    "fieldGapPx": 4,
+    "previewSpacerCount": 1,
+    "crossingEntries": [
+      {
+        "id": "oversized-entry",
+        "name": "Deliberately Oversized Research Entry",
+        "top": 273.75,
+        "bottom": 4448.484375,
+        "height": 4174.734375
+      }
+    ],
+    "secondPageFirstEntry": null,
+    "secondPageFirstEntryTopPx": null,
+    "oversizedEntryHeights": [
+      "Deliberately Oversized Research Entry"
+    ],
+    "noticeText": "Some entries exceed one printable page and may split in PDF export.\n\nShorten the description or split the entry into smaller entries. PDF export remains available.\n\nExperience: Deliberately Oversized Research Entry",
+    "marginArea": {
+      "leftPx": 16,
+      "rightPx": 16,
+      "topPx": 48,
+      "zonePadding": "32px",
+      "zoneBoxSizing": "border-box"
+    },
+    "firstHeadingTopPx": 246.359375,
+    "bodyResizeCallbacks": 1,
+    "fixture": "oversized",
+    "sourceHtml": "/tmp/aergia-preview-pagination-3macu5/fixtures/generic-minimal-oversized.html",
+    "exportPageCount": 6,
+    "exportPageTwoFirstLine": "Experience",
+    "screenshot": "/tmp/minimal-preview-oversized.png"
+  },
+  {
+    "previewPageCount": 2,
+    "previewPageLabels": [
+      "Page 2 starts"
+    ],
+    "iframeHeightPx": 2245.04,
+    "documentScrollHeightPx": 2089,
+    "bodySizePx": 14,
+    "nameSizePx": 24,
+    "headingSizePx": 16,
+    "bodyLineHeight": "22.4px",
+    "sectionGapPx": 16,
+    "entryGapPx": 8,
+    "fieldGapPx": 4,
+    "previewSpacerCount": 1,
+    "crossingEntries": [],
+    "secondPageFirstEntry": "Senior Software Engineer 5",
+    "secondPageFirstEntryTopPx": 1170.515625,
+    "oversizedEntryHeights": [],
+    "noticeText": "",
+    "marginArea": {
+      "leftPx": 16,
+      "rightPx": 16,
+      "topPx": 48,
+      "zonePadding": "24px",
+      "zoneBoxSizing": "border-box"
+    },
+    "firstHeadingTopPx": 238.359375,
+    "bodyResizeCallbacks": 1,
+    "fixture": "saved-custom",
+    "sourceHtml": "/tmp/aergia-preview-pagination-3macu5/fixtures/generic-minimal-saved-custom.html",
+    "exportPageCount": 2,
+    "exportPageTwoFirstLine": "Senior Software Engineer 5 January 2020 \u2013 December 2020",
+    "screenshot": "/tmp/minimal-preview-saved-custom.png"
+  }
+]

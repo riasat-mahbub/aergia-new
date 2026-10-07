@@ -1,4 +1,5 @@
 import { Plus, Trash2 } from "lucide-react";
+import { useId } from "react";
 import { SOCIAL_ICON_OPTIONS } from "./socialIcons";
 import type { ProfileData, SocialLink } from "@/shared/cv/sectionData";
 import RichTextEditor from "@/shared/cv-editor/section-editors/rich-text/RichTextEditor";
@@ -8,6 +9,7 @@ interface Props {
   onChange: (data: ProfileData) => void;
 }
 export default function ProfileEditor({ data, onChange }: Props) {
+  const showUrlsHelpId = useId();
   const update = (key: keyof ProfileData, value: string) => {
     onChange({ ...data, [key]: value });
   };
@@ -100,6 +102,20 @@ export default function ProfileEditor({ data, onChange }: Props) {
         </div>
       </div>
       <div>
+        <label className="inline-flex items-center gap-2 text-xs font-medium text-app-ink-2">
+          <input
+            type="checkbox"
+            checked={data.show_urls ?? false}
+            aria-describedby={showUrlsHelpId}
+            onChange={(e) => onChange({ ...data, show_urls: e.target.checked })}
+          />
+          Show URLs beside labels
+        </label>
+        <p id={showUrlsHelpId} className="mt-1 text-xs text-app-ink-2">
+          Displays website and social addresses beside their labels. Visible addresses can help text extraction, though parser behavior varies.
+        </p>
+      </div>
+      <div>
         <label className="block text-xs font-medium text-app-ink-2">Social Links</label>
         <div className="mt-1 space-y-2">
           {(data.social_links ?? []).map((link, i) => (
@@ -169,9 +185,12 @@ export default function ProfileEditor({ data, onChange }: Props) {
           <RichTextEditor
             value={data.summary ?? ""}
             onChange={(summary) => onChange({ ...data, summary })}
-            placeholder="Write a concise professional summary…"
+            placeholder="Name your area of work, strengths, and direction in a few focused sentences."
           />
         </div>
+        <p className="mt-1 text-xs text-app-ink-2">
+          A few focused sentences are usually enough; use specific, factual details that reflect your work.
+        </p>
       </div>
 
       <div>

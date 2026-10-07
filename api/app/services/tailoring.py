@@ -1419,6 +1419,7 @@ class TailoringService:
             "site_text",
             "site_url",
             "email_link",
+            "show_urls",
             "social_links",
             "photo_url",
         )
@@ -2001,6 +2002,7 @@ class TailoringService:
             "site_text",
             "site_url",
             "email_link",
+            "show_urls",
             "social_links",
             "photo_url",
         ):

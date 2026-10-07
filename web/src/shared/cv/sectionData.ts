@@ -17,6 +17,7 @@ export interface ProfileData {
   location?: string;
   site_text?: string;
   site_url?: string;
+  show_urls?: boolean;
   summary?: string | RichTextBlock[];
   photo_url?: string;
   social_links: SocialLink[];

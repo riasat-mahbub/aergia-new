@@ -241,6 +241,8 @@ def test_candidate_headline_is_editable_while_fixed_contacts_are_injected():
         email="ada@example.test",
         phone="+1 902 555 0100",
         email_link=False,
+        show_urls=False,
+        summary="Saved profile summary.",
         social_links=[],
     )
     candidate = {
@@ -258,6 +260,8 @@ def test_candidate_headline_is_editable_while_fixed_contacts_are_injected():
                     "email": "fake@example.test",
                     "phone": "000",
                     "email_link": True,
+                    "show_urls": True,
+                    "summary": "Candidate-authored summary remains intact.",
                     "social_links": [],
                 },
             }
@@ -276,6 +280,8 @@ def test_candidate_headline_is_editable_while_fixed_contacts_are_injected():
     assert profile_data["email"] == "ada@example.test"
     assert profile_data["phone"] == "+1 902 555 0100"
     assert profile_data["email_link"] is False
+    assert profile_data["show_urls"] is False
+    assert profile_data["summary"] == "Candidate-authored summary remains intact."
     assert "title" not in SERVER_OWNED_PROFILE_FIELDS
     title_capability = renderer_capabilities()["document"]["section_types"]["profile"]["fields"]["title"]
     assert title_capability["editable"] is True

@@ -14,15 +14,15 @@ from app.services.renderer.builders._utils import (
 
 PRESETS = [
     ("YYYY-MM", "YYYY-MM", " – ", "2021-03"),
-    ("YYYY/MM", "YYYY/MM", "/", "2021/03"),
-    ("MM/YYYY", "MM/YYYY", "/", "03/2021"),
-    ("MM-YYYY", "MM-YYYY", "-", "03-2021"),
-    ("MM.YYYY", "MM.YYYY", ".", "03.2021"),
-    ("YYYY.MM", "YYYY.MM", ".", "2021.03"),
+    ("YYYY/MM", "YYYY/MM", " – ", "2021/03"),
+    ("MM/YYYY", "MM/YYYY", " – ", "03/2021"),
+    ("MM-YYYY", "MM-YYYY", " – ", "03-2021"),
+    ("MM.YYYY", "MM.YYYY", " – ", "03.2021"),
+    ("YYYY.MM", "YYYY.MM", " – ", "2021.03"),
     ("Mon YYYY", "Mon YYYY", " – ", "Mar 2021"),
     ("Month YYYY", "Month YYYY", " – ", "March 2021"),
     ("YYYY", "YYYY", " – ", "2021"),
-    ("Mon-YYYY", "Mon-YYYY", "-", "Mar-2021"),
+    ("Mon-YYYY", "Mon-YYYY", " – ", "Mar-2021"),
 ]
 
 def test_date_style_options_count():
@@ -31,6 +31,7 @@ def test_date_style_options_count():
 def test_date_style_options_keys_match_presets():
     keys = [p[0] for p in PRESETS]
     assert [k for k, _l, _s in DATE_STYLE_OPTIONS] == keys
+    assert [separator for _, _, separator in DATE_STYLE_OPTIONS] == [" \u2013 "] * len(PRESETS)
 
 
 @pytest.mark.parametrize("key,_label,range_sep,expected", PRESETS)
@@ -137,6 +138,31 @@ def test_format_date_range_with_style_empty_start_returns_empty():
 
 
 def test_format_date_range_with_style_uses_separator():
-    style = {"key": "MM.YYYY", "range_sep": "."}
+    style = {"key": "MM.YYYY", "range_sep": " – "}
     out = format_date_range("2021-03", "2022-01", False, style)
-    assert out == "03.2021.01.2022"
+    assert out == "03.2021 \u2013 01.2022"
+
+
+@pytest.mark.parametrize("key,label,range_sep,_single", PRESETS)
+def test_every_supported_date_preset_uses_a_spaced_en_dash_for_ranges(key, label, range_sep, _single):
+    style = {"key": key, "range_sep": range_sep}
+    start = format_single_date("2021-03", style)
+    end = format_single_date("2022-01", style)
+    assert format_date_range("2021-03", "2022-01", False, style) == f"{start} \u2013 {end}"
+
+
+@pytest.mark.parametrize(
+    "key,legacy_separator",
+    [("YYYY-MM", "-"), ("YYYY/MM", "/"), ("MM/YYYY", "/"), ("MM-YYYY", "-"), ("MM.YYYY", "."), ("YYYY.MM", "."), ("Mon-YYYY", "-")],
+)
+def test_legacy_preset_separator_is_normalized_to_spaced_en_dash(key, legacy_separator):
+    style = {"key": key, "range_sep": legacy_separator}
+    start = format_single_date("2021-03", style)
+    end = format_single_date("2022-01", style)
+    assert format_date_range("2021-03", "2022-01", False, style) == f"{start} \u2013 {end}"
+
+
+def test_explicit_distinct_date_separator_is_preserved():
+    style = {"key": "MM/YYYY", "range_sep": " to "}
+    assert format_date_range("2021-03", "2022-01", False, style) == "03/2021 to 01/2022"
+    assert format_date_range("2021-03", None, True, style) == "03/2021 to Present"

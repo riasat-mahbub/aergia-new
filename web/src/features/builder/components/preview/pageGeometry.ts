@@ -10,23 +10,35 @@ export const CSS_DPI = 96;
 export const MILLIMETRES_PER_INCH = 25.4;
 export const A4_WIDTH_MM = 210;
 export const A4_HEIGHT_MM = 297;
-export const PRINT_TOP_MARGIN_PX = 24;
+export const PRINT_TOP_MARGIN_PX = 48;
+export const PRINT_BOTTOM_MARGIN_PX = 48;
+export const PRINT_LEFT_MARGIN_PX = 16;
+export const PRINT_RIGHT_MARGIN_PX = 16;
 
 export const PAGE_WIDTH_PX = (A4_WIDTH_MM / MILLIMETRES_PER_INCH) * CSS_DPI;
 export const PAGE_HEIGHT_PX = (A4_HEIGHT_MM / MILLIMETRES_PER_INCH) * CSS_DPI;
-export const PRINTABLE_PAGE_HEIGHT_PX = PAGE_HEIGHT_PX - PRINT_TOP_MARGIN_PX;
+export const PRINTABLE_PAGE_WIDTH_PX = PAGE_WIDTH_PX - PRINT_LEFT_MARGIN_PX - PRINT_RIGHT_MARGIN_PX;
+export const PRINTABLE_PAGE_HEIGHT_PX = PAGE_HEIGHT_PX - PRINT_TOP_MARGIN_PX - PRINT_BOTTOM_MARGIN_PX;
 
 export interface PageGeometry {
   pageWidthPx: number;
   pageHeightPx: number;
+  leftMarginPx: number;
+  rightMarginPx: number;
   topMarginPx: number;
+  bottomMarginPx: number;
+  printableWidthPx: number;
   printableHeightPx: number;
 }
 
 export const A4_PAGE_GEOMETRY: PageGeometry = {
   pageWidthPx: PAGE_WIDTH_PX,
   pageHeightPx: PAGE_HEIGHT_PX,
+  leftMarginPx: PRINT_LEFT_MARGIN_PX,
+  rightMarginPx: PRINT_RIGHT_MARGIN_PX,
   topMarginPx: PRINT_TOP_MARGIN_PX,
+  bottomMarginPx: PRINT_BOTTOM_MARGIN_PX,
+  printableWidthPx: PRINTABLE_PAGE_WIDTH_PX,
   printableHeightPx: PRINTABLE_PAGE_HEIGHT_PX,
 };
 
@@ -35,4 +47,3 @@ export function scaleForAvailableWidth(availableWidthPx: number): number {
   if (!Number.isFinite(availableWidthPx) || availableWidthPx <= 0) return 1;
   return Math.min(1, availableWidthPx / PAGE_WIDTH_PX);
 }
-
