@@ -149,6 +149,16 @@ function elementHeight(element: Element): number {
   return element.getBoundingClientRect().height;
 }
 
+function verticalFlexGap(element: HTMLElement): number {
+  const view = element.ownerDocument.defaultView;
+  if (!view) return 0;
+  const style = view.getComputedStyle(element);
+  if (style.display !== "flex" && style.display !== "inline-flex") return 0;
+  if (!style.flexDirection.startsWith("column")) return 0;
+  const gap = Number.parseFloat(style.rowGap);
+  return Number.isFinite(gap) ? gap : 0;
+}
+
 function measureDocument(document: Document): {
   zones: MeasuredZone[];
   targets: Map<string, HTMLElement>;
@@ -168,7 +178,13 @@ function measureDocument(document: Document): {
       targets.set(sectionId, sectionElement);
 
       const entries: MeasuredEntry[] = [];
-      for (const [index, entryElement] of directChildrenMatching(sectionElement, '[data-preview-entry="true"]').entries()) {
+      const entriesContainer = directChildrenMatching(sectionElement, ".section-entries")[0];
+      const entryParent = entriesContainer ?? sectionElement;
+      let entryElements = directChildrenMatching(entryParent, '[data-preview-entry="true"]');
+      if (entriesContainer && entryElements.length === 0) {
+        entryElements = directChildrenMatching(sectionElement, '[data-preview-entry="true"]');
+      }
+      for (const [index, entryElement] of entryElements.entries()) {
         const entryRawId = entryElement.dataset.previewEntryId || `entry-${index}`;
         const entryId = `${sectionId}/entry/${entryRawId}`;
         targets.set(entryId, entryElement);
@@ -241,8 +257,12 @@ export function applyPreviewPagination(
   const result = calculatePagination(measured.zones, geometry);
   for (const spacer of result.spacers) {
     const target = measured.targets.get(spacer.beforeId);
-    if (!target?.parentElement) continue;
-    target.parentElement.insertBefore(createSpacer(document, spacer.height, spacer.page), target);
+    const parent = target?.parentElement;
+    if (!target || !parent) continue;
+    const spacerElement = createSpacer(document, spacer.height, spacer.page);
+    const extraGap = verticalFlexGap(parent);
+    if (extraGap > 0) spacerElement.style.marginBlockEnd = `${-extraGap}px`;
+    parent.insertBefore(spacerElement, target);
   }
 
   const measuredHeight = body.scrollHeight;

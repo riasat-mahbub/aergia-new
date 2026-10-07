@@ -39,3 +39,23 @@ to the pre-change images. The HTML path for each result is the rendered
 preview source used to create its paired PDF, so P04 can compare those exact
 artifacts. The long Minimal PDF, HTML, PNG, pdfplumber text, and PDFium text
 are listed individually in `current-results.json`.
+
+## Reproduce preview/export pagination
+
+`preview-sections.json` contains the original synthetic short/long audit
+content. After installing the repository's API and web dependencies, run:
+
+```bash
+cd web
+node scripts/test-minimal-inheritance.mjs
+node scripts/test-preview-pagination.mjs
+```
+
+The pagination fixture generates fresh HTML and PDF through the production
+renderer, mounts `UserTemplateRenderer`, and checks its typography, spacing,
+page counts, intact entries, and page-two starting entry against PDF export.
+It writes screenshots and measurements under `/tmp/minimal-preview-*`.
+Chromium requires the normal local-browser execution permissions.
+
+The [independent integration review](review.md) records the discovered and
+corrected preview measurement defect and the remaining coverage limitation.

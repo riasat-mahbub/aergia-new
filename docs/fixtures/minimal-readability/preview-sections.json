@@ -1,0 +1,445 @@
+{
+  "short": [
+    {
+      "id": "profile",
+      "type": "profile",
+      "title": "Profile",
+      "data": {
+        "name": "Alexandra Bennett",
+        "title": "Senior Software Engineer",
+        "email": "alexandra.bennett@example.org",
+        "phone": "+1 902 555 0184",
+        "location": "Halifax, NS",
+        "site_url": "https://alexandra.example.org/portfolio",
+        "social_links": [
+          {
+            "label": "",
+            "url": "https://linkedin.com/in/alexandra-bennett",
+            "icon": "linkedin"
+          }
+        ],
+        "summary": "Software engineer building Python services, SQL reporting, and accessible interfaces. Experienced in API integrations and cross-functional delivery."
+      }
+    },
+    {
+      "id": "experience",
+      "type": "experience",
+      "title": "Experience",
+      "data": [
+        {
+          "id": "exp-0",
+          "position": "Senior Software Engineer 0",
+          "company": "Northstar Systems 0",
+          "location": "Halifax, NS",
+          "start_date": "2025-01",
+          "end_date": "2025-12",
+          "current": true,
+          "description": [
+            {
+              "type": "bullet_list",
+              "items": [
+                {
+                  "text": "Built Python and SQL services that processed 12000 records daily and reduced reporting delays by 35%."
+                },
+                {
+                  "text": "Delivered REST API integrations with automated testing and continuous integration / continuous delivery (CI/CD)."
+                },
+                {
+                  "text": "Collaborated with product managers to define accessible dashboards and reliable application workflows."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "exp-1",
+          "position": "Senior Software Engineer 1",
+          "company": "Northstar Systems 1",
+          "location": "Halifax, NS",
+          "start_date": "2024-01",
+          "end_date": "2024-12",
+          "current": false,
+          "description": [
+            {
+              "type": "bullet_list",
+              "items": [
+                {
+                  "text": "Built Python and SQL services that processed 12000 records daily and reduced reporting delays by 35%."
+                },
+                {
+                  "text": "Delivered REST API integrations with automated testing and continuous integration / continuous delivery (CI/CD)."
+                },
+                {
+                  "text": "Collaborated with product managers to define accessible dashboards and reliable application workflows."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "education",
+      "type": "education",
+      "title": "Education",
+      "data": [
+        {
+          "id": "edu",
+          "degree": "Bachelor of Science in Computer Science",
+          "institution": "Dalhousie University",
+          "start_date": "2014-09",
+          "end_date": "2018-05",
+          "gpa": "3.8/4.0"
+        }
+      ]
+    },
+    {
+      "id": "skills",
+      "type": "skills",
+      "title": "Skills",
+      "data": [
+        {
+          "id": "skills-dev",
+          "category": "Development",
+          "items": [
+            "Python",
+            "SQL",
+            "C++",
+            "C#",
+            ".NET",
+            "CI/CD"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "projects",
+      "type": "projects",
+      "title": "Projects",
+      "data": [
+        {
+          "id": "project",
+          "name": "Application Workflow Dashboard",
+          "start_date": "2024-06",
+          "end_date": "2025-02",
+          "url": "https://github.com/alexandra-b/workflow-dashboard",
+          "description": "Built an accessible dashboard for application tracking and document export.",
+          "tech_stack": [
+            "Python",
+            "TypeScript",
+            "PostgreSQL"
+          ]
+        }
+      ]
+    }
+  ],
+  "long": [
+    {
+      "id": "profile",
+      "type": "profile",
+      "title": "Profile",
+      "data": {
+        "name": "Alexandra Bennett",
+        "title": "Senior Software Engineer",
+        "email": "alexandra.bennett@example.org",
+        "phone": "+1 902 555 0184",
+        "location": "Halifax, NS",
+        "site_url": "https://alexandra.example.org/portfolio",
+        "social_links": [
+          {
+            "label": "",
+            "url": "https://linkedin.com/in/alexandra-bennett",
+            "icon": "linkedin"
+          }
+        ],
+        "summary": "Software engineer building Python services, SQL reporting, and accessible interfaces. Experienced in API integrations and cross-functional delivery."
+      }
+    },
+    {
+      "id": "experience",
+      "type": "experience",
+      "title": "Experience",
+      "data": [
+        {
+          "id": "exp-0",
+          "position": "Senior Software Engineer 0",
+          "company": "Northstar Systems 0",
+          "location": "Halifax, NS",
+          "start_date": "2025-01",
+          "end_date": "2025-12",
+          "current": true,
+          "description": [
+            {
+              "type": "bullet_list",
+              "items": [
+                {
+                  "text": "Built Python and SQL services that processed 12000 records daily and reduced reporting delays by 35%."
+                },
+                {
+                  "text": "Delivered REST API integrations with automated testing and continuous integration / continuous delivery (CI/CD)."
+                },
+                {
+                  "text": "Collaborated with product managers to define accessible dashboards and reliable application workflows."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "exp-1",
+          "position": "Senior Software Engineer 1",
+          "company": "Northstar Systems 1",
+          "location": "Halifax, NS",
+          "start_date": "2024-01",
+          "end_date": "2024-12",
+          "current": false,
+          "description": [
+            {
+              "type": "bullet_list",
+              "items": [
+                {
+                  "text": "Built Python and SQL services that processed 12000 records daily and reduced reporting delays by 35%."
+                },
+                {
+                  "text": "Delivered REST API integrations with automated testing and continuous integration / continuous delivery (CI/CD)."
+                },
+                {
+                  "text": "Collaborated with product managers to define accessible dashboards and reliable application workflows."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "exp-2",
+          "position": "Senior Software Engineer 2",
+          "company": "Northstar Systems 2",
+          "location": "Halifax, NS",
+          "start_date": "2023-01",
+          "end_date": "2023-12",
+          "current": false,
+          "description": [
+            {
+              "type": "bullet_list",
+              "items": [
+                {
+                  "text": "Built Python and SQL services that processed 12000 records daily and reduced reporting delays by 35%."
+                },
+                {
+                  "text": "Delivered REST API integrations with automated testing and continuous integration / continuous delivery (CI/CD)."
+                },
+                {
+                  "text": "Collaborated with product managers to define accessible dashboards and reliable application workflows."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "exp-3",
+          "position": "Senior Software Engineer 3",
+          "company": "Northstar Systems 3",
+          "location": "Halifax, NS",
+          "start_date": "2022-01",
+          "end_date": "2022-12",
+          "current": false,
+          "description": [
+            {
+              "type": "bullet_list",
+              "items": [
+                {
+                  "text": "Built Python and SQL services that processed 12000 records daily and reduced reporting delays by 35%."
+                },
+                {
+                  "text": "Delivered REST API integrations with automated testing and continuous integration / continuous delivery (CI/CD)."
+                },
+                {
+                  "text": "Collaborated with product managers to define accessible dashboards and reliable application workflows."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "exp-4",
+          "position": "Senior Software Engineer 4",
+          "company": "Northstar Systems 4",
+          "location": "Halifax, NS",
+          "start_date": "2021-01",
+          "end_date": "2021-12",
+          "current": false,
+          "description": [
+            {
+              "type": "bullet_list",
+              "items": [
+                {
+                  "text": "Built Python and SQL services that processed 12000 records daily and reduced reporting delays by 35%."
+                },
+                {
+                  "text": "Delivered REST API integrations with automated testing and continuous integration / continuous delivery (CI/CD)."
+                },
+                {
+                  "text": "Collaborated with product managers to define accessible dashboards and reliable application workflows."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "exp-5",
+          "position": "Senior Software Engineer 5",
+          "company": "Northstar Systems 5",
+          "location": "Halifax, NS",
+          "start_date": "2020-01",
+          "end_date": "2020-12",
+          "current": false,
+          "description": [
+            {
+              "type": "bullet_list",
+              "items": [
+                {
+                  "text": "Built Python and SQL services that processed 12000 records daily and reduced reporting delays by 35%."
+                },
+                {
+                  "text": "Delivered REST API integrations with automated testing and continuous integration / continuous delivery (CI/CD)."
+                },
+                {
+                  "text": "Collaborated with product managers to define accessible dashboards and reliable application workflows."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "exp-6",
+          "position": "Senior Software Engineer 6",
+          "company": "Northstar Systems 6",
+          "location": "Halifax, NS",
+          "start_date": "2019-01",
+          "end_date": "2019-12",
+          "current": false,
+          "description": [
+            {
+              "type": "bullet_list",
+              "items": [
+                {
+                  "text": "Built Python and SQL services that processed 12000 records daily and reduced reporting delays by 35%."
+                },
+                {
+                  "text": "Delivered REST API integrations with automated testing and continuous integration / continuous delivery (CI/CD)."
+                },
+                {
+                  "text": "Collaborated with product managers to define accessible dashboards and reliable application workflows."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "exp-7",
+          "position": "Senior Software Engineer 7",
+          "company": "Northstar Systems 7",
+          "location": "Halifax, NS",
+          "start_date": "2018-01",
+          "end_date": "2018-12",
+          "current": false,
+          "description": [
+            {
+              "type": "bullet_list",
+              "items": [
+                {
+                  "text": "Built Python and SQL services that processed 12000 records daily and reduced reporting delays by 35%."
+                },
+                {
+                  "text": "Delivered REST API integrations with automated testing and continuous integration / continuous delivery (CI/CD)."
+                },
+                {
+                  "text": "Collaborated with product managers to define accessible dashboards and reliable application workflows."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "exp-8",
+          "position": "Senior Software Engineer 8",
+          "company": "Northstar Systems 8",
+          "location": "Halifax, NS",
+          "start_date": "2017-01",
+          "end_date": "2017-12",
+          "current": false,
+          "description": [
+            {
+              "type": "bullet_list",
+              "items": [
+                {
+                  "text": "Built Python and SQL services that processed 12000 records daily and reduced reporting delays by 35%."
+                },
+                {
+                  "text": "Delivered REST API integrations with automated testing and continuous integration / continuous delivery (CI/CD)."
+                },
+                {
+                  "text": "Collaborated with product managers to define accessible dashboards and reliable application workflows."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "education",
+      "type": "education",
+      "title": "Education",
+      "data": [
+        {
+          "id": "edu",
+          "degree": "Bachelor of Science in Computer Science",
+          "institution": "Dalhousie University",
+          "start_date": "2014-09",
+          "end_date": "2018-05",
+          "gpa": "3.8/4.0"
+        }
+      ]
+    },
+    {
+      "id": "skills",
+      "type": "skills",
+      "title": "Skills",
+      "data": [
+        {
+          "id": "skills-dev",
+          "category": "Development",
+          "items": [
+            "Python",
+            "SQL",
+            "C++",
+            "C#",
+            ".NET",
+            "CI/CD"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "projects",
+      "type": "projects",
+      "title": "Projects",
+      "data": [
+        {
+          "id": "project",
+          "name": "Application Workflow Dashboard",
+          "start_date": "2024-06",
+          "end_date": "2025-02",
+          "url": "https://github.com/alexandra-b/workflow-dashboard",
+          "description": "Built an accessible dashboard for application tracking and document export.",
+          "tech_stack": [
+            "Python",
+            "TypeScript",
+            "PostgreSQL"
+          ]
+        }
+      ]
+    }
+  ]
+}

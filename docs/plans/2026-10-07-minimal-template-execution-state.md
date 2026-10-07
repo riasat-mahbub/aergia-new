@@ -3,7 +3,8 @@
 Plan: [Minimal readability](2026-10-07-minimal-template-readability.md).
 Base: `b8e4016`. Execution started 2026-10-07.
 Branch: `feat/minimal-readability`.
-Active tracker head: `FEAT-01M4BY57VCRVC5QQ8HY66JC33T`.
+Tracker head: `FEAT-01M4C081M0P60SR7VFHE18KQDA` (**DONE**).
+Status: **complete**. All packets used GPT-6 Luna with max reasoning.
 
 ## Current state
 
@@ -20,9 +21,12 @@ Active tracker head: `FEAT-01M4BY57VCRVC5QQ8HY66JC33T`.
 - P03: complete, reviewed, and frozen. 25 focused tests and assigned-file Ruff
   passed. Measurements and parser comparison saved under
   `docs/fixtures/minimal-readability/`; handoff `/tmp/minimal-p03-handoff.md`.
-- P04: read-only Luna review running; final PDF evidence pending P03.
-- Release checks: `./dev.sh --smoke` passed. Full backend pytest running;
-  full backend Ruff and tailoring-skill Node tests passed (3 tests).
+- P04: independent read-only review complete, no outstanding product blockers.
+  [Durable review](../fixtures/minimal-readability/review.md).
+- Release checks: frozen backend suite **938 passed, 1 skipped**; full Ruff,
+  frontend lint/typecheck/architecture checks, codegen check, tailoring-skill
+  Node tests (3), and final `./dev.sh --smoke` passed. Tracker rebuild/validate
+  passed: 716 entries, zero errors, seven unchanged historical fork warnings.
 
 ### Final integration gate
 
@@ -34,27 +38,33 @@ Active tracker head: `FEAT-01M4BY57VCRVC5QQ8HY66JC33T`.
   out-of-bounds glyphs. Classic/Modern PNGs match original baseline exactly;
   Modern's historical recovery warnings remain visible.
 - Actual `UserTemplateRenderer` captures: `/tmp/minimal-preview-{short,long}.png`.
-  Typography, gaps, and page counts match, but the long preview page marker
-  crosses an entry kept together by export. P04 traced this to preview
-  measurement looking for direct section entries instead of the renderer's
-  `.section-entries` wrapper. P02 owns a bounded adapter fix/regression now.
+  Initial long-preview capture exposed a page marker crossing an entry kept
+  together by export. Measuring the renderer's `.section-entries` container
+  and compensating the extra flex gap fixes it. Final capture has one spacer,
+  no crossing entries, and the same page-two starting job heading as export.
+  The self-contained browser regression regenerates HTML/PDF through the
+  production renderer from committed synthetic fixtures; it uses the API
+  virtualenv and existing PDFium dependency. Both browser fixtures pass.
 - Backend full runs exposed only new-test measurement/fixture defects; P03
-  corrected them. Frozen-tree full run: `/tmp/minimal-frozen-pytest.log`.
-  Do not report the complete suite passed until a final frozen-tree run passes.
-- Current gate is incomplete; no merge or deployment is authorized/performed.
+  corrected them before the passing frozen run: `/tmp/minimal-frozen-pytest.log`.
+- Final smoke log: `/tmp/minimal-final-smoke.log`. No merge or deployment occurred.
 
 ## Saved checkpoints
 
 - `30667aa`: initial audit, plan, tracker, and execution-state checkpoint.
 - `fb12368`: reviewed P01 renderer/schema/defaults plus generated web schema.
+- `40ded69`: reviewed builder inheritance hints and browser behavior fixture.
+- `a9ede43`: PDF, legacy, freshness, and persistence regressions plus evidence.
+- Final checkpoint: preview correction, self-contained pagination regression,
+  review, tracker completion, and this execution report (commit containing it).
 
 ## Resume instructions
 
-Read this file and the plan before restarting work. Inspect `git status` and
-any `/tmp/minimal-pNN-handoff.md` files. Preserve existing untracked audit,
-plan, and tracker files. Do not redo a packet whose completed checks are
-recorded here. Root coordinates schema generation, tracker history, integration
-checks, and this checkpoint file. At most three children run concurrently.
+No implementation work remains. Read this file, the plan, and the fixture
+README before any future continuation. Do not repeat completed checks without
+a new change or concern. Temporary images can be regenerated with the recorded
+fixture commands; synthetic measurements and review are committed.
 
-No deployment or merge has occurred. Checkpoints are durable workspace state;
-they do not imply that partial changes are release-ready.
+External vendor ATS acceptance was not tested. Existing Modern recovery
+warnings and the RichTextToolbar lint warning remain. The review notes a minor
+API roundtrip coverage limitation for individual body-size/gap tokens.
