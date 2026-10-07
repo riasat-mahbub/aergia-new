@@ -2,7 +2,8 @@
 
 Audit: [industry comparison](../cv-template-industry-comparison-2026-10-07.md).
 Base: `d2529d7`. Branch: `feature/cv-template-professional-fixes`.
-Tracker: `FEAT-01M4C690CDPWYMVBJZA0XN6QM0`.
+Tracker root: `FEAT-01M4C690CDPWYMVBJZA0XN6QM0`.
+Tracker head: `FEAT-01M4C7AF6Y2352ZNN4071088DB` (**DONE**).
 
 ## Scope and ownership
 
@@ -65,12 +66,21 @@ printable width and top/bottom content boundaries.
   role/company/first-and-last-bullet group stays together across reflow.
   The URL preference is included in both owner-contact normalization and
   render-basis freshness; focused precedence/freshness regressions pass.
-  Final backend/smoke gates are running against the corrected frozen source.
+  Final backend/smoke gates passed against corrected checkpoint `02f4fd6`:
+  **978 passed, one skipped**; smoke Ruff, frontend lint/build, isolated
+  migrations, Start/API gateway, SSR/security and auth checks passed.
   Full frontend lint and
   typecheck, architecture fixtures/check, codegen check, and three tailoring
   tests pass. Existing RichTextToolbar dependency warning remains.
-- Independent read-only integration review assigned to the P01 agent.
+- Independent read-only integration review by the P01 agent found no remaining
+  blocker; [review and measurements](../fixtures/cv-professional-fixes/README.md)
+  are saved as durable evidence.
 
-No release claim until the integration gate passes. Temporary packet handoffs:
+Implementation and verification are complete. Saved checkpoints: `f5c7ab0`
+(plan/task allocation) and `02f4fd6` (reviewed implementation). The final
+verification/tracker checkpoint is followed by a regular local merge into
+`master`. No remote push or deployment is part of this task.
+
+Temporary packet handoffs:
 `/tmp/cv-defaults-dates-handoff.md`, `/tmp/cv-links-prompts-handoff.md`, and
 `/tmp/cv-margins-preview-handoff.md`.

@@ -1,0 +1,240 @@
+{
+  "classic-short": {
+    "page_count": 1,
+    "glyph_insets_pt_by_page": [
+      {
+        "left_pt": 36.0,
+        "right_inset_pt": 35.46,
+        "top_pt": 63.89,
+        "bottom_inset_pt": 237.4,
+        "selectable_chars": 930
+      }
+    ],
+    "font_sizes_pt": {
+      "candidate_name": [
+        18.0
+      ],
+      "section_heading": [
+        12.0
+      ],
+      "body": [
+        10.5
+      ]
+    },
+    "parser_recovery": {
+      "pdfplumber_name": true,
+      "pdfium_name": true,
+      "pdfplumber_heading": true,
+      "pdfium_heading": true,
+      "pdfplumber_linkedin": true,
+      "pdfium_linkedin": true
+    }
+  },
+  "classic-long": {
+    "page_count": 3,
+    "glyph_insets_pt_by_page": [
+      {
+        "left_pt": 36.0,
+        "right_inset_pt": 35.46,
+        "top_pt": 63.89,
+        "bottom_inset_pt": 160.9,
+        "selectable_chars": 2172
+      },
+      {
+        "left_pt": 36.0,
+        "right_inset_pt": 35.46,
+        "top_pt": 38.27,
+        "bottom_inset_pt": 43.15,
+        "selectable_chars": 3042
+      },
+      {
+        "left_pt": 36.0,
+        "right_inset_pt": 35.46,
+        "top_pt": 38.27,
+        "bottom_inset_pt": 235.9,
+        "selectable_chars": 1557
+      }
+    ],
+    "font_sizes_pt": {
+      "candidate_name": [
+        18.0
+      ],
+      "section_heading": [
+        12.0
+      ],
+      "body": [
+        10.5
+      ]
+    },
+    "parser_recovery": {
+      "pdfplumber_name": true,
+      "pdfium_name": true,
+      "pdfplumber_heading": true,
+      "pdfium_heading": true,
+      "pdfplumber_linkedin": true,
+      "pdfium_linkedin": true
+    }
+  },
+  "minimal-short": {
+    "page_count": 1,
+    "glyph_insets_pt_by_page": [
+      {
+        "left_pt": 36.0,
+        "right_inset_pt": 35.46,
+        "top_pt": 66.77,
+        "bottom_inset_pt": 247.84,
+        "selectable_chars": 930
+      }
+    ],
+    "font_sizes_pt": {
+      "candidate_name": [
+        18.0
+      ],
+      "section_heading": [
+        12.0
+      ],
+      "body": [
+        10.5
+      ]
+    },
+    "parser_recovery": {
+      "pdfplumber_name": true,
+      "pdfium_name": true,
+      "pdfplumber_heading": true,
+      "pdfium_heading": true,
+      "pdfplumber_linkedin": true,
+      "pdfium_linkedin": true
+    }
+  },
+  "minimal-long": {
+    "page_count": 3,
+    "glyph_insets_pt_by_page": [
+      {
+        "left_pt": 36.0,
+        "right_inset_pt": 35.46,
+        "top_pt": 66.77,
+        "bottom_inset_pt": 162.34,
+        "selectable_chars": 2132
+      },
+      {
+        "left_pt": 36.0,
+        "right_inset_pt": 35.46,
+        "top_pt": 39.83,
+        "bottom_inset_pt": 41.59,
+        "selectable_chars": 2982
+      },
+      {
+        "left_pt": 36.0,
+        "right_inset_pt": 35.46,
+        "top_pt": 39.83,
+        "bottom_inset_pt": 243.34,
+        "selectable_chars": 1537
+      }
+    ],
+    "font_sizes_pt": {
+      "candidate_name": [
+        18.0
+      ],
+      "section_heading": [
+        12.0
+      ],
+      "body": [
+        10.5
+      ]
+    },
+    "parser_recovery": {
+      "pdfplumber_name": true,
+      "pdfium_name": true,
+      "pdfplumber_heading": true,
+      "pdfium_heading": true,
+      "pdfplumber_linkedin": true,
+      "pdfium_linkedin": true
+    }
+  },
+  "modern-short": {
+    "page_count": 1,
+    "glyph_insets_pt_by_page": [
+      {
+        "left_pt": 30.62,
+        "right_inset_pt": 29.46,
+        "top_pt": 58.27,
+        "bottom_inset_pt": 225.34,
+        "selectable_chars": 927
+      }
+    ],
+    "font_sizes_pt": {
+      "candidate_name": [],
+      "section_heading": [
+        12.0
+      ],
+      "body": [
+        9.0
+      ]
+    },
+    "parser_recovery": {
+      "pdfplumber_name": false,
+      "pdfium_name": false,
+      "pdfplumber_heading": true,
+      "pdfium_heading": true,
+      "pdfplumber_linkedin": true,
+      "pdfium_linkedin": true
+    }
+  },
+  "modern-long": {
+    "page_count": 5,
+    "glyph_insets_pt_by_page": [
+      {
+        "left_pt": 30.62,
+        "right_inset_pt": 29.46,
+        "top_pt": 58.27,
+        "bottom_inset_pt": 164.28,
+        "selectable_chars": 1617
+      },
+      {
+        "left_pt": 195.12,
+        "right_inset_pt": 29.46,
+        "top_pt": 39.39,
+        "bottom_inset_pt": 202.53,
+        "selectable_chars": 1476
+      },
+      {
+        "left_pt": 195.12,
+        "right_inset_pt": 29.46,
+        "top_pt": 39.39,
+        "bottom_inset_pt": 202.53,
+        "selectable_chars": 1476
+      },
+      {
+        "left_pt": 195.12,
+        "right_inset_pt": 29.46,
+        "top_pt": 39.39,
+        "bottom_inset_pt": 144.65,
+        "selectable_chars": 1537
+      },
+      {
+        "left_pt": 195.12,
+        "right_inset_pt": 29.47,
+        "top_pt": 40.27,
+        "bottom_inset_pt": 483.34,
+        "selectable_chars": 482
+      }
+    ],
+    "font_sizes_pt": {
+      "candidate_name": [],
+      "section_heading": [
+        12.0
+      ],
+      "body": [
+        9.0
+      ]
+    },
+    "parser_recovery": {
+      "pdfplumber_name": false,
+      "pdfium_name": false,
+      "pdfplumber_heading": true,
+      "pdfium_heading": true,
+      "pdfplumber_linkedin": true,
+      "pdfium_linkedin": true
+    }
+  }
+}

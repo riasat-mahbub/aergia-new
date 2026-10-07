@@ -1,0 +1,22 @@
+[
+  {
+    "viewportWidth": 390,
+    "documentWidth": 390,
+    "previewWidth": 390,
+    "previewContentWidth": 390,
+    "noticeVisible": false,
+    "pageLabelCount": 0,
+    "screenshot": "/tmp/minimal-preview-mobile-short.png",
+    "fixture": "short"
+  },
+  {
+    "viewportWidth": 390,
+    "documentWidth": 390,
+    "previewWidth": 390,
+    "previewContentWidth": 390,
+    "noticeVisible": true,
+    "pageLabelCount": 4,
+    "screenshot": "/tmp/minimal-preview-mobile-oversized.png",
+    "fixture": "oversized"
+  }
+]
