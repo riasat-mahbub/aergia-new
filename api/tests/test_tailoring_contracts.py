@@ -1,6 +1,5 @@
-"""Pure protocol-v9 contract tests (no database or browser runtime)."""
+"""Pure current and historical tailoring contracts (no browser runtime)."""
 
-import asyncio
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
@@ -23,7 +22,6 @@ from app.http_schemas.tailoring import (
 from app.http_schemas.tailoring_evaluation import TAILORING_EVALUATION_VERSION
 from app.models.tailoring_session import TailoringSession
 from app.services.tailoring import (
-    TailoringConflictError,
     TailoringService,
     _application_context_snapshot,
     fresh_tailoring_sections,
@@ -69,9 +67,9 @@ def _scanner_result() -> tuple[dict, object]:
     return result.model_dump(mode="json"), result
 
 
-def test_protocol_v9_is_complete_candidate_only_and_requires_preview_binding():
+def test_protocol_v10_is_complete_candidate_only_and_requires_preview_binding():
     candidate = _candidate()
-    assert PROTOCOL_VERSION == 9
+    assert PROTOCOL_VERSION == 10
     assert candidate.customizations.accent_color == "#123456"
     assert candidate.sections[0].style is not None
     with pytest.raises(ValidationError):
@@ -106,6 +104,7 @@ def test_preview_returns_the_canonical_candidate_used_for_hashing_and_submit_bin
         {
             "format": "pdf",
             "pdf_base64": "cGRm",
+            "pdf_sha256": "c" * 64,
             "page_count": 1,
             "evaluation_id": "evaluation_0123456789abcdef",
             "candidate_hash": "b" * 64,
@@ -136,6 +135,7 @@ def test_preview_returns_the_canonical_candidate_used_for_hashing_and_submit_bin
 
 def test_context_is_one_full_dossier_and_does_not_expose_retired_retrieval_fields():
     capabilities = renderer_capabilities()
+    scanner_result, _ = _scanner_result()
     assert capabilities["version"] == 2
     assert capabilities["tailoring"]["mode"] == "complete_candidate"
     assert capabilities["tailoring"]["operations"] == ["generate_candidate"]
@@ -152,7 +152,7 @@ def test_context_is_one_full_dossier_and_does_not_expose_retired_retrieval_field
     assert certification_description["editable"] is True
     context = TailoringContextResponse.model_validate(
         {
-            "protocol_version": 9,
+            "protocol_version": 10,
             "session_id": "session",
             "application_id": "application",
             "source_cv_id": None,
@@ -166,9 +166,15 @@ def test_context_is_one_full_dossier_and_does_not_expose_retired_retrieval_field
             "capabilities": capabilities,
             "capabilities_hash": capabilities_hash(capabilities),
             "evaluation_version": TAILORING_EVALUATION_VERSION,
+            "scanner_context": {
+                "schema_version": "scanner-v1",
+                "versions": scanner_result["versions"],
+                "requirement_extraction": scanner_result["requirement_extraction"],
+                "source_scan": None,
+            },
         }
     )
-    assert context.protocol_version == 9
+    assert context.protocol_version == 10
     assert context.evaluation_version == TAILORING_EVALUATION_VERSION
     assert "Ada" in context.dossier
     assert "unrelated source sentinel" in context.dossier
@@ -224,7 +230,7 @@ def test_no_source_scaffold_has_profile_and_empty_entry_sections():
     assert all(section["data"] == [] for section in sections[1:])
 
 
-def test_ready_draft_remains_reviewable_after_agent_capability_expiry():
+def test_ready_status_keeps_draft_identity_independent_of_capability_expiry():
     now = datetime.now(timezone.utc)
     session = TailoringSession(
         id="session",
@@ -241,14 +247,7 @@ def test_ready_draft_remains_reviewable_after_agent_capability_expiry():
         result={"draft_cv_id": "draft"},
     )
 
-    class _DB:
-        async def execute(self, _query):
-            return SimpleNamespace(scalar_one_or_none=lambda: session)
-
-        async def flush(self):
-            raise AssertionError("A ready draft must not be expired with its capability")
-
-    status = asyncio.run(TailoringService(_DB()).session_status("session", "user"))
+    status = TailoringService._status_response(session)
     assert status.status == "draft_ready"
     assert status.draft_cv_id == "draft"
 
@@ -287,43 +286,7 @@ def test_historical_v8_status_with_editorial_result_remains_readable():
     assert status.protocol_version == 8
     assert status.result["protocol_version"] == 8
     assert status.result["editorial_review"] == historical_editorial_review
-    assert PROTOCOL_VERSION == 9
-
-
-def test_expired_agent_draft_still_blocks_a_second_session_until_reviewed():
-    now = datetime.now(timezone.utc)
-    existing = TailoringSession(
-        id="session",
-        user_id="user",
-        application_id="application",
-        code_hash="code-hash",
-        status="draft_ready",
-        expires_at=now - timedelta(minutes=1),
-        created_at=now - timedelta(hours=2),
-        updated_at=now,
-    )
-    application = SimpleNamespace(id="application")
-
-    class _Result:
-        def __init__(self, *, scalar=None, rows=None):
-            self.scalar = scalar
-            self.rows = rows or []
-
-        def scalar_one_or_none(self):
-            return self.scalar
-
-        def scalars(self):
-            return SimpleNamespace(all=lambda: self.rows)
-
-    class _DB:
-        calls = 0
-
-        async def execute(self, _query):
-            self.calls += 1
-            return _Result(scalar=application) if self.calls == 1 else _Result(rows=[existing])
-
-    with pytest.raises(TailoringConflictError, match="Finish or cancel"):
-        asyncio.run(TailoringService(_DB()).create_session("application", "user"))
+    assert PROTOCOL_VERSION == 10
 
 
 def test_application_cv_link_is_part_of_the_context_freshness_snapshot():

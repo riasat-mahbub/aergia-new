@@ -1,6 +1,7 @@
 """Protocol-v10 tailoring integration and public-bundle checks."""
 
 from io import BytesIO
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 from zipfile import ZipFile
 
@@ -8,6 +9,8 @@ import pytest
 
 from app.services import pdf as pdf_service_module
 from app.services import tailoring as tailoring_service_module
+from app.db.session import async_session
+from app.models.tailoring_session import TailoringSession
 from app.services.tailoring_skill import build_tailoring_skill_bundle
 from app.scanner.extraction import extract_requirements_from_entities
 from app.scanner.service import ScannerService
@@ -330,6 +333,38 @@ async def test_protocol_v10_exposes_every_library_entry_and_preserves_frozen_dos
     status = await client.get(f"/api/v1/tailoring/sessions/{created.json()['session_id']}", headers=headers)
     assert status.status_code == 200
     assert status.json()["status"] == "draft_ready"
+    # Expiry ends author access, while a real persisted draft remains owned
+    # and reviewable. A pending owner draft must still block a second session.
+    async with async_session() as db:
+        session = await db.get(TailoringSession, created.json()["session_id"])
+        session.expires_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+        await db.commit()
+    expired_agent = await client.get("/api/v1/tailoring/context", headers=capability)
+    assert expired_agent.status_code == 410
+    owner_status = await client.get(f"/api/v1/tailoring/sessions/{created.json()['session_id']}", headers=headers)
+    assert owner_status.status_code == 200, owner_status.text
+    assert owner_status.json()["status"] == "draft_ready"
+    assert owner_status.json()["draft_cv_id"] == frozen_submit.json()["draft_cv_id"]
+    duplicate = await client.post(
+        f"/api/v1/applications/{application.json()['id']}/tailoring-sessions", headers=headers,
+    )
+    assert duplicate.status_code == 409
+    assert duplicate.json()["code"] == "session_in_progress"
+    reevaluated = await client.post(
+        f"/api/v1/tailoring/sessions/{created.json()['session_id']}/reevaluate",
+        headers=headers,
+        json={"expected_cv_revision": owner_status.json()["draft_review"]["cv_revision"]},
+    )
+    assert reevaluated.status_code == 200, reevaluated.text
+    assert reevaluated.json()["draft_review"]["state"] == "current"
+    discarded = await client.post(
+        f"/api/v1/tailoring/sessions/{created.json()['session_id']}/reject", headers=headers,
+    )
+    assert discarded.status_code == 200, discarded.text
+    restarted = await client.post(
+        f"/api/v1/applications/{application.json()['id']}/tailoring-sessions", headers=headers,
+    )
+    assert restarted.status_code == 201, restarted.text
 
 
 @pytest.mark.asyncio

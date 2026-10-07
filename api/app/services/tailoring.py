@@ -1,6 +1,6 @@
 """Full-history whole-document tailoring and review lifecycle.
 
-Protocol v9 intentionally has one write primitive: a complete CV candidate.
+Protocol v10 intentionally has one write primitive: a complete CV candidate.
 The candidate is rendered and stored as an ordinary, unlinked CV draft.  The
 browser owner later accepts or rejects it; the scoped capability can neither
 change application linkage nor perform that review action.
@@ -20,7 +20,7 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any
 
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,7 +32,11 @@ from app.http_schemas.cv import CVCreate
 from app.http_schemas.tailoring import (
     PROTOCOL_VERSION,
     TailoringCandidateCV,
+    TailoringAcceptRequest,
     TailoringContextResponse,
+    TailoringDraftContextResponse,
+    TailoringDraftReview,
+    TailoringDraftScannerContext,
     TailoringExchangeResponse,
     TailoringJob,
     TailoringPreviewRequest,
@@ -41,6 +45,8 @@ from app.http_schemas.tailoring import (
     TailoringPreviewReservationReleaseResponse,
     TailoringPreviewResponse,
     TailoringReviewResponse,
+    TailoringReevaluateRequest,
+    TailoringReevaluateResponse,
     TailoringSection,
     TailoringSessionCreateResponse,
     TailoringSessionStatusResponse,
@@ -54,6 +60,7 @@ from app.http_schemas.tailoring_evaluation import (
     TAILORING_EVALUATION_VERSION,
     TailoringEvaluation,
 )
+from app.http_schemas.tailoring_fit_review import FitReviewReport
 from app.http_schemas.profile import UserProfile
 from app.models.application import Application
 from app.models.cv import CV
@@ -61,6 +68,7 @@ from app.models.library import Library, LibraryEntry
 from app.models.tailoring_session import TailoringSession
 from app.models.tailoring_evaluation import (
     TAILORING_EVALUATION_AGENT_PREVIEW,
+    TAILORING_EVALUATION_OWNER_REVIEW,
     TailoringEvaluationRecord,
 )
 from app.models.tailoring_preview_reservation import (
@@ -80,14 +88,22 @@ from app.scanner.service import (
     canonicalize_scanner_cv,
     scanner_versions_for_extraction,
 )
-from app.services.cv import CVService, coerce_customizations
+from app.services.cv import CVLinkedToApplicationError, CVService, coerce_customizations
 from app.services.pdf import PDFService, pdf_page_count
 from app.services.profile import ProfileService
-from app.services.quotas import QuotaService
+from app.services.quotas import (
+    QuotaService,
+    ReplacementAlreadyPendingError,
+    ReplacementReservationConflictError,
+)
 from app.services.renderer.html import HTMLDocumentRenderer
 from app.services.rich_text import normalize_rich_text_ids, rich_text_fields_for_section
 from app.services.tailoring_validation import CandidateValidationError, validate_section_payload
 from app.services.tailoring_evaluation import evaluate_tailoring
+from app.services.tailoring_fit_review import FitReviewBindingError, validate_fit_review_binding
+
+
+_FIT_REVIEW_ADAPTER = TypeAdapter(FitReviewReport)
 
 
 TAILORING_SESSION_TTL = timedelta(hours=1)
@@ -1043,34 +1059,101 @@ class TailoringService:
                 TailoringSession.application_id == application_id,
                 TailoringSession.user_id == user_id,
                 TailoringSession.status.in_(
-                    (TAILORING_SESSION_CREATED, TAILORING_SESSION_EXCHANGED, TAILORING_SESSION_DRAFT_READY)
+                    (
+                        TAILORING_SESSION_CREATED,
+                        TAILORING_SESSION_EXCHANGED,
+                        TAILORING_SESSION_DRAFT_READY,
+                        TAILORING_SESSION_STALE,
+                    )
                 ),
             )
         )
         now = _utcnow()
-        reconcile_stale: list[tuple[str, str, str]] = []
+        reconcile_stale: list[tuple[TailoringSession, str, str]] = []
+        stale_draft_requires_discard = False
         for existing in existing_result.scalars().all():
+            if existing.status == TAILORING_SESSION_STALE:
+                if existing.draft_cv_id:
+                    stale_draft = await self._owned_cv(existing.draft_cv_id, user_id)
+                    if stale_draft is not None and stale_draft.application_id == application_id:
+                        raise TailoringConflictError(
+                            "Discard the stale tailoring draft before starting another session",
+                            code="session_in_progress",
+                        )
+                    reconcile_stale.append((existing, TAILORING_SESSION_STALE, "draft_missing"))
+                continue
+            if existing.status == TAILORING_SESSION_DRAFT_READY:
+                if existing.protocol_version != PROTOCOL_VERSION:
+                    raise TailoringConflictError(
+                        "Finish or discard the existing tailoring session before starting another",
+                        code="session_in_progress",
+                    )
+                existing_draft = await self._owned_cv(existing.draft_cv_id, user_id)
+                if existing_draft is None or existing_draft.application_id != application_id:
+                    reconcile_stale.append((existing, TAILORING_SESSION_STALE, "draft_missing"))
+                    continue
+                try:
+                    await self._context_parts(existing)
+                except (TailoringConflictError, TailoringUnavailableError, TailoringStaleError):
+                    reconcile_stale.append((existing, TAILORING_SESSION_STALE, "draft_target_mismatch"))
+                    stale_draft_requires_discard = True
+                    continue
+                raise TailoringConflictError(
+                    "Finish or discard the existing tailoring session before starting another",
+                    code="session_in_progress",
+                )
             if (
                 existing.status in {TAILORING_SESSION_CREATED, TAILORING_SESSION_EXCHANGED}
                 and existing.protocol_version != PROTOCOL_VERSION
             ):
-                reconcile_stale.append((existing.id, TAILORING_SESSION_STALE, "protocol_mismatch"))
+                reconcile_stale.append((existing, TAILORING_SESSION_STALE, "protocol_mismatch"))
                 continue
             if (
                 existing.status in {TAILORING_SESSION_CREATED, TAILORING_SESSION_EXCHANGED}
                 and _as_utc(existing.expires_at) <= now
             ):
-                reconcile_stale.append((existing.id, TAILORING_SESSION_EXPIRED, "expired"))
+                reconcile_stale.append((existing, TAILORING_SESSION_EXPIRED, "expired"))
                 continue
             if (
                 existing.status in {TAILORING_SESSION_CREATED, TAILORING_SESSION_EXCHANGED}
                 and not await self._context_matches(existing)
             ):
-                reconcile_stale.append((existing.id, TAILORING_SESSION_STALE, "target_mismatch"))
+                reconcile_stale.append((existing, TAILORING_SESSION_STALE, "target_mismatch"))
                 continue
+            if existing.status in {TAILORING_SESSION_CREATED, TAILORING_SESSION_EXCHANGED}:
+                raise TailoringConflictError(
+                    "Finish or discard the existing tailoring session before starting another",
+                    code="session_in_progress",
+                )
+        if stale_draft_requires_discard:
+            await QuotaService(self.db).ensure_write_transaction()
+            async with self.db.begin_nested():
+                for existing, _, reason in reconcile_stale:
+                    if reason != "draft_target_mismatch":
+                        continue
+                    result = await self.db.execute(
+                        update(TailoringSession)
+                        .where(
+                            TailoringSession.id == existing.id,
+                            TailoringSession.status == TAILORING_SESSION_DRAFT_READY,
+                        )
+                        .values(
+                            status=TAILORING_SESSION_STALE,
+                            capability_hash=None,
+                            owner_review_state="needs_reevaluation",
+                            updated_at=now,
+                        )
+                    )
+                    if result.rowcount == 1:
+                        existing.status = TAILORING_SESSION_STALE
+                        existing.capability_hash = None
+                        existing.owner_review_state = "needs_reevaluation"
+                        existing.updated_at = now
+                        await self._release_session_replacement(existing)
             raise TailoringConflictError(
-                "Finish or discard the existing tailoring session before starting another",
+                "The stale tailoring draft must be discarded before starting a new session",
                 code="session_in_progress",
+                commit_outcome=True,
             )
         # Validate the owner, profile, and template availability before
         # issuing a capability. A source CV is intentionally optional.
@@ -1103,41 +1186,60 @@ class TailoringService:
         await QuotaService(self.db).ensure_write_transaction()
         try:
             async with self.db.begin_nested():
-                for stale_id, stale_status, stale_reason in reconcile_stale:
-                    stale_query = update(TailoringSession).where(
-                        TailoringSession.id == stale_id,
-                        TailoringSession.status.in_((TAILORING_SESSION_CREATED, TAILORING_SESSION_EXCHANGED)),
-                    )
+                for existing, stale_status, stale_reason in reconcile_stale:
+                    stale_query = update(TailoringSession).where(TailoringSession.id == existing.id)
+                    if stale_reason in {"draft_missing", "draft_target_mismatch"}:
+                        stale_query = stale_query.where(
+                            TailoringSession.status.in_((TAILORING_SESSION_DRAFT_READY, TAILORING_SESSION_STALE)),
+                            TailoringSession.draft_cv_id == existing.draft_cv_id,
+                        )
+                    else:
+                        stale_query = stale_query.where(
+                            TailoringSession.status.in_((TAILORING_SESSION_CREATED, TAILORING_SESSION_EXCHANGED))
+                        )
                     if stale_reason == "expired":
                         stale_query = stale_query.where(TailoringSession.expires_at <= _db_utcnow())
                     elif stale_reason == "protocol_mismatch":
                         stale_query = stale_query.where(TailoringSession.protocol_version != PROTOCOL_VERSION)
-                    else:
+                    elif stale_reason == "target_mismatch":
                         # A frozen v10 session can be stale because its live
                         # target changed. Keep that reconciliation distinct
                         # from protocol cutover so it releases the blocking
                         # session index too.
                         stale_query = stale_query.where(TailoringSession.protocol_version == PROTOCOL_VERSION)
-                    await self.db.execute(
-                        stale_query.values(
-                            status=stale_status,
-                            capability_hash=None,
-                            updated_at=now,
+                    stale_values: dict[str, Any] = {
+                        "status": stale_status,
+                        "capability_hash": None,
+                        "updated_at": now,
+                    }
+                    if stale_reason == "draft_missing":
+                        stale_values.update(
+                            owner_review_state="unavailable",
+                            owner_cv_revision=None,
+                            owner_candidate_hash=None,
+                            owner_render_basis_hash=None,
+                            owner_evaluation_id=None,
+                            owner_pdf_sha256=None,
                         )
-                    )
+                    elif stale_reason == "draft_target_mismatch":
+                        stale_values["owner_review_state"] = "needs_reevaluation"
+                    await self.db.execute(stale_query.values(**stale_values))
                     await self.db.execute(
                         update(TailoringPreviewReservation)
                         .where(
-                            TailoringPreviewReservation.session_id == stale_id,
+                            TailoringPreviewReservation.session_id == existing.id,
                             TailoringPreviewReservation.state == TAILORING_PREVIEW_RESERVATION_ACTIVE,
                         )
                         .values(state=TAILORING_PREVIEW_RESERVATION_EXPIRED, updated_at=now)
                     )
-                    await self.db.execute(
-                        update(TailoringEvaluationRecord)
-                        .where(TailoringEvaluationRecord.session_id == stale_id)
-                        .values(pdf_bytes=None)
-                    )
+                    if stale_reason in {"draft_missing", "expired", "protocol_mismatch", "target_mismatch"}:
+                        await self.db.execute(
+                            update(TailoringEvaluationRecord)
+                            .where(TailoringEvaluationRecord.session_id == existing.id)
+                            .values(pdf_bytes=None)
+                        )
+                    if stale_reason in {"draft_missing", "draft_target_mismatch"}:
+                        await self._release_session_replacement(existing)
                 self.db.add(session)
                 await self.db.flush()
         except IntegrityError as exc:
@@ -1187,10 +1289,14 @@ class TailoringService:
         return session
 
     @staticmethod
-    def _status_response(session: TailoringSession) -> TailoringSessionStatusResponse:
+    def _status_response(
+        session: TailoringSession,
+        draft_review: TailoringDraftReview | None = None,
+    ) -> TailoringSessionStatusResponse:
         return TailoringSessionStatusResponse(
-            # Historical v4-v8 drafts remain readable/reviewable. New sessions
-            # use the v9 contract through review.
+            # Historical drafts remain readable/reviewable through the current
+            # protocol. V10 adds a separate owner review alongside the frozen
+            # submission result.
             protocol_version=session.protocol_version or PROTOCOL_VERSION,
             session_id=session.id,
             application_id=session.application_id,
@@ -1206,7 +1312,261 @@ class TailoringService:
             updated_at=session.updated_at,
             attempts=session.attempts,
             result=copy.deepcopy(session.result),
+            draft_review=draft_review,
         )
+
+    @staticmethod
+    def _submission_payload(session: TailoringSession) -> dict[str, Any] | None:
+        if isinstance(session.submission_result, dict):
+            return session.submission_result
+        return session.result if isinstance(session.result, dict) else None
+
+    @staticmethod
+    def _persisted_candidate(draft: CV) -> dict[str, Any]:
+        candidate = TailoringCandidateCV.model_validate(
+            {
+                "title": draft.title,
+                "description": draft.description,
+                "template_id": draft.template_id,
+                "sections": draft.sections or [],
+                "customizations": draft.customizations or {},
+            }
+        ).model_dump(mode="json", exclude_none=False)
+        return candidate
+
+    async def _current_owner_inputs(
+        self,
+        session: TailoringSession,
+    ) -> tuple[dict[str, Any], UserProfile, dict[str, Any]]:
+        """Build live owner render inputs over the session's frozen job context."""
+
+        parts = await self._context_parts(session)
+        user_result = await self.db.execute(
+            select(User).where(User.id == session.user_id).execution_options(populate_existing=True)
+        )
+        user = user_result.scalar_one_or_none()
+        if user is None:
+            raise TailoringConflictError("Tailoring session owner is no longer available")
+        profile = await ProfileService(self.db).get_profile(user)
+        templates = await self._templates()
+        manifests = {
+            template.id: manifest
+            for template in templates
+            if (manifest := _template_manifest(template)) is not None
+        }
+        parts = dict(parts)
+        parts["profile"] = profile
+        parts["manifest_by_id"] = manifests
+        parts["capabilities"] = renderer_capabilities(HTMLDocumentRenderer.support)
+        return parts, profile, manifests
+
+    @staticmethod
+    def _owner_render_basis_hash(
+        parts: Mapping[str, Any],
+        profile: UserProfile,
+        candidate: Mapping[str, Any],
+        manifest: Mapping[str, Any],
+    ) -> str:
+        profile_data = profile.model_dump(mode="json", exclude_none=True)
+        contact_keys = (
+            "name",
+            "email",
+            "phone",
+            "site_text",
+            "site_url",
+            "email_link",
+            "social_links",
+            "photo_url",
+        )
+        return _content_hash(
+            {
+                "candidate_hash": TailoringService._candidate_hash(candidate),
+                "contact": {key: profile_data.get(key) for key in contact_keys},
+                "template_id": candidate["template_id"],
+                "template_manifest": copy.deepcopy(dict(manifest)),
+                "renderer_capabilities": copy.deepcopy(parts["capabilities"]),
+                "pdf_renderer_version": PDF_RENDERER_VERSION,
+                "scanner_context": parts["scanner_context"].model_dump(mode="json"),
+                "target_guard_hash": parts["target_guard_hash"],
+            }
+        )
+
+    async def _draft_review(
+        self,
+        session: TailoringSession,
+        draft: CV,
+        *,
+        parts: Mapping[str, Any],
+        profile: UserProfile,
+        manifests: Mapping[str, Any],
+    ) -> TailoringDraftReview:
+        candidate = self._persisted_candidate(draft)
+        candidate_hash = self._candidate_hash(candidate)
+        manifest = manifests.get(draft.template_id)
+        if manifest is None:
+            return TailoringDraftReview(
+                state="needs_reevaluation",
+                cv_revision=draft.revision or 1,
+                candidate_hash=candidate_hash,
+                fit_review_applicability="earlier_version"
+                if self._fit_review_from_submission(session) is not None
+                else "not_run",
+            )
+        render_basis_hash = self._owner_render_basis_hash(parts, profile, candidate, manifest)
+
+        record: TailoringEvaluationRecord | None = None
+        if session.owner_evaluation_id:
+            record = await self.db.get(TailoringEvaluationRecord, session.owner_evaluation_id)
+        parsed: tuple[ScanResult, TailoringEvaluation, str] | None = None
+        if record is not None and record.session_id == session.id and record.kind == TAILORING_EVALUATION_OWNER_REVIEW:
+            parsed = self._record_evaluation_payload(record)
+        pdf_is_valid = bool(
+            record is not None
+            and record.pdf_bytes is not None
+            and hashlib.sha256(record.pdf_bytes).hexdigest() == record.pdf_sha256
+        )
+        review_is_current = bool(
+            session.status == TAILORING_SESSION_DRAFT_READY
+            and session.owner_review_state == "current"
+            and session.owner_cv_revision == (draft.revision or 1)
+            and session.owner_candidate_hash == candidate_hash
+            and session.owner_render_basis_hash == render_basis_hash
+            and record is not None
+            and parsed is not None
+            and parsed[2] == candidate_hash
+            and session.owner_pdf_sha256 == record.pdf_sha256
+            and pdf_is_valid
+        )
+
+        fit_review = self._fit_review_from_submission(session)
+        applicability = "not_run" if fit_review is None else "earlier_version"
+        if (
+            fit_review is not None
+            and review_is_current
+            and record is not None
+            and fit_review.candidate_hash == candidate_hash
+            and fit_review.pdf_sha256 == record.pdf_sha256
+        ):
+            applicability = "current"
+        if not review_is_current or record is None or parsed is None:
+            return TailoringDraftReview(
+                state="needs_reevaluation",
+                cv_revision=draft.revision or 1,
+                candidate_hash=candidate_hash,
+                render_basis_hash=render_basis_hash,
+                fit_review=fit_review,
+                fit_review_applicability=applicability,
+            )
+        scanner_result, evaluation, _ = parsed
+        return TailoringDraftReview(
+            state="current",
+            cv_revision=draft.revision or 1,
+            candidate_hash=candidate_hash,
+            render_basis_hash=render_basis_hash,
+            evaluation_id=record.id,
+            evaluation=evaluation,
+            scanner_result=scanner_result,
+            warnings=list(record.render_warnings or []),
+            pdf_sha256=record.pdf_sha256,
+            fit_review=fit_review,
+            fit_review_applicability=applicability,
+        )
+
+    @staticmethod
+    def _fit_review_from_submission(session: TailoringSession) -> FitReviewReport | None:
+        payload = TailoringService._submission_payload(session)
+        if payload is None or payload.get("fit_review") is None:
+            return None
+        try:
+            return _FIT_REVIEW_ADAPTER.validate_python(payload["fit_review"])
+        except (TypeError, ValueError, ValidationError):
+            return None
+
+    async def _release_session_replacement(self, session: TailoringSession) -> bool:
+        quota = QuotaService(self.db)
+        released = False
+        if session.cv_id is not None:
+            released = await quota.release_replacement(
+                session.user_id,
+                session.application_id,
+                source_cv_id=session.cv_id,
+                draft_cv_id=session.draft_cv_id,
+                retire_draft=False,
+            )
+        if not released and session.draft_cv_id is not None:
+            released = await quota.release_replacement(
+                session.user_id,
+                session.application_id,
+                draft_cv_id=session.draft_cv_id,
+                retire_draft=False,
+            )
+        return released
+
+    async def _reconcile_pending_draft(
+        self,
+        session: TailoringSession,
+        *,
+        unavailable: bool = False,
+    ) -> bool:
+        """Persist a missing or stale submitted draft without rolling it back."""
+
+        now = _utcnow()
+        await QuotaService(self.db).ensure_write_transaction()
+        async with self.db.begin_nested():
+            values: dict[str, Any] = {
+                "status": TAILORING_SESSION_STALE,
+                "owner_review_state": "unavailable" if unavailable else "needs_reevaluation",
+                "updated_at": now,
+            }
+            if unavailable:
+                values.update(
+                    owner_cv_revision=None,
+                    owner_candidate_hash=None,
+                    owner_render_basis_hash=None,
+                    owner_evaluation_id=None,
+                    owner_pdf_sha256=None,
+                )
+            result = await self.db.execute(
+                update(TailoringSession)
+                .where(
+                    TailoringSession.id == session.id,
+                    TailoringSession.user_id == session.user_id,
+                    TailoringSession.status.in_((TAILORING_SESSION_DRAFT_READY, TAILORING_SESSION_STALE)),
+                )
+                .values(**values)
+            )
+            if result.rowcount == 1:
+                session.status = TAILORING_SESSION_STALE
+                session.owner_review_state = values["owner_review_state"]
+                session.updated_at = now
+                if unavailable:
+                    session.owner_cv_revision = None
+                    session.owner_candidate_hash = None
+                    session.owner_render_basis_hash = None
+                    session.owner_evaluation_id = None
+                    session.owner_pdf_sha256 = None
+                await self._release_session_replacement(session)
+                if unavailable:
+                    await self._prune_terminal_preview_data(session.id, now)
+                await self.db.flush()
+                return True
+        return False
+
+    async def reconcile_deleted_draft(self, cv_id: str, user_id: str) -> None:
+        """Reconcile pending owner sessions in the CV delete transaction."""
+
+        result = await self.db.execute(
+            select(TailoringSession).where(
+                TailoringSession.user_id == user_id,
+                TailoringSession.draft_cv_id == cv_id,
+                TailoringSession.status.in_((TAILORING_SESSION_DRAFT_READY, TAILORING_SESSION_STALE)),
+            )
+        )
+        sessions = list(result.scalars().all())
+        if not sessions:
+            return
+        for session in sessions:
+            await self._reconcile_pending_draft(session, unavailable=True)
 
     async def _prune_terminal_preview_data(self, session_id: str, now: datetime) -> None:
         """Expire held leases and lazily drop private PDFs after termination."""
@@ -1247,7 +1607,42 @@ class TailoringService:
             session.updated_at = now
             await self.db.flush()
             await self._prune_terminal_preview_data(session.id, now)
-        return self._status_response(session)
+        draft_review: TailoringDraftReview | None = None
+        if (
+            session.protocol_version == PROTOCOL_VERSION
+            and session.status in {TAILORING_SESSION_DRAFT_READY, TAILORING_SESSION_STALE}
+            and session.draft_cv_id
+        ):
+            draft = await self._owned_cv(session.draft_cv_id, user_id)
+            if draft is None:
+                await self._reconcile_pending_draft(session, unavailable=True)
+                draft_review = TailoringDraftReview(state="unavailable")
+            else:
+                try:
+                    parts, profile, manifests = await self._current_owner_inputs(session)
+                    draft_review = await self._draft_review(
+                        session,
+                        draft,
+                        parts=parts,
+                        profile=profile,
+                        manifests=manifests,
+                    )
+                except (TailoringStaleError, TailoringConflictError, TailoringUnavailableError):
+                    await self._reconcile_pending_draft(session)
+                    fit_review = self._fit_review_from_submission(session)
+                    draft_review = TailoringDraftReview(
+                        state="needs_reevaluation",
+                        cv_revision=draft.revision or 1,
+                        candidate_hash=self._candidate_hash(self._persisted_candidate(draft)),
+                        fit_review=fit_review,
+                        fit_review_applicability="earlier_version" if fit_review is not None else "not_run",
+                    )
+                if draft_review.state != "current" and session.owner_review_state == "current":
+                    await QuotaService(self.db).ensure_write_transaction()
+                    session.owner_review_state = "needs_reevaluation"
+                    session.updated_at = now
+                    await self.db.flush()
+        return self._status_response(session, draft_review)
 
     async def latest_session_status(
         self, application_id: str, user_id: str
@@ -2280,7 +2675,7 @@ class TailoringService:
         session = await self._session_for_capability(capability, allow_draft_ready=True)
         submit_request_digest = _content_hash(request.model_dump(mode="json"))
         if session.status == TAILORING_SESSION_DRAFT_READY:
-            saved = session.result if isinstance(session.result, dict) else None
+            saved = self._submission_payload(session)
             if saved is None or saved.get("submit_request_digest") != submit_request_digest:
                 raise TailoringConflictError("Tailoring session already has a different draft submission")
             return TailoringSubmitResponse.model_validate(
@@ -2298,6 +2693,7 @@ class TailoringService:
                     "evaluation": saved["tailoring_evaluation"],
                     "render_warnings": saved["render_warnings"],
                     "review_notes": saved["review_notes"],
+                    "fit_review": saved.get("fit_review"),
                 }
             )
         if session.protocol_version != PROTOCOL_VERSION:
@@ -2334,99 +2730,243 @@ class TailoringService:
         reviewed_value = self._record_evaluation_payload(selected_record)
         if reviewed_value is None:
             raise TailoringStaleError("The preview evaluation is invalid; render the candidate again")
-        previous_record = (
-            self._evaluation_record_state(history[reviewed_index - 1])
-            if reviewed_index > 0
-            else None
-        )
-        reviewed_evaluation = reviewed_value[1]
+        reviewed_scanner, reviewed_evaluation, reviewed_candidate_hash = reviewed_value
         if reviewed_evaluation.candidate_hash != candidate_hash:
             raise TailoringStaleError("The selected evaluation is bound to a different candidate")
+        if selected_record.pdf_bytes is None or hashlib.sha256(selected_record.pdf_bytes).hexdigest() != selected_record.pdf_sha256:
+            raise TailoringStaleError(
+                "The selected preview PDF is unavailable; preview the candidate again",
+                code="evaluation_mismatch",
+            )
+        try:
+            fit_review = validate_fit_review_binding(
+                request.fit_review,
+                selected_evaluation_id=selected_record.id,
+                selected_candidate_hash=selected_record.candidate_hash,
+                selected_pdf_sha256=selected_record.pdf_sha256,
+            )
+        except FitReviewBindingError as exc:
+            raise TailoringStaleError(str(exc), code=exc.code) from exc
+
         application: Application = parts["application"]
-        source_cv: SimpleNamespace | None = parts["source_cv"]
-        # Quota reservation starts a SQLite write transaction by rolling back
-        # the read transaction used to build the context. Capture scalar IDs
-        # before that rollback expires the loaded ORM objects.
         application_id = application.id
-        # Render before persistence: the saved document and the preview use
-        # exactly the same pipeline and malformed templates cannot become
-        # drafts.
-        pdf = await PDFService(self.db).render_manifest_payload(
-            parts["manifest_by_id"][candidate["template_id"]],
-            sections,
-            candidate["customizations"],
+        source_cv_id = session.cv_id
+        scanner_payload = reviewed_scanner.model_dump(mode="json")
+        evaluation_payload = reviewed_evaluation.model_dump(mode="json")
+        fit_payload = fit_review.model_dump(mode="json") if fit_review is not None else None
+        create_data = CVCreate(
+            title=candidate["title"],
+            description=candidate.get("description"),
+            template_id=candidate["template_id"],
+            sections=sections,
+            customizations=candidate["customizations"],
+            extra_metadata={
+                "tailoring_mode": "complete_candidate",
+                "tailoring_session_id": session.id,
+                "source_cv_id": source_cv_id,
+                "candidate_hash": candidate_hash,
+                "evaluation_id": selected_record.id,
+                "scanner_result": scanner_payload,
+                "review_notes": request.review_notes,
+                "tailoring_evaluation": evaluation_payload,
+                "fit_review": fit_payload,
+            },
         )
-        scanner_result, evaluation = await self._evaluate_candidate(
-            session.id,
-            parts,
-            candidate,
-            pdf,
-            previous_record=previous_record,
-        )
-        source_cv_id = source_cv.id if source_cv else None
-        # The service reserves a quota slot and creates an application-owned
-        # candidate. It does not change application.cv_id until owner review.
-        new_cv = await CVService(self.db).create_cv(
-            session.user_id,
-            CVCreate(
-                title=candidate["title"],
-                description=candidate.get("description"),
-                template_id=candidate["template_id"],
-                sections=sections,
-                customizations=candidate["customizations"],
-                extra_metadata={
-                    "tailoring_mode": "complete_candidate",
-                    "tailoring_session_id": session.id,
-                    "source_cv_id": source_cv_id,
-                    "candidate_hash": candidate_hash,
-                    "evaluation_id": request.evaluation_id,
-                    "scanner_result": scanner_result.model_dump(mode="json"),
-                    "review_notes": request.review_notes,
-                    "tailoring_evaluation": evaluation.model_dump(mode="json"),
-                },
-            ),
-            application_id=application_id,
-        )
-        await self.db.refresh(session)
-        now = _utcnow()
         result_payload = {
             "protocol_version": session.protocol_version,
             "session_id": session.id,
             "application_id": application_id,
             "status": TAILORING_SESSION_DRAFT_READY,
             "source_cv_id": source_cv_id,
-            "draft_cv_id": new_cv.id,
-            "evaluation_id": request.evaluation_id,
+            "evaluation_id": selected_record.id,
             "candidate_hash": candidate_hash,
             "candidate": candidate,
-            "scanner_result": scanner_result.model_dump(mode="json"),
-            "tailoring_evaluation": evaluation.model_dump(mode="json"),
-            "render_warnings": evaluation.render_warnings,
+            "scanner_result": scanner_payload,
+            "tailoring_evaluation": evaluation_payload,
+            "render_warnings": list(selected_record.render_warnings or []),
             "review_notes": request.review_notes,
+            "fit_review": fit_payload,
+            "pdf_sha256": selected_record.pdf_sha256,
             "context_hash": request.context_hash,
             "submit_request_digest": submit_request_digest,
         }
-        update_result = await self.db.execute(
-            update(TailoringSession)
-            .where(
-                TailoringSession.id == session.id,
-                TailoringSession.status == TAILORING_SESSION_EXCHANGED,
-                TailoringSession.expires_at > _db_utcnow(),
-                TailoringSession.draft_cv_id.is_(None),
+
+        await QuotaService(self.db).ensure_write_transaction()
+        new_cv: CV | None = None
+        seeded_owner_record: TailoringEvaluationRecord | None = None
+        seeded_render_basis_hash: str | None = None
+        stale_target = False
+        now = _utcnow()
+        try:
+            async with self.db.begin_nested():
+                await self._lock_preview_target_rows(session)
+                try:
+                    final_parts = await self._context_parts(session)
+                    if (
+                        final_parts["context_hash"] != request.context_hash
+                        or final_parts["target_guard_hash"] != session.target_guard_hash
+                    ):
+                        raise TailoringStaleError("The application or source CV changed during submission")
+                except TailoringStaleError:
+                    stale_update = await self.db.execute(
+                        update(TailoringSession)
+                        .where(
+                            TailoringSession.id == session.id,
+                            TailoringSession.status == TAILORING_SESSION_EXCHANGED,
+                            TailoringSession.expires_at > _db_utcnow(),
+                        )
+                        .values(
+                            status=TAILORING_SESSION_STALE,
+                            capability_hash=None,
+                            updated_at=now,
+                        )
+                    )
+                    if stale_update.rowcount != 1:
+                        raise TailoringConflictError("Tailoring session changed during submission")
+                    session.status = TAILORING_SESSION_STALE
+                    session.capability_hash = None
+                    session.updated_at = now
+                    await self._prune_terminal_preview_data(session.id, now)
+                    stale_target = True
+
+                if not stale_target:
+                    other_result = await self.db.execute(
+                        select(TailoringSession).where(
+                            TailoringSession.application_id == application_id,
+                            TailoringSession.user_id == session.user_id,
+                            TailoringSession.id != session.id,
+                            TailoringSession.status.in_((TAILORING_SESSION_DRAFT_READY, TAILORING_SESSION_STALE)),
+                        )
+                    )
+                    for other_session in other_result.scalars().all():
+                        other_draft = await self._owned_cv(other_session.draft_cv_id, session.user_id)
+                        if other_draft is not None and other_draft.application_id == application_id:
+                            raise TailoringConflictError(
+                                "Discard the existing tailoring draft before submitting another",
+                                code="session_in_progress",
+                            )
+                        await self._reconcile_pending_draft(other_session, unavailable=True)
+                    new_cv = await CVService(self.db).create_replacement_draft(
+                        session.user_id,
+                        create_data,
+                        application_id=application_id,
+                        source_cv_id=source_cv_id,
+                    )
+                    result_payload["draft_cv_id"] = new_cv.id
+
+                # A submitted preview can serve as the initial owner review
+                # only when the persisted candidate and every live render
+                # input still match the frozen preview basis. Copying its
+                # immutable ledger keeps the exact selected PDF digest.
+                try:
+                    if stale_target:
+                        raise TailoringStaleError("The application or source CV changed during submission")
+                    owner_parts, owner_profile, owner_manifests = await self._current_owner_inputs(session)
+                    owner_candidate, _ = self._normalize_candidate(
+                        TailoringCandidateCV.model_validate(candidate),
+                        owner_parts,
+                    )
+                    frozen_manifest = parts["manifest_by_id"].get(candidate["template_id"])
+                    owner_manifest = owner_manifests.get(candidate["template_id"])
+                    if (
+                        frozen_manifest is not None
+                        and owner_manifest is not None
+                        and self._candidate_hash(owner_candidate) == candidate_hash
+                    ):
+                        frozen_basis_hash = self._owner_render_basis_hash(
+                            parts,
+                            parts["profile"],
+                            candidate,
+                            frozen_manifest,
+                        )
+                        current_basis_hash = self._owner_render_basis_hash(
+                            owner_parts,
+                            owner_profile,
+                            owner_candidate,
+                            owner_manifest,
+                        )
+                        persisted_hash = self._candidate_hash(self._persisted_candidate(new_cv))
+                        if frozen_basis_hash == current_basis_hash and persisted_hash == candidate_hash:
+                            seeded_render_basis_hash = current_basis_hash
+                            seeded_owner_record = TailoringEvaluationRecord(
+                                id=str(uuid.uuid4()),
+                                session_id=session.id,
+                                kind=TAILORING_EVALUATION_OWNER_REVIEW,
+                                reservation_id=None,
+                                candidate_hash=candidate_hash,
+                                candidate=copy.deepcopy(candidate),
+                                scanner_result=scanner_payload,
+                                evaluation=evaluation_payload,
+                                render_warnings=list(selected_record.render_warnings or []),
+                                page_count=selected_record.page_count,
+                                pdf_sha256=selected_record.pdf_sha256,
+                                pdf_bytes=selected_record.pdf_bytes,
+                            )
+                            self.db.add(seeded_owner_record)
+                except (TailoringCandidateError, TailoringConflictError, TailoringStaleError, ValidationError):
+                    seeded_owner_record = None
+                    seeded_render_basis_hash = None
+
+                if not stale_target:
+                    update_result = await self.db.execute(
+                        update(TailoringSession)
+                        .where(
+                            TailoringSession.id == session.id,
+                            TailoringSession.status == TAILORING_SESSION_EXCHANGED,
+                            TailoringSession.expires_at > _db_utcnow(),
+                            TailoringSession.draft_cv_id.is_(None),
+                        )
+                        .values(
+                            status=TAILORING_SESSION_DRAFT_READY,
+                            draft_cv_id=new_cv.id,
+                            submitted_at=now,
+                            result=result_payload,
+                            submission_result=result_payload,
+                            owner_review_state="current" if seeded_owner_record is not None else "needs_reevaluation",
+                            owner_cv_revision=new_cv.revision or 1,
+                            owner_candidate_hash=candidate_hash,
+                            owner_render_basis_hash=seeded_render_basis_hash,
+                            owner_evaluation_id=seeded_owner_record.id if seeded_owner_record is not None else None,
+                            owner_pdf_sha256=selected_record.pdf_sha256 if seeded_owner_record is not None else None,
+                            updated_at=now,
+                        )
+                    )
+                    if update_result.rowcount != 1:
+                        raise TailoringConflictError("Tailoring session already has a draft")
+                    await self.db.execute(
+                        update(TailoringEvaluationRecord)
+                        .where(
+                            TailoringEvaluationRecord.session_id == session.id,
+                            TailoringEvaluationRecord.kind == TAILORING_EVALUATION_AGENT_PREVIEW,
+                            TailoringEvaluationRecord.id != selected_record.id,
+                        )
+                        .values(pdf_bytes=None)
+                    )
+                    if seeded_owner_record is not None:
+                        await self.db.flush()
+        except ReplacementAlreadyPendingError as exc:
+            raise TailoringConflictError(str(exc), code="quota") from exc
+
+        if stale_target:
+            raise TailoringConflictError(
+                "The application or source CV changed; start a new tailoring session",
+                code="stale_target",
+                commit_outcome=True,
             )
-            .values(
-                status=TAILORING_SESSION_DRAFT_READY,
-                draft_cv_id=new_cv.id,
-                submitted_at=now,
-                attempts=TailoringSession.attempts + 1,
-                result=result_payload,
-                updated_at=now,
-            )
-        )
-        if update_result.rowcount != 1:
-            # This is only reachable under a concurrent submit. The enclosing
-            # transaction rolls back the just-created CV and quota reservation.
-            raise TailoringConflictError("Tailoring session already has a draft")
+
+        assert new_cv is not None
+        session.status = TAILORING_SESSION_DRAFT_READY
+        session.draft_cv_id = new_cv.id
+        session.submitted_at = now
+        session.result = result_payload
+        session.submission_result = result_payload
+        session.owner_review_state = "current" if seeded_owner_record is not None else "needs_reevaluation"
+        session.owner_cv_revision = new_cv.revision or 1
+        session.owner_candidate_hash = candidate_hash
+        session.owner_render_basis_hash = seeded_render_basis_hash
+        session.owner_evaluation_id = seeded_owner_record.id if seeded_owner_record is not None else None
+        session.owner_pdf_sha256 = selected_record.pdf_sha256 if seeded_owner_record is not None else None
+        session.updated_at = now
         return TailoringSubmitResponse(
             protocol_version=session.protocol_version,
             session_id=session.id,
@@ -2434,38 +2974,379 @@ class TailoringService:
             status=TAILORING_SESSION_DRAFT_READY,
             source_cv_id=source_cv_id,
             draft_cv_id=new_cv.id,
-            evaluation_id=request.evaluation_id,
+            evaluation_id=selected_record.id,
             candidate_hash=candidate_hash,
             candidate=TailoringCandidateCV.model_validate(candidate),
-            scanner_result=scanner_result,
-            evaluation=evaluation,
-            render_warnings=evaluation.render_warnings,
+            scanner_result=reviewed_scanner,
+            evaluation=reviewed_evaluation,
+            render_warnings=list(selected_record.render_warnings or []),
             review_notes=request.review_notes,
+            fit_review=fit_review,
         )
 
-    async def accept_draft(self, session_id: str, user_id: str) -> TailoringReviewResponse:
+    async def _lock_owner_rows(self, session: TailoringSession, draft_id: str, template_id: str) -> None:
+        """Take final short write locks after owner rendering has finished."""
+
+        await self.db.execute(
+            select(TailoringSession.id)
+            .where(TailoringSession.id == session.id, TailoringSession.user_id == session.user_id)
+            .with_for_update()
+        )
+        await self.db.execute(
+            select(Application.id)
+            .where(Application.id == session.application_id, Application.user_id == session.user_id)
+            .with_for_update()
+        )
+        if session.cv_id is not None:
+            await self.db.execute(
+                select(CV.id)
+                .where(CV.id == session.cv_id, CV.user_id == session.user_id)
+                .with_for_update()
+            )
+        await self.db.execute(
+            select(CV.id)
+            .where(CV.id == draft_id, CV.user_id == session.user_id)
+            .with_for_update()
+        )
+        await self.db.execute(
+            select(User.id).where(User.id == session.user_id).with_for_update()
+        )
+        await self.db.execute(
+            select(Template.id).where(Template.id == template_id).with_for_update()
+        )
+
+    async def reevaluate_draft(
+        self,
+        session_id: str,
+        user_id: str,
+        request: TailoringReevaluateRequest,
+    ) -> TailoringReevaluateResponse:
         session = await self._owned_session(session_id, user_id)
+        if session.protocol_version != PROTOCOL_VERSION:
+            raise TailoringConflictError("Historical tailoring drafts cannot be reevaluated")
+        if session.status not in {TAILORING_SESSION_DRAFT_READY, TAILORING_SESSION_STALE} or not session.draft_cv_id:
+            raise TailoringConflictError("Tailoring draft is not available for reevaluation", code="draft_unavailable")
+        draft = await self._owned_cv(session.draft_cv_id, user_id)
+        if draft is None or draft.application_id != session.application_id:
+            await self._reconcile_pending_draft(session, unavailable=True)
+            raise TailoringConflictError(
+                "Tailoring draft is no longer available",
+                code="draft_unavailable",
+                commit_outcome=True,
+            )
+        if session.status == TAILORING_SESSION_STALE:
+            raise TailoringConflictError(
+                "The application or source CV changed; discard this draft and start a new session",
+                code="stale_target",
+                commit_outcome=True,
+            )
+        if request.expected_cv_revision != (draft.revision or 1):
+            raise TailoringConflictError(
+                "The CV changed after it was loaded; refresh it before reevaluating",
+                code="edited_draft",
+            )
+
+        try:
+            parts, profile, manifests = await self._current_owner_inputs(session)
+        except TailoringStaleError as exc:
+            await self._reconcile_pending_draft(session)
+            raise TailoringConflictError(
+                "The application or source CV changed; discard this draft and start a new session",
+                code="stale_target",
+                commit_outcome=True,
+            ) from exc
+        manifest = manifests.get(draft.template_id)
+        if manifest is None:
+            raise TailoringConflictError(
+                "The draft template is no longer available; choose a current template and save again",
+                code="review_not_current",
+            )
+
+        original_revision = draft.revision or 1
+        original_candidate = self._persisted_candidate(draft)
+        original_candidate_hash = self._candidate_hash(original_candidate)
+        try:
+            candidate, sections = self._normalize_candidate(
+                TailoringCandidateCV.model_validate(original_candidate),
+                parts,
+            )
+        except (TailoringCandidateError, ValidationError) as exc:
+            raise TailoringConflictError("The saved tailoring draft is invalid; edit and save it again") from exc
+        candidate_hash = self._candidate_hash(candidate)
+        render_basis_hash = self._owner_render_basis_hash(parts, profile, candidate, manifest)
+
+        # Rendering, PDF scanning, and comparison all happen before the
+        # conditional write transaction. Owner reevaluation never consumes
+        # an agent preview reservation.
+        pdf = await PDFService(self.db).render_manifest_payload(
+            manifest,
+            sections,
+            candidate["customizations"],
+        )
+        previous_record: Mapping[str, Any] | None = None
+        owner_history_result = await self.db.execute(
+            select(TailoringEvaluationRecord)
+            .where(
+                TailoringEvaluationRecord.session_id == session.id,
+                TailoringEvaluationRecord.kind == TAILORING_EVALUATION_OWNER_REVIEW,
+            )
+            .order_by(TailoringEvaluationRecord.created_at.desc(), TailoringEvaluationRecord.id.desc())
+            .limit(1)
+        )
+        previous_owner = owner_history_result.scalar_one_or_none()
+        if previous_owner is not None:
+            previous_record = self._evaluation_record_state(previous_owner)
+        else:
+            submission = self._submission_payload(session) or {}
+            selected_id = submission.get("evaluation_id")
+            selected = await self.db.get(TailoringEvaluationRecord, selected_id) if isinstance(selected_id, str) else None
+            if selected is not None and selected.kind == TAILORING_EVALUATION_AGENT_PREVIEW:
+                previous_record = self._evaluation_record_state(selected)
+        scanner_result, evaluation = await self._evaluate_candidate(
+            session.id,
+            parts,
+            candidate,
+            pdf,
+            previous_record=previous_record,
+        )
+        pdf_sha256 = hashlib.sha256(pdf).hexdigest()
+        page_count = pdf_page_count(pdf)
+
+        quota = QuotaService(self.db)
+        await quota.ensure_write_transaction()
+        stale_target = False
+        conflict: TailoringConflictError | None = None
+        now = _utcnow()
+        owner_record = TailoringEvaluationRecord(
+            id=str(uuid.uuid4()),
+            session_id=session.id,
+            kind=TAILORING_EVALUATION_OWNER_REVIEW,
+            reservation_id=None,
+            candidate_hash=candidate_hash,
+            candidate=copy.deepcopy(candidate),
+            scanner_result=scanner_result.model_dump(mode="json"),
+            evaluation=evaluation.model_dump(mode="json"),
+            render_warnings=list(evaluation.render_warnings),
+            page_count=page_count,
+            pdf_sha256=pdf_sha256,
+            pdf_bytes=pdf,
+        )
+        updated_revision: int | None = None
+        async with self.db.begin_nested():
+            await self._lock_owner_rows(session, draft.id, draft.template_id)
+            current_session = await self.db.scalar(
+                select(TailoringSession)
+                .where(TailoringSession.id == session.id, TailoringSession.user_id == user_id)
+                .execution_options(populate_existing=True)
+            )
+            current_draft = await self._owned_cv(draft.id, user_id)
+            if (
+                current_session is None
+                or current_session.status != TAILORING_SESSION_DRAFT_READY
+                or current_session.draft_cv_id != draft.id
+                or current_draft is None
+                or current_draft.application_id != session.application_id
+            ):
+                conflict = TailoringConflictError(
+                    "The tailoring draft changed while it was being reevaluated",
+                    code="draft_unavailable",
+                )
+            elif (current_draft.revision or 1) != original_revision or self._candidate_hash(
+                self._persisted_candidate(current_draft)
+            ) != original_candidate_hash:
+                conflict = TailoringConflictError(
+                    "The CV changed while it was being reevaluated; refresh it and try again",
+                    code="edited_draft",
+                )
+            else:
+                try:
+                    final_parts, final_profile, final_manifests = await self._current_owner_inputs(current_session)
+                    final_manifest = final_manifests.get(current_draft.template_id)
+                    final_candidate, final_sections = self._normalize_candidate(
+                        TailoringCandidateCV.model_validate(self._persisted_candidate(current_draft)),
+                        final_parts,
+                    )
+                    final_basis_hash = (
+                        self._owner_render_basis_hash(final_parts, final_profile, final_candidate, final_manifest)
+                        if final_manifest is not None
+                        else None
+                    )
+                except TailoringStaleError:
+                    await self._reconcile_pending_draft(current_session)
+                    stale_target = True
+                    final_candidate = None
+                    final_sections = None
+                    final_manifest = None
+                    final_basis_hash = None
+                    current_session = None
+                except (TailoringCandidateError, ValidationError, TailoringConflictError):
+                    conflict = TailoringConflictError(
+                        "The draft render basis changed while it was being reevaluated; refresh and try again",
+                        code="review_not_current",
+                    )
+                    final_candidate = None
+                    final_sections = None
+                    final_manifest = None
+                    final_basis_hash = None
+
+                if not stale_target and conflict is None:
+                    if (
+                        final_manifest is None
+                        or final_candidate is None
+                        or self._candidate_hash(final_candidate) != candidate_hash
+                        or final_basis_hash != render_basis_hash
+                    ):
+                        conflict = TailoringConflictError(
+                            "The draft render basis changed while it was being reevaluated; refresh and try again",
+                            code="review_not_current",
+                        )
+                    else:
+                        changed_at_commit = (
+                            _content_hash(_candidate_content_for_comparison(self._persisted_candidate(current_draft)))
+                            != _content_hash(_candidate_content_for_comparison(candidate))
+                        )
+                        cv_update = (
+                            update(CV)
+                            .where(
+                                CV.id == current_draft.id,
+                                CV.user_id == user_id,
+                                CV.is_active.is_(True),
+                                CV.application_id == session.application_id,
+                                CV.revision == original_revision,
+                            )
+                            .values(
+                                title=candidate["title"],
+                                description=candidate.get("description"),
+                                template_id=candidate["template_id"],
+                                sections=final_sections,
+                                customizations=candidate["customizations"],
+                                revision=CV.revision + 1 if changed_at_commit else CV.revision,
+                                updated_at=now if changed_at_commit else CV.updated_at,
+                            )
+                            .returning(CV.revision)
+                        )
+                        cv_update_result = await self.db.execute(cv_update)
+                        updated_revision = cv_update_result.scalar_one_or_none()
+                        if updated_revision is None:
+                            conflict = TailoringConflictError(
+                                "The CV changed while it was being reevaluated; refresh it and try again",
+                                code="edited_draft",
+                            )
+                        else:
+                            self.db.add(owner_record)
+                            current_session.owner_review_state = "current"
+                            current_session.owner_cv_revision = int(updated_revision)
+                            current_session.owner_candidate_hash = candidate_hash
+                            current_session.owner_render_basis_hash = render_basis_hash
+                            current_session.owner_evaluation_id = owner_record.id
+                            current_session.owner_pdf_sha256 = pdf_sha256
+                            current_session.updated_at = now
+                            current_draft.title = candidate["title"]
+                            current_draft.description = candidate.get("description")
+                            current_draft.template_id = candidate["template_id"]
+                            current_draft.sections = final_sections
+                            current_draft.customizations = candidate["customizations"]
+                            current_draft.revision = int(updated_revision)
+                            if changed_at_commit:
+                                current_draft.updated_at = now
+                            await self.db.flush()
+
+        if stale_target:
+            raise TailoringConflictError(
+                "The application or source CV changed; discard this draft and start a new session",
+                code="stale_target",
+                commit_outcome=True,
+            )
+        if conflict is not None:
+            raise conflict
+        assert updated_revision is not None
+        review = TailoringDraftReview(
+            state="current",
+            cv_revision=int(updated_revision),
+            candidate_hash=candidate_hash,
+            render_basis_hash=render_basis_hash,
+            evaluation_id=owner_record.id,
+            evaluation=evaluation,
+            scanner_result=scanner_result,
+            warnings=list(evaluation.render_warnings),
+            pdf_sha256=pdf_sha256,
+            fit_review=self._fit_review_from_submission(session),
+            fit_review_applicability="current"
+            if (
+                (fit := self._fit_review_from_submission(session)) is not None
+                and fit.candidate_hash == candidate_hash
+                and fit.pdf_sha256 == pdf_sha256
+            )
+            else "earlier_version"
+            if self._fit_review_from_submission(session) is not None
+            else "not_run",
+        )
+        return TailoringReevaluateResponse(
+            session_id=session.id,
+            application_id=session.application_id,
+            draft_cv_id=draft.id,
+            draft_review=review,
+            pdf_base64=base64.b64encode(pdf).decode("ascii"),
+            page_count=page_count,
+        )
+
+    async def draft_context(self, cv_id: str, user_id: str) -> TailoringDraftContextResponse:
+        session_result = await self.db.execute(
+            select(TailoringSession).where(
+                TailoringSession.user_id == user_id,
+                TailoringSession.draft_cv_id == cv_id,
+                TailoringSession.status.in_((TAILORING_SESSION_DRAFT_READY, TAILORING_SESSION_STALE)),
+            )
+        )
+        session = session_result.scalar_one_or_none()
+        if session is None or session.protocol_version != PROTOCOL_VERSION:
+            raise TailoringSessionNotFoundError("Tailoring draft context not found")
+        draft = await self._owned_cv(cv_id, user_id)
+        if draft is None or draft.application_id != session.application_id:
+            await self._reconcile_pending_draft(session, unavailable=True)
+            raise TailoringSessionNotFoundError("Tailoring draft context not found")
+        status_response = await self.session_status(session.id, user_id)
+        application = await self._owned_application(session.application_id, user_id)
+        if application is None:
+            raise TailoringSessionNotFoundError("Tailoring draft context not found")
+        snapshot = session.context_snapshot if isinstance(session.context_snapshot, Mapping) else {}
+        try:
+            scanner = TailoringScannerContext.model_validate(snapshot.get("scanner"))
+        except ValidationError as exc:
+            raise TailoringConflictError("Tailoring scanner context is unavailable") from exc
+        return TailoringDraftContextResponse(
+            session_id=session.id,
+            application_id=session.application_id,
+            draft_cv_id=cv_id,
+            draft_review=status_response.draft_review or TailoringDraftReview(state="unavailable"),
+            job=TailoringJob(
+                company=application.company,
+                role=application.role,
+                job_url=application.job_url,
+                description=application.job_description,
+                user_instructions=application.notes,
+            ),
+            scanner_context=TailoringDraftScannerContext(
+                versions=scanner.versions,
+                requirement_extraction=scanner.requirement_extraction,
+            ),
+        )
+
+    async def accept_draft(
+        self,
+        session_id: str,
+        user_id: str,
+        request: TailoringAcceptRequest | None = None,
+    ) -> TailoringReviewResponse:
+        session = await self._owned_session(session_id, user_id)
+        if session.protocol_version == PROTOCOL_VERSION:
+            return await self._accept_v10_draft(session, user_id, request)
         if session.status != TAILORING_SESSION_DRAFT_READY or not session.draft_cv_id:
             raise TailoringConflictError("Tailoring draft is not ready for acceptance")
         application = await self._owned_application(session.application_id, user_id)
         draft = await self._owned_cv(session.draft_cv_id, user_id)
         if application is None or draft is None or draft.application_id != application.id:
             raise TailoringConflictError("Tailoring draft is no longer available")
-        parts: dict[str, Any] | None
-        if session.protocol_version == PROTOCOL_VERSION:
-            try:
-                parts = await self._current_context(session)
-            except TailoringStaleError as exc:
-                now = _utcnow()
-                session.status = TAILORING_SESSION_STALE
-                session.reviewed_at = now
-                session.updated_at = now
-                await self.db.flush()
-                raise TailoringConflictError("The tailoring context changed; start a new session") from exc
-        else:
-            # Historical drafts remain owner-reviewable, but cannot resume
-            # under the active v9 context contract.
-            parts = None
         stored_result = (session.result or {}).get("scanner_result") if isinstance(session.result, dict) else None
         try:
             scanner_result = ScanResult.model_validate(stored_result)
@@ -2498,16 +3379,6 @@ class TailoringService:
             session.status = TAILORING_SESSION_STALE
             session.reviewed_at = _utcnow()
             session.updated_at = _utcnow()
-            await self.db.flush()
-            raise TailoringConflictError("The tailoring draft scanner result is stale; review it again")
-        if parts is not None and (
-            scanner_result.requirement_extraction != parts["scanner_context"].requirement_extraction
-            or scanner_result.versions != parts["scanner_context"].versions
-        ):
-            now = _utcnow()
-            session.status = TAILORING_SESSION_STALE
-            session.reviewed_at = now
-            session.updated_at = now
             await self.db.flush()
             raise TailoringConflictError("The tailoring draft scanner result is stale; review it again")
         # Compare-and-swap protects a CV selected after the agent began.
@@ -2558,34 +3429,354 @@ class TailoringService:
             scanner_result=scanner_result,
         )
 
-    async def reject_draft(self, session_id: str, user_id: str) -> TailoringReviewResponse:
-        session = await self._owned_session(session_id, user_id)
+    async def _accept_v10_draft(
+        self,
+        session: TailoringSession,
+        user_id: str,
+        request: TailoringAcceptRequest | None,
+    ) -> TailoringReviewResponse:
         if session.status != TAILORING_SESSION_DRAFT_READY or not session.draft_cv_id:
-            raise TailoringConflictError("Tailoring draft is not ready for rejection")
+            raise TailoringConflictError("Tailoring draft is not ready for acceptance")
+        if request is None:
+            raise TailoringCandidateError("Protocol v10 acceptance requires the current CV revision and candidate hash")
         draft_id = session.draft_cv_id
-        application = await self._owned_application(session.application_id, user_id)
-        if application is None:
-            raise TailoringConflictError("Tailoring application is no longer available")
-        # The draft is unlinked by construction, so normal CV deletion safely
-        # marks it inactive and releases the reserved CV quota.
-        deleted = await CVService(self.db).delete_cv(draft_id, user_id)
-        if not deleted:
-            raise TailoringConflictError("Tailoring draft is no longer available")
+        draft = await self._owned_cv(draft_id, user_id)
+        if draft is None or draft.application_id != session.application_id:
+            await self._reconcile_pending_draft(session, unavailable=True)
+            raise TailoringConflictError(
+                "Tailoring draft is no longer available",
+                code="draft_unavailable",
+                commit_outcome=True,
+            )
+        try:
+            parts, profile, manifests = await self._current_owner_inputs(session)
+        except TailoringStaleError as exc:
+            await self._reconcile_pending_draft(session)
+            raise TailoringConflictError(
+                "The application or source CV changed; discard this draft and start a new session",
+                code="stale_target",
+                commit_outcome=True,
+            ) from exc
+        review = await self._draft_review(
+            session,
+            draft,
+            parts=parts,
+            profile=profile,
+            manifests=manifests,
+        )
+        if (
+            request.expected_cv_revision != review.cv_revision
+            or request.candidate_hash != review.candidate_hash
+            or request.expected_cv_revision != (draft.revision or 1)
+        ):
+            raise TailoringConflictError(
+                "The saved draft changed after review; reevaluate it before accepting",
+                code="edited_draft",
+            )
+        if review.state != "current" or review.evaluation_id is None:
+            raise TailoringConflictError(
+                "Reevaluate the saved draft before accepting it",
+                code="review_not_current",
+            )
+
+        application_id = session.application_id
+        source_cv_id = session.cv_id
+        await QuotaService(self.db).ensure_write_transaction()
+        stale_target = False
+        result_scanner: ScanResult | None = None
         now = _utcnow()
-        session.status = TAILORING_SESSION_REJECTED
+        async with self.db.begin_nested():
+            await self._lock_owner_rows(session, draft_id, draft.template_id)
+            current_session = await self.db.scalar(
+                select(TailoringSession)
+                .where(TailoringSession.id == session.id, TailoringSession.user_id == user_id)
+                .execution_options(populate_existing=True)
+            )
+            current_draft = await self._owned_cv(draft_id, user_id)
+            current_application = await self._owned_application(application_id, user_id)
+            if (
+                current_session is None
+                or current_session.status != TAILORING_SESSION_DRAFT_READY
+                or current_session.draft_cv_id != draft_id
+                or current_draft is None
+                or current_draft.application_id != application_id
+                or current_application is None
+            ):
+                raise TailoringConflictError("The tailoring draft changed before acceptance", code="draft_unavailable")
+            if (
+                (current_draft.revision or 1) != request.expected_cv_revision
+                or self._candidate_hash(self._persisted_candidate(current_draft)) != request.candidate_hash
+            ):
+                raise TailoringConflictError(
+                    "The saved draft changed after review; reevaluate it before accepting",
+                    code="edited_draft",
+                )
+            try:
+                final_parts, final_profile, final_manifests = await self._current_owner_inputs(current_session)
+            except TailoringStaleError:
+                await self._reconcile_pending_draft(current_session)
+                stale_target = True
+                final_parts = {}
+                final_profile = None
+                final_manifests = {}
+            if not stale_target:
+                final_review = await self._draft_review(
+                    current_session,
+                    current_draft,
+                    parts=final_parts,
+                    profile=final_profile,
+                    manifests=final_manifests,
+                )
+                if (
+                    final_review.state != "current"
+                    or final_review.cv_revision != request.expected_cv_revision
+                    or final_review.candidate_hash != request.candidate_hash
+                    or final_review.render_basis_hash != current_session.owner_render_basis_hash
+                    or final_review.evaluation_id != current_session.owner_evaluation_id
+                ):
+                    raise TailoringConflictError(
+                        "The render or contact basis changed after review; reevaluate the draft before accepting",
+                        code="review_not_current",
+                    )
+                owner_record = await self.db.get(TailoringEvaluationRecord, current_session.owner_evaluation_id)
+                parsed_owner = self._record_evaluation_payload(owner_record) if owner_record is not None else None
+                if owner_record is None or parsed_owner is None or owner_record.pdf_bytes is None:
+                    raise TailoringConflictError("The current owner review is unavailable", code="review_not_current")
+                result_scanner = parsed_owner[0]
+                quota = QuotaService(self.db)
+
+                if not current_draft.quota_counted:
+                    if source_cv_id is None:
+                        raise TailoringConflictError("The replacement source changed", code="source_changed")
+                    try:
+                        await quota.transfer_replacement(
+                            user_id,
+                            application_id,
+                            source_cv_id,
+                            draft_id,
+                        )
+                    except ReplacementReservationConflictError as exc:
+                        raise TailoringConflictError(str(exc), code="source_changed") from exc
+                    scanner_update = await self.db.execute(
+                        update(Application)
+                        .where(
+                            Application.id == application_id,
+                            Application.user_id == user_id,
+                            Application.cv_id == draft_id,
+                        )
+                        .values(
+                            scanner_result=result_scanner.model_dump(mode="json"),
+                            scanner_rescan_required=False,
+                            updated_at=now,
+                        )
+                    )
+                    if scanner_update.rowcount != 1:
+                        raise TailoringConflictError("The application changed during acceptance", code="source_changed")
+                else:
+                    source_condition = (
+                        Application.cv_id.is_(None)
+                        if source_cv_id is None
+                        else Application.cv_id == source_cv_id
+                    )
+                    bind_result = await self.db.execute(
+                        update(Application)
+                        .where(
+                            Application.id == application_id,
+                            Application.user_id == user_id,
+                            source_condition,
+                        )
+                        .values(
+                            cv_id=draft_id,
+                            scanner_result=result_scanner.model_dump(mode="json"),
+                            scanner_rescan_required=False,
+                            updated_at=now,
+                        )
+                    )
+                    if bind_result.rowcount != 1:
+                        await self._reconcile_pending_draft(current_session)
+                        stale_target = True
+                    elif source_cv_id is not None and source_cv_id != draft_id:
+                        old_source = await self._owned_cv(source_cv_id, user_id)
+                        if old_source is not None:
+                            shared_link = await self.db.scalar(
+                                select(Application.id)
+                                .where(Application.cv_id == source_cv_id, Application.id != application_id)
+                                .limit(1)
+                            )
+                            if shared_link is None:
+                                try:
+                                    await CVService(self.db).delete_cv(source_cv_id, user_id)
+                                except CVLinkedToApplicationError as exc:
+                                    raise TailoringConflictError(
+                                        "The source CV became shared before acceptance",
+                                        code="source_changed",
+                                    ) from exc
+
+                if not stale_target:
+                    status_update = await self.db.execute(
+                        update(TailoringSession)
+                        .where(
+                            TailoringSession.id == session.id,
+                            TailoringSession.user_id == user_id,
+                            TailoringSession.status == TAILORING_SESSION_DRAFT_READY,
+                            TailoringSession.draft_cv_id == draft_id,
+                        )
+                        .values(
+                            status=TAILORING_SESSION_ACCEPTED,
+                            reviewed_at=now,
+                            updated_at=now,
+                        )
+                    )
+                    if status_update.rowcount != 1:
+                        raise TailoringConflictError("The tailoring draft was reviewed concurrently")
+                    current_session.status = TAILORING_SESSION_ACCEPTED
+                    current_session.reviewed_at = now
+                    current_session.updated_at = now
+                    await self._prune_terminal_preview_data(session.id, now)
+                    await self.db.flush()
+
+        if stale_target:
+            raise TailoringConflictError(
+                "The application or source CV changed; discard this draft and start a new session",
+                code="stale_target",
+                commit_outcome=True,
+            )
+        session.status = TAILORING_SESSION_ACCEPTED
         session.reviewed_at = now
         session.updated_at = now
-        await self.db.flush()
         return TailoringReviewResponse(
             protocol_version=session.protocol_version,
             session_id=session.id,
-            application_id=application.id,
+            application_id=application_id,
+            status="accepted",
+            source_cv_id=source_cv_id,
+            draft_cv_id=draft_id,
+            cv_id=draft_id,
+            scanner_result=result_scanner,
+        )
+
+    async def reject_draft(self, session_id: str, user_id: str) -> TailoringReviewResponse:
+        session = await self._owned_session(session_id, user_id)
+        if session.protocol_version != PROTOCOL_VERSION:
+            if session.status != TAILORING_SESSION_DRAFT_READY or not session.draft_cv_id:
+                raise TailoringConflictError("Tailoring draft is not ready for rejection")
+            application = await self._owned_application(session.application_id, user_id)
+            if application is None:
+                raise TailoringConflictError("Tailoring application is no longer available")
+            deleted = await CVService(self.db).delete_cv(session.draft_cv_id, user_id)
+            if not deleted:
+                raise TailoringConflictError("Tailoring draft is no longer available")
+            now = _utcnow()
+            session.status = TAILORING_SESSION_REJECTED
+            session.reviewed_at = now
+            session.updated_at = now
+            await self.db.flush()
+            result = self._submission_payload(session) or {}
+            return TailoringReviewResponse(
+                protocol_version=session.protocol_version,
+                session_id=session.id,
+                application_id=session.application_id,
+                status="rejected",
+                source_cv_id=session.cv_id,
+                draft_cv_id=session.draft_cv_id,
+                cv_id=None,
+                scanner_result=ScanResult.model_validate(result.get("scanner_result"))
+                if result.get("scanner_result")
+                else None,
+            )
+
+        if session.status == TAILORING_SESSION_ACCEPTED:
+            raise TailoringConflictError("An accepted tailoring draft cannot be discarded")
+        if session.status == TAILORING_SESSION_REJECTED:
+            result = self._submission_payload(session) or {}
+            return TailoringReviewResponse(
+                protocol_version=session.protocol_version,
+                session_id=session.id,
+                application_id=session.application_id,
+                status="rejected",
+                source_cv_id=session.cv_id,
+                draft_cv_id=session.draft_cv_id,
+                cv_id=None,
+                scanner_result=ScanResult.model_validate(result.get("scanner_result"))
+                if result.get("scanner_result")
+                else None,
+            )
+        if session.status not in {TAILORING_SESSION_DRAFT_READY, TAILORING_SESSION_STALE}:
+            if not session.draft_cv_id and session.status in {TAILORING_SESSION_EXPIRED, TAILORING_SESSION_FAILED}:
+                return TailoringReviewResponse(
+                    protocol_version=session.protocol_version,
+                    session_id=session.id,
+                    application_id=session.application_id,
+                    status="rejected",
+                    source_cv_id=session.cv_id,
+                    draft_cv_id=None,
+                    cv_id=None,
+                )
+            raise TailoringConflictError("Tailoring draft is not ready for rejection")
+
+        draft_id = session.draft_cv_id
+        now = _utcnow()
+        await QuotaService(self.db).ensure_write_transaction()
+        async with self.db.begin_nested():
+            await self.db.execute(
+                select(TailoringSession.id)
+                .where(TailoringSession.id == session.id, TailoringSession.user_id == user_id)
+                .with_for_update()
+            )
+            current_session = await self.db.scalar(
+                select(TailoringSession)
+                .where(TailoringSession.id == session.id, TailoringSession.user_id == user_id)
+                .execution_options(populate_existing=True)
+            )
+            if current_session is None:
+                raise TailoringSessionNotFoundError("Tailoring session not found")
+            if current_session.status == TAILORING_SESSION_ACCEPTED:
+                raise TailoringConflictError("An accepted tailoring draft cannot be discarded")
+            if current_session.status == TAILORING_SESSION_REJECTED:
+                pass
+            elif current_session.status not in {TAILORING_SESSION_DRAFT_READY, TAILORING_SESSION_STALE}:
+                raise TailoringConflictError("Tailoring draft is not ready for rejection")
+            else:
+                current_draft = await self._owned_cv(current_session.draft_cv_id, user_id)
+                if current_draft is not None:
+                    try:
+                        await CVService(self.db).delete_cv(current_draft.id, user_id)
+                    except CVLinkedToApplicationError as exc:
+                        raise TailoringConflictError(
+                            "The draft is linked to an application and cannot be discarded",
+                            code="draft_unavailable",
+                        ) from exc
+                status_update = await self.db.execute(
+                    update(TailoringSession)
+                    .where(
+                        TailoringSession.id == current_session.id,
+                        TailoringSession.status.in_((TAILORING_SESSION_DRAFT_READY, TAILORING_SESSION_STALE)),
+                    )
+                    .values(status=TAILORING_SESSION_REJECTED, reviewed_at=now, updated_at=now)
+                )
+                if status_update.rowcount != 1:
+                    raise TailoringConflictError("The tailoring draft was reviewed concurrently")
+                current_session.status = TAILORING_SESSION_REJECTED
+                current_session.reviewed_at = now
+                current_session.updated_at = now
+                await self._release_session_replacement(current_session)
+                await self._prune_terminal_preview_data(current_session.id, now)
+                await self.db.flush()
+                session.status = TAILORING_SESSION_REJECTED
+                session.reviewed_at = now
+                session.updated_at = now
+
+        result = self._submission_payload(session) or {}
+        return TailoringReviewResponse(
+            protocol_version=session.protocol_version,
+            session_id=session.id,
+            application_id=session.application_id,
             status="rejected",
             source_cv_id=session.cv_id,
             draft_cv_id=draft_id,
             cv_id=None,
-            scanner_result=ScanResult.model_validate((session.result or {}).get("scanner_result"))
-            if isinstance(session.result, dict) and session.result.get("scanner_result")
+            scanner_result=ScanResult.model_validate(result.get("scanner_result"))
+            if result.get("scanner_result")
             else None,
         )
 

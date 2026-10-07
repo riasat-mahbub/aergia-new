@@ -33,6 +33,10 @@ const entry = `
         const state = useBuilderDocumentStore.getState();
         return { currentCvId: state.currentCV?.id ?? null, isSaving: state.isSaving, revision: state.currentCV?.revision ?? null };
       },
+      setTitle: (title) => {
+        const state = useBuilderDocumentStore.getState();
+        if (state.currentCV) useBuilderDocumentStore.setState({ currentCV: { ...state.currentCV, title } });
+      },
     };
     return React.createElement(BuilderPage, route);
   }
@@ -140,7 +144,7 @@ await build({
       buildApi.onLoad({ filter: /^promote-button-mock$/, namespace: "builder-test" }, () => ({
         loader: "jsx",
         resolveDir: webRoot,
-        contents: `import React from "react"; export default function PromoteToLibraryButton() { return React.createElement("button", { type: "button" }, "Promote"); }`,
+        contents: `import React from "react"; export default function PromoteToLibraryButton() { return React.createElement("button", { type: "button" }, "Promote to library"); }`,
       }));
 
       buildApi.onResolve({ filter: /^\.\/hooks\/useTemplateManifest$/ }, () => ({ path: "template-hook-mock", namespace: "builder-test" }));
@@ -415,6 +419,24 @@ async def capture(page, filename):
         target.mkdir(parents=True, exist_ok=True)
         await page.screenshot(path=str(target / filename), full_page=True)
 
+async def assert_mobile_width(page, require_drawer=False):
+    metrics = await page.evaluate("""() => {
+      const header = document.querySelector('header');
+      const drawer = document.querySelector('[role="dialog"]');
+      return {
+        viewport: window.innerWidth,
+        document: document.documentElement.scrollWidth,
+        body: document.body.scrollWidth,
+        header: header ? { client: header.clientWidth, scroll: header.scrollWidth } : null,
+        drawer: drawer ? { client: drawer.clientWidth, scroll: drawer.scrollWidth, width: drawer.getBoundingClientRect().width } : null,
+      };
+    }""")
+    assert metrics["viewport"] == 390, metrics
+    assert metrics["document"] <= 390 and metrics["body"] <= 390, metrics
+    assert metrics["header"] and metrics["header"]["scroll"] <= 390, metrics
+    if require_drawer:
+        assert metrics["drawer"] and metrics["drawer"]["width"] <= 390 and metrics["drawer"]["scroll"] <= 390, metrics
+
 async def main():
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=True)
@@ -441,10 +463,15 @@ async def main():
             assert await draft_drawer.get_by_text("94%", exact=True).count() > 0, "pending draft result was not rendered in the scanner drawer"
             await draft_drawer.get_by_role("button", name="Close resume analysis").click()
             await page.set_viewport_size({"width": 390, "height": 900})
+            long_title = "Principal Engineer, Distributed Systems and Platform Reliability — North American Product Group"
+            await page.evaluate("(title) => window.builderHarness.setTitle(title)", long_title)
+            await page.get_by_role("heading", name=long_title).wait_for()
+            await assert_mobile_width(page)
             await capture(page, "pending-builder-mobile.png")
             await page.get_by_role("button", name="Job Fit 94%").click()
             draft_drawer = page.get_by_role("dialog")
             await draft_drawer.get_by_role("heading", name="Owner Company — Senior Engineer").wait_for()
+            await assert_mobile_width(page, require_drawer=True)
             await capture(page, "pending-scanner-drawer-mobile.png")
             await draft_drawer.get_by_role("button", name="Close resume analysis").click()
             await page.set_viewport_size({"width": 1280, "height": 900})

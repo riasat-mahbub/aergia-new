@@ -69,17 +69,21 @@ export default function BuilderHeader({
 
   return (
     <>
-      <header className="flex items-center justify-between border-b bg-app-surface px-4 py-3">
-        <div className="flex items-center gap-3">
-          <button onClick={onBack} className="text-sm text-app-ink-3 hover:text-app-ink-2">
+      <header className="flex flex-col gap-3 border-b bg-app-surface px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-4">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+          <button onClick={onBack} className="shrink-0 text-sm text-app-ink-3 hover:text-app-ink-2">
             &larr; Back
           </button>
-          <h1 className="text-lg font-semibold text-app-ink">{cv.title}</h1>
+          <h1 className="min-w-0 flex-[1_1_12rem] break-words text-lg font-semibold text-app-ink">{cv.title}</h1>
           {applicationContext && (
-            <ScannerJobFitBadge application={applicationContext} onClick={onOpenScanner} />
+            <span className="shrink-0">
+              <ScannerJobFitBadge application={applicationContext} onClick={onOpenScanner} />
+            </span>
           )}
           {pendingDraftScannerContext && (
-            <ScannerJobFitBadge application={pendingDraftScannerContext} onClick={onOpenScanner} />
+            <span className="shrink-0">
+              <ScannerJobFitBadge application={pendingDraftScannerContext} onClick={onOpenScanner} />
+            </span>
           )}
           {draftReview && (
             <span
@@ -92,26 +96,30 @@ export default function BuilderHeader({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-3">
-          {hasUnsavedChanges && (
-            <>
-              <span className="h-2 w-2 rounded-full bg-app-warning" aria-label="Unsaved changes" />
-              <span className="text-sm text-app-warning">Unsaved</span>
-            </>
-          )}
-          {lastSaved && !isSaving && !showSavedFeedback && (
-            <span className="text-xs text-app-ink-3">Saved {formatLastSaved(lastSaved)}</span>
-          )}
-          <button
-            type="button"
-            onClick={() => { void onSave().catch(() => {}); }}
-            disabled={(!hasUnsavedChanges && !showSavedFeedback && !saveError) || isSaving}
-            className="rounded-md bg-app-primary px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-app-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isSaving ? "Saving..." : showSavedFeedback ? "Saved!" : "Save"}
-          </button>
-          <ExportPDFButton cvId={cvId} cvTitle={cv.title} onBeforeExport={onSave} />
-          <PromoteToLibraryButton cvId={cvId} />
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 sm:justify-end sm:gap-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            {hasUnsavedChanges && (
+              <>
+                <span className="h-2 w-2 shrink-0 rounded-full bg-app-warning" aria-label="Unsaved changes" />
+                <span className="text-sm text-app-warning">Unsaved</span>
+              </>
+            )}
+            {lastSaved && !isSaving && !showSavedFeedback && (
+              <span className="text-xs text-app-ink-3">Saved {formatLastSaved(lastSaved)}</span>
+            )}
+          </div>
+          <div className="ml-auto flex shrink-0 items-center gap-2 sm:ml-0 sm:gap-3">
+            <button
+              type="button"
+              onClick={() => { void onSave().catch(() => {}); }}
+              disabled={(!hasUnsavedChanges && !showSavedFeedback && !saveError) || isSaving}
+              className="rounded-md bg-app-primary px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-app-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSaving ? "Saving..." : showSavedFeedback ? "Saved!" : "Save"}
+            </button>
+            <ExportPDFButton cvId={cvId} cvTitle={cv.title} onBeforeExport={onSave} />
+            <PromoteToLibraryButton cvId={cvId} />
+          </div>
         </div>
       </header>
       {saveError && <p className="border-b border-app-rule bg-app-canvas px-4 py-2 text-sm text-app-danger" role="alert">{saveError}</p>}

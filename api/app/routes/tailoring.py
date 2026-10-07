@@ -11,8 +11,11 @@ from app.db.session import get_db
 from app.models.user import User
 from app.http_schemas.tailoring import (
     PROTOCOL_VERSION,
+    TailoringAcceptRequest,
     TailoringCodeExchange,
     TailoringContextResponse,
+    TailoringReevaluateRequest,
+    TailoringReevaluateResponse,
     TailoringExchangeResponse,
     TailoringPreviewRequest,
     TailoringPreviewReservationRequest,
@@ -312,11 +315,31 @@ async def accept_tailoring_draft(
     request: Request,
     response: Response,
     session_id: str,
+    payload: TailoringAcceptRequest | None = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        return await TailoringService(db).accept_draft(session_id, current_user.id)
+        return await TailoringService(db).accept_draft(session_id, current_user.id, payload)
+    except Exception as exc:  # noqa: BLE001
+        return await _raise_service_error(exc, db)
+
+
+@router.post(
+    "/tailoring/sessions/{session_id}/reevaluate",
+    response_model=TailoringReevaluateResponse,
+)
+@limiter.limit("10/minute")
+async def reevaluate_tailoring_draft(
+    request: Request,
+    response: Response,
+    session_id: str,
+    payload: TailoringReevaluateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await TailoringService(db).reevaluate_draft(session_id, current_user.id, payload)
     except Exception as exc:  # noqa: BLE001
         return await _raise_service_error(exc, db)
 
