@@ -322,15 +322,16 @@ def _render_field_row(
     row's ``justify-content`` mirrors the section's ``text_align``."""
 
     rail_field = next((f for f in fields if f.align == "right"), None)
+    row_class = "field-row contact-row" if all(f.group == "contact" for f in fields) else "field-row"
     base_style = "display:flex;flex-wrap:wrap;align-items:baseline;column-gap:0;row-gap:0"
     if rail_field is not None:
         inner = "".join(
             _render_field_block(f, extra_style="margin-left:auto" if f is rail_field else None, chip_keys=chip_keys)
             for f in fields
         )
-        return f'<div class="field-row"{_style_attr(base_style)}>{inner}</div>'
+        return f'<div class="{row_class}"{_style_attr(base_style)}>{inner}</div>'
     inner = _render_field_sequence(fields, chip_keys)
-    return f'<div class="field-row"{_style_attr(base_style + ";justify-content:" + justify)}>{inner}</div>'
+    return f'<div class="{row_class}"{_style_attr(base_style + ";justify-content:" + justify)}>{inner}</div>'
 
 
 _ENTRY_OPEN_RE = re.compile(r'(<div class="entry[^"]*")(?:( style="([^"]*)"))?()')

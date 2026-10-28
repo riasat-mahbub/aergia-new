@@ -125,12 +125,7 @@ def _render_document(model: RenderModel, support: RendererSupport) -> str:
     .f-title, .f-company, .f-institution, .f-category, .f-venue, .f-issuer {{ font-size: var(--body-size, 0.875rem); }}
     .f-summary, .f-description {{ font-size: var(--body-size, 0.75rem); }}
     .f-contact, .f-contact-sep, .f-email, .f-phone, .f-location, .f-site, .f-date, .f-gpa, .f-link, .f-tech, .f-tag, .f-proficiency, .f-meta {{ font-size: var(--body-size, 0.75rem); }}
-    /* Social row: smaller than the other contact fields so the icon+label
-       pairs read as fine metadata next to the email/phone row. */
-    .f-social {{ display:inline-block; font-size: var(--body-size, 0.83rem); }}
-    .f-social:last-child {{ margin-right: 0; }}
-    .f-social-link {{ margin-right: 1.5rem; }}
-    .f-social-link:last-child {{ margin-right: 0; }}
+    .f-social {{ display:inline; font-size: var(--body-size, 0.75rem); }}
     .f-position, .f-degree, .f-project, .f-certification, .f-paper, .f-category {{ font-weight: 600; }}
     /* Rich text blocks: paragraphs and lists inside description/summary fields */
     .f-description p, .f-summary p {{ margin: 0.25rem 0; }}
@@ -146,20 +141,15 @@ def _render_document(model: RenderModel, support: RendererSupport) -> str:
     /* A single zone can fill the printable width including its saved
        padding. Keep multi-zone flex sizing intact for the Modern sidebar. */
     .zone:only-child {{ box-sizing:border-box; }}
-    /* Pipe separator between adjacent contact fields in the profile row
-       (email | phone | location | site). Skipped on the first child so
-       the row doesn't start with a dangling pipe. The profile builder
-       emits f-email/f-phone/f-location/f-site (not f-contact), so the
-       selectors target those classes specifically. */
-    .f-email + .f-phone::before,
-    .f-phone + .f-location::before,
-    .f-location + .f-site::before,
-    .f-email + .f-location::before,
-    .f-email + .f-site::before,
-    .f-phone + .f-site::before {{
+    /* One compact metadata line, including website and social logo links.
+       Explicit section and field sizes still override these defaults. */
+    .contact-row {{ font-size:var(--section-body-size, 0.75rem); }}
+    .contact-row > *, .contact-row .f-social {{ font-size:inherit; min-width:0; max-width:100%; }}
+    .contact-row .f-icon {{ width:0.9em; height:0.9em; }}
+    .contact-row > * + *::before {{
       content: " | ";
       color: var(--text, #6b7280);
-      margin: 0 0.35em;
+      margin: 0 0.2em;
     }}
     .field-row {{ display:flex; flex-wrap:wrap; align-items:baseline; column-gap:0; row-gap:0; }}
     .f-chip-group {{ display:flex; flex-wrap:wrap; align-items:center; gap:0.25rem; width:100%; min-width:0; max-width:100%; }}

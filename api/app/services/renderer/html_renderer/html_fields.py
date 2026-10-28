@@ -104,13 +104,13 @@ def _render_field_block(
         inner = _render_rich_text_blocks(block.blocks)
         return f'<div class="f-{attr(block.key)}"{_style_attr(extra_style)}>{inner}</div>'
 
-    # Decide whether to hoist the URL onto the wrapper element. Social/chip
+    # Decide whether to hoist the URL onto the wrapper element. Site/social/chip
     # fields need the icon+label (or pill) wrapped in one anchor; other fields
     # keep the link emitted by the text-run pass. The builder emits ``key="social"``
     # for each social link; older payloads may use indexed ``social_links.i``
     # keys — match by prefix to support both.
     wants_external_anchor = (
-        block.key == "social"
+        block.key in {"site", "social"}
         or block.key.startswith("social_links.")
         or (chip_keys is not None and block.key in chip_keys)
     )
@@ -135,15 +135,14 @@ def _render_field_block(
         if href:
             return f'<a href="{attr(href)}" class="f-chip-link" style="overflow-wrap:anywhere;max-width:100%">{body}</a>'
         return body
-    # Social links render inline so adjacent icons sit side-by-side with
-    # a consistent horizontal gap (see ``.f-social`` in the document CSS).
-    # The block-level div layout would otherwise stack them vertically in
-    # the contact row, which reads as the same column as the email/phone.
+    # Keep each social icon and label inside one clickable contact item.
     if block.key == "social" or block.key.startswith("social_links."):
         body = f'<span class="f-social"{_style_attr(extra_style)}>{inner}</span>'
         if href:
             return f'<a class="f-social-link" href="{attr(href)}" style="overflow-wrap:anywhere;max-width:100%">{body}</a>'
         return body
+    if href:
+        inner = f'<a href="{attr(href)}" style="overflow-wrap:anywhere;max-width:100%">{inner}</a>'
     return f'<div class="f-{attr(block.key)}"{_style_attr(extra_style)}>{inner}</div>'
 
 

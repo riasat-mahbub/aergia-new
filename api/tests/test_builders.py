@@ -570,8 +570,8 @@ def test_profile_section_respects_explicit_text_align():
 
 def test_profile_fields_carry_row_groups_and_icons():
     """Profile fields are grouped into semantic rows: main (name), subtitle
-    (title), contact (email/phone/location/site), social (links + icons),
-    summary. This restores the sophisticated profile layout."""
+    (title), contact (email/phone/location/site and links with icons),
+    summary."""
     cv = _cv([{
         "id": "s1",
         "type": "profile",
@@ -603,10 +603,10 @@ def test_profile_fields_carry_row_groups_and_icons():
     assert fields["summary"].group == "summary"
 
     field_list = doc.sections[0].entries[0].fields
-    social_fields = [f for f in field_list if f.group == "social"]
+    social_fields = [f for f in field_list if f.key == "social"]
     assert len(social_fields) == 2
     assert {f.icon for f in social_fields} == {"x", "github"}
-    assert all(f.key == "social" for f in social_fields)
+    assert all(f.group == "contact" for f in social_fields)
 
 
 def test_profile_social_links_without_icon_name_get_no_icon():
@@ -622,7 +622,7 @@ def test_profile_social_links_without_icon_name_get_no_icon():
     }])
     doc = build_document(cv)
     fields = {f.key: f for f in doc.sections[0].entries[0].fields}
-    social_fields = [f for f in fields.values() if f.group == "social"]
+    social_fields = [f for f in fields.values() if f.key == "social"]
     assert len(social_fields) == 1
     assert social_fields[0].icon is None
     assert social_fields[0].key == "social"

@@ -81,7 +81,7 @@ def test_reference_model_html_output_is_stable():
 
     html = HTMLDocumentRenderer().render(_model()).encode("utf-8")
     assert hashlib.sha256(html).hexdigest() == (
-        "da0676f1c2c366da80abd6cce7789f8f66dbd852c482de7c4f962467359818d5"
+        "a653d93da023ed4eba49fb3f82679ff8975623271bec5b91f36085d34cbd0153"
     )
 
 def test_renders_preview_page_flow_metadata_without_changing_document_structure():
@@ -483,7 +483,7 @@ def test_same_group_fields_render_in_one_row():
     model = resolve(doc, HTMLDocumentRenderer(), manifest, Customizations())
     html = HTMLDocumentRenderer().render(model)
 
-    rows = re.findall(r'<div class="field-row"[^>]*>((?:<div class="f-[^"]*"[^>]*>.*?</div>)+)</div>', html, re.S)
+    rows = re.findall(r'<div class="field-row(?: contact-row)?"[^>]*>((?:<div class="f-[^"]*"[^>]*>.*?</div>)+)</div>', html, re.S)
     assert len(rows) == 3  # main, contact, summary
     contact_row = next(r for r in rows if "a@b.com" in r)
     assert "123" in contact_row

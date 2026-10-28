@@ -67,6 +67,7 @@ def build_profile(instance: SectionInstance, resolved_layout: LayoutHints | None
             FieldBlock(
                 key="site",
                 group="contact",
+                icon="globe",
                 runs=[TextRun(
                     text=_visible_url_label(site_label, site_url, show_urls),
                     style=TextStyle(link=site_url),
@@ -90,7 +91,7 @@ def build_profile(instance: SectionInstance, resolved_layout: LayoutHints | None
         fields.append(
             FieldBlock(
                 key="social",  # shared key — all socials get class f-social
-                group="social",
+                group="contact",
                 icon=icon,
                 runs=[TextRun(text=label, style=TextStyle(link=url))],
             )
