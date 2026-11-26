@@ -32,6 +32,13 @@ class Settings(BaseSettings):
     turnstile_bypass: bool = False
     trusted_proxy_ips: str = ""
     forwarded_allow_ips: str = ""
+    tailoring_credential_key: str = ""
+    tailoring_google_client_id: str = ""
+    tailoring_google_client_secret: str = ""
+    tailoring_openai_enabled: bool = False
+    tailoring_openai_client_id: str = ""
+    tailoring_openai_client_secret: str = ""
+    tailoring_openai_model: str = ""
 
     model_config = {"env_file": ".env", "extra": "allow"}
 
