@@ -3,7 +3,7 @@ SCHEMA: 4
 FORMAT: project-tracker
 ID: BUG-01M8AY219XH4B6JV8PXMM8Q9SB
 TYPE: bug
-STATUS: PROPOSED
+STATUS: DONE
 PRIORITY: High
 SEVERITY: High
 EFFORT: S
@@ -21,11 +21,11 @@ AFFECTS:
   - web/src/shared/ui/Modal.tsx
   - web/src/features/cvs/components/CreateCvModal.tsx
 LINKS: null
-VERIFIED_BY: null
+VERIFIED_BY: codex
 CREATED_BY: null
 UPDATED_BY: null
 CREATED_AT: '2026-11-26T03:23:18.205452+00:00'
-UPDATED_AT: '2026-11-26T03:23:18.205452+00:00'
+UPDATED_AT: '2026-11-26T05:59:17.557+00:00'
 ---
 
 # Create CV dialog clips its actions on short viewports
@@ -46,3 +46,5 @@ The shared dialog caps its height relative to the viewport and clips overflow. C
 ## Verification
 
 Reproduced in Chromium on commit `78f71d2`. The modal bottom was at y=344 and the Create button began at y=440. The outer panel computed to `overflow-y: hidden`.
+
+Fixed in [the short-viewport layout task](../tasks/TASK-01M8B5WGVA1HRQPP5AY9WAHQ35-keep-create-cv-actions-visible-on-short-viewports.md). Chromium confirmed the heading, Cancel, and Create stayed visible while scrolling at 740 × 360. A keyboard-only submission opened the builder with the last system template. Resizing through portrait and desktop preserved the form state.

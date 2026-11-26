@@ -3,7 +3,7 @@ SCHEMA: 4
 FORMAT: project-tracker
 ID: TASK-01M8AY219XV55JCZZ8B84QANVK
 TYPE: task
-STATUS: IN_PROGRESS
+STATUS: DONE
 PRIORITY: High
 SEVERITY: null
 EFFORT: M
@@ -36,11 +36,11 @@ AFFECTS:
   - web/src/features/tailoring/components/TailoringProviderSettings.tsx
   - web/src/features/applications/components/detail/ApplicationCvPanel.tsx
 LINKS: null
-VERIFIED_BY: null
+VERIFIED_BY: codex
 CREATED_BY: null
 UPDATED_BY: null
 CREATED_AT: '2026-11-26T03:23:18.205452+00:00'
-UPDATED_AT: '2026-11-26T03:51:32.984783+00:00'
+UPDATED_AT: '2026-11-26T05:59:17.557+00:00'
 ---
 
 # Fix blocked and misleading CV workspace workflows
@@ -62,7 +62,9 @@ The [agent execution plan](../../docs/plans/2026-11-25-cv-workspace-ux-execution
 
 - [1. Gate optional tailoring provider setup by availability](TASK-01M8AYCJG9Z3K4CF44B1GF4G5S-gate-optional-tailoring-provider-setup-by-availability.md)
 - [2. Lock PDF import and show progress in the dialog](TASK-01M8AYCJG91RNFW55JDNWVR6EC-lock-pdf-import-and-show-progress-in-the-dialog.md)
+- [3. Keep Create CV actions visible on short viewports](TASK-01M8B5WGVA1HRQPP5AY9WAHQ35-keep-create-cv-actions-visible-on-short-viewports.md)
 - [4. Handle expected empty tailoring reads without toasts](TASK-01M8AYCJG9TJQVK0JN6RKAYA44-handle-expected-empty-tailoring-reads-without-toasts.md)
+- [5. Make all workspace destinations reachable on mobile](TASK-01M8B5WGVAJW4BPR9WBMCV2G5H-make-all-workspace-destinations-reachable-on-mobile.md)
 - [6. Name CV and application dialogs](TASK-01M8AYCJG9GY9T4C5D2J74CW32-name-cv-and-application-dialogs.md)
 
 ## Decision
@@ -79,9 +81,11 @@ Keep current routes, API payloads, and the coding-agent tailoring flow. Contain 
 
 ## Verification
 
-Chromium verified findings 1, 2, 4, and 6 against the built workspace and disposable test data. The linked tasks record the browser results. The short-viewport dialog layout and mobile workspace navigation remain open in findings 3 and 5.
+Chromium verified all six findings against the built workspace and disposable test data. The linked tasks record the browser results, including landscape CV creation and access to all five workspace destinations on mobile.
 
 Frontend lint, typecheck, architecture checks and fixtures, and the production build passed. The release smoke gate and session, builder, review, and provider browser harnesses passed in WSL. The smoke gate used Ruff 0.12.12 in the isolated test environment after Ruff 0.17.6 reported 637 findings in unchanged backend files.
+
+On Windows, the production build, frontend lint with one existing warning, architecture checks and fixtures, and the release smoke gate passed after the dialog and navbar fixes. Chromium verified the new interactions against the production build.
 
 - Delay the import response in a mounted Chromium check. Repeated click and Enter should produce one upload and one create attempt. Cover both successful navigation and failure followed by a retry.
 - Open an application with no tailoring history and an ordinary saved CV. Neither should show an error toast. Exercise an unavailable pending draft, a missing CV, and an unexpected server error to confirm each still reports its own state.

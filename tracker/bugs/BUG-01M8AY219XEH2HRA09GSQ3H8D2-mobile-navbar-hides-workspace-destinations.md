@@ -3,7 +3,7 @@ SCHEMA: 4
 FORMAT: project-tracker
 ID: BUG-01M8AY219XEH2HRA09GSQ3H8D2
 TYPE: bug
-STATUS: PROPOSED
+STATUS: DONE
 PRIORITY: Medium
 SEVERITY: Medium
 EFFORT: S
@@ -21,11 +21,11 @@ AFFECTS:
   files:
   - web/src/app-shell/components/SiteNavbar.tsx
 LINKS: null
-VERIFIED_BY: null
+VERIFIED_BY: codex
 CREATED_BY: null
 UPDATED_BY: null
 CREATED_AT: '2026-11-26T03:23:18.205452+00:00'
-UPDATED_AT: '2026-11-26T03:23:18.205452+00:00'
+UPDATED_AT: '2026-11-26T05:59:17.557+00:00'
 ---
 
 # Mobile navbar hides workspace destinations
@@ -47,3 +47,5 @@ The authenticated header lays out the brand, five destinations, and logout in on
 ## Verification
 
 Reproduced across Dashboard, My CVs, Library, Applications, and Settings in Chromium on commit `78f71d2`. At 390 px, geometry confirmed that both Applications and Settings had zero visible width inside the navigation.
+
+Fixed in [the mobile navigation task](../tasks/TASK-01M8B5WGVAJW4BPR9WBMCV2G5H-make-all-workspace-destinations-reachable-on-mobile.md). Chromium reached all five destinations by touch at 320 and 390 px. Keyboard navigation, Escape focus restoration, route and history changes, and the 767/768 px breakpoint passed.
