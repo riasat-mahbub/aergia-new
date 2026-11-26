@@ -22,7 +22,7 @@ import {
 } from "../domain/list/applicationPresentation";
 import { STATUS_CLASSES, STATUS_LABELS } from "../domain/applicationStatus";
 import { sectionTypes, selectedSourceCount } from "../domain/detail/applicationDetail";
-import { useTailoringSession } from "@/features/tailoring";
+import { useTailoringProviders, useTailoringSession } from "@/features/tailoring";
 import { useLinkedCv } from "../hooks/useLinkedCv";
 import ConfirmModal from "@/shared/ui/ConfirmModal";
 
@@ -47,6 +47,11 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
+  const {
+    providers: tailoringProviders,
+    isLoading: tailoringProvidersLoading,
+    error: tailoringProvidersError,
+  } = useTailoringProviders();
   const {
     tailoringSession,
     tailoringStarting,
@@ -188,8 +193,12 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
         promptCopied={promptCopied}
         tailoringAction={tailoringAction}
         tailoringActionError={tailoringActionError}
+        tailoringProviders={tailoringProviders}
+        tailoringProvidersLoading={tailoringProvidersLoading}
+        tailoringProvidersError={tailoringProvidersError}
         onExport={handleExport}
         onStartTailoring={startTailoring}
+        onStartProviderTailoring={(provider) => { void startTailoring(provider); }}
         onCopyPrompt={copyPrompt}
         onCancelTailoring={cancelTailoring}
         onReevaluateDraft={reevaluateDraft}

@@ -4,6 +4,7 @@ import { KeyRound, ShieldCheck } from "lucide-react";
 import SettingsProfileCard from "../components/SettingsProfileCard";
 import LLMKeyDialog from "../components/LLMKeyDialog";
 import { useProfileStore } from "@/features/profile";
+import { TailoringProviderSettings } from "@/features/tailoring";
 
 export default function SettingsPage() {
   const profile = useProfileStore((s) => s.profile);
@@ -25,7 +26,7 @@ export default function SettingsPage() {
       className="mx-auto max-w-5xl px-4 py-8"
     >
       <h1 className="mb-2 text-2xl font-bold text-app-ink">Settings</h1>
-      <p className="mb-6 text-sm text-app-ink-2">Manage your profile and the tools used to import CVs.</p>
+      <p className="mb-6 text-sm text-app-ink-2">Manage your profile, CV import settings, and optional tailoring providers.</p>
 
       <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
         <SettingsProfileCard
@@ -59,6 +60,10 @@ export default function SettingsPage() {
             Configure API keys
           </button>
         </section>
+
+        <div className="lg:col-span-2">
+          <TailoringProviderSettings />
+        </div>
       </div>
 
       <LLMKeyDialog open={showKeys} onClose={() => setShowKeys(false)} />

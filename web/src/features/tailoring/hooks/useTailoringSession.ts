@@ -9,7 +9,9 @@ import {
   reevaluateTailoringDraft,
   rejectTailoringDraft,
 } from "../api/tailoring";
+import { createProviderTailoringRun } from "../api/providers";
 import type {
+  TailoringProvider,
   TailoringSession,
   TailoringSessionResult,
   TailoringSessionStatusResponse,
@@ -77,6 +79,7 @@ function hydratedSession(status: TailoringSessionStatusResponse): TailoringSessi
     prompt: "This tailoring session is already in progress or awaiting your review.",
     status: "created",
     expires_at: status.expires_at,
+    provider: status.provider ?? null,
   };
 }
 
@@ -331,7 +334,7 @@ export function useTailoringSession({
     updateForSession,
   ]);
 
-  const startTailoring = useCallback(async () => {
+  const startTailoring = useCallback(async (provider?: TailoringProvider) => {
     const identity = routeIdentity;
     if (!isCurrentRoute(identity)) return;
     const lockKey = `start:${identity.applicationId}`;
@@ -355,19 +358,25 @@ export function useTailoringSession({
     }));
 
     try {
-      const session = await createTailoringSession(identity.applicationId);
-      if (
-        !isCurrentRoute(identity)
-        || session.application_id !== identity.applicationId
-      ) return;
+      let session: TailoringSession;
+      let providerStatus: TailoringSessionStatusResponse | null = null;
+      if (provider) {
+        providerStatus = await createProviderTailoringRun(identity.applicationId, provider);
+        if (!isCurrentRoute(identity) || providerStatus.application_id !== identity.applicationId) return;
+        providerStatus = { ...providerStatus, provider };
+        session = hydratedSession(providerStatus);
+      } else {
+        session = await createTailoringSession(identity.applicationId);
+        if (!isCurrentRoute(identity) || session.application_id !== identity.applicationId) return;
+      }
       updateForRoute(identity, (current) => ({
         ...current,
         tailoringSession: session,
-        tailoringStatus: null,
-        tailoringResult: null,
+        tailoringStatus: providerStatus,
+        tailoringResult: providerStatus?.result ?? null,
         promptCopied: false,
       }));
-      if (isCurrentRoute(identity)) addToast("Tailoring session created", "info");
+      if (isCurrentRoute(identity)) addToast(provider ? `Tailoring started with ${provider === "chatgpt" ? "ChatGPT" : "Gemini"}` : "Tailoring session created", "info");
     } catch (error) {
       if (!canApplyStartResult()) return;
       const message = tailoringErrorDetail(
