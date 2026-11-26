@@ -15,12 +15,14 @@ from __future__ import annotations
 
 from app.services.renderer.base import DocumentRenderer
 from app.services.renderer.builders import build_document, build_document_from_sections
+from app.services.renderer.docx import DOCXDocumentRenderer
 from app.services.renderer.html import HTMLDocumentRenderer
 from app.services.renderer.pipeline import (
     RenderSource,
     build_source_document,
     prepare_render_source,
     render_html_pdf,
+    render_source_docx,
     render_source_html,
     render_source_pdf,
     resolve_source,
@@ -29,16 +31,18 @@ from app.services.renderer.resolve import resolve
 from app.services.renderer.support import RendererSupport, SupportLevel
 
 __all__ = [
+    "DOCXDocumentRenderer",
     "DocumentRenderer",
     "HTMLDocumentRenderer",
+    "RenderSource",
     "RendererSupport",
     "SupportLevel",
     "build_document",
     "build_document_from_sections",
-    "RenderSource",
     "build_source_document",
     "prepare_render_source",
     "render_html_pdf",
+    "render_source_docx",
     "render_source_html",
     "render_source_pdf",
     "resolve",

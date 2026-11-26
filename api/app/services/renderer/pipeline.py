@@ -24,9 +24,11 @@ from app.document_schema.models import (
 from app.services.renderer._pdf_runtime import html_to_pdf
 from app.services.renderer.base import DocumentRenderer
 from app.services.renderer.builders import build_document_from_sections
+from app.services.renderer.docx import DOCXDocumentRenderer
 from app.services.renderer.html import HTMLDocumentRenderer
 from app.services.renderer.resolution import resolve_validated
 from app.services.renderer.resolution.context import ResolutionContext
+from app.services.renderer.support import RendererSupport
 
 
 @dataclass(frozen=True)
@@ -105,9 +107,15 @@ def resolve_source(
     """Resolve a prepared source for the selected renderer."""
 
     target = renderer or HTMLDocumentRenderer()
+    return _resolve_source_with_support(source, target.support)
+
+
+def _resolve_source_with_support(source: RenderSource, support: RendererSupport) -> RenderModel:
+    """Build and resolve the shared model using target-specific capabilities."""
+
     document = build_source_document(source)
     context = ResolutionContext(
-        support=target.support,
+        support=support,
         manifest=source.manifest,
         customizations=source.customizations,
     )
@@ -133,6 +141,14 @@ async def render_source_pdf(
     return await render_html_pdf(render_source_html(source, renderer))
 
 
+def render_source_docx(source: RenderSource) -> bytes:
+    """Resolve a prepared source with Word capabilities and emit DOCX bytes."""
+
+    target = DOCXDocumentRenderer()
+    model = _resolve_source_with_support(source, target.support)
+    return target.render(model)
+
+
 async def render_html_pdf(html: str) -> bytes:
     """Send already-rendered HTML through the shared PDF runtime."""
 
@@ -143,8 +159,9 @@ __all__ = [
     "RenderSource",
     "build_source_document",
     "prepare_render_source",
+    "render_html_pdf",
+    "render_source_docx",
     "render_source_html",
     "render_source_pdf",
-    "render_html_pdf",
     "resolve_source",
 ]
