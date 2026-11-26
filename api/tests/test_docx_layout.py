@@ -266,6 +266,63 @@ def test_docx_stacks_competing_long_metadata_in_source_order_and_right_aligns_fa
     )
 
 
+def test_docx_stacks_rich_metadata_without_losing_text_or_links():
+    target = "https://credentials.example.test/verified"
+    section = Section(
+        id="certifications",
+        type="certifications",
+        title="Certifications",
+        subsection=SubsectionStyle(text_align="center"),
+        policy=SectionPolicy(show_title=False),
+        entries=[
+            Entry(
+                id="credential",
+                fields=[
+                    FieldBlock(key="certification", group="header", runs=[TextRun(text="Cloud Architect")]),
+                    FieldBlock(
+                        key="issuer",
+                        group="header",
+                        runs=[TextRun(text="Professional certificate")],
+                        blocks=[
+                            RichTextBlock(type="paragraph", items=[{"text": "Professional certificate"}]),
+                        ],
+                        rich_text=True,
+                    ),
+                    FieldBlock(
+                        key="link",
+                        group="header",
+                        align="right",
+                        runs=[TextRun(text="Verify", style=TextStyle(link=target))],
+                        blocks=[
+                            RichTextBlock(
+                                type="paragraph",
+                                items=[{"text": "Verify", "style": {"link": target}}],
+                            ),
+                        ],
+                        rich_text=True,
+                    ),
+                ],
+            ),
+        ],
+    )
+
+    document = _open_docx(section)
+    metadata = _paragraph(document, "Verify")
+
+    assert [paragraph.text for paragraph in document.paragraphs] == [
+        "Cloud Architect",
+        "Professional certificate",
+        "Verify",
+    ]
+    assert metadata.alignment == WD_ALIGN_PARAGRAPH.RIGHT
+    assert not list(metadata.paragraph_format.tab_stops)
+    assert len(metadata._p.xpath(".//w:hyperlink")) == 1
+    assert any(
+        relationship.reltype == RT.HYPERLINK and relationship.target_ref == target
+        for relationship in document.part.rels.values()
+    )
+
+
 def test_docx_keeps_entry_metadata_with_only_the_first_body_paragraph():
     section = Section(
         id="experience",

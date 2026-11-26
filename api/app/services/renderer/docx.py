@@ -614,7 +614,7 @@ class _DocumentWriter:
                 continue
 
             end = index + 1
-            while end < len(fields) and fields[end].align != "right":
+            while end < len(fields) and fields[end].align != "right" and not fields[end].blocks:
                 end += 1
             paragraph = self._new_paragraph()
             self._append_grouped_fields(paragraph, fields[index:end])
