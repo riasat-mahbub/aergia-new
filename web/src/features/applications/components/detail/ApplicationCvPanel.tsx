@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Check, Copy, Download, ExternalLink, Pencil, XCircle } from "lucide-react";
 import type { Application, ScanResult } from "@/features/applications/types";
-import type { CVDetail } from "@/features/cvs";
+import { CVExportControl, type CVDetail } from "@/features/cvs";
 import type {
   TailoringDraftReview,
   TailoringFitReview,
@@ -32,7 +32,6 @@ interface ApplicationCvPanelProps {
   tailoringActionError: string | null;
   providerAvailability: TailoringProviderAvailability;
   onRetryProviderAvailability: () => void;
-  onExport: () => void;
   onStartTailoring: () => void;
   onStartProviderTailoring: (provider: TailoringProvider) => void;
   onCopyPrompt: () => void;
@@ -266,7 +265,6 @@ export default function ApplicationCvPanel({
   tailoringActionError,
   providerAvailability,
   onRetryProviderAvailability,
-  onExport,
   onStartTailoring,
   onStartProviderTailoring,
   onCopyPrompt,
@@ -377,7 +375,11 @@ export default function ApplicationCvPanel({
           {sourceCount !== null && <p className="mt-2 text-xs text-app-ink-3">Selected Library rows: {sourceCount}</p>}
           <div className="mt-4 flex flex-wrap gap-2">
             <Link to="/builder/$id" params={{ id: application.cv_id }} search={{ application: application.id }} className="inline-flex items-center gap-1 rounded-md bg-app-primary px-3 py-2 text-sm font-medium text-white hover:bg-app-primary-hover">Open/Edit CV <Pencil className="h-3.5 w-3.5" /></Link>
-            <button type="button" onClick={onExport} className="inline-flex items-center gap-1 rounded-md border border-app-rule-strong px-3 py-2 text-sm font-medium text-app-ink-2 hover:bg-app-surface-muted"><Download className="h-3.5 w-3.5" /> Export PDF</button>
+            <CVExportControl
+              cvId={application.cv_id}
+              pdfFilename={`${application.company}-${application.role}.pdf`}
+              filenameBase={linkedCV?.title || `${application.company}-${application.role}`}
+            />
           </div>
         </>
       ) : (

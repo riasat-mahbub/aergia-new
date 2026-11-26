@@ -237,11 +237,17 @@ export default function BuilderPage({ cvId, applicationId }: BuilderPageProps) {
 
   const handleExplicitSave = useCallback(async () => {
     const activeResource = pageActionResourceRef.current;
-    await handleSave();
-    if (pageActionResourceRef.current !== activeResource) return;
+    try {
+      await handleSave();
+    } catch (error) {
+      if (pageActionResourceRef.current !== activeResource) return false;
+      throw error;
+    }
+    if (pageActionResourceRef.current !== activeResource) return false;
     setDraftActionState((current) => current.resourceKey !== resourceKey || !current.error
       ? current
       : { ...current, error: null });
+    return true;
   }, [handleSave, resourceKey]);
 
   const handleToggle = useCallback(

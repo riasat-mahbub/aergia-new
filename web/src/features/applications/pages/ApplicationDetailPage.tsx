@@ -8,8 +8,7 @@ import ApplicationStatusHistory from "../components/detail/ApplicationStatusHist
 import ApplicationCvPanel from "../components/detail/ApplicationCvPanel";
 import ScannerJobFitBadge from "../components/ScannerJobFitBadge";
 import LoadingSkeleton from "@/shared/ui/LoadingSkeleton";
-import { exportPDF, useCVListStore } from "@/features/cvs";
-import { downloadBlob } from "@/shared/browser/downloadBlob";
+import { useCVListStore } from "@/features/cvs";
 import { APPLICATION_STATUSES } from "@/features/applications/types";
 import type {
   ApplicationStatus,
@@ -112,16 +111,6 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
     }
   };
 
-  const handleExport = async () => {
-    if (!application.cv_id) return;
-    try {
-      const blob = await exportPDF(application.cv_id);
-      downloadBlob(blob, `${application.company}-${application.role}.pdf`);
-    } catch {
-      addToast("Unable to export this CV", "error");
-    }
-  };
-
   const handleDelete = async () => {
     await remove(application.id);
     addToast("Application deleted", "info");
@@ -194,7 +183,6 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
         tailoringActionError={tailoringActionError}
         providerAvailability={tailoringProviderAvailability}
         onRetryProviderAvailability={() => { void refreshTailoringProviders(); }}
-        onExport={handleExport}
         onStartTailoring={() => { void startTailoring(); }}
         onStartProviderTailoring={(provider) => { void startTailoring(provider); }}
         onCopyPrompt={copyPrompt}

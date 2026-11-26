@@ -33,6 +33,15 @@ export async function copyCV(id: string): Promise<CVDetail> {
 export async function exportPDF(id: string): Promise<Blob> {
   const { data } = await client.post(`/cvs/${id}/export/pdf`, null, {
     responseType: "blob",
+    errorToast: "local",
+  });
+  return data;
+}
+
+export async function exportDOCX(id: string): Promise<Blob> {
+  const { data } = await client.post(`/cvs/${id}/export/docx`, null, {
+    responseType: "blob",
+    errorToast: "local",
   });
   return data;
 }
