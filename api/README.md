@@ -28,6 +28,22 @@ the Vite web server on `:5173`. FastAPI's development documentation is
 available through the same-origin gateway at `/api/docs`; the JSON schema is
 at `/api/openapi.json`.
 
+Use the Python launcher from the repository root on Windows, macOS, or Linux
+with Python 3.12 or later and Node.js with npm. Use `python3` if that is the
+Python command on your system.
+
+```text
+python dev.py           # Vite on port 5173 with API reload
+python dev.py --build   # Build and serve TanStack Start on port 3000
+python dev.py --prod    # Serve an existing build with API reload disabled
+python dev.py --smoke   # Lint, build, and check both services with a temporary database
+```
+
+Use `--build --prod` to build before starting in production mode. The smoke
+check uses the local virtual environment and installed frontend dependencies.
+Install Ruff 0.12.12 in `api/.venv`, or set `AERGIA_SMOKE_RUFF` to the path
+of a compatible Ruff executable.
+
 Useful backend commands:
 
 ```bash
