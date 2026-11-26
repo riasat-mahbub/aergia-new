@@ -81,25 +81,33 @@ function ProviderStatus({
 }
 
 export default function TailoringProviderSettings() {
-  const { providers, isLoading, error, refresh, connect, disconnect, checkGemini } = useTailoringProviders();
+  const { availability, refresh, connect, disconnect, checkGemini } = useTailoringProviders();
   const callbackRef = useRef<OAuthCallbackCapture | null>(null);
+  const callbackCaptureAttemptedRef = useRef(false);
   const callbackHandledRef = useRef(false);
   const [callbackNotice, setCallbackNotice] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   useClientLayoutEffect(() => {
+    if (callbackCaptureAttemptedRef.current) return;
+    callbackCaptureAttemptedRef.current = true;
     callbackRef.current = captureOAuthCallback();
     if (callbackRef.current.kind === "invalid") {
       setCallbackNotice("Provider sign-in could not be completed. Return to Settings and try again.");
-    } else if (callbackRef.current.kind === "payload") {
-      setCallbackNotice("Finishing provider sign-in…");
     }
   }, []);
 
   useEffect(() => {
     const capture = callbackRef.current;
     if (callbackHandledRef.current || capture?.kind !== "payload") return;
+    if (availability.state === "unsupported") {
+      callbackHandledRef.current = true;
+      callbackRef.current = null;
+      return;
+    }
+    if (availability.state !== "loaded") return;
+
     callbackHandledRef.current = true;
     callbackRef.current = null;
 
@@ -110,7 +118,7 @@ export default function TailoringProviderSettings() {
       setCallbackNotice(errorDetail(callbackError, "Provider sign-in could not be completed. Try connecting again."));
       void refresh();
     });
-  }, [refresh]);
+  }, [availability, refresh]);
 
   const performAction = async (key: string, action: () => Promise<unknown>, fallback: string) => {
     setBusyAction(key);
@@ -124,6 +132,8 @@ export default function TailoringProviderSettings() {
     }
   };
 
+  const providers = availability.state === "loaded" ? availability.providers : null;
+  const isLoading = availability.state === "loading";
   const provider = (name: TailoringProvider) => providers?.[name];
 
   return (
@@ -132,15 +142,17 @@ export default function TailoringProviderSettings() {
         <div className="rounded-md bg-app-primary-soft p-2 text-app-primary"><Link2 className="h-5 w-5" /></div>
         <div>
           <h2 id="tailoring-provider-settings-heading" className="text-lg font-semibold text-app-ink">Optional AI providers</h2>
-          <p className="mt-1 text-sm text-app-ink-2">Connect a provider to run tailoring there. Your profile and Library are used to prepare the tailored draft.</p>
+          {availability.state === "loaded" && <p className="mt-1 text-sm text-app-ink-2">Connect a provider to run tailoring there. Your profile and Library are used to prepare the tailored draft.</p>}
         </div>
       </div>
 
       {callbackNotice && <p className="mt-4 rounded-md bg-app-primary-soft px-3 py-2 text-xs leading-5 text-app-ink-2" role="status">{callbackNotice}</p>}
-      {error && <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-md bg-app-danger-soft px-3 py-2 text-xs text-app-danger" role="alert"><span>{error}</span><button type="button" onClick={() => void refresh()} className="font-medium underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary focus-visible:ring-offset-2">Retry</button></div>}
+      {availability.state === "loading" && <p className="mt-4 text-sm text-app-ink-2" role="status">Checking provider availability…</p>}
+      {availability.state === "unsupported" && <p className="mt-4 rounded-md bg-app-canvas px-3 py-2 text-sm text-app-ink-2" role="status">Optional provider connections are not available on this deployment. You can keep tailoring with your coding agent.</p>}
+      {availability.state === "failed" && <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-md bg-app-danger-soft px-3 py-2 text-xs text-app-danger" role="alert"><span>{availability.message}</span><button type="button" onClick={() => void refresh()} className="font-medium underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary focus-visible:ring-offset-2">Retry</button></div>}
       {actionError && <p className="mt-4 text-xs leading-5 text-app-danger" role="alert">{actionError}</p>}
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-2">
+      {availability.state === "loaded" && <div className="mt-5 grid gap-4 lg:grid-cols-2">
         <section className="min-w-0" aria-labelledby="chatgpt-provider-heading">
           <h3 id="chatgpt-provider-heading" className="text-sm font-semibold text-app-ink">ChatGPT</h3>
           <p className="mt-1 text-xs leading-5 text-app-ink-2">Sign in to connect your ChatGPT account for optional tailoring runs.</p>
@@ -179,23 +191,28 @@ export default function TailoringProviderSettings() {
             )}
           </div>
 
-          <div className="mt-4 border-t border-app-rule-soft pt-3" aria-labelledby="gemini-setup-heading">
-            <h4 id="gemini-setup-heading" className="text-xs font-semibold text-app-ink">Gemini setup in Canada</h4>
-            <ol className="mt-2 list-decimal space-y-1 pl-4 text-xs leading-5 text-app-ink-2">
-              <li><a href="/api/v1/tailoring/providers/skill.zip" download className="inline-flex items-center gap-1 font-medium text-app-primary hover:underline">Download the Aergia skill <Download className="h-3 w-3" /></a>, then import it in Gemini.</li>
-              <li>In Gemini Tasks, create a Gmail monitor for the exact subject prefix <code className="rounded bg-app-surface px-1">[Aergia Tailoring]</code>.</li>
-              <li>Select the Aergia skill for the task, then return here and check the setup.</li>
-            </ol>
-            <p className="mt-2 text-xs leading-5 text-app-ink-3">Gemini Tasks availability can vary by account and region. If Tasks are unavailable for your account in Canada, Gemini tailoring will remain disabled.</p>
-          </div>
+          {provider("gemini")?.status === "setup_required" && (
+            <div className="mt-4 border-t border-app-rule-soft pt-3" aria-labelledby="gemini-setup-heading">
+              <h4 id="gemini-setup-heading" className="text-xs font-semibold text-app-ink">Gemini setup in Canada</h4>
+              <ol className="mt-2 list-decimal space-y-1 pl-4 text-xs leading-5 text-app-ink-2">
+                <li><a href="/api/v1/tailoring/providers/skill.zip" download className="inline-flex items-center gap-1 font-medium text-app-primary hover:underline">Download the Aergia skill <Download className="h-3 w-3" /></a>, then import it in Gemini.</li>
+                <li>In Gemini Tasks, create a Gmail monitor for the exact subject prefix <code className="rounded bg-app-surface px-1">[Aergia Tailoring]</code>.</li>
+                <li>Select the Aergia skill for the task, then return here and check the setup.</li>
+              </ol>
+              <p className="mt-2 text-xs leading-5 text-app-ink-3">Gemini Tasks availability can vary by account and region. If Tasks are unavailable for your account in Canada, Gemini tailoring will remain disabled.</p>
+            </div>
+          )}
         </section>
       </div>
+      }
 
-      <div className="mt-4 flex gap-2 rounded-md bg-app-primary-soft px-3 py-3 text-xs text-app-ink-2">
-        <ShieldCheck className="h-4 w-4 shrink-0 text-app-primary" />
-        <p>Provider tailoring is optional. You can keep using the default coding-agent flow, and every provider-created draft still needs your review before it can change the linked CV.</p>
-      </div>
-      <p className="sr-only" role="status" aria-live="polite">{isLoading ? "Loading provider status" : "Provider status loaded"}</p>
+      {availability.state === "loaded" && (
+        <div className="mt-4 flex gap-2 rounded-md bg-app-primary-soft px-3 py-3 text-xs text-app-ink-2">
+          <ShieldCheck className="h-4 w-4 shrink-0 text-app-primary" />
+          <p>Provider tailoring is optional. You can keep using the default coding-agent flow, and every provider-created draft still needs your review before it can change the linked CV.</p>
+        </div>
+      )}
+      <p className="sr-only" role="status" aria-live="polite">{isLoading ? "Loading provider status" : availability.state === "loaded" ? "Provider status loaded" : availability.state === "unsupported" ? "Provider status unavailable on this deployment" : "Provider status could not be loaded"}</p>
     </section>
   );
 }

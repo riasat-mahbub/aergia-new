@@ -8,7 +8,7 @@ import type {
 } from "../types";
 
 export async function getTailoringProviders(): Promise<TailoringProvidersResponse> {
-  const { data } = await client.get("/tailoring/providers");
+  const { data } = await client.get("/tailoring/providers", { errorToast: "local" });
   return data;
 }
 

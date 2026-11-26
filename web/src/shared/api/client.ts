@@ -1,5 +1,13 @@
 import axios, { type AxiosRequestConfig } from "axios";
 
+export type ApiErrorToastOption = "local" | { ignoreStatuses: readonly number[] };
+
+declare module "axios" {
+  interface AxiosRequestConfig {
+    errorToast?: ApiErrorToastOption;
+  }
+}
+
 const client = axios.create({
   baseURL: "/api/v1",
   headers: { "Content-Type": "application/json" },
@@ -87,7 +95,9 @@ client.interceptors.response.use(
       }
     }
 
-    if (error.response?.status && error.response.status !== 401) {
+    const status = error.response?.status;
+    const errorToast = originalRequest?.errorToast;
+    if (status && status !== 401 && errorToast !== "local" && !errorToast?.ignoreStatuses.includes(status)) {
       const detail = error.response?.data?.detail;
       const message = typeof detail === "string" && detail.length < 300
         ? detail

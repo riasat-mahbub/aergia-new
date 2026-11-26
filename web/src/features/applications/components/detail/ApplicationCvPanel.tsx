@@ -10,7 +10,7 @@ import type {
   TailoringSessionResult,
   TailoringSessionStatusResponse,
   TailoringProvider,
-  TailoringProvidersResponse,
+  TailoringProviderAvailability,
 } from "@/features/tailoring";
 import { safeExternalUrl } from "@/shared/security/safeUrl";
 import { sessionStatusLabel } from "@/features/tailoring";
@@ -30,9 +30,8 @@ interface ApplicationCvPanelProps {
   promptCopied: boolean;
   tailoringAction: TailoringOwnerAction | null;
   tailoringActionError: string | null;
-  tailoringProviders: TailoringProvidersResponse | null;
-  tailoringProvidersLoading: boolean;
-  tailoringProvidersError: string | null;
+  providerAvailability: TailoringProviderAvailability;
+  onRetryProviderAvailability: () => void;
   onExport: () => void;
   onStartTailoring: () => void;
   onStartProviderTailoring: (provider: TailoringProvider) => void;
@@ -265,9 +264,8 @@ export default function ApplicationCvPanel({
   promptCopied,
   tailoringAction,
   tailoringActionError,
-  tailoringProviders,
-  tailoringProvidersLoading,
-  tailoringProvidersError,
+  providerAvailability,
+  onRetryProviderAvailability,
   onExport,
   onStartTailoring,
   onStartProviderTailoring,
@@ -350,22 +348,23 @@ export default function ApplicationCvPanel({
   );
   const announcement = actionAnnouncement(tailoringAction);
   const providerActionBlocked = tailoringStarting || tailoringAction !== null || tailoringBlocksNewSession;
-  const providerAvailability = (provider: TailoringProvider) => {
-    const account = tailoringProviders?.[provider];
-    if (providerActionBlocked) return { ready: false, reason: "Finish the current tailoring session before starting another.", needsSettings: false };
-    if (tailoringProvidersLoading) return { ready: false, reason: "Checking provider status…", needsSettings: false };
-    if (tailoringProvidersError) return { ready: false, reason: tailoringProvidersError, needsSettings: true };
-    if (!account) return { ready: false, reason: `Connect ${provider === "chatgpt" ? "ChatGPT" : "Gemini"} in Settings to enable this option.`, needsSettings: true };
-    if (account.status === "ready") return { ready: true, reason: "", needsSettings: false };
+  const providerRunAvailability = (provider: TailoringProvider) => {
+    if (providerAvailability.state !== "loaded") return null;
+    const account = providerAvailability.providers[provider];
     const name = provider === "chatgpt" ? "ChatGPT" : "Gemini";
+    if (account.status === "unavailable") {
+      return { visible: false, ready: false, reason: account.detail || `${name} is currently unavailable.`, needsSettings: false };
+    }
+    if (providerActionBlocked) {
+      return { visible: true, ready: false, reason: "Finish the current tailoring session before starting another.", needsSettings: false };
+    }
+    if (account.status === "ready") return { visible: true, ready: true, reason: "", needsSettings: false };
     const reason = account.status === "disconnected"
       ? `Connect ${name} in Settings to enable this option.`
       : account.status === "setup_required"
         ? `Finish ${name} setup in Settings to enable this option.`
-        : account.status === "reconnect"
-          ? `Reconnect ${name} in Settings to enable this option.`
-          : account.detail || `${name} is currently unavailable.`;
-    return { ready: false, reason, needsSettings: true };
+        : `Reconnect ${name} in Settings to enable this option.`;
+    return { visible: true, ready: false, reason, needsSettings: true };
   };
 
   return (
@@ -395,39 +394,53 @@ export default function ApplicationCvPanel({
           {tailoringStarting ? "Preparing tailoring…" : tailoringBlocksNewSession ? "Finish current tailoring first" : canRestart ? "Start new tailoring" : "Tailor with AI"}
         </button>
       </div>
-      <div className="mt-3 border-t border-app-rule-soft pt-3" role="group" aria-label="Optional provider tailoring">
-        <p className="text-xs font-medium text-app-ink-2">Optional provider runs</p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {(["chatgpt", "gemini"] as const).map((provider) => {
-            const name = provider === "chatgpt" ? "ChatGPT" : "Gemini";
-            const availability = providerAvailability(provider);
-            const reasonId = `tailoring-${provider}-availability`;
-            return (
-              <button
-                key={provider}
-                type="button"
-                onClick={() => onStartProviderTailoring(provider)}
-                disabled={!availability.ready}
-                aria-describedby={reasonId}
-                className="inline-flex items-center gap-1 rounded-md border border-app-primary-soft px-3 py-2 text-sm font-medium text-app-primary hover:bg-app-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Tailor with {name}
-              </button>
-            );
-          })}
+      {providerAvailability.state !== "unsupported" && (
+        <div className="mt-3 border-t border-app-rule-soft pt-3" role="group" aria-label="Optional provider tailoring">
+          <p className="text-xs font-medium text-app-ink-2">Optional provider runs</p>
+          {providerAvailability.state === "loading" && <p className="mt-2 text-xs leading-5 text-app-ink-3" role="status">Checking provider availability…</p>}
+          {providerAvailability.state === "failed" && (
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-app-danger" role="alert">
+              <span>{providerAvailability.message}</span>
+              <button type="button" onClick={onRetryProviderAvailability} className="font-medium underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary focus-visible:ring-offset-2">Retry</button>
+            </div>
+          )}
+          {providerAvailability.state === "loaded" && (
+            <>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {(["chatgpt", "gemini"] as const).map((provider) => {
+                  const name = provider === "chatgpt" ? "ChatGPT" : "Gemini";
+                  const providerStatus = providerRunAvailability(provider);
+                  const reasonId = `tailoring-${provider}-availability`;
+                  if (!providerStatus?.visible) return null;
+                  return (
+                    <button
+                      key={provider}
+                      type="button"
+                      onClick={() => onStartProviderTailoring(provider)}
+                      disabled={!providerStatus.ready}
+                      aria-describedby={reasonId}
+                      className="inline-flex items-center gap-1 rounded-md border border-app-primary-soft px-3 py-2 text-sm font-medium text-app-primary hover:bg-app-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Tailor with {name}
+                    </button>
+                  );
+                })}
+              </div>
+              {(["chatgpt", "gemini"] as const).map((provider) => {
+                const providerStatus = providerRunAvailability(provider);
+                const reasonId = `tailoring-${provider}-availability`;
+                if (providerStatus?.ready) return <p key={provider} id={reasonId} className="sr-only">{provider === "chatgpt" ? "ChatGPT" : "Gemini"} is ready.</p>;
+                return (
+                  <p key={provider} id={reasonId} className="mt-2 text-xs leading-5 text-app-ink-3" role="status">
+                    {provider === "chatgpt" ? "ChatGPT" : "Gemini"}: {providerStatus?.reason ?? "Provider status is unavailable."}{" "}
+                    {providerStatus?.needsSettings && <Link to="/settings" className="font-medium text-app-primary hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary focus-visible:ring-offset-2">Open provider settings</Link>}
+                  </p>
+                );
+              })}
+            </>
+          )}
         </div>
-        {(["chatgpt", "gemini"] as const).map((provider) => {
-          const availability = providerAvailability(provider);
-          const reasonId = `tailoring-${provider}-availability`;
-          if (availability.ready) return <p key={provider} id={reasonId} className="sr-only">{provider === "chatgpt" ? "ChatGPT" : "Gemini"} is ready.</p>;
-          return (
-            <p key={provider} id={reasonId} className="mt-2 text-xs leading-5 text-app-ink-3" role="status">
-              {provider === "chatgpt" ? "ChatGPT" : "Gemini"}: {availability.reason}{" "}
-              {availability.needsSettings && <Link to="/settings" className="font-medium text-app-primary hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary focus-visible:ring-offset-2">Open provider settings</Link>}
-            </p>
-          );
-        })}
-      </div>
+      )}
       {tailoringActionError && <p className="mt-3 text-xs leading-5 text-app-danger" role="alert" aria-live="assertive">{tailoringActionError}</p>}
       <p className="mt-3 text-xs text-app-ink-3">{isProviderSession ? `${providerName} receives your full profile and every Library entry to compose a complete CV and preview the rendered result.` : "Your coding agent receives your full profile and every Library entry, composes a complete CV, and previews the rendered result."} Your linked CV stays in place until you accept the draft.</p>
 

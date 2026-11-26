@@ -120,7 +120,7 @@ export function useBuilderApplicationContext({
         // A tailoring draft is intentionally unlinked. Its API context owns the
         // application identity and review data; the optional route search value
         // is not evidence that it belongs to that application.
-        const draftContext = await getTailoringDraftContext(cvId);
+        const draftContext = await getTailoringDraftContext(cvId, { quietNotFound: true });
         if (!isCurrent()) return;
         if (draftContext.draft_cv_id !== cvId) {
           setContextState({

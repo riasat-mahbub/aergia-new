@@ -75,8 +75,11 @@ const entry = `
       promptCopied: tailoring.promptCopied,
       tailoringAction: tailoring.tailoringAction,
       tailoringActionError: tailoring.tailoringActionError,
+      providerAvailability: { state: "unsupported" },
+      onRetryProviderAvailability: () => {},
       onExport: () => {},
-      onStartTailoring: tailoring.startTailoring,
+      onStartTailoring: () => tailoring.startTailoring(),
+      onStartProviderTailoring: (provider) => tailoring.startTailoring(provider),
       onCopyPrompt: tailoring.copyPrompt,
       onCancelTailoring: tailoring.cancelTailoring,
       onReevaluateDraft: tailoring.reevaluateDraft,
@@ -416,11 +419,14 @@ async def main():
             if CSS_PATH:
                 await page.add_style_tag(path=CSS_PATH)
             initial = status("application-A", "session-A", review=draft_review("current", revision=12, fit=fit_review("generic"), tag="current"), result_value=result(fit=fit_review("generic")))
+            initial["provider"] = "gemini"
             await page.evaluate("value => window.__tailoringReviewMock.setLatest('application-A', value)", initial)
             await page.add_script_tag(path=BUNDLE_PATH)
             await page.wait_for_function("window.tailoringReviewHarness.snapshot().sessionId === 'session-A'")
 
             await page.get_by_role("heading", name="Scanner feedback").wait_for()
+            assert await page.get_by_text("Tailor with Gemini", exact=True).is_visible()
+            assert await page.get_by_role("group", name="Optional provider tailoring").count() == 0
             assert await page.get_by_text("Current owner review").count() == 1
             assert await page.get_by_text("ATS warning current").count() == 1
             assert await page.get_by_text("Parser warning current").count() == 1

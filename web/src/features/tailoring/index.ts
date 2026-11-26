@@ -19,6 +19,7 @@ export type {
   TailoringProviderStatusResponse,
   TailoringProviderOAuthCallbackRequest,
   TailoringProvidersResponse,
+  TailoringProviderAvailability,
   TailoringAcceptRequest,
   TailoringDraftContextResponse,
   TailoringDraftReview,

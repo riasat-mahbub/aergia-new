@@ -65,6 +65,12 @@ export interface TailoringProvidersResponse {
   gemini: TailoringProviderAccount;
 }
 
+export type TailoringProviderAvailability =
+  | { state: "loading" }
+  | { state: "unsupported" }
+  | { state: "failed"; message: string }
+  | { state: "loaded"; providers: TailoringProvidersResponse };
+
 export interface TailoringProviderStatusResponse extends TailoringProviderAccount {
   provider?: TailoringProvider;
   provider_stage?: string | null;

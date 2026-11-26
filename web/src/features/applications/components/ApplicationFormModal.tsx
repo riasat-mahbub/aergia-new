@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import Modal from "@/shared/ui/Modal";
 import { useApplicationStore } from "@/features/applications/state/applicationStore";
 import type { Application } from "@/features/applications/types";
@@ -24,6 +24,7 @@ export default function ApplicationFormModal({
   initialApplication = null,
   onSaved,
 }: ApplicationFormModalProps) {
+  const titleId = useId();
   const create = useApplicationStore((state) => state.create);
   const update = useApplicationStore((state) => state.update);
   const [form, setForm] = useState<ApplicationFormState>(() => formFromApplication(initialApplication));
@@ -73,10 +74,10 @@ export default function ApplicationFormModal({
   };
 
   return (
-    <Modal open={open} onClose={busy ? () => undefined : onClose} size="wide">
+    <Modal open={open} onClose={busy ? () => undefined : onClose} size="wide" titleId={titleId}>
       <form onSubmit={handleSubmit} className="max-h-[85vh] w-full min-w-0 overflow-x-hidden overflow-y-auto">
         <header className="mb-5">
-          <h2 className="text-xl font-semibold text-app-ink">
+          <h2 id={titleId} className="text-xl font-semibold text-app-ink">
             {editing ? "Edit application" : "Track an application"}
           </h2>
           <p className="mt-1 text-sm text-app-ink-2">

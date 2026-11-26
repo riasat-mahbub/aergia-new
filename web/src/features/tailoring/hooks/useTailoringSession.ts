@@ -217,7 +217,7 @@ export function useTailoringSession({
     const requestGeneration = ++latestRequestRef.current;
     let cancelled = false;
 
-    void getLatestTailoringSession(identity.applicationId).then((status) => {
+    void getLatestTailoringSession(identity.applicationId, { quietNotFound: true }).then((status) => {
       if (
         cancelled
         || !isCurrentRoute(identity)

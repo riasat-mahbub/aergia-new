@@ -48,9 +48,8 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
   const {
-    providers: tailoringProviders,
-    isLoading: tailoringProvidersLoading,
-    error: tailoringProvidersError,
+    availability: tailoringProviderAvailability,
+    refresh: refreshTailoringProviders,
   } = useTailoringProviders();
   const {
     tailoringSession,
@@ -193,11 +192,10 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
         promptCopied={promptCopied}
         tailoringAction={tailoringAction}
         tailoringActionError={tailoringActionError}
-        tailoringProviders={tailoringProviders}
-        tailoringProvidersLoading={tailoringProvidersLoading}
-        tailoringProvidersError={tailoringProvidersError}
+        providerAvailability={tailoringProviderAvailability}
+        onRetryProviderAvailability={() => { void refreshTailoringProviders(); }}
         onExport={handleExport}
-        onStartTailoring={startTailoring}
+        onStartTailoring={() => { void startTailoring(); }}
         onStartProviderTailoring={(provider) => { void startTailoring(provider); }}
         onCopyPrompt={copyPrompt}
         onCancelTailoring={cancelTailoring}

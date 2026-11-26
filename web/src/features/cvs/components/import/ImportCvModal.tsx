@@ -1,5 +1,7 @@
 import {
   useEffect,
+  useId,
+  useLayoutEffect,
   useRef,
   useState,
   type ChangeEvent,
@@ -13,6 +15,7 @@ import type { UserTemplate } from "@/features/templates";
 
 interface Props {
   open: boolean;
+  busy: boolean;
   onClose: () => void;
   onSubmit: (input: { title: string; templateId: string; file: File }) => void;
 }
@@ -41,12 +44,23 @@ function titleFromFilename(name: string): string {
  * OR still matches the placeholder default. Any actual content
  * the user typed survives the auto-fill.
  */
-export default function ImportCvModal({ open, onClose, onSubmit }: Props) {
+export default function ImportCvModal({ open, busy, onClose, onSubmit }: Props) {
+  const titleId = useId();
   const [title, setTitle] = useState("");
   const [templateId, setTemplateId] = useState(DEFAULT_TEMPLATE_ID);
   const [file, setFile] = useState<File | null>(null);
   const [templates, setTemplates] = useState<UserTemplate[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const submitButtonRef = useRef<HTMLButtonElement>(null);
+
+  useLayoutEffect(() => {
+    if (!busy) return;
+
+    const activeElement = document.activeElement;
+    if (activeElement !== submitButtonRef.current) {
+      submitButtonRef.current?.focus();
+    }
+  }, [busy]);
 
   useEffect(() => {
     if (!open) return;
@@ -60,6 +74,7 @@ export default function ImportCvModal({ open, onClose, onSubmit }: Props) {
   }, [open]);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (busy) return;
     const next = e.target.files?.[0] ?? null;
     if (!next) {
       setFile(null);
@@ -76,7 +91,7 @@ export default function ImportCvModal({ open, onClose, onSubmit }: Props) {
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (!file) return;
+    if (busy || !file) return;
     const trimmed = title.trim();
     if (trimmed.length === 0) return;
     onSubmit({ title: trimmed, templateId, file });
@@ -85,15 +100,16 @@ export default function ImportCvModal({ open, onClose, onSubmit }: Props) {
   const canImport = file !== null && title.trim().length > 0;
 
   return (
-    <Modal open={open} onClose={onClose}>
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <Modal open={open} onClose={onClose} titleId={titleId}>
+      <form onSubmit={handleSubmit} aria-busy={busy} className="space-y-4">
         <div className="flex items-start justify-between">
-          <h2 className="text-lg font-semibold text-app-ink">Import CV</h2>
+          <h2 id={titleId} className="text-lg font-semibold text-app-ink">Import CV</h2>
           <button
             type="button"
             onClick={onClose}
+            disabled={busy}
             aria-label="Close"
-            className="rounded p-1 text-app-ink-3 hover:bg-app-surface-muted"
+            className="rounded p-1 text-app-ink-3 hover:bg-app-surface-muted disabled:cursor-not-allowed disabled:opacity-50"
           >
             <X className="h-4 w-4" />
           </button>
@@ -110,7 +126,10 @@ export default function ImportCvModal({ open, onClose, onSubmit }: Props) {
             id="import-title"
             type="text"
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => {
+              if (!busy) setTitle(e.target.value);
+            }}
+            disabled={busy}
             placeholder={TITLE_PLACEHOLDER}
             className="w-full rounded border border-app-rule-strong px-2 py-1.5 text-sm focus:border-app-primary focus:outline-none"
           />
@@ -126,7 +145,10 @@ export default function ImportCvModal({ open, onClose, onSubmit }: Props) {
           <select
             id="import-template"
             value={templateId}
-            onChange={(e) => setTemplateId(e.target.value)}
+            onChange={(e) => {
+              if (!busy) setTemplateId(e.target.value);
+            }}
+            disabled={busy}
             className="w-full rounded border border-app-rule-strong px-2 py-1.5 text-sm focus:border-app-primary focus:outline-none"
           >
             {templates.length === 0 ? (
@@ -156,7 +178,8 @@ export default function ImportCvModal({ open, onClose, onSubmit }: Props) {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="rounded border border-app-rule-strong px-2 py-1 text-xs text-app-ink-2 hover:bg-app-surface-muted"
+                disabled={busy}
+                className="rounded border border-app-rule-strong px-2 py-1 text-xs text-app-ink-2 hover:bg-app-surface-muted disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Change
               </button>
@@ -176,6 +199,7 @@ export default function ImportCvModal({ open, onClose, onSubmit }: Props) {
             type="file"
             accept="application/pdf"
             onChange={handleFileChange}
+            disabled={busy}
             className="hidden"
           />
         </div>
@@ -184,28 +208,30 @@ export default function ImportCvModal({ open, onClose, onSubmit }: Props) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded border border-app-rule-strong px-3 py-1.5 text-xs text-app-ink-2 hover:bg-app-surface-muted"
+            disabled={busy}
+            className="rounded border border-app-rule-strong px-3 py-1.5 text-xs text-app-ink-2 hover:bg-app-surface-muted disabled:cursor-not-allowed disabled:opacity-50"
           >
             Cancel
           </button>
           <button
+            ref={submitButtonRef}
             type="submit"
-            disabled={!canImport}
-            className="flex items-center gap-1 rounded bg-app-primary px-3 py-1.5 text-xs text-white hover:bg-app-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!canImport && !busy}
+            aria-disabled={busy}
+            aria-busy={busy}
+            onClick={(e) => {
+              if (busy) e.preventDefault();
+            }}
+            className="flex items-center gap-1 rounded bg-app-primary px-3 py-1.5 text-xs text-white hover:bg-app-primary-hover disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-wait aria-disabled:opacity-75"
           >
-            <Loader2 className="hidden h-3 w-3 animate-spin" />
-            Import
+            {busy && <Loader2 aria-hidden="true" className="h-3 w-3 motion-safe:animate-spin" />}
+            {busy ? "Importing…" : "Import"}
           </button>
         </div>
       </form>
+      <p role="status" className="sr-only">{busy ? "Importing CV…" : ""}</p>
     </Modal>
   );
 }
-
-/* The button above intentionally renders an inert spinner — the
-   in-flight state lives in the parent (`ImportCvButton`) where the
-   real submit handler awaits `importPDF` + `createCV`. The hidden
-   `Loader2` keeps the visual slot stable when the parent swaps its
-   label. */
 
 export { titleFromFilename };

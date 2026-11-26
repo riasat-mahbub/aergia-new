@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import Modal from "@/shared/ui/Modal";
 import { useCVListStore } from "@/features/cvs/state/cvListStore";
@@ -18,6 +18,9 @@ interface Props {
 export default function CreateCvModal({ open, onClose }: Props) {
   const navigate = useNavigate();
   const { createCV } = useCVListStore();
+  const titleId = useId();
+  const titleInputId = useId();
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState("");
   const [templateId, setTemplateId] = useState("generic-minimal");
   const [systemTemplates, setSystemTemplates] = useState<TemplateOption[]>([]);
@@ -45,18 +48,24 @@ export default function CreateCvModal({ open, onClose }: Props) {
   };
 
   return (
-    <Modal open={open} onClose={onClose}>
-      <h2 className="mb-4 text-lg font-semibold text-app-ink">Create New CV</h2>
+    <Modal
+      open={open}
+      onClose={onClose}
+      titleId={titleId}
+      initialFocusRef={titleInputRef}
+    >
+      <h2 id={titleId} className="mb-4 text-lg font-semibold text-app-ink">Create New CV</h2>
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-app-ink-2">Title</label>
+          <label htmlFor={titleInputId} className="block text-sm font-medium text-app-ink-2">Title</label>
           <input
+            ref={titleInputRef}
+            id={titleInputId}
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Software Engineer CV"
             className="mt-1 w-full rounded-md border-app-rule-strong shadow-sm focus:border-app-primary focus:ring-app-primary sm:text-sm"
-            autoFocus
             onKeyDown={(e) => e.key === "Enter" && handleCreate()}
           />
         </div>
