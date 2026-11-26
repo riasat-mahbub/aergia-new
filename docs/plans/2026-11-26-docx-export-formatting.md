@@ -2,6 +2,8 @@
 
 Apply a CV's resolved spacing, typography, colors, and alignment to its editable Word export. Use native Word paragraphs, runs, and styles in the single-column layout. A CV with larger entry gaps or different heading typography should show those choices in the downloaded file.
 
+Implemented in `4a81dda`, `81a9604`, and `6d996c6`. The [tracker](../../tracker/features/FEAT-01M129QBNK54QF2Y9PV8WDKN8P-latex-docx-renderer-backends.md#docx-formatting) records the export and Office checks.
+
 ## Reproduction and scope
 
 Export the same CV before and after changing global spacing, then change the Experience section's entry gap, field gap, alignment, and typography. In the reproduced case, HTML showed the new styles while `word/document.xml` and `word/styles.xml` stayed identical. The resolver carried the changed values. The Word renderer applied fixed Arial, single spacing, and generic paragraph gaps. A native Word fixture preserved the proposed formatting through edit, save, and reopen.
