@@ -9,6 +9,8 @@ import pytest
 from docx import Document
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.oxml.ns import qn
+from docx.shared import RGBColor
+from docx.text.run import Run
 
 from app.document_schema.models import (
     Entry,
@@ -24,6 +26,166 @@ from app.services.renderer.pipeline import prepare_render_source, render_source_
 
 _PROJECT_URL = f"https://projects.example.test/portfolio?{'q' * 180}=full#published"
 _PROFILE_URL = "https://portfolio.example.test/work?source=cv&mode=full#selected"
+_FORMATTING_LINK = "https://formatting.example.test/details"
+
+
+def _minimal_manifest():
+    """The seed Minimal values relevant to Word spacing and typography."""
+
+    return {
+        "manifest_version": 2,
+        "name": "Minimal",
+        "zones": [{"id": "main", "styles": {"width": "full", "padding": "spacious"}}],
+        "placement": {"profile": "main", "experience": "main", "education": "main"},
+        "layout_defaults": {
+            "spacing": "minimal",
+            "entry_gap": "snug",
+            "field_gap": "tight",
+        },
+        "global_styles": {
+            "accent_color": "#111827",
+            "body_font": "sans-serif",
+            "body_font_size": "small",
+            "body_line_height": "normal",
+            "heading_font": "sans-serif",
+        },
+    }
+
+
+def _formatting_sections(experience_style=None):
+    """Stable no-date content for rendered DOCX formatting comparisons."""
+
+    experience = {
+        "id": "s-experience",
+        "type": "experience",
+        "title": "Experience",
+        "data": [
+            {
+                "id": "entry-1",
+                "position": "Engineer One",
+                "company": "Acme",
+                "description": "Entry one body.",
+            },
+            {
+                "id": "entry-2",
+                "position": "Engineer Two",
+                "company": "Northwind",
+                "description": "Entry two body.",
+            },
+        ],
+    }
+    if experience_style is not None:
+        experience["style"] = experience_style
+    return [
+        {
+            "id": "s-profile",
+            "type": "profile",
+            "title": "Profile",
+            "data": {"name": "Format Candidate"},
+        },
+        experience,
+        {
+            "id": "s-education",
+            "type": "education",
+            "title": "Education",
+            "data": [{"id": "school-1", "degree": "BSc", "institution": "Dalhousie"}],
+        },
+    ]
+
+
+def _render_formatting_docx(*, manifest=None, customizations=None, experience_style=None):
+    source = prepare_render_source(
+        _formatting_sections(experience_style),
+        manifest if manifest is not None else _minimal_manifest(),
+        customizations,
+    )
+    return _open_docx(render_source_docx(source))
+
+
+def _style_chain(style):
+    while style is not None:
+        yield style
+        style = style.base_style
+
+
+def _effective_style_font(style, property_name):
+    for current in _style_chain(style):
+        value = getattr(current.font, property_name)
+        if value is not None:
+            return value
+    return None
+
+
+def _effective_style_paragraph_format(style, property_name):
+    for current in _style_chain(style):
+        value = getattr(current.paragraph_format, property_name)
+        if value is not None:
+            return value
+    return None
+
+
+def _effective_paragraph_format(paragraph, property_name):
+    value = getattr(paragraph.paragraph_format, property_name)
+    if value is not None:
+        return value
+    return _effective_style_paragraph_format(paragraph.style, property_name)
+
+
+def _effective_run_font(run, property_name):
+    value = getattr(run.font, property_name)
+    if value is not None:
+        return value
+    for current in _style_chain(run.style):
+        value = getattr(current.font, property_name)
+        if value is not None:
+            return value
+    return _effective_style_font(run._parent.style, property_name)
+
+
+def _effective_run_flag(run, property_name):
+    value = getattr(run, property_name)
+    if value is not None:
+        return value
+    for current in _style_chain(run.style):
+        value = getattr(current.font, property_name)
+        if value is not None:
+            return value
+    return _effective_style_font(run._parent.style, property_name)
+
+
+def _points(value) -> float:
+    return value.pt if value is not None else 0.0
+
+
+def _paragraph_boundary_gap_points(previous, following) -> float:
+    """Word uses the greater adjacent before/after spacing at a boundary."""
+
+    return max(
+        _points(_effective_paragraph_format(previous, "space_after")),
+        _points(_effective_paragraph_format(following, "space_before")),
+    )
+
+
+def _paragraph_with_text(document, text):
+    return next(paragraph for paragraph in document.paragraphs if paragraph.text == text)
+
+
+def _runs_including_hyperlinks(paragraph):
+    return [Run(element, paragraph) for element in paragraph._p.xpath(".//w:r")]
+
+
+def _run_with_text(paragraph, text):
+    return next(run for run in _runs_including_hyperlinks(paragraph) if run.text == text)
+
+
+def _effective_run_color(run):
+    for font in [run.font, *(style.font for style in _style_chain(run.style))]:
+        if font.color.rgb is not None:
+            return font.color.rgb
+    for style in _style_chain(run._parent.style):
+        if style.font.color.rgb is not None:
+            return style.font.color.rgb
+    return None
 
 
 def _fixture_source():
@@ -224,6 +386,207 @@ def _open_docx(data: bytes):
 def _number_id(paragraph) -> str | None:
     values = paragraph._p.xpath("./w:pPr/w:numPr/w:numId")
     return values[0].get(qn("w:val")) if values else None
+
+
+def test_docx_minimal_defaults_set_named_style_typography_and_spacing():
+    document = _render_formatting_docx()
+    normal = document.styles["Normal"]
+    title = document.styles["Title"]
+    heading = document.styles["Heading 1"]
+
+    assert document.paragraphs[0].text == "Format Candidate"
+    assert document.paragraphs[0].style.name == "Title"
+    assert _paragraph_with_text(document, "Experience").style.name == "Heading 1"
+    assert normal.font.size.pt == pytest.approx(10.5)
+    assert _effective_style_paragraph_format(normal, "line_spacing") == pytest.approx(1.4)
+    assert normal.font.name == "Inter"
+    assert title.font.name == normal.font.name
+    assert heading.font.name == normal.font.name
+
+    assert _paragraph_boundary_gap_points(
+        _paragraph_with_text(document, "Engineer One"),
+        _paragraph_with_text(document, "Acme"),
+    ) == pytest.approx(3)
+    assert _paragraph_boundary_gap_points(
+        _paragraph_with_text(document, "Acme"),
+        _paragraph_with_text(document, "Entry one body."),
+    ) == pytest.approx(3)
+    assert _paragraph_boundary_gap_points(
+        _paragraph_with_text(document, "Entry one body."),
+        _paragraph_with_text(document, "Engineer Two"),
+    ) == pytest.approx(6)
+
+
+def test_docx_spacing_applies_global_and_local_gaps_in_points_including_zero():
+    minimal = _render_formatting_docx()
+    global_override = _render_formatting_docx(customizations={"spacing": "comfortable"})
+    local_override = _render_formatting_docx(
+        customizations={"spacing": "compact"},
+        experience_style={"subsection": {
+            "spacing_before": "comfortable",
+            "spacing_after": "spacious",
+            "entry_gap": "none",
+            "field_gap": "tight",
+        }},
+    )
+
+    for document in (minimal, global_override, local_override):
+        flat_text = "\n".join(paragraph.text for paragraph in document.paragraphs)
+        assert flat_text.index("Engineer One") < flat_text.index("Acme") < flat_text.index("Entry one body.")
+        assert flat_text.index("Entry one body.") < flat_text.index("Engineer Two")
+        assert flat_text.index("Engineer Two") < flat_text.index("Northwind") < flat_text.index("Entry two body.")
+
+    assert _paragraph_boundary_gap_points(
+        _paragraph_with_text(minimal, "Engineer One"),
+        _paragraph_with_text(minimal, "Acme"),
+    ) == pytest.approx(3)
+    assert _paragraph_boundary_gap_points(
+        _paragraph_with_text(minimal, "Acme"),
+        _paragraph_with_text(minimal, "Entry one body."),
+    ) == pytest.approx(3)
+    assert _paragraph_boundary_gap_points(
+        _paragraph_with_text(minimal, "Entry one body."),
+        _paragraph_with_text(minimal, "Engineer Two"),
+    ) == pytest.approx(6)
+
+    assert _paragraph_boundary_gap_points(
+        _paragraph_with_text(global_override, "Engineer One"),
+        _paragraph_with_text(global_override, "Acme"),
+    ) == pytest.approx(12)
+    assert _paragraph_boundary_gap_points(
+        _paragraph_with_text(global_override, "Acme"),
+        _paragraph_with_text(global_override, "Entry one body."),
+    ) == pytest.approx(12)
+    assert _paragraph_boundary_gap_points(
+        _paragraph_with_text(global_override, "Entry one body."),
+        _paragraph_with_text(global_override, "Engineer Two"),
+    ) == pytest.approx(12)
+
+    assert _paragraph_boundary_gap_points(
+        _paragraph_with_text(local_override, "Engineer One"),
+        _paragraph_with_text(local_override, "Acme"),
+    ) == pytest.approx(3)
+    assert _paragraph_boundary_gap_points(
+        _paragraph_with_text(local_override, "Acme"),
+        _paragraph_with_text(local_override, "Entry one body."),
+    ) == pytest.approx(3)
+    assert _paragraph_boundary_gap_points(
+        _paragraph_with_text(local_override, "Entry one body."),
+        _paragraph_with_text(local_override, "Engineer Two"),
+    ) == pytest.approx(0)
+    # The prior section contributes 15 pt after; this section adds 18 pt before.
+    assert _paragraph_boundary_gap_points(
+        _paragraph_with_text(local_override, "Format Candidate"),
+        _paragraph_with_text(local_override, "Experience"),
+    ) == pytest.approx(33)
+    assert _paragraph_boundary_gap_points(
+        _paragraph_with_text(local_override, "Entry two body."),
+        _paragraph_with_text(local_override, "Education"),
+    ) == pytest.approx(30)
+
+
+def test_docx_typography_resolves_document_section_and_plain_or_linked_run_overrides():
+    global_manifest = _minimal_manifest()
+    global_manifest["global_styles"]["body_font_size"] = "normal"
+    global_manifest["global_styles"]["body_line_height"] = "relaxed"
+
+    sections = _formatting_sections(experience_style={
+        "typography": {
+            "heading": {
+                "font_family": "sans-serif",
+                "font_size": "xl",
+                "line_height": "normal",
+                "color": "palette.accent",
+                "bold": False,
+            },
+            "body": {
+                "font_family": "sans-serif",
+                "font_size": "large",
+                "line_height": "tight",
+                "color": "palette.text-muted",
+                "bold": True,
+            },
+        },
+    })
+    sections[1]["data"][0]["description"] = [
+        {
+            "type": "paragraph",
+            "items": [
+                {"text": "Inherited body."},
+                {
+                    "text": " Plain override",
+                    "style": {"font_size": "xs", "color": "palette.accent", "bold": False},
+                },
+                {
+                    "text": " Linked override",
+                    "style": {
+                        "link": _FORMATTING_LINK,
+                        "font_size": "xs",
+                        "color": "palette.text-muted",
+                        "bold": False,
+                        "underline": False,
+                    },
+                },
+            ],
+        },
+    ]
+    source = prepare_render_source(
+        sections,
+        global_manifest,
+        {"body_font": "serif", "heading_font": "serif"},
+    )
+    document = _open_docx(render_source_docx(source))
+
+    normal = document.styles["Normal"]
+    title = document.styles["Title"]
+    heading_style = document.styles["Heading 1"]
+    minimal = _render_formatting_docx()
+    minimal_normal = minimal.styles["Normal"]
+
+    assert normal.font.name == "Georgia"
+    assert normal.font.size.pt == pytest.approx(12)
+    assert _effective_style_paragraph_format(normal, "line_spacing") == pytest.approx(1.7)
+    assert normal.font.name != minimal_normal.font.name
+    assert normal.font.size.pt != minimal_normal.font.size.pt
+    assert _effective_style_paragraph_format(normal, "line_spacing") != pytest.approx(
+        _effective_style_paragraph_format(minimal_normal, "line_spacing")
+    )
+    assert title.font.name == "Georgia"
+    assert heading_style.font.name == "Georgia"
+
+    heading = _paragraph_with_text(document, "Experience")
+    heading_run = _run_with_text(heading, "Experience")
+    assert heading.style.name == "Heading 1"
+    assert _effective_run_font(heading_run, "name") == "Inter"
+    assert _effective_run_font(heading_run, "name") != heading_style.font.name
+    assert _effective_run_font(heading_run, "size").pt == pytest.approx(15)
+    assert _effective_paragraph_format(heading, "line_spacing") == pytest.approx(1.4)
+    assert _effective_run_flag(heading_run, "bold") is False
+    assert _effective_run_color(heading_run) == RGBColor(0x25, 0x63, 0xEB)
+
+    body = _paragraph_with_text(document, "Inherited body. Plain override Linked override")
+    inherited_run = _run_with_text(body, "Inherited body.")
+    plain_run = _run_with_text(body, " Plain override")
+    linked_run = _run_with_text(body, " Linked override")
+    assert _effective_run_font(inherited_run, "name") == "Inter"
+    assert _effective_run_font(inherited_run, "name") != normal.font.name
+    assert _effective_run_font(inherited_run, "size").pt == pytest.approx(13.5)
+    assert _effective_paragraph_format(body, "line_spacing") == pytest.approx(1.2)
+    assert _effective_run_flag(inherited_run, "bold") is True
+    assert _effective_run_color(inherited_run) == RGBColor(0x6B, 0x72, 0x80)
+
+    for run, color in (
+        (plain_run, RGBColor(0x25, 0x63, 0xEB)),
+        (linked_run, RGBColor(0x6B, 0x72, 0x80)),
+    ):
+        assert _effective_run_font(run, "size").pt == pytest.approx(9)
+        assert _effective_run_color(run) == color
+        assert _effective_run_flag(run, "bold") is False
+    assert _effective_run_flag(linked_run, "underline") is False
+    assert any(
+        relationship.reltype == RT.HYPERLINK and relationship.target_ref == _FORMATTING_LINK
+        for relationship in document.part.rels.values()
+    )
 
 
 def test_docx_is_editable_ordered_and_uses_resolved_section_policy_and_content():
