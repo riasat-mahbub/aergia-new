@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import itertools
 import re
 from dataclasses import dataclass
 from io import BytesIO
 from typing import Final
 
 from docx import Document
+from docx.document import Document as DocumentObject
 from docx.enum.style import WD_STYLE_TYPE
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.oxml import OxmlElement
@@ -23,6 +25,13 @@ from app.document_schema.models import (
     RichTextBlock,
     Section,
     TextStyle,
+)
+from app.services.renderer.docx_layout import (
+    row_can_use_right_aligned_tab,
+    set_paragraph_alignment,
+    set_paragraph_bottom_border,
+    set_paragraph_shading,
+    set_right_aligned_tab_stop,
 )
 from app.services.renderer.html_values import (
     FONT_SIZE_VALUES,
@@ -132,7 +141,7 @@ class _FormattingAdapter:
             1.0,
         )
 
-    def configure_document(self, document) -> None:
+    def configure_document(self, document: DocumentObject) -> None:
         """Set Word style defaults while retaining legacy values when absent."""
         normal = document.styles["Normal"]
         normal.font.name = self.body_font
@@ -243,7 +252,7 @@ class _FormattingAdapter:
         )
 
 
-def _apply_paragraph_formatting(paragraph, formatting: _RunFormatting) -> None:
+def _apply_paragraph_formatting(paragraph: Paragraph, formatting: _RunFormatting) -> None:
     if formatting.line_spacing is not None:
         paragraph.paragraph_format.line_spacing = formatting.line_spacing
 
@@ -318,7 +327,7 @@ def _set_run_properties(
 
 
 def _append_hyperlink_run(
-    paragraph,
+    paragraph: Paragraph,
     text: str,
     href: str,
     style: TextStyle | None,
@@ -341,7 +350,7 @@ def _append_hyperlink_run(
 
 
 def _append_run(
-    paragraph,
+    paragraph: Paragraph,
     text: str,
     style: TextStyle | None = None,
     *,
@@ -362,7 +371,7 @@ def _append_run(
     _set_run_properties(run, style, default_bold, formatting)
 
 
-def _add_numbering_definition(document, *, numbered: bool) -> int:
+def _add_numbering_definition(document: DocumentObject, *, numbered: bool) -> int:
     """Add a fresh single-level bullet or numbered-list instance."""
 
     numbering = document.part.numbering_part.element
@@ -429,14 +438,9 @@ def _add_numbering_definition(document, *, numbered: bool) -> int:
 
 def _set_list_number(paragraph, num_id: int) -> None:
     paragraph_properties = paragraph._p.get_or_add_pPr()
-    number_properties = OxmlElement("w:numPr")
-    level = OxmlElement("w:ilvl")
-    level.set(qn("w:val"), "0")
-    number_id = OxmlElement("w:numId")
-    number_id.set(qn("w:val"), str(num_id))
-    number_properties.append(level)
-    number_properties.append(number_id)
-    paragraph_properties.append(number_properties)
+    number_properties = paragraph_properties.get_or_add_numPr()
+    number_properties.get_or_add_ilvl().val = 0
+    number_properties.get_or_add_numId().val = num_id
 
 
 def _field_default_bold(field: FieldBlock) -> bool:
@@ -450,9 +454,14 @@ def _field_has_text(field: FieldBlock) -> bool:
 
 
 class _DocumentWriter:
-    def __init__(self, document, formatting: _FormattingAdapter) -> None:
+    def __init__(self, document: DocumentObject, formatting: _FormattingAdapter) -> None:
         self.document = document
         self.formatting = formatting
+        page = document.sections[0]
+        self._usable_width_pt = page.page_width.pt - page.left_margin.pt - page.right_margin.pt
+        self._section: Section | None = None
+        self._section_background_color: RGBColor | None = None
+        self._heading_divider_color: RGBColor | None = None
         self._section_formatting: _SectionFormatting | None = None
         self._body_formatting = _RunFormatting(font_name=formatting.body_font)
         self._heading_formatting = _RunFormatting(font_name=formatting.heading_font)
@@ -462,6 +471,8 @@ class _DocumentWriter:
         self._entry_active = False
         self._entry_has_row = False
         self._entry_row_last: Paragraph | None = None
+        self._entry_metadata_paragraphs: list[Paragraph] = []
+        self._entry_body_started = False
         self._rendering_rich_field = False
         self._has_content = False
         self._first_paragraph_pending = False
@@ -471,20 +482,21 @@ class _DocumentWriter:
         paragraph = self.document.add_paragraph(style=style)
         defaults = self._heading_formatting if style == "Heading 1" else self._body_formatting
         _apply_paragraph_formatting(paragraph, defaults)
+        if self._section is not None:
+            subsection = self._section.subsection
+            set_paragraph_alignment(
+                paragraph,
+                subsection.text_align if subsection is not None else None,
+            )
+            set_paragraph_shading(paragraph, self._section_background_color)
+            if style == "Heading 1":
+                set_paragraph_bottom_border(paragraph, self._heading_divider_color)
         if self._first_paragraph_pending:
             if self._page_break_pending:
                 paragraph.paragraph_format.page_break_before = True
             self._first_paragraph_pending = False
             self._page_break_pending = False
         self._section_paragraphs.append(paragraph)
-        if self._entry_active and not self._rendering_rich_field and style != "Heading 1":
-            if self._entry_has_row and self._entry_row_last is not None:
-                self._entry_row_last.paragraph_format.space_after = Pt(0)
-                paragraph.paragraph_format.space_before = Pt(
-                    self._section_formatting.field_gap_pt if self._section_formatting else 0
-                )
-            self._entry_row_last = paragraph
-            self._entry_has_row = True
         self._has_content = True
         return paragraph
 
@@ -504,26 +516,58 @@ class _DocumentWriter:
         for item in items:
             _append_run(paragraph, item.text, item.style, formatting=self._body_formatting)
 
-    def _render_rich_field(self, blocks: list[RichTextBlock]) -> None:
-        start = len(self._section_paragraphs)
-        self._rendering_rich_field = True
-        try:
-            for block in blocks:
-                self._render_rich_block(block)
-        finally:
-            self._rendering_rich_field = False
+    def _finish_field_row(self, start: int, fields: list[FieldBlock]) -> None:
+        """Apply one field gap per logical row and track leading metadata."""
+
         paragraphs = self._section_paragraphs[start:]
-        if not self._entry_active or not paragraphs:
+        if not paragraphs or not self._entry_active:
             return
+
         if self._entry_has_row and self._entry_row_last is not None:
             self._entry_row_last.paragraph_format.space_after = Pt(0)
             paragraphs[0].paragraph_format.space_before = Pt(
                 self._section_formatting.field_gap_pt if self._section_formatting else 0
             )
+        for previous, following in itertools.pairwise(paragraphs):
+            previous.paragraph_format.space_after = Pt(0)
+            following.paragraph_format.space_before = Pt(0)
+
         self._entry_row_last = paragraphs[-1]
         self._entry_has_row = True
+        is_metadata = bool(fields) and all(field.group in {"header", "secondary"} for field in fields)
+        if self._entry_body_started:
+            return
+        if is_metadata:
+            self._entry_metadata_paragraphs.extend(paragraphs)
+            return
 
-    def _render_field(self, paragraph, field: FieldBlock) -> None:
+        # Keep only leading title/metadata paragraphs with the first body
+        # paragraph. Later body paragraphs are left free to flow across pages.
+        for metadata_paragraph in self._entry_metadata_paragraphs:
+            metadata_paragraph.paragraph_format.keep_with_next = True
+        self._entry_metadata_paragraphs.clear()
+        self._entry_body_started = True
+
+    def _append_rich_field_paragraphs(self, field: FieldBlock) -> list[Paragraph]:
+        start = len(self._section_paragraphs)
+        self._rendering_rich_field = True
+        try:
+            for block in field.blocks or []:
+                self._render_rich_block(block)
+        finally:
+            self._rendering_rich_field = False
+        paragraphs = self._section_paragraphs[start:]
+        if field.align == "right":
+            for paragraph in paragraphs:
+                set_paragraph_alignment(paragraph, "right")
+        return paragraphs
+
+    def _render_rich_field(self, field: FieldBlock) -> None:
+        start = len(self._section_paragraphs)
+        self._append_rich_field_paragraphs(field)
+        self._finish_field_row(start, [field])
+
+    def _render_field(self, paragraph: Paragraph, field: FieldBlock) -> None:
         bold = _field_default_bold(field)
         if field.blocks:
             return
@@ -535,6 +579,69 @@ class _DocumentWriter:
                 default_bold=bold,
                 formatting=self._body_formatting,
             )
+
+    def _append_grouped_fields(self, paragraph: Paragraph, fields: list[FieldBlock]) -> None:
+        if not fields:
+            return
+        first = fields[0]
+        separator = (
+            "  ·  "
+            if first.group == "contact"
+            else "  |  "
+            if first.group in {"header", "secondary"}
+            else "  ·  "
+        )
+        for group_index, grouped_field in enumerate(fields):
+            if group_index:
+                _append_run(paragraph, separator, formatting=self._body_formatting)
+            self._render_field(paragraph, grouped_field)
+
+    def _render_stacked_fields(self, fields: list[FieldBlock]) -> None:
+        """Emit fields in source order when a right rail cannot fit a tab."""
+
+        index = 0
+        while index < len(fields):
+            field = fields[index]
+            if field.blocks:
+                self._append_rich_field_paragraphs(field)
+                index += 1
+                continue
+            if field.align == "right":
+                paragraph = self._new_paragraph()
+                set_paragraph_alignment(paragraph, "right")
+                self._render_field(paragraph, field)
+                index += 1
+                continue
+
+            end = index + 1
+            while end < len(fields) and fields[end].align != "right":
+                end += 1
+            paragraph = self._new_paragraph()
+            self._append_grouped_fields(paragraph, fields[index:end])
+            index = end
+
+    def _render_field_row(self, fields: list[FieldBlock]) -> None:
+        start = len(self._section_paragraphs)
+        right_fields = [field for field in fields if field.align == "right"]
+        if right_fields and row_can_use_right_aligned_tab(
+            fields,
+            self._usable_width_pt,
+            base_font_size_pt=self._body_formatting.font_size_pt or self.formatting.body_size_pt,
+            font_family=self._body_formatting.font_name or self.formatting.body_font,
+            font_size_resolver=_font_size_points,
+        ):
+            paragraph = self._new_paragraph()
+            self._append_grouped_fields(paragraph, fields[:-1])
+            _append_run(paragraph, "\t", formatting=self._body_formatting)
+            self._render_field(paragraph, fields[-1])
+            set_right_aligned_tab_stop(paragraph, self._usable_width_pt)
+        elif right_fields or any(field.blocks for field in fields):
+            self._render_stacked_fields(fields)
+        else:
+            paragraph = self._new_paragraph()
+            self._append_grouped_fields(paragraph, fields)
+
+        self._finish_field_row(start, fields)
 
     def _render_fields(self, section: Section, fields: list[FieldBlock]) -> None:
         fields = [field for field in fields if _field_has_text(field)]
@@ -549,11 +656,6 @@ class _DocumentWriter:
                 index += 1
                 continue
 
-            if field.blocks:
-                self._render_rich_field(field.blocks)
-                index += 1
-                continue
-
             group_key: tuple[str, str | int] = (
                 ("group", field.group) if field.group is not None else ("field", index)
             )
@@ -563,22 +665,43 @@ class _DocumentWriter:
                 candidate_key: tuple[str, str | int] = (
                     ("group", candidate.group) if candidate.group is not None else ("field", end)
                 )
-                if candidate.blocks or (section.type == "profile" and candidate.key == "name") or candidate_key != group_key:
+                if (section.type == "profile" and candidate.key == "name") or candidate_key != group_key:
                     break
                 end += 1
-
-            paragraph = self._new_paragraph()
-            separator = "  ·  " if field.group == "contact" else "  |  " if field.group in {"header", "secondary"} else "  ·  "
-            for group_index, grouped_field in enumerate(fields[index:end]):
-                if group_index:
-                    _append_run(paragraph, separator, formatting=self._body_formatting)
-                self._render_field(paragraph, grouped_field)
-            index = end
+            grouped_fields = fields[index:end]
+            if any(field.align == "right" for field in grouped_fields):
+                self._render_field_row(grouped_fields)
+                index = end
+            elif field.blocks:
+                self._render_rich_field(field)
+                index += 1
+            else:
+                simple_end = index + 1
+                while simple_end < end and not fields[simple_end].blocks:
+                    simple_end += 1
+                self._render_field_row(fields[index:simple_end])
+                index = simple_end
 
     def render_section(self, section: Section) -> None:
         if not section.enabled:
             return
 
+        self._section = section
+        subsection = section.subsection
+        self._section_background_color = (
+            _word_color(subsection.background_color)
+            if subsection and subsection.background_color
+            else None
+        )
+        has_divider = bool(section.policy and section.policy.heading_divider)
+        divider_color = (
+            subsection.accent_color
+            if subsection and subsection.accent_color
+            else self.formatting.model.css_vars.get("--accent")
+            or (subsection.section_color if subsection else None)
+            or "#1F2937"
+        )
+        self._heading_divider_color = _word_color(divider_color) if has_divider else None
         self._section_formatting = self.formatting.for_section(section)
         self._body_formatting = self._section_formatting.body
         self._heading_formatting = self._section_formatting.heading
@@ -606,7 +729,12 @@ class _DocumentWriter:
             self._entry_active = True
             self._entry_has_row = False
             self._entry_row_last = None
+            self._entry_metadata_paragraphs = []
+            self._entry_body_started = False
             self._render_fields(section, entry.fields)
+            for metadata_paragraph in self._entry_metadata_paragraphs[:-1]:
+                metadata_paragraph.paragraph_format.keep_with_next = True
+            self._entry_metadata_paragraphs.clear()
             self._entry_active = False
             entry_paragraphs = self._section_paragraphs[start:]
             if not entry_paragraphs:
@@ -645,7 +773,7 @@ class _DocumentWriter:
         self._previous_section_after_pt = section_formatting.spacing_after_pt
 
 
-def _configure_document(document, formatting: _FormattingAdapter) -> None:
+def _configure_document(document: DocumentObject, formatting: _FormattingAdapter) -> None:
     section = document.sections[0]
     section.page_width = Mm(210)
     section.page_height = Mm(297)
@@ -683,7 +811,7 @@ class DOCXDocumentRenderer:
         heading_keeps_with_first=SupportLevel.FULL,
         keep_entry_together=SupportLevel.NONE,
         feature_skills_inline=SupportLevel.FULL,
-        feature_section_underline=SupportLevel.NONE,
+        feature_section_underline=SupportLevel.FULL,
         feature_anchor_styling=SupportLevel.NONE,
     )
 
