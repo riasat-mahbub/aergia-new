@@ -19,6 +19,7 @@ RELATIONS:
 AFFECTS:
   files:
   - docs/plans/2026-11-26-docx-export.md
+  - docs/plans/2026-11-26-docx-export-formatting.md
   - api/app/routes/cvs.py
   - api/app/services/docx.py
   - api/app/services/renderer/docx.py
@@ -28,7 +29,7 @@ LINKS: null
 CREATED_BY: null
 UPDATED_BY: null
 CREATED_AT: '2026-08-01T16:11:58.482296+00:00'
-UPDATED_AT: '2026-11-26T19:27:39.401+00:00'
+UPDATED_AT: '2026-11-26T19:40:51.131+00:00'
 ---
 
 # LaTeX/DOCX renderer backends
@@ -62,6 +63,8 @@ The saved CV export route serves an editable DOCX using the same AST and resolve
 - Microsoft Open XML SDK 3.3.0 reported zero validation errors for all three generated fixtures. The production smoke gate and frontend architecture checks passed.
 
 ## Follow-up
+
+Apply resolved CV spacing, typography, color, and alignment in the [DOCX formatting plan](../../docs/plans/2026-11-26-docx-export-formatting.md).
 
 LaTeX export is a separate proposal.
 
