@@ -27,7 +27,7 @@ VERIFIED_BY: codex
 CREATED_BY: null
 UPDATED_BY: null
 CREATED_AT: '2026-11-26T05:01:24.292343+00:00'
-UPDATED_AT: '2026-11-26T05:01:24.292343+00:00'
+UPDATED_AT: '2026-11-26T05:11:54.337047+00:00'
 ---
 
 # Add a portable Python development launcher
@@ -43,3 +43,5 @@ Added `dev.py` with the ordinary Vite launch, `--build`, `--prod`, and `--smoke`
 ## Verification
 
 The full Python smoke gate passed on Windows and Linux under WSL with Ruff 0.12.12. A prepared Windows environment exercised development, build, and production-like serving modes with disposable databases, same-origin API requests, reload selection, and sibling cleanup after a server exit. An interactive Ctrl+C released both development ports.
+
+A Windows run also exercised the real dependency and Chromium installation before starting services. The frontend homepage, API readiness, and same-origin registration configuration each returned HTTP 200. The launcher prints the dependency and browser setup phases before starting the servers.

@@ -44,6 +44,11 @@ check uses the local virtual environment and installed frontend dependencies.
 Install Ruff 0.12.12 in `api/.venv`, or set `AERGIA_SMOKE_RUFF` to the path
 of a compatible Ruff executable.
 
+On the first serving run, dependency setup and the Chromium download can take
+several minutes. Open the URL printed on the `Frontend` line after startup.
+Keep the launcher running to serve the app. The smoke check stops both
+servers when it finishes.
+
 Useful backend commands:
 
 ```bash

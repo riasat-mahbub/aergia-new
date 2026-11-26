@@ -73,7 +73,7 @@ def initialize(env, npm):
         if other_python.is_file():
             raise RuntimeError("api/.venv was created for a different platform. Use a native virtual environment.")
         run([sys.executable, "-m", "venv", VENV], API, env)
-    print("=== Setting up API ===", flush=True)
+    print("=== Installing API dependencies. First-time setup can take several minutes. ===", flush=True)
     run([PYTHON, "-m", "pip", "install", "-q", "-e", ".[test,model]"], API, env)
     dotenv = ROOT / ".env"
     if dotenv.is_file():
@@ -84,10 +84,12 @@ def initialize(env, npm):
         values = subprocess.check_output([PYTHON, "-c", source, dotenv], cwd=ROOT, env=env)
         env.update({key: value for key, value in json.loads(values).items() if value is not None})
     # The Playwright installer checks for the browser version this runtime uses.
+    print("=== Checking Chromium for PDF export. Missing browser files will be downloaded. ===", flush=True)
     run([PYTHON, "-m", "playwright", "install", "chromium"], API, env)
     if not env.get("DATABASE_URL"):
         (API / "data").mkdir(exist_ok=True)
     if not VITE.is_file():
+        print("=== Installing frontend dependencies ===", flush=True)
         run([npm, "install"], WEB, env)
 
 
