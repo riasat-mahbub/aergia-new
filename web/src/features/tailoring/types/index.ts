@@ -51,6 +51,39 @@ export type TailoringErrorCode =
   | "source_changed"
   | "application_unavailable";
 
+export type TailoringProvider = "chatgpt" | "gemini";
+
+export type TailoringProviderStatus = "unavailable" | "disconnected" | "setup_required" | "ready" | "reconnect";
+
+export interface TailoringProviderAccount {
+  status: TailoringProviderStatus;
+  detail?: string | null;
+}
+
+export interface TailoringProvidersResponse {
+  chatgpt: TailoringProviderAccount;
+  gemini: TailoringProviderAccount;
+}
+
+export type TailoringProviderAvailability =
+  | { state: "loading" }
+  | { state: "unsupported" }
+  | { state: "failed"; message: string }
+  | { state: "loaded"; providers: TailoringProvidersResponse };
+
+export interface TailoringProviderStatusResponse extends TailoringProviderAccount {
+  provider?: TailoringProvider;
+  provider_stage?: string | null;
+  provider_error?: string | null;
+}
+
+export interface TailoringProviderOAuthCallbackRequest {
+  state: string;
+  code?: string;
+  error?: string;
+  client_id?: string;
+}
+
 export interface TailoringErrorResponse {
   code: TailoringErrorCode;
   detail: string;
@@ -173,6 +206,7 @@ export interface TailoringSession {
   prompt: string;
   status: "created";
   expires_at: string;
+  provider?: TailoringProvider | null;
 }
 
 /** Newly created sessions use the active whole-dossier protocol. */
@@ -430,6 +464,10 @@ export interface TailoringSessionStatusResponse {
   updated_at: string;
   attempts: number;
   result: TailoringSessionResult | null;
+  /** Provider-created sessions do not carry a browser agent prompt or capability. */
+  provider?: TailoringProvider | null;
+  provider_stage?: string | null;
+  provider_error?: string | null;
   /** Null on historical protocols or when owner review is unavailable. */
   draft_review?: TailoringDraftReview | null;
 }

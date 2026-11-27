@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { FileUp, Loader2 } from "lucide-react";
+import { FileUp } from "lucide-react";
 
 import ImportCvModal from "./ImportCvModal";
 import { importPDF } from "../../api/imports";
@@ -28,6 +28,7 @@ export default function ImportCvButton() {
 
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
 
   const activeProvider = pickActiveProvider(keys);
   const label = activeProvider
@@ -39,6 +40,8 @@ export default function ImportCvButton() {
     templateId: string;
     file: File;
   }) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     try {
       const importKeys = loadKeys();
@@ -61,6 +64,7 @@ export default function ImportCvButton() {
       // typed title or chosen file.
     } finally {
       forgetAllKeys();
+      busyRef.current = false;
       setBusy(false);
     }
   };
@@ -68,26 +72,24 @@ export default function ImportCvButton() {
   return (
     <div className="inline-flex items-center gap-2">
       <button
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          if (!busyRef.current) setOpen(true);
+        }}
         disabled={busy}
         className="flex items-center gap-1.5 rounded-md border border-app-primary bg-app-surface px-3 py-2 text-sm text-app-primary hover:bg-app-primary-soft disabled:opacity-50"
         title="Import a PDF and create a new CV from it"
         type="button"
       >
-        {busy ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <FileUp className="h-4 w-4" />
-        )}
-        {busy ? "Importing..." : label}
+        <FileUp className="h-4 w-4" />
+        {label}
       </button>
       <ImportCvModal
         open={open}
+        busy={busy}
         onClose={() => {
-          if (!busy) {
-            forgetAllKeys();
-            setOpen(false);
-          }
+          if (busyRef.current) return;
+          forgetAllKeys();
+          setOpen(false);
         }}
         onSubmit={handleSubmit}
       />

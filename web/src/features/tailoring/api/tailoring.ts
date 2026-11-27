@@ -19,8 +19,14 @@ export async function getTailoringSessionStatus(sessionId: string): Promise<Tail
   return data;
 }
 
-export async function getLatestTailoringSession(applicationId: string): Promise<TailoringSessionStatusResponse> {
-  const { data } = await client.get(`/applications/${applicationId}/tailoring-sessions/latest`);
+export async function getLatestTailoringSession(
+  applicationId: string,
+  options?: { quietNotFound?: boolean },
+): Promise<TailoringSessionStatusResponse> {
+  const { data } = await client.get(
+    `/applications/${applicationId}/tailoring-sessions/latest`,
+    options?.quietNotFound ? { errorToast: { ignoreStatuses: [404] } } : undefined,
+  );
   return data;
 }
 
@@ -46,8 +52,14 @@ export async function reevaluateTailoringDraft(
   return data;
 }
 
-export async function getTailoringDraftContext(cvId: string): Promise<TailoringDraftContextResponse> {
-  const { data } = await client.get(`/cvs/${cvId}/tailoring-context`);
+export async function getTailoringDraftContext(
+  cvId: string,
+  options?: { quietNotFound?: boolean },
+): Promise<TailoringDraftContextResponse> {
+  const { data } = await client.get(
+    `/cvs/${cvId}/tailoring-context`,
+    options?.quietNotFound ? { errorToast: { ignoreStatuses: [404] } } : undefined,
+  );
   return data;
 }
 

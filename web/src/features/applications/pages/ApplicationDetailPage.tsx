@@ -8,8 +8,7 @@ import ApplicationStatusHistory from "../components/detail/ApplicationStatusHist
 import ApplicationCvPanel from "../components/detail/ApplicationCvPanel";
 import ScannerJobFitBadge from "../components/ScannerJobFitBadge";
 import LoadingSkeleton from "@/shared/ui/LoadingSkeleton";
-import { exportPDF, useCVListStore } from "@/features/cvs";
-import { downloadBlob } from "@/shared/browser/downloadBlob";
+import { useCVListStore } from "@/features/cvs";
 import { APPLICATION_STATUSES } from "@/features/applications/types";
 import type {
   ApplicationStatus,
@@ -22,7 +21,7 @@ import {
 } from "../domain/list/applicationPresentation";
 import { STATUS_CLASSES, STATUS_LABELS } from "../domain/applicationStatus";
 import { sectionTypes, selectedSourceCount } from "../domain/detail/applicationDetail";
-import { useTailoringSession } from "@/features/tailoring";
+import { useTailoringProviders, useTailoringSession } from "@/features/tailoring";
 import { useLinkedCv } from "../hooks/useLinkedCv";
 import ConfirmModal from "@/shared/ui/ConfirmModal";
 
@@ -47,6 +46,10 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
+  const {
+    availability: tailoringProviderAvailability,
+    refresh: refreshTailoringProviders,
+  } = useTailoringProviders();
   const {
     tailoringSession,
     tailoringStarting,
@@ -105,16 +108,6 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
       addToast("Unable to update application status", "error");
     } finally {
       setStatusSaving(false);
-    }
-  };
-
-  const handleExport = async () => {
-    if (!application.cv_id) return;
-    try {
-      const blob = await exportPDF(application.cv_id);
-      downloadBlob(blob, `${application.company}-${application.role}.pdf`);
-    } catch {
-      addToast("Unable to export this CV", "error");
     }
   };
 
@@ -188,8 +181,10 @@ export default function ApplicationDetailPage({ applicationId }: ApplicationDeta
         promptCopied={promptCopied}
         tailoringAction={tailoringAction}
         tailoringActionError={tailoringActionError}
-        onExport={handleExport}
-        onStartTailoring={startTailoring}
+        providerAvailability={tailoringProviderAvailability}
+        onRetryProviderAvailability={() => { void refreshTailoringProviders(); }}
+        onStartTailoring={() => { void startTailoring(); }}
+        onStartProviderTailoring={(provider) => { void startTailoring(provider); }}
         onCopyPrompt={copyPrompt}
         onCancelTailoring={cancelTailoring}
         onReevaluateDraft={reevaluateDraft}

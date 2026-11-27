@@ -8,6 +8,7 @@ from app.models.tailoring_session import TailoringSession
 from app.models.tailoring_evaluation import TailoringEvaluationRecord
 from app.models.tailoring_preview_reservation import TailoringPreviewReservation
 from app.models.tailoring_replacement_reservation import TailoringReplacementReservation
+from app.models.tailoring_provider import TailoringOAuthAttempt, TailoringProviderConnection
 
 __all__ = [
     "User",
@@ -22,4 +23,6 @@ __all__ = [
     "TailoringEvaluationRecord",
     "TailoringPreviewReservation",
     "TailoringReplacementReservation",
+    "TailoringOAuthAttempt",
+    "TailoringProviderConnection",
 ]

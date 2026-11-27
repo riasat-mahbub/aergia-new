@@ -1,4 +1,5 @@
-export { copyCV, createCV, deleteCV, exportPDF, fetchCV, fetchCVs, updateCV } from "./api/cvs";
+export { copyCV, createCV, deleteCV, exportDOCX, exportPDF, fetchCV, fetchCVs, updateCV } from "./api/cvs";
+export { CVExportControl } from "./components/CVExportControl";
 export { importPDF } from "./api/imports";
 export { default as CvListPage } from "./pages/CvListPage";
 export { useCVListStore } from "./state/cvListStore";

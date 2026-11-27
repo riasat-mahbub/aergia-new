@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Check, Copy, Download, ExternalLink, Pencil, XCircle } from "lucide-react";
 import type { Application, ScanResult } from "@/features/applications/types";
-import type { CVDetail } from "@/features/cvs";
+import { CVExportControl, type CVDetail } from "@/features/cvs";
 import type {
   TailoringDraftReview,
   TailoringFitReview,
@@ -9,6 +9,8 @@ import type {
   TailoringSession,
   TailoringSessionResult,
   TailoringSessionStatusResponse,
+  TailoringProvider,
+  TailoringProviderAvailability,
 } from "@/features/tailoring";
 import { safeExternalUrl } from "@/shared/security/safeUrl";
 import { sessionStatusLabel } from "@/features/tailoring";
@@ -28,8 +30,10 @@ interface ApplicationCvPanelProps {
   promptCopied: boolean;
   tailoringAction: TailoringOwnerAction | null;
   tailoringActionError: string | null;
-  onExport: () => void;
+  providerAvailability: TailoringProviderAvailability;
+  onRetryProviderAvailability: () => void;
   onStartTailoring: () => void;
+  onStartProviderTailoring: (provider: TailoringProvider) => void;
   onCopyPrompt: () => void;
   onCancelTailoring: () => void;
   onReevaluateDraft: () => void;
@@ -259,8 +263,10 @@ export default function ApplicationCvPanel({
   promptCopied,
   tailoringAction,
   tailoringActionError,
-  onExport,
+  providerAvailability,
+  onRetryProviderAvailability,
   onStartTailoring,
+  onStartProviderTailoring,
   onCopyPrompt,
   onCancelTailoring,
   onReevaluateDraft,
@@ -271,6 +277,9 @@ export default function ApplicationCvPanel({
   const safeTailoringSkillUrl = tailoringSession ? safeExternalUrl(tailoringSession.skill_url) : null;
   const result = tailoringStatus?.result ?? tailoringResult;
   const sessionStatus = tailoringStatus?.status ?? tailoringSession?.status;
+  const sessionProvider = tailoringStatus?.provider ?? tailoringSession?.provider ?? null;
+  const providerName = sessionProvider === "chatgpt" ? "ChatGPT" : sessionProvider === "gemini" ? "Gemini" : null;
+  const isProviderSession = providerName !== null;
   const protocolVersion = tailoringStatus?.protocol_version ?? tailoringSession?.protocol_version ?? result?.protocol_version ?? 10;
   const isV10 = protocolVersion >= 10;
   const ownerReview = tailoringStatus?.draft_review ?? null;
@@ -330,11 +339,31 @@ export default function ApplicationCvPanel({
   const canRestart = sessionStatus === "rejected" || sessionStatus === "accepted" || sessionStatus === "failed" || sessionStatus === "expired" || sessionStatus === "cancelled";
   const isCreated = sessionStatus === "created";
   const showOneTimePrompt = Boolean(
-    tailoringSession?.code.trim()
+    !isProviderSession
+      && tailoringSession?.code.trim()
       && tailoringSession.prompt.trim()
       && isCreated,
   );
   const announcement = actionAnnouncement(tailoringAction);
+  const providerActionBlocked = tailoringStarting || tailoringAction !== null || tailoringBlocksNewSession;
+  const providerRunAvailability = (provider: TailoringProvider) => {
+    if (providerAvailability.state !== "loaded") return null;
+    const account = providerAvailability.providers[provider];
+    const name = provider === "chatgpt" ? "ChatGPT" : "Gemini";
+    if (account.status === "unavailable") {
+      return { visible: false, ready: false, reason: account.detail || `${name} is currently unavailable.`, needsSettings: false };
+    }
+    if (providerActionBlocked) {
+      return { visible: true, ready: false, reason: "Finish the current tailoring session before starting another.", needsSettings: false };
+    }
+    if (account.status === "ready") return { visible: true, ready: true, reason: "", needsSettings: false };
+    const reason = account.status === "disconnected"
+      ? `Connect ${name} in Settings to enable this option.`
+      : account.status === "setup_required"
+        ? `Finish ${name} setup in Settings to enable this option.`
+        : `Reconnect ${name} in Settings to enable this option.`;
+    return { visible: true, ready: false, reason, needsSettings: true };
+  };
 
   return (
     <section className="mt-4 rounded-lg border border-app-rule bg-app-surface p-5 shadow-sm" aria-labelledby="application-cv-panel-title">
@@ -346,7 +375,11 @@ export default function ApplicationCvPanel({
           {sourceCount !== null && <p className="mt-2 text-xs text-app-ink-3">Selected Library rows: {sourceCount}</p>}
           <div className="mt-4 flex flex-wrap gap-2">
             <Link to="/builder/$id" params={{ id: application.cv_id }} search={{ application: application.id }} className="inline-flex items-center gap-1 rounded-md bg-app-primary px-3 py-2 text-sm font-medium text-white hover:bg-app-primary-hover">Open/Edit CV <Pencil className="h-3.5 w-3.5" /></Link>
-            <button type="button" onClick={onExport} className="inline-flex items-center gap-1 rounded-md border border-app-rule-strong px-3 py-2 text-sm font-medium text-app-ink-2 hover:bg-app-surface-muted"><Download className="h-3.5 w-3.5" /> Export PDF</button>
+            <CVExportControl
+              cvId={application.cv_id}
+              pdfFilename={`${application.company}-${application.role}.pdf`}
+              filenameBase={linkedCV?.title || `${application.company}-${application.role}`}
+            />
           </div>
         </>
       ) : (
@@ -363,15 +396,62 @@ export default function ApplicationCvPanel({
           {tailoringStarting ? "Preparing tailoring…" : tailoringBlocksNewSession ? "Finish current tailoring first" : canRestart ? "Start new tailoring" : "Tailor with AI"}
         </button>
       </div>
+      {providerAvailability.state !== "unsupported" && (
+        <div className="mt-3 border-t border-app-rule-soft pt-3" role="group" aria-label="Optional provider tailoring">
+          <p className="text-xs font-medium text-app-ink-2">Optional provider runs</p>
+          {providerAvailability.state === "loading" && <p className="mt-2 text-xs leading-5 text-app-ink-3" role="status">Checking provider availability…</p>}
+          {providerAvailability.state === "failed" && (
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-app-danger" role="alert">
+              <span>{providerAvailability.message}</span>
+              <button type="button" onClick={onRetryProviderAvailability} className="font-medium underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary focus-visible:ring-offset-2">Retry</button>
+            </div>
+          )}
+          {providerAvailability.state === "loaded" && (
+            <>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {(["chatgpt", "gemini"] as const).map((provider) => {
+                  const name = provider === "chatgpt" ? "ChatGPT" : "Gemini";
+                  const providerStatus = providerRunAvailability(provider);
+                  const reasonId = `tailoring-${provider}-availability`;
+                  if (!providerStatus?.visible) return null;
+                  return (
+                    <button
+                      key={provider}
+                      type="button"
+                      onClick={() => onStartProviderTailoring(provider)}
+                      disabled={!providerStatus.ready}
+                      aria-describedby={reasonId}
+                      className="inline-flex items-center gap-1 rounded-md border border-app-primary-soft px-3 py-2 text-sm font-medium text-app-primary hover:bg-app-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Tailor with {name}
+                    </button>
+                  );
+                })}
+              </div>
+              {(["chatgpt", "gemini"] as const).map((provider) => {
+                const providerStatus = providerRunAvailability(provider);
+                const reasonId = `tailoring-${provider}-availability`;
+                if (providerStatus?.ready) return <p key={provider} id={reasonId} className="sr-only">{provider === "chatgpt" ? "ChatGPT" : "Gemini"} is ready.</p>;
+                return (
+                  <p key={provider} id={reasonId} className="mt-2 text-xs leading-5 text-app-ink-3" role="status">
+                    {provider === "chatgpt" ? "ChatGPT" : "Gemini"}: {providerStatus?.reason ?? "Provider status is unavailable."}{" "}
+                    {providerStatus?.needsSettings && <Link to="/settings" className="font-medium text-app-primary hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary focus-visible:ring-offset-2">Open provider settings</Link>}
+                  </p>
+                );
+              })}
+            </>
+          )}
+        </div>
+      )}
       {tailoringActionError && <p className="mt-3 text-xs leading-5 text-app-danger" role="alert" aria-live="assertive">{tailoringActionError}</p>}
-      <p className="mt-3 text-xs text-app-ink-3">Your coding agent receives your full profile and every Library entry, composes a complete CV, and previews the rendered result. Your linked CV stays in place until you accept the draft.</p>
+      <p className="mt-3 text-xs text-app-ink-3">{isProviderSession ? `${providerName} receives your full profile and every Library entry to compose a complete CV and preview the rendered result.` : "Your coding agent receives your full profile and every Library entry, composes a complete CV, and previews the rendered result."} Your linked CV stays in place until you accept the draft.</p>
 
       {tailoringSession && (
         <div className="mt-4 rounded-md bg-app-canvas px-3 py-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-sm font-medium text-app-ink">Use your coding agent</p>
-              <p className="mt-1 break-words text-xs text-app-ink-3">{sessionStatus ? sessionStatusLabel(sessionStatus) : "Ready to start"}{sessionStatus === "draft_ready" ? " · ready for review" : (isActiveSession ? ` · agent access expires ${new Date(tailoringSession.expires_at).toLocaleTimeString()}` : "")}</p>
+              <p className="text-sm font-medium text-app-ink">{isProviderSession ? `Tailor with ${providerName}` : "Use your coding agent"}</p>
+              <p className="mt-1 break-words text-xs text-app-ink-3">{sessionStatus ? sessionStatusLabel(sessionStatus) : "Ready to start"}{sessionStatus === "draft_ready" ? " · ready for review" : (isActiveSession ? ` · ${isProviderSession ? "provider run" : "agent access"} expires ${new Date(tailoringSession.expires_at).toLocaleTimeString()}` : "")}</p>
             </div>
             {isActiveSession && <button type="button" onClick={onCancelTailoring} disabled={tailoringAction !== null} className="inline-flex items-center gap-1 text-xs font-medium text-app-danger hover:underline disabled:opacity-50"><XCircle className="h-3.5 w-3.5" /> {tailoringAction === "cancel" ? "Cancelling…" : "Cancel"}</button>}
           </div>
@@ -387,8 +467,10 @@ export default function ApplicationCvPanel({
               </div>
             </>
           )}
-          {isCreated && !showOneTimePrompt && <p className="mt-3 text-xs leading-5 text-app-ink-2" role="status">This loaded session has no reusable one-time code. Cancel it and start a new session to get a fresh prompt.</p>}
-          {sessionStatus === "exchanged" && <p className="mt-3 text-xs leading-5 text-app-ink-2" role="status">Your coding agent has connected. This page will update when it submits a draft.</p>}
+          {isCreated && !showOneTimePrompt && !isProviderSession && <p className="mt-3 text-xs leading-5 text-app-ink-2" role="status">This loaded session has no reusable one-time code. Cancel it and start a new session to get a fresh prompt.</p>}
+          {isProviderSession && isActiveSession && <p className="mt-3 text-xs leading-5 text-app-ink-2" role="status">{tailoringStatus?.provider_stage ? `Provider status: ${tailoringStatus.provider_stage.replace(/_/g, " ")}.` : `${providerName} is preparing your tailoring task.`} This page will update while the task runs.</p>}
+          {isProviderSession && tailoringStatus?.provider_error && <p className="mt-3 break-words text-xs leading-5 text-app-danger" role="alert">{tailoringStatus.provider_error}</p>}
+          {sessionStatus === "exchanged" && !isProviderSession && <p className="mt-3 text-xs leading-5 text-app-ink-2" role="status">Your coding agent has connected. This page will update when it submits a draft.</p>}
 
           {showDraftReview && (
             <div className="mt-3 border-t border-app-rule-soft pt-3 text-xs text-app-ink-2">

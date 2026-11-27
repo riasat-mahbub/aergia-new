@@ -10,6 +10,12 @@ from app.services.cv import CVLinkedToApplicationError, CVService
 from app.http_schemas.tailoring import TailoringDraftContextResponse
 from app.services.tailoring import TailoringConflictError, TailoringSessionNotFoundError, TailoringService
 from app.services.pdf import PDFService
+from app.services.docx import (
+    DOCXCVNotFoundError,
+    DOCXGenerationError,
+    DOCXManifestLookupError,
+    DOCXService,
+)
 from app.services.relevance import REQUIREMENT_EXTRACTION_ERROR, RequirementExtractionError
 from app.services.quotas import QuotaExceededError
 from app.routes.render import strip_anchor_hrefs
@@ -22,6 +28,16 @@ NOT_FOUND = "CV not found"
 
 router = APIRouter()
 logger = logging.getLogger("aergia.cvs")
+DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+
+def _docx_export_http_error(category: str) -> HTTPException:
+    logger.error("cv_docx_export_failed", extra={"error_category": category})
+    return HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="Unable to export CV",
+    )
+
 
 @router.get("", response_model=list[CVListItem])
 async def list_cvs(
@@ -218,6 +234,49 @@ async def export_cv_pdf(
         iter([pdf_bytes]),
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="cv-{cv_id}.pdf"'},
+    )
+
+
+@router.post(
+    "/{cv_id}/export/docx",
+    response_class=Response,
+    responses={
+        200: {
+            "content": {
+                DOCX_MEDIA_TYPE: {
+                    "schema": {"type": "string", "format": "binary"},
+                },
+            },
+        },
+    },
+)
+@limiter.limit("5/minute")
+async def export_cv_docx(
+    request: Request,
+    response: Response,
+    cv_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Download an editable Word document for the current saved CV."""
+
+    try:
+        docx_bytes = await DOCXService(db).export_docx(cv_id, current_user.id)
+    except DOCXCVNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_FOUND) from exc
+    except (DOCXManifestLookupError, DOCXGenerationError) as exc:
+        category = "manifest" if isinstance(exc, DOCXManifestLookupError) else "generation"
+        raise _docx_export_http_error(category) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise _docx_export_http_error("export") from exc
+
+    return Response(
+        content=docx_bytes,
+        media_type=DOCX_MEDIA_TYPE,
+        headers={
+            "Content-Disposition": f'attachment; filename="cv-{cv_id}.docx"',
+            "Cache-Control": "private, no-store",
+        },
     )
 
 

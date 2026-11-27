@@ -6,6 +6,7 @@ interface Props {
   onClose: () => void;
   children: ReactNode;
   size?: "default" | "wide";
+  panelLayout?: "default" | "pinned-actions";
   titleId?: string;
   descriptionId?: string;
   initialFocusRef?: RefObject<HTMLElement | null>;
@@ -37,6 +38,7 @@ export default function Modal({
   onClose,
   children,
   size = "default",
+  panelLayout = "default",
   titleId,
   descriptionId,
   initialFocusRef,
@@ -44,6 +46,9 @@ export default function Modal({
   const panelRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
+  const panelLayoutClass = panelLayout === "pinned-actions"
+    ? "flex flex-col max-h-[calc(100vh-2rem)] supports-[height:100dvh]:max-h-[calc(100dvh-2rem)]"
+    : "max-h-[calc(100vh-2rem)]";
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -141,7 +146,7 @@ export default function Modal({
             aria-labelledby={titleId}
             aria-describedby={descriptionId}
             tabIndex={-1}
-            className={`relative z-10 w-[calc(100%-2rem)] ${PANEL_WIDTH[size]} max-h-[calc(100vh-2rem)] overflow-hidden rounded-lg bg-white p-6 shadow-xl focus:outline-none`}
+            className={`relative z-10 w-[calc(100%-2rem)] ${PANEL_WIDTH[size]} ${panelLayoutClass} overflow-hidden rounded-lg bg-white p-6 shadow-xl focus:outline-none`}
           >
             {children}
           </motion.div>

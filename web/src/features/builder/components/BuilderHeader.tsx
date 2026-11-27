@@ -1,8 +1,7 @@
-import type { CVDetail } from "@/features/cvs";
+import { CVExportControl, type CVDetail } from "@/features/cvs";
 import { ScannerJobFitBadge } from "@/features/applications";
 import type { Application, ScannerAnalysisContext } from "@/features/applications";
 import type { TailoringDraftContextResponse } from "@/features/tailoring";
-import ExportPDFButton from "./ExportPDFButton";
 import PromoteToLibraryButton from "./PromoteToLibraryButton";
 
 interface BuilderHeaderProps {
@@ -20,7 +19,7 @@ interface BuilderHeaderProps {
   showSavedFeedback: boolean;
   onBack: () => void;
   onOpenScanner: () => void;
-  onSave: () => Promise<void>;
+  onSave: () => Promise<boolean | void>;
   onReevaluateDraft: () => Promise<void>;
   onRefreshDraftContext: () => Promise<void>;
   reevaluatingDraft: boolean;
@@ -117,7 +116,12 @@ export default function BuilderHeader({
             >
               {isSaving ? "Saving..." : showSavedFeedback ? "Saved!" : "Save"}
             </button>
-            <ExportPDFButton cvId={cvId} cvTitle={cv.title} onBeforeExport={onSave} />
+            <CVExportControl
+              cvId={cvId}
+              pdfFilename={cv.title ? `${cv.title.replace(/[^a-zA-Z0-9]/g, "_")}.pdf` : "cv.pdf"}
+              filenameBase={cv.title}
+              onBeforeExport={onSave}
+            />
             <PromoteToLibraryButton cvId={cvId} />
           </div>
         </div>
